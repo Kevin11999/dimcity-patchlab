@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>DimCity PatchLab</title>
+  <style>
+    :root{
+      --bg:#07111f;--panel:#0b1728;--card:#101f34;--card2:#132844;--line:#23405f;--text:#eaf4ff;--muted:#9fc0df;--acc:#4ea8ff;
+      --green:#1DB954;--yellow:#FFC107;--red:#E53935;--blue:#42A5F5;--purple:#9b5cff;--cyan:#21d4fd;--orange:#ff9f43
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:radial-gradient(circle at top left,rgba(78,168,255,.24),transparent 30%),radial-gradient(circle at top right,rgba(33,212,253,.12),transparent 32%),var(--bg);color:var(--text);font:14px/1.4 system-ui,Segoe UI,Roboto}
+    header{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,#0e2742,#07111f 52%,#123556)}
+    button{background:var(--acc);border:0;color:#00111f;padding:8px 12px;border-radius:8px;cursor:pointer}
+    .wrap{display:grid;grid-template-columns:320px 1fr;gap:12px;height:calc(100% - 50px)}
+    aside{border-right:1px solid var(--line);background:linear-gradient(180deg,#10243d,#07111f);overflow:auto}
+    main{padding:12px;overflow:auto}
+    .section{background:linear-gradient(180deg,var(--card),#081422);border:1px solid var(--line);border-radius:12px;margin:8px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+    .section h3{margin:0;padding:12px;border-bottom:1px solid var(--line);font-size:16px;background:linear-gradient(90deg,rgba(78,168,255,.15),transparent);border-radius:12px 12px 0 0}
+    .section .content{padding:12px}
+    .pill{display:inline-block;padding:2px 6px;border-radius:999px;font-size:12px;color:#000}
+    .GREEN{background:var(--green)} .YELLOW{background:var(--yellow)} .RED{background:var(--red)} .BLUE{background:var(--blue)}
+    .status-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+    .status-text{vertical-align:middle}
+    .usagebar{height:10px;background:#0b0f14;border:1px solid var(--line);border-radius:999px;overflow:hidden;min-width:80px}
+    .usagebar span{display:block;height:100%;background:var(--acc)}
+    .usagebar.big{height:14px;width:100%;max-width:520px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:6px 8px;border-bottom:1px solid var(--line)}
+    .list{list-style:none;margin:0;padding:0}
+    .item{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+    .item:hover{background:#112840}
+    .item .sub{color:var(--muted);font-size:12px}
+    .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .port{border:1px solid var(--line);border-radius:8px;padding:8px}
+    .port h5{margin:0 0 6px 0;font-size:12px;color:var(--muted)}
+    .kv{display:flex;gap:10px;flex-wrap:wrap;font-size:12px}
+    .kv b{color:var(--muted)}
+    .row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+    select,input[type=text]{background:#0e141c;border:1px solid var(--line);color:#eaf2ff;padding:6px 8px;border-radius:6px}
+    .namebar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:6px 0 12px 0}
+    .danger{color:var(--red)} .ok{color:var(--green)} .warn{color:var(--yellow)} .muted{color:var(--muted)}
+    .dimcity-tag{font-size:12px;color:var(--muted)}
+    .hint{font-size:12px;color:var(--muted);margin-top:6px}
+    .badge{display:inline-block;padding:2px 6px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--muted)}
+    .toggle{cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+    .twist{font-weight:bold}
+    .subsec{margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
+
+    /* Import-wizard */
+    .backdrop{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:10000}
+    .modal{width:min(1100px,96vw);max-height:90vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}
+    .modal header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)}
+    .modal .body{padding:12px}
+    .controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:10px}
+    .num{display:flex;align-items:center;gap:6px}
+    .num button{padding:4px 8px}
+    .table-wrap{border:1px solid var(--line);border-radius:8px;overflow:auto}
+    .idx{color:#8aa;min-width:56px}
+    .excluded{opacity:.35;background:#0c1118}
+    .right{margin-left:auto}
+    .chk{display:flex;align-items:center;gap:6px}
+
+/* Tools Dropdown */
+#toolsDropdown { display:none; }
+#menuTools:hover #toolsDropdown { display:block; }
+#toolsDropdown .dd-item:hover { background:#112840; }
+
+/* File Dropdown */
+#fileDropdown { display:none; }
+#menuFile:hover #fileDropdown { display:block; }
+#fileDropdown .dd-item:hover { background:#112840; }
+
+
+/* Network device visuals */
+.device-modal-grid{display:grid;grid-template-columns:360px 1fr;gap:14px}
+.device-card{border:1px solid var(--line);border-radius:10px;padding:10px;background:#0d1219;margin-bottom:10px}
+.device-card h4{margin:0 0 8px 0}
+.device-form{display:grid;grid-template-columns:130px 1fr;gap:8px;align-items:center}
+.device-form input,.device-form select{width:100%;background:#0e141c;border:1px solid var(--line);color:#eaf2ff;padding:6px 8px;border-radius:6px}
+.device-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+.device-face{border:1px solid var(--line);border-radius:10px;padding:10px;background:#090d12;margin:8px 0}
+.device-face-title{display:flex;justify-content:space-between;gap:8px;margin-bottom:8px;color:#9fb0c3;font-size:12px}
+.device-ports{display:flex;flex-wrap:wrap;gap:8px}
+.device-port{width:42px;height:42px;border:2px solid #334155;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;background:#0b0f14;color:#eaf2ff;position:relative}
+.device-port.small{width:34px;height:34px}
+.device-port[data-bus="A"]{border-color:#4ea8ff}
+.device-port[data-bus="B"]{border-color:#FFC107}
+.device-list-empty{color:#9fb0c3;border:1px dashed var(--line);border-radius:10px;padding:14px;text-align:center}
+
+
+/* DimCity visual upgrade */
+.color-chip{display:inline-block;width:14px;height:14px;border-radius:4px;border:1px solid rgba(255,255,255,.35);vertical-align:-2px;margin-right:6px;box-shadow:0 0 12px rgba(255,255,255,.08)}
+.dim-section{border-left:5px solid var(--dim-color,#4ea8ff)}
+.dim-section h3{background:linear-gradient(90deg,color-mix(in srgb,var(--dim-color,#4ea8ff) 26%,transparent),transparent)}
+.dim-hero{border:1px solid var(--line);border-left:8px solid var(--dim-color,#4ea8ff);border-radius:14px;padding:16px;background:linear-gradient(135deg,color-mix(in srgb,var(--dim-color,#4ea8ff) 24%,#121820),#0d1420 70%);margin-bottom:12px;box-shadow:0 12px 34px rgba(0,0,0,.22)}
+.dim-title{font-size:34px;font-weight:800;letter-spacing:.6px;line-height:1;margin:0 0 4px 0}
+.dim-subtitle{color:var(--muted);font-size:13px}
+.dim-color-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.color-swatch{width:24px;height:24px;border-radius:7px;border:1px solid rgba(255,255,255,.32);cursor:pointer;box-shadow:0 0 0 2px rgba(0,0,0,.18)}
+.color-swatch:hover{transform:translateY(-1px)}
+.color-swatch.active{outline:2px solid #fff;outline-offset:2px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px}
+.stat-card{border:1px solid var(--line);border-radius:12px;padding:12px;background:linear-gradient(180deg,#142033,#0d1420)}
+.stat-card b{display:block;font-size:22px;line-height:1.1;color:#fff}
+.stat-card span{font-size:12px;color:var(--muted)}
+.universe-chip-grid{display:flex;flex-wrap:wrap;gap:8px}
+.uni-chip{border:1px solid color-mix(in srgb,var(--dim-color,#4ea8ff) 42%,var(--line));background:linear-gradient(180deg,color-mix(in srgb,var(--dim-color,#4ea8ff) 20%,#142033),#0d1420);border-radius:12px;padding:8px 10px;min-width:86px;cursor:pointer}
+.uni-chip b{font-size:15px}.uni-chip span{display:block;color:var(--muted);font-size:11px}
+.lk-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.lk-mini-card{border:1px solid var(--line);border-radius:12px;padding:10px;background:#0d1420;cursor:pointer}
+.lk-mini-card:hover{border-color:var(--dim-color,#4ea8ff)}
+.lk-port-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-top:8px}
+.lk-port-cell{border:1px solid #2f4058;border-radius:7px;min-height:32px;padding:4px;text-align:center;background:#0b111b;font-size:11px}.lk-port-cell.filled{border-color:var(--dim-color,#4ea8ff);background:color-mix(in srgb,var(--dim-color,#4ea8ff) 18%,#0b111b)}
+
+/* Builder library */
+.builder-grid{display:grid;grid-template-columns:380px 1fr;gap:14px}
+.builder-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+.builder-type-card{border:1px solid var(--line);border-left:5px solid var(--device-color,#4ea8ff);border-radius:12px;padding:10px;background:#0d1420;cursor:pointer}
+.builder-type-card:hover{border-color:var(--device-color,#4ea8ff)}
+.builder-type-card h4{margin:0 0 4px 0}.builder-type-card .muted{font-size:12px}
+.pair-wrap{display:inline-flex;gap:4px;padding:4px;border:1px dashed #3a4d68;border-radius:999px;background:#0b111b;margin:2px;align-items:center}
+.device-face{border-left:5px solid var(--device-color,#4ea8ff)!important;background:linear-gradient(180deg,#111b2b,#090d12)!important}
+.device-port{box-shadow:inset 0 0 0 2px rgba(255,255,255,.03)}
+.device-port[data-bus="A"]{border-color:#4ea8ff;background:rgba(78,168,255,.12)}
+.device-port[data-bus="B"]{border-color:#FFC107;background:rgba(255,193,7,.12)}
+
+
+
+/* V4 visual upgrade */
+.main-dim-active .section{box-shadow:0 10px 30px rgba(255,159,67,.12)}
+.dim-hero.v4{padding:20px;border-radius:18px}
+.dim-title.v4{font-size:44px;letter-spacing:.8px}
+.dim-pill-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.info-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:5px 9px;background:rgba(255,255,255,.04);font-size:12px;color:var(--muted)}
+.uni-overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.uni-card{border:1px solid color-mix(in srgb,var(--dim-color,#ff9f43) 44%,var(--line));border-left:6px solid var(--dim-color,#ff9f43);border-radius:14px;padding:10px;background:linear-gradient(180deg,color-mix(in srgb,var(--dim-color,#ff9f43) 18%,#23140b),#160c06);cursor:pointer;min-height:84px}
+.uni-card:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(0,0,0,.22)}
+.uni-card.active{outline:2px solid var(--dim-color,#ff9f43);outline-offset:2px}
+.uni-card .uni-title{font-size:22px;font-weight:800;line-height:1}
+.uni-card .uni-sub{color:var(--muted);font-size:12px;margin-top:6px}
+.inline-uni-detail{border:1px solid color-mix(in srgb,var(--dim-color,#ff9f43) 45%,var(--line));border-radius:14px;background:linear-gradient(180deg,color-mix(in srgb,var(--dim-color,#ff9f43) 12%,#21140c),#120b07);padding:12px;margin-top:12px}
+.inline-uni-columns{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:10px}
+.lk-visual{border:1px solid var(--line);border-left:5px solid var(--dim-color,#ff9f43);border-radius:14px;background:linear-gradient(180deg,#21140c,#120b07);padding:10px;margin-top:8px}
+.lk-visual-head{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:10px}
+.lk-block-layout{display:grid;grid-template-columns:92px 1fr;gap:10px;align-items:stretch}
+.lk-input{border:1px solid var(--line);border-radius:12px;background:#120b07;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-weight:800;color:#fff4e8}
+.lk-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.lk-group{border:1px solid color-mix(in srgb,var(--dim-color,#ff9f43) 32%,var(--line));border-radius:12px;padding:8px;background:rgba(255,255,255,.035)}
+.lk-group-title{display:flex;justify-content:space-between;gap:8px;margin-bottom:6px;font-size:12px;color:var(--muted)}
+.lk-group .lk-port-grid{grid-template-columns:repeat(4,1fr)}
+.lk-xlr12-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.lk-port-cell{position:relative}
+.lk-port-cell .pnum{font-weight:800;color:#fff}.lk-port-cell .puniverse{font-size:12px}.lk-port-cell .pdest{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.network-dim-section{border-left:5px solid #ff9f43}
+.network-device-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
+.device-face.wide .device-ports{display:grid;grid-template-columns:repeat(auto-fit,minmax(48px,1fr));gap:8px}.device-face.wide .device-port{margin:auto}
+.builder-v4-grid{display:grid;grid-template-columns:1fr;gap:14px}.builder-v4-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.builder-v4-form{display:none}.builder-v4-form.open{display:block}.builder-v4-form .device-form{grid-template-columns:160px 1fr}.builder-type-card .device-face{margin-top:8px}.builder-type-card.selected{outline:2px solid var(--device-color,#ff9f43);outline-offset:2px}
+.planner-row{border:1px solid var(--line);border-left:6px solid var(--dim-color,#ff9f43);border-radius:14px;background:#180e08;padding:12px;margin-bottom:10px}.planner-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:10px}.planner-controls select,.planner-controls input{width:100%}
+
+
+/* V5 cleanup */
+.main-dim-active .section{box-shadow:0 10px 30px rgba(78,168,255,.12)}
+.uni-card{border-color:color-mix(in srgb,var(--dim-color,#4ea8ff) 44%,var(--line));border-left-color:var(--dim-color,#4ea8ff);background:linear-gradient(180deg,color-mix(in srgb,var(--dim-color,#4ea8ff) 18%,#10243d),#081422)}
+.inline-uni-detail{border-color:color-mix(in srgb,var(--dim-color,#4ea8ff) 45%,var(--line));background:linear-gradient(180deg,color-mix(in srgb,var(--dim-color,#4ea8ff) 12%,#101f34),#07111f)}
+.lk-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(620px,100%),1fr));gap:12px;align-items:start}
+.lk-mini-card{min-width:0;overflow:hidden;cursor:default}
+.lk-mini-card.clickable{cursor:pointer}
+.lk-visual{min-width:0;overflow:hidden;background:linear-gradient(180deg,#10243d,#07111f)}
+.lk-block-layout{grid-template-columns:82px minmax(0,1fr)}
+.lk-groups{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));min-width:0}
+.lk-xlr12-grid{display:grid;grid-template-columns:repeat(6,minmax(50px,1fr));gap:6px;min-width:0}
+.lk-port-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(52px,1fr));gap:6px;min-width:0}
+.lk-group .lk-port-grid{grid-template-columns:repeat(4,minmax(44px,1fr))}
+.lk-port-cell{min-width:0;overflow:hidden}
+.inline-detail-panel{grid-column:1/-1;margin:10px 0 2px 0;border:1px solid color-mix(in srgb,var(--dim-color,#4ea8ff) 42%,var(--line));border-radius:14px;background:linear-gradient(180deg,color-mix(in srgb,var(--dim-color,#4ea8ff) 10%,#101f34),#07111f);padding:12px}
+.inline-detail-head{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.inline-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:10px}
+.inline-controls label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.inline-controls select,.inline-controls input{width:100%;background:#081422;border:1px solid var(--line);color:var(--text);padding:7px 8px;border-radius:8px}
+.veam-port-grid{display:grid;grid-template-columns:repeat(4,minmax(58px,1fr));gap:6px}
+.device-face{max-width:760px}
+.device-face.wide .device-ports{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start}
+.device-face.wide .device-port{margin:0}
+.builder-type-card .device-face{max-width:640px}
+.builder-v4-grid{display:grid;grid-template-columns:1fr;gap:14px}.builder-v4-form{max-width:900px}.builder-v4-form .device-form{grid-template-columns:120px minmax(220px,1fr)}
+.device-form input.invalid{border-color:var(--red)!important;box-shadow:0 0 0 2px rgba(229,57,53,.18)}
+.network-assign-panel{display:none;border:1px dashed var(--line);border-radius:12px;padding:10px;background:rgba(255,255,255,.025);margin-bottom:12px}.network-assign-panel.open{display:block}
+.network-lists{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}.network-list-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:6px 0;font-weight:800}.network-device-list{display:grid;grid-template-columns:1fr;gap:10px}.network-instance{border:1px solid var(--line);border-left:5px solid var(--device-color,#4ea8ff);border-radius:14px;padding:12px;background:#0b1728}.network-instance-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:8px}.network-instance-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin:8px 0}.network-instance-fields label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}.network-instance-fields input{background:#081422;border:1px solid var(--line);color:var(--text);padding:6px 8px;border-radius:8px}.network-device-list .device-face{max-width:100%}.device-port.assignable{cursor:pointer}.device-port.assignable.empty{opacity:.45}.device-port.assignable:hover{border-color:var(--red)}
+@media (max-width:720px){.lk-xlr12-grid{grid-template-columns:repeat(4,minmax(48px,1fr))}.lk-block-layout{grid-template-columns:1fr}.lk-input{min-height:44px}.builder-v4-form .device-form{grid-template-columns:1fr}}
+
+
+/* V6 structure / layout cleanup */
+:root{
+  --bg:#061225;--panel:#0a1b31;--card:#0d223d;--card2:#123056;--line:#224a72;--text:#eaf6ff;--muted:#a6c8e8;--acc:#49a9ff;
+}
+body{background:radial-gradient(circle at top left,rgba(73,169,255,.28),transparent 30%),radial-gradient(circle at top right,rgba(40,110,220,.16),transparent 34%),var(--bg)}
+header{background:linear-gradient(90deg,#0b3760,#061225 58%,#10477a)}
+.lk-card-grid{display:grid!important;grid-template-columns:1fr!important;gap:14px!important;align-items:start}
+.lk-mini-card{width:100%;max-width:100%;overflow:hidden;padding:12px}
+.lk-mini-card.v6{border-left:6px solid var(--dim-color,#49a9ff)}
+.lk-visual{width:100%;max-width:100%;overflow:hidden;background:linear-gradient(180deg,#0d2a4a,#061225)!important}
+.lk-visual-head{align-items:flex-start}
+.lk-xlr12-grid{display:grid!important;grid-template-columns:repeat(12,minmax(62px,1fr))!important;gap:6px;overflow-x:auto;padding-bottom:2px}
+.lk-block-layout{display:grid;grid-template-columns:92px minmax(0,1fr);gap:12px;align-items:stretch}
+.lk-groups{display:grid!important;grid-template-columns:repeat(3,minmax(220px,1fr))!important;gap:10px;min-width:0}
+.lk-group{min-width:0;overflow:hidden}
+.lk-group-title{align-items:flex-start}.lk-group-title div{display:flex;flex-direction:column;gap:2px}.lk-group-title em{font-style:normal;color:var(--muted);font-size:11px;text-align:right}
+.lk-group.not-linked{opacity:.78}.lk-group.linked{border-color:color-mix(in srgb,var(--dim-color,#49a9ff) 55%,var(--line))}
+.lk-group .lk-port-grid{display:grid!important;grid-template-columns:repeat(4,minmax(54px,1fr))!important;gap:6px}
+.lk-port-cell{min-height:54px;padding:5px 4px;border-radius:9px}.lk-port-cell.conflict{border-color:var(--red)!important;background:rgba(229,57,53,.16)!important}
+.lk-port-cell .puniverse{font-weight:700}.lk-port-cell .psource{font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inline-detail-panel{border-left:8px solid var(--dim-color,#49a9ff);box-shadow:0 10px 28px rgba(0,0,0,.26)}
+.inline-title{font-size:20px;letter-spacing:.2px}.inline-table-wrap{margin-top:10px;max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.dim-action-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.veam-port-grid{grid-template-columns:repeat(4,minmax(70px,1fr))!important}
+.device-face.compact{max-width:620px!important;width:fit-content;min-width:min(100%,360px)}
+.device-face.compact .device-ports{display:flex!important;flex-wrap:wrap;gap:8px;max-width:560px}
+.device-face.node-instance-face{max-width:100%!important;width:100%}.node-port-row{display:flex!important;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start}
+.device-port{width:48px;height:48px;font-size:10px;text-align:center;padding:2px}.device-port.small{width:34px;height:34px}
+.device-port.assignable:hover,.device-port.assignable.drop-hover{border-color:#fff;box-shadow:0 0 0 3px rgba(73,169,255,.28)}
+.network-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:14px;align-items:start}.universe-pool{border:1px solid var(--line);border-radius:12px;padding:10px;background:#071a30;position:sticky;top:0}.universe-pool-list{display:flex;flex-direction:column;gap:6px}.uni-pool-chip{background:#123a62;color:#eaf6ff;border:1px solid #2f6fa8;border-radius:999px;padding:6px 10px;text-align:left;cursor:grab}.uni-pool-chip:active{cursor:grabbing}
+.network-dim-section{border-left-color:var(--dim-color,#49a9ff)!important}
+.network-instance{background:linear-gradient(180deg,#0d223d,#07172a)!important}.node-instance{border-left-color:#49a9ff}.splitter-instance{border-left-color:#ffc107}.splitter-dim-section{border-left-color:#ffc107!important}.split-calc-box{border:1px solid var(--line);border-radius:10px;background:#071a30;padding:10px;margin-top:10px;color:var(--muted)}
+.mini-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.58);display:flex;align-items:center;justify-content:center;z-index:10005}.mini-modal{width:min(520px,92vw);background:#0d223d;border:1px solid var(--line);border-radius:14px;padding:14px;color:var(--text);box-shadow:0 20px 60px rgba(0,0,0,.5)}.mini-modal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}.universe-picker{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.universe-picker button{background:#123a62;color:#eaf6ff;border:1px solid #2f6fa8}.universe-picker .pick-empty{background:#334155;color:#fff}
+.builder-v4-form .device-form{grid-template-columns:130px minmax(220px,1fr)}.builder-list{grid-template-columns:1fr!important}.builder-type-card .device-face{max-width:680px!important}.network-list-title{font-size:15px;color:#fff}
+@media (max-width:980px){.lk-groups{grid-template-columns:1fr!important}.lk-xlr12-grid{grid-template-columns:repeat(6,minmax(62px,1fr))!important}.network-layout{grid-template-columns:1fr}.universe-pool{position:static}.lk-block-layout{grid-template-columns:1fr}.lk-input{min-height:42px}.device-face.compact{width:100%}}
+
+  </style>
+</head>
+<body>
+  <header>
+    <!-- File dropdown -->
+<div class="menu" id="menuFile" style="position:relative; display:inline-block;">
+  <button class="button">File ▾</button>
+  <div id="fileDropdown" style="position:absolute; top:100%; left:0; min-width:220px; background:#121820; border:1px solid #1e2835; border-radius:8px; padding:6px; z-index:50;">
+    <div class="dd-item" id="fileSave"      style="padding:8px 10px; cursor:pointer;">Save</div>
+    <div class="dd-item" id="fileSaveAs"    style="padding:8px 10px; cursor:pointer;">Save as…</div>
+    <div class="dd-item" id="fileOpen"      style="padding:8px 10px; cursor:pointer;">Open project…</div>
+    <div class="dd-item" id="fileNew"       style="padding:8px 10px; cursor:pointer;">New project…</div>
+    <div style="height:1px; background:#1e2835; margin:6px 4px;"></div>
+    <div class="dd-item" id="fileImportCsv" style="padding:8px 10px; cursor:pointer;">Import CSV…</div>
+    <div class="dd-item" id="fileCsvSources" style="padding:8px 10px; cursor:pointer;">Imported CSV files…</div>
+    <div class="dd-item" id="fileExportPdf" style="padding:8px 10px; cursor:pointer;">Export PDF…</div>
+  </div>
+</div>
+<span id="fileInfo" class="muted" style="margin-left:8px"></span>
+
+    <!-- Tools dropdown -->
+<div class="menu" id="menuTools" style="position:relative; display:inline-block;">
+  <button class="button">Tools ▾</button>
+  <div id="toolsDropdown" style="position:absolute; top:100%; left:0; min-width:220px; background:#121820; border:1px solid #1e2835; border-radius:8px; padding:6px; z-index:50;">
+    <div class="dd-item" id="toolAddLK"   style="padding:8px 10px; cursor:pointer;">Add LK</div>
+    <div class="dd-item" id="toolAddVeam" style="padding:8px 10px; cursor:pointer;">Add Veam</div>
+    <div style="height:1px; background:#1e2835; margin:6px 4px;"></div>
+    <div class="dd-item" id="toolNodeBuilder" style="padding:8px 10px; cursor:pointer;">Node Type Builder…</div>
+    <div class="dd-item" id="toolSplitterBuilder" style="padding:8px 10px; cursor:pointer;">Splitter Type Builder…</div>
+    <div class="dd-item" id="toolNetworkDevices" style="padding:8px 10px; cursor:pointer;">Network Planner…</div>
+  </div>
+</div>
+
+<!-- Rebuild button -->
+    <button id="btnRebuild" class="button" style="margin-left:8px;">Rebuild</button>
+
+  </header>
+
+  <div class="wrap">
+  <aside>
+    
+
+    <div class="section">
+      <h3>Validation</h3>
+      <div class="content">
+        <ul id="issues" class="list"></ul>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Overview</h3>
+      <div class="content" id="summary"></div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="section">
+      <h3 id="lkHeader">Select an LK</h3>
+      <div class="content" id="lkDetail">
+        <div class="muted">No LK selected yet.</div>
+      </div>
+    </div>
+
+    <!-- VASTE CSV-sectie met ALTIJD een Edit-knop -->
+    <div class="section" id="rightCsvSection">
+      <h3>
+        <span class="twist" id="csvTwist">▸</span>
+        Total Imported CSV
+        <button id="btnCsvEdit" class="btn" style="float:right">Edit CSV</button>
+      </h3>
+      <div class="content" style="display:none">
+        <table>
+          <thead>
+            <tr>
+              <th>LK/Veam Name</th>
+              <th>Port</th>
+              <th>Universe</th>
+              <th>Location</th>
+              <th>DimCity</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="rawRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+
+  <!-- Import wizard -->
+  <div id="backdrop" class="backdrop">
+    <div class="modal">
+      <header>
+        <div>CSV Import</div>
+        <div class="muted" id="wizPath"></div>
+      </header>
+      <div class="body">
+        <div class="controls">
+          <div class="num">
+            <label>Skip top</label>
+            <button id="sfMinus">−</button>
+            <input id="skipFirst" type="text" value="0" style="width:50px;text-align:center">
+            <button id="sfPlus">+</button>
+          </div>
+          <div class="num">
+            <label>Skip bottom</label>
+            <button id="slMinus">−</button>
+            <input id="skipLast" type="text" value="0" style="width:50px;text-align:center">
+            <button id="slPlus">+</button>
+          </div>
+          <span class="right badge" id="wizCount">0 selected</span>
+        </div>
+
+        <div class="controls">
+          <label>Map columns:</label>
+          <select id="mapId"></select>
+          <select id="mapPort"></select>
+          <select id="mapUni"></select>
+          <select id="mapDest"></select>
+          <select id="mapTruss" disabled></select>
+          <span class="chk">
+            <input type="checkbox" id="useTruss">
+            <label for="useTruss">Use column 5</label>
+          </span>
+        </div>
+
+        <div class="table-wrap">
+          <table style="width:100%">
+            <thead>
+              <tr>
+                <th class="idx">#</th>
+                <th>LK /VEAM</th>
+                <th>LK/VEAM.POINT</th>
+                <th>UNIVERSE</th>
+                <th>POSITION</th>
+                <th>—</th>
+              </tr>
+            </thead>
+            <tbody id="wizRows"></tbody>
+          </table>
+        </div>
+
+        <div class="row" style="justify-content:flex-end;margin-top:10px">
+          <button id="wizCancel" style="background:#334155;color:#eaf2ff">Cancel</button>
+          <button id="wizImport">Import selection</button>
+        </div>
+        <div class="hint">Grijze regels worden niet geïmporteerd. Skip top/onder wordt automatisch voorgesteld en kan handmatig worden aangepast.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Libraries before renderer -->
+  <script src="./node_modules/papaparse/papaparse.min.js"></script>
+  <script src="./export-pdf.js"></script>
+  <script type="module" src="./renderer.js"></script>
+  <script type="module" src="./csv-editor.js"></script>
+  <script type="module" src="./project-io.js"></script>
+
+
+<!-- Tools overlay -->
+<div id="toolsBackdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center;">
+  <!-- Add LK modal -->
+  <div id="modalAddLK" style="display:none; width:420px; background:#121820; color:#eaf2ff; border:1px solid #1e2835; border-radius:12px; padding:16px;">
+    <h3 style="margin-top:0">Add LK</h3>
+    <div style="margin:8px 0;">
+      <label>LK number (for example <b>LK101</b>)</label>
+      <input id="lkInputId" type="text" placeholder="LK101" style="width:100%; margin-top:6px; padding:8px; background:#0b0f14; color:#eaf2ff; border:1px solid #1e2835; border-radius:8px;">
+    </div>
+    <div style="margin:8px 0;">
+      <label>Block type</label>
+      <select id="lkInputBlockType" style="width:100%; margin-top:6px; padding:8px; background:#0b0f14; color:#eaf2ff; border:1px solid #1e2835; border-radius:8px;">
+        <option value="MIXED">4X XLR 3p+5p + 3X Veam 4</option>
+        <option value="VEAM_ONLY">3X Veam 4</option>
+        <option value="XLR12">12X XLR 3p+5p</option>
+      </select>
+    </div>
+    <div id="lkAddError" style="color:#ffb74d; min-height:20px; margin-top:4px;"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+      <button id="lkAddCancel" class="button">Cancel</button>
+      <button id="lkAddConfirm" class="button">Add</button>
+    </div>
+  </div>
+
+  <!-- Add Veam modal -->
+  <div id="modalAddVeam" style="display:none; width:420px; background:#121820; color:#eaf2ff; border:1px solid #1e2835; border-radius:12px; padding:16px;">
+    <h3 style="margin-top:0">Add Veam</h3>
+    <div style="margin:8px 0;">
+      <label>Veam number (for example <b>V101</b>)</label>
+      <input id="veamInputId" type="text" placeholder="V101" style="width:100%; margin-top:6px; padding:8px; background:#0b0f14; color:#eaf2ff; border:1px solid #1e2835; border-radius:8px;">
+    </div>
+    <div id="veamAddError" style="color:#ffb74d; min-height:20px; margin-top:4px;"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+      <button id="veamAddCancel" class="button">Cancel</button>
+      <button id="veamAddConfirm" class="button">Add</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- CSV Editor popup -->
+<div id="editCsvBackdrop" class="backdrop" style="display:none;">
+  <div class="modal" style="width:min(1300px,96vw);max-height:92vh;overflow:auto;">
+    <header>
+      <div>Edit CSV</div>
+      <div class="muted" id="editCsvMeta"></div>
+    </header>
+    <div class="body" id="editCsvBody"></div>
+  </div>
+</div>
+
+
+
+</body>
+</html>

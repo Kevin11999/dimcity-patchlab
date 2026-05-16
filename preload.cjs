@@ -3,10 +3,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 function loadStableUiFixes(){
   const inject = () => {
-    if (document.getElementById('v10StableUiFixesScript')) return;
+    if (document.getElementById('v11StableUiFixesScript')) return;
     const s = document.createElement('script');
-    s.id = 'v10StableUiFixesScript';
-    s.src = './v10-stable-ui-fixes.js';
+    s.id = 'v11StableUiFixesScript';
+    s.src = './v11-stable-ui-fixes.js';
     s.defer = true;
     document.body.appendChild(s);
   };

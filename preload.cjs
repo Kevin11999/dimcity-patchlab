@@ -1,22 +1,9 @@
 // preload.cjs
 const { contextBridge, ipcRenderer } = require('electron');
 
-function loadRuntimeFixes(){
-  const inject = () => {
-    if (document.getElementById('v9RuntimeFixesScript')) return;
-    const s = document.createElement('script');
-    s.id = 'v9RuntimeFixesScript';
-    s.src = './v9-runtime-fixes.js';
-    s.defer = true;
-    document.body.appendChild(s);
-  };
-  if (document.readyState === 'loading') {
-    window.addEventListener('DOMContentLoaded', inject, { once:true });
-  } else {
-    inject();
-  }
-}
-loadRuntimeFixes();
+// V9 runtime UI layer disabled.
+// Reason: it can create a render/mutation loop after CSV import, causing the app to freeze.
+// Keep the file v9-runtime-fixes.js in the repo for reference, but do not auto-load it.
 
 contextBridge.exposeInMainWorld('app', {
   openCsv: () => ipcRenderer.invoke('openCsv'),

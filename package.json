@@ -8,6 +8,7 @@
 
   "scripts": {
     "start": "electron .",
+    "check": "node --check main.js && node --check renderer.js && node --check project-io.js && node --check csv-editor.js && node --check export-pdf.js",
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",

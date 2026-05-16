@@ -9,7 +9,6 @@ const __dirname  = path.dirname(__filename);
 
 let win;
 
-// Icon voor DimCity PatchLab (zorg dat dit bestand bestaat)
 const icon = nativeImage.createFromPath(
   path.join(__dirname, 'assets', 'dimcity-patchlab-256.png')
 );
@@ -18,9 +17,8 @@ async function createWindow() {
   win = new BrowserWindow({
     width: 1200,
     height: 800,
-    icon, // gebruik het app-icon (Windows/Linux, en voor window-icon)
+    icon,
     webPreferences: {
-      // Gebruik de CommonJS preload:
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
@@ -29,16 +27,13 @@ async function createWindow() {
   });
 
   await win.loadFile(path.join(__dirname, 'index.html'));
-  // win.webContents.openDevTools(); // optioneel
+  // win.webContents.openDevTools();
 }
 
 app.whenReady().then(() => {
-  // Op macOS wordt BrowserWindow.icon NIET gebruikt voor het Dock.
-  // Daarom hier expliciet het Dock-icoon instellen.
   if (process.platform === 'darwin' && icon && !icon.isEmpty()) {
     app.dock.setIcon(icon);
   }
-
   createWindow();
 });
 
@@ -52,9 +47,11 @@ app.on('activate', () => {
 
 // ===== IPC =====
 
-// CSV openen voor de import-wizard
+ipcMain.handle('ping', async () => 'pong');
+
 ipcMain.handle('openCsv', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: 'Import CSV',
     filters: [{ name: 'CSV', extensions: ['csv'] }],
     properties: ['openFile']
   });
@@ -63,15 +60,12 @@ ipcMain.handle('openCsv', async () => {
   return { path: filePaths[0], content };
 });
 
-// Expose generic dialog/show & file IO helpers to renderer via preload bridge
 ipcMain.handle('showSaveDialog', async (_evt, options) => {
-  const res = await dialog.showSaveDialog(win, options || {});
-  return res;
+  return await dialog.showSaveDialog(win, options || {});
 });
 
 ipcMain.handle('showOpenDialog', async (_evt, options) => {
-  const res = await dialog.showOpenDialog(win, options || {});
-  return res;
+  return await dialog.showOpenDialog(win, options || {});
 });
 
 ipcMain.handle('writeTextFile', async (_evt, { filePath, content }) => {
@@ -85,7 +79,6 @@ ipcMain.handle('readTextFile', async (_evt, filePath) => {
   return await fs.readFile(filePath, 'utf8');
 });
 
-// Eenvoudige PDF-export (printToPDF) – fallback
 ipcMain.handle('exportPdf', async (_evt, saveName = 'lk-veam-report.pdf') => {
   const pdf = await win.webContents.printToPDF({});
   const outPath = path.join(process.cwd(), saveName);
@@ -93,7 +86,6 @@ ipcMain.handle('exportPdf', async (_evt, saveName = 'lk-veam-report.pdf') => {
   return outPath;
 });
 
-// HTML → PDF via offscreen window (voor de mooie export layouts)
 ipcMain.handle('exportPdfFromHtml', async (_evt, { html, defaultPath }) => {
   const off = new BrowserWindow({
     show: false,
@@ -103,9 +95,7 @@ ipcMain.handle('exportPdfFromHtml', async (_evt, { html, defaultPath }) => {
   try {
     const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
     await off.loadURL(dataUrl);
-
-    // korte settle zodat fonts/layout geladen zijn
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 75));
 
     const pdf = await off.webContents.printToPDF({
       pageSize: 'A4',
@@ -113,8 +103,8 @@ ipcMain.handle('exportPdfFromHtml', async (_evt, { html, defaultPath }) => {
       marginsType: 1
     });
 
-    const res = await dialog.showSaveDialog({
-      title: 'Exporteer PDF',
+    const res = await dialog.showSaveDialog(win, {
+      title: 'Export PDF',
       defaultPath: defaultPath || 'lk-veam-report.pdf',
       filters: [{ name: 'PDF', extensions: ['pdf'] }]
     });
@@ -124,7 +114,6 @@ ipcMain.handle('exportPdfFromHtml', async (_evt, { html, defaultPath }) => {
     const outPath = res.filePath || defaultPath || 'lk-veam-report.pdf';
     await fs.writeFile(outPath, pdf);
     return outPath;
-
   } finally {
     if (!off.isDestroyed()) off.destroy();
   }

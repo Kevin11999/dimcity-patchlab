@@ -108,6 +108,9 @@
     for (const L of (M.lines || [])) rows.push([ L.id, String(L.port ?? ''), (L.universe ?? ''), (L.dest ?? ''), '', '', ...src(L) ]);
     for (const V of (M.veamLines || [])) rows.push([ V.id, String(V.port ?? ''), (V.universe ?? ''), (V.dest ?? ''), '', '', ...src(V) ]);
     for (const D of (M.dmxLoose || [])) rows.push([ '', '', (D.universe ?? ''), (D.dest ?? ''), '', (D.dimcity ?? ''), ...src(D) ]);
+    // ongeldige rijen bewaren zodat ze later hersteld kunnen worden
+    for (const r of (M.invalidRows || [])) rows.push(r.slice());
+    for (const r of (M.conflictRows || [])) rows.push(r.slice());
     return rows;
   }
 
@@ -256,7 +259,7 @@
   const fileName = p => String(p || '').split(/[\\/]/).pop();
   const projectName = (M, path) => M.projectMeta?.project || fileName(path).replace(/\.lkproj$/i, '');
 
-  async function writeProject(path, M){
+  async function writeProject(path, M, { quiet=false } = {}){
     const snap = buildSnapshot();
     await window.app.writeTextFile({ filePath:path, content:JSON.stringify(snap, null, 2) });
     M.filePath = path;
@@ -265,8 +268,16 @@
     App.setMODEL(M);
     await window.app.recentAdd?.(path, projectName(M, path));
     App.updateChrome?.();
-    notify(`Saved ${fileName(path)}`);
+    if (!quiet) notify(`Saved ${fileName(path)}`);
+    window.Autosave?.onSaved?.();
     return true;
+  }
+  // Autosave: alleen projecten die al een bestand hebben, zonder melding
+  async function saveQuietly(){
+    const M = App.getMODEL();
+    const path = M.filePath || M.projectPath;
+    if (!path || !window.app?.writeTextFile) return false;
+    return writeProject(ensureLkprojPath(path), M, { quiet:true });
   }
 
   async function fileSaveProject(){
@@ -334,6 +345,7 @@
     notify(`Opened ${fileName(path)}`);
     // Devices/racks/templates uit de show die nog niet in de eigen bibliotheek staan aanbieden
     await window.Library?.reviewProject?.(M);
+    window.PatchHistory?.reset?.();
     return true;
   }
 
@@ -438,6 +450,7 @@
     M.ui.view = 'HOME';
     App.setMODEL(M);
     App.renderAll?.();
+    window.PatchHistory?.reset?.();
   }
 
   async function createNewFile(){
@@ -470,6 +483,8 @@
     createNewFile,
     newProject,
     buildSnapshot,
-    applySnapshot
+    applySnapshot,
+    saveQuietly,
+    projectName: () => projectName(App.getMODEL(), App.getMODEL().filePath)
   };
 })();

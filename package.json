@@ -33,6 +33,7 @@
       "index.html",
       "styles/**",
       "ui/**",
+      "core/**",
       "assets/**",
       "package.json"
     ],

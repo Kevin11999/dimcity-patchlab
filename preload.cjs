@@ -17,6 +17,19 @@ contextBridge.exposeInMainWorld('app', {
   libraryRead: () => ipcRenderer.invoke('libraryRead'),
   libraryWrite: (content) => ipcRenderer.invoke('libraryWrite', content),
 
+  // App settings, back-ups, crash recovery, updates
+  settingsRead: () => ipcRenderer.invoke('settingsRead'),
+  settingsWrite: (data) => ipcRenderer.invoke('settingsWrite', data),
+  appPaths: () => ipcRenderer.invoke('appPaths'),
+  backupWrite: (args) => ipcRenderer.invoke('backupWrite', args),
+  openPath: (p) => ipcRenderer.invoke('openPath', p),
+  recoveryWrite: (args) => ipcRenderer.invoke('recoveryWrite', args),
+  recoveryRead: () => ipcRenderer.invoke('recoveryRead'),
+  recoveryClear: () => ipcRenderer.invoke('recoveryClear'),
+  updateCheck: (args) => ipcRenderer.invoke('updateCheck', args),
+  updateDownload: (args) => ipcRenderer.invoke('updateDownload', args),
+  openExternal: (url) => ipcRenderer.invoke('openExternal', url),
+
   // Recent projects
   recentList: () => ipcRenderer.invoke('recentList'),
   recentAdd: (filePath, name) => ipcRenderer.invoke('recentAdd', { filePath, name }),

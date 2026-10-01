@@ -72,7 +72,18 @@ function ensureStateFromModel(){
       id:'', port:null, universe:D.universe??null, dest:D.dest||'',
       dimcity:D.dimcity||null, kind:'DMX',
       source:'CSV', sourceId:D.sourceId||null, sourceName:D.sourceName||null, status:D.status||'YELLOW'
-    })));
+    })))
+    // ongeldige rijen (bijv. Veam poort 6) tonen zodat ze hier hersteld kunnen worden
+    .concat((M.invalidRows||[]).concat(M.conflictRows||[]).filter(r => (r[7] ?? '') !== 'Custom').map(r => {
+      const id = String(r[0] ?? '').trim();
+      const kind = !id ? 'DMX' : (App.isV(id) ? 'VEAM' : 'LK');
+      return validateRow({
+        rid:newRid('CSV'),
+        id, port: r[1] === '' || r[1] == null ? null : Number(r[1]), universe: r[2] === '' || r[2] == null ? null : r[2], dest: r[3] || '',
+        dimcity: kind === 'DMX' ? (String(r[5] || '').toUpperCase() || null) : (App.dimCityFromId(id) || null), kind,
+        source:'CSV', sourceId:r[6] || null, sourceName:r[7] || null, status:'RED'
+      });
+    }));
 
   const rowsCustom = deepClone(M.customRows||[]).map(r => validateRow({
     rid:newRid('CUST'),

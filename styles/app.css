@@ -710,3 +710,54 @@ a[data-open-kind]:hover,a[data-nav-view]:hover,a[data-cmd]:hover{text-decoration
 .rb-pos button{height:16px;min-height:0;padding:0;border-radius:3px;background:var(--surface-3);border:1px solid var(--border-strong)}
 .rb-pos button:hover{border-color:var(--accent)}
 .rb-pos button.active{background:var(--accent);border-color:var(--accent)}
+
+/* ---------- Settings ---------- */
+.settings-modal .modal-body{padding:0}
+.settings-layout{display:grid;grid-template-columns:190px minmax(0,1fr);min-height:420px}
+.settings-nav{display:flex;flex-direction:column;gap:2px;padding:14px 10px;border-right:1px solid var(--border);background:var(--bg-sunken)}
+.settings-nav button{justify-content:flex-start;gap:8px;border:0;background:transparent;color:var(--text-2);height:32px}
+.settings-nav button:hover{background:var(--hover);color:var(--text)}
+.settings-nav button.active{background:var(--surface-3);color:var(--text)}
+.settings-body{padding:18px 22px;overflow:auto}
+.settings-body .rb-group{margin-bottom:22px}
+.set-folder{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);margin-top:8px}
+.set-folder > div{flex:1;min-width:0;display:flex;flex-direction:column}
+.set-folder span{font-size:11.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
+
+/* ---------- History ---------- */
+.hist-list{list-style:none;margin:0;padding:0 0 0 6px;position:relative}
+.hist-list::before{content:"";position:absolute;left:11px;top:14px;bottom:14px;width:2px;background:var(--border)}
+.hist-item,.hist-now{display:flex;align-items:center;gap:12px;padding:8px 6px;border-radius:var(--radius);position:relative}
+.hist-item:hover{background:var(--hover)}
+.hist-item > div{flex:1;min-width:0;display:flex;flex-direction:column}
+.hist-item b{font-weight:500;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-item span:not(.hist-dot){font-size:11px;color:var(--text-3)}
+.hist-item button{opacity:0}
+.hist-item:hover button{opacity:1}
+.hist-item.start button{display:none}
+.hist-dot{width:12px;height:12px;border-radius:50%;background:var(--surface-3);border:2px solid var(--border-strong);flex:none;z-index:1}
+.hist-now .hist-dot{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.hist-now b{color:var(--accent);font-size:12.5px}
+.hist-item.undone{opacity:.55}
+.hist-item.undone .hist-dot{border-style:dashed}
+
+/* ---------- Validation: klikbaar + snelle fixes ---------- */
+.issue.clickable{cursor:pointer}
+.issue.clickable:hover{background:var(--hover)}
+.issue-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+@keyframes flashRing{0%,100%{box-shadow:0 0 0 0 transparent}20%,60%{box-shadow:0 0 0 3px var(--accent),0 0 18px var(--accent-soft)}}
+.flash{animation:flashRing 1.6s ease-in-out 2;border-radius:6px}
+.fix-issue{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:var(--radius);font-size:12.5px;line-height:1.45}
+.fix-issue.RED{background:var(--red-soft);color:var(--text)}
+.fix-issue.RED .ico{color:var(--red)}
+.fix-issue.YELLOW{background:var(--yellow-soft)}
+.fix-issue.YELLOW .ico{color:var(--yellow)}
+.fix-hint{margin-top:12px;font-size:12px;color:var(--text-2);display:flex;gap:6px;align-items:center;min-height:18px}
+.fix-hint.bad{color:var(--red)}
+.fix-before{margin-top:12px;display:flex;gap:10px;align-items:center;font-size:11.5px;color:var(--text-3)}
+.fix-before code{font-family:var(--mono);background:var(--bg-sunken);border:1px solid var(--border);border-radius:4px;padding:2px 6px;color:var(--text-2);text-decoration:line-through}
+.fix-options{display:flex;flex-direction:column;gap:6px;margin-top:14px}
+.fix-option{display:grid;grid-template-columns:20px auto 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;background:var(--surface-2)}
+.fix-option:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.fix-option span{color:var(--text-2);font-size:12.5px}
+.fix-option em{font-style:normal;color:var(--text-3);font-size:11.5px}

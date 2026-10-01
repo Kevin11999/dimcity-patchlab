@@ -68,20 +68,42 @@ function send(command, arg){
   if (win && !win.isDestroyed()) win.webContents.send('menu-command', { command, arg });
 }
 
-function buildMenu(recent = []){
+// Menuteksten volgen de taal uit de instellingen (en / nl)
+let menuLang = 'en';
+let lastRecent = [];
+const MENU_NL = {
+  'About':'Over', 'Settings…':'Instellingen…', 'Check for Updates…':'Zoeken naar updates…',
+  'File':'Bestand', 'New Project…':'Nieuw project…', 'Open Project…':'Project openen…', 'Open Recent':'Recent geopend',
+  'Clear Recent':'Lijst wissen', 'No recent projects':'Geen recente projecten', 'Save':'Opslaan', 'Save As…':'Opslaan als…',
+  'Import CSV…':'CSV importeren…', 'Imported Files…':'Geïmporteerde bestanden…', 'Report Builder / Export PDF…':'Rapport / PDF exporteren…',
+  'Welcome Screen':'Welkomstscherm', 'Exit':'Afsluiten', 'Edit':'Wijzig', 'Undo':'Ongedaan maken', 'Redo':'Opnieuw',
+  'History…':'Geschiedenis…', 'Find…':'Zoeken…', 'Cut':'Knippen', 'Copy':'Kopiëren', 'Paste':'Plakken', 'Select All':'Alles selecteren',
+  'Edit Patch Rows…':'Patchregels bewerken…', 'Add LK…':'LK toevoegen…', 'Add Veam…':'Veam toevoegen…', 'View':'Weergave',
+  'Project Overview':'Projectoverzicht', 'Validation':'Validatie', 'Patch List':'Patchlijst', 'Recalculate':'Herberekenen',
+  'Network':'Netwerk', 'Network Planner…':'Netwerkplanner…', 'Device Builder…':'Device Builder…', 'Rack Builder…':'Rack Builder…',
+  'Export Library…':'Bibliotheek exporteren…', 'Import Library…':'Bibliotheek importeren…', 'Show Library File':'Bibliotheekbestand tonen',
+  'Help':'Help', 'Take the Tour':'Rondleiding', 'Keyboard Shortcuts':'Sneltoetsen'
+};
+const T = s => (menuLang === 'nl' && MENU_NL[s]) || s;
+
+function buildMenu(recent = lastRecent){
+  lastRecent = recent;
   const recentItems = recent.length
     ? [
         ...recent.map(r => ({ label: r.name || path.basename(r.path), sublabel: r.path, click: () => send('openRecent', r.path) })),
         { type: 'separator' },
-        { label: 'Clear Recent', click: async () => { await writeRecent([]); send('recentChanged'); } }
+        { label: T('Clear Recent'), click: async () => { await writeRecent([]); send('recentChanged'); } }
       ]
-    : [{ label: 'No recent projects', enabled: false }];
+    : [{ label: T('No recent projects'), enabled: false }];
 
   const template = [
     ...(isMac ? [{
       label: APP_NAME,
       submenu: [
-        { label: `About ${APP_NAME}`, click: () => send('about') },
+        { label: `${T('About')} ${APP_NAME}`, click: () => send('about') },
+        { label: T('Check for Updates…'), click: () => send('checkUpdates') },
+        { type: 'separator' },
+        { label: T('Settings…'), accelerator: 'CmdOrCtrl+,', click: () => send('settings') },
         { type: 'separator' },
         { role: 'services' },
         { type: 'separator' },
@@ -91,43 +113,49 @@ function buildMenu(recent = []){
       ]
     }] : []),
     {
-      label: 'File',
+      label: T('File'),
       submenu: [
-        { label: 'New Project…', accelerator: 'CmdOrCtrl+N', click: () => send('newProject') },
-        { label: 'Open Project…', accelerator: 'CmdOrCtrl+O', click: () => send('openProject') },
-        { label: 'Open Recent', submenu: recentItems },
+        { label: T('New Project…'), accelerator: 'CmdOrCtrl+N', click: () => send('newProject') },
+        { label: T('Open Project…'), accelerator: 'CmdOrCtrl+O', click: () => send('openProject') },
+        { label: T('Open Recent'), submenu: recentItems },
         { type: 'separator' },
-        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => send('save') },
-        { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => send('saveAs') },
+        { label: T('Save'), accelerator: 'CmdOrCtrl+S', click: () => send('save') },
+        { label: T('Save As…'), accelerator: 'CmdOrCtrl+Shift+S', click: () => send('saveAs') },
         { type: 'separator' },
-        { label: 'Import CSV…', accelerator: 'CmdOrCtrl+I', click: () => send('importCsv') },
-        { label: 'Imported Files…', click: () => send('csvSources') },
+        { label: T('Import CSV…'), accelerator: 'CmdOrCtrl+I', click: () => send('importCsv') },
+        { label: T('Imported Files…'), click: () => send('csvSources') },
         { type: 'separator' },
-        { label: 'Report Builder / Export PDF…', accelerator: 'CmdOrCtrl+P', click: () => send('exportPdf') },
+        { label: T('Report Builder / Export PDF…'), accelerator: 'CmdOrCtrl+P', click: () => send('exportPdf') },
         { type: 'separator' },
-        { label: 'Welcome Screen', click: () => send('welcome') },
-        ...(isMac ? [] : [{ type: 'separator' }, { role: 'quit', label: 'Exit' }])
+        { label: T('Welcome Screen'), click: () => send('welcome') },
+        ...(isMac ? [] : [{ type: 'separator' }, { label: T('Settings…'), accelerator: 'Ctrl+,', click: () => send('settings') }, { type: 'separator' }, { role: 'quit', label: T('Exit') }])
       ]
     },
     {
-      label: 'Edit',
+      label: T('Edit'),
       submenu: [
-        { role: 'undo' }, { role: 'redo' }, { type: 'separator' },
-        { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
+        // Undo/redo gaan via de app: in een tekstveld is het tekst-undo, anders project-undo
+        { label: T('Undo'), accelerator: 'CmdOrCtrl+Z', click: () => send('undo') },
+        { label: T('Redo'), accelerator: isMac ? 'Shift+Cmd+Z' : 'Ctrl+Y', click: () => send('redo') },
+        { label: T('History…'), accelerator: 'CmdOrCtrl+Shift+H', click: () => send('history') },
         { type: 'separator' },
-        { label: 'Edit Patch Rows…', accelerator: 'CmdOrCtrl+E', click: () => send('editCsv') },
-        { label: 'Add LK…', click: () => send('addLK') },
-        { label: 'Add Veam…', click: () => send('addVeam') }
+        { role: 'cut', label: T('Cut') }, { role: 'copy', label: T('Copy') }, { role: 'paste', label: T('Paste') }, { role: 'selectAll', label: T('Select All') },
+        { type: 'separator' },
+        { label: T('Find…'), accelerator: 'CmdOrCtrl+K', click: () => send('search') },
+        { type: 'separator' },
+        { label: T('Edit Patch Rows…'), accelerator: 'CmdOrCtrl+E', click: () => send('editCsv') },
+        { label: T('Add LK…'), click: () => send('addLK') },
+        { label: T('Add Veam…'), click: () => send('addVeam') }
       ]
     },
     {
-      label: 'View',
+      label: T('View'),
       submenu: [
-        { label: 'Project Overview', accelerator: 'CmdOrCtrl+1', click: () => send('view', 'HOME') },
-        { label: 'Validation', accelerator: 'CmdOrCtrl+2', click: () => send('view', 'ISSUES') },
-        { label: 'Patch List', accelerator: 'CmdOrCtrl+3', click: () => send('view', 'TABLE') },
+        { label: T('Project Overview'), accelerator: 'CmdOrCtrl+1', click: () => send('view', 'HOME') },
+        { label: T('Validation'), accelerator: 'CmdOrCtrl+2', click: () => send('view', 'ISSUES') },
+        { label: T('Patch List'), accelerator: 'CmdOrCtrl+3', click: () => send('view', 'TABLE') },
         { type: 'separator' },
-        { label: 'Recalculate', accelerator: 'CmdOrCtrl+R', click: () => send('rebuild') },
+        { label: T('Recalculate'), accelerator: 'CmdOrCtrl+R', click: () => send('rebuild') },
         { type: 'separator' },
         { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
         { type: 'separator' },
@@ -136,24 +164,25 @@ function buildMenu(recent = []){
       ]
     },
     {
-      label: 'Network',
+      label: T('Network'),
       submenu: [
-        { label: 'Network Planner…', click: () => send('networkPlanner') },
+        { label: T('Network Planner…'), click: () => send('networkPlanner') },
         { type: 'separator' },
-        { label: 'Device Builder…', accelerator: 'CmdOrCtrl+Shift+D', click: () => send('deviceBuilder') },
-        { label: 'Rack Builder…', click: () => send('deviceBuilder', 'rack') },
+        { label: T('Device Builder…'), accelerator: 'CmdOrCtrl+Shift+D', click: () => send('deviceBuilder') },
+        { label: T('Rack Builder…'), click: () => send('deviceBuilder', 'rack') },
         { type: 'separator' },
-        { label: 'Export Library…', click: () => send('libraryExport') },
-        { label: 'Import Library…', click: () => send('libraryImport') },
-        { label: 'Show Library File', click: async () => shell.showItemInFolder(await ensureLibraryFile()) }
+        { label: T('Export Library…'), click: () => send('libraryExport') },
+        { label: T('Import Library…'), click: () => send('libraryImport') },
+        { label: T('Show Library File'), click: async () => shell.showItemInFolder(await ensureLibraryFile()) }
       ]
     },
     {
       role: 'help',
+      label: T('Help'),
       submenu: [
-        { label: 'Take the Tour', click: () => send('tour') },
-        { label: 'Keyboard Shortcuts', click: () => send('shortcuts') },
-        ...(isMac ? [] : [{ type: 'separator' }, { label: `About ${APP_NAME}`, click: () => send('about') }])
+        { label: T('Take the Tour'), click: () => send('tour') },
+        { label: T('Keyboard Shortcuts'), click: () => send('shortcuts') },
+        ...(isMac ? [] : [{ type: 'separator' }, { label: T('Check for Updates…'), click: () => send('checkUpdates') }, { label: `${T('About')} ${APP_NAME}`, click: () => send('about') }])
       ]
     }
   ];
@@ -205,6 +234,8 @@ async function createWindow() {
         detail: `Close ${APP_NAME} anyway? Your changes will be lost.`
       });
       if (response !== 0) return;
+      // bewust zonder opslaan gesloten: geen herstel aanbieden bij de volgende start
+      await fs.unlink(recoveryFile()).catch(() => {}); await fs.unlink(recoveryMeta()).catch(() => {});
     }
     allowClose = true;
     win.close();
@@ -230,6 +261,7 @@ if (!app.requestSingleInstanceLock()) {
 
 app.whenReady().then(async () => {
   if (isMac && icon && !icon.isEmpty()) app.dock.setIcon(icon);
+  try { menuLang = JSON.parse(await fs.readFile(settingsFile(), 'utf8')).language || 'en'; } catch {}
   buildMenu(await readRecent());
   createWindow();
 });
@@ -295,6 +327,78 @@ ipcMain.handle('libraryWrite', async (_evt, content) => {
   await fs.rename(p + '.tmp', p);
   return p;
 });
+
+// ===== App settings =====
+const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
+ipcMain.handle('settingsRead', async () => {
+  try { return JSON.parse(await fs.readFile(settingsFile(), 'utf8')); } catch { return {}; }
+});
+ipcMain.handle('settingsWrite', async (_evt, data) => {
+  await fs.writeFile(settingsFile(), JSON.stringify(data || {}, null, 2), 'utf8');
+  if (data?.language && data.language !== menuLang){ menuLang = data.language; buildMenu(); }
+  return true;
+});
+ipcMain.handle('appPaths', async () => ({
+  documents: app.getPath('documents'), downloads: app.getPath('downloads'), userData: app.getPath('userData'),
+  defaultBackups: path.join(app.getPath('documents'), 'DimCity PatchLab Backups')
+}));
+
+// ===== Back-ups (los van het originele bestand) =====
+const stamp = () => { const d = new Date(), z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}-${z(d.getMinutes())}-${z(d.getSeconds())}`; };
+ipcMain.handle('backupWrite', async (_evt, { dir, baseName, content, keep }) => {
+  if (!dir) throw new Error('No backup folder');
+  await fs.mkdir(dir, { recursive: true });
+  const base = String(baseName || 'Untitled').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'Untitled';
+  const file = path.join(dir, `${base} ${stamp()}.lkproj`);
+  await fs.writeFile(file, content, 'utf8');
+  // alleen de oudste back-ups van dit project opruimen
+  const max = Math.max(1, Number(keep) || 20);
+  const mine = (await fs.readdir(dir)).filter(f => f.startsWith(base + ' ') && f.endsWith('.lkproj')).sort();
+  for (const f of mine.slice(0, Math.max(0, mine.length - max))) await fs.unlink(path.join(dir, f)).catch(() => {});
+  return file;
+});
+ipcMain.handle('openPath', async (_evt, p) => { if (p) await shell.openPath(p); return true; });
+
+// ===== Herstel na crash: laatste niet-opgeslagen staat =====
+const recoveryFile = () => path.join(app.getPath('userData'), 'recovery.lkproj');
+const recoveryMeta = () => path.join(app.getPath('userData'), 'recovery.json');
+ipcMain.handle('recoveryWrite', async (_evt, { content, meta }) => {
+  await fs.writeFile(recoveryFile(), content, 'utf8');
+  await fs.writeFile(recoveryMeta(), JSON.stringify({ ...(meta || {}), savedAt: new Date().toISOString() }), 'utf8');
+  return true;
+});
+ipcMain.handle('recoveryRead', async () => {
+  try { return { meta: JSON.parse(await fs.readFile(recoveryMeta(), 'utf8')), content: await fs.readFile(recoveryFile(), 'utf8') }; }
+  catch { return null; }
+});
+ipcMain.handle('recoveryClear', async () => {
+  await fs.unlink(recoveryFile()).catch(() => {}); await fs.unlink(recoveryMeta()).catch(() => {});
+  return true;
+});
+
+// ===== Updates via GitHub Releases =====
+const ghHeaders = token => ({ 'Accept': 'application/vnd.github+json', 'User-Agent': APP_NAME, ...(token ? { Authorization: `Bearer ${token}` } : {}) });
+ipcMain.handle('updateCheck', async (_evt, { repo, token }) => {
+  if (!/^[\w.-]+\/[\w.-]+$/.test(String(repo || ''))) return { error: 'No valid GitHub repository set (owner/name).' };
+  const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, { headers: ghHeaders(token) });
+  if (res.status === 404) return { error: 'No releases found. Is the repository public, or is a token set?' };
+  if (!res.ok) return { error: `GitHub answered ${res.status}` };
+  const r = await res.json();
+  return {
+    current: app.getVersion(), latest: String(r.tag_name || '').replace(/^v/i, ''), name: r.name, notes: r.body || '',
+    url: r.html_url, publishedAt: r.published_at, platform: process.platform, arch: process.arch,
+    assets: (r.assets || []).map(a => ({ name: a.name, size: a.size, url: a.url, browserUrl: a.browser_download_url }))
+  };
+});
+ipcMain.handle('updateDownload', async (_evt, { asset, token }) => {
+  const res = await fetch(asset.url, { headers: { ...ghHeaders(token), Accept: 'application/octet-stream' } });
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  const file = path.join(app.getPath('downloads'), path.basename(asset.name));
+  await fs.writeFile(file, Buffer.from(await res.arrayBuffer()));
+  await shell.openPath(file);   // installer / dmg openen; de gebruiker rondt de installatie af
+  return file;
+});
+ipcMain.handle('openExternal', async (_evt, url) => { if (/^https:\/\//.test(String(url))) await shell.openExternal(url); return true; });
 
 ipcMain.handle('recentList', async () => listRecentWithStatus());
 ipcMain.handle('recentAdd', async (_evt, { filePath, name }) => { await addRecent(filePath, name); return true; });

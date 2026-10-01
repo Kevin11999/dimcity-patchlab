@@ -122,6 +122,17 @@ function rowsFromCustomRows(customRows){
     'Custom'
   ]);
 }
+// Effectieve rijen uit het model (incl. bewerkingen en ongeldige rijen), in processRows-vorm
+function currentRows(M = MODEL){
+  const rows = [];
+  const src = x => [x.sourceId ?? null, x.sourceName ?? null];
+  for (const L of (M.lines || [])) rows.push([ L.id, String(L.port ?? ''), (L.universe ?? ''), (L.dest ?? ''), '', '', ...src(L) ]);
+  for (const V of (M.veamLines || [])) rows.push([ V.id, String(V.port ?? ''), (V.universe ?? ''), (V.dest ?? ''), '', '', ...src(V) ]);
+  for (const D of (M.dmxLoose || [])) rows.push([ '', '', (D.universe ?? ''), (D.dest ?? ''), '', (D.dimcity ?? ''), ...src(D) ]);
+  for (const r of (M.invalidRows || [])) rows.push(r.slice());
+  for (const r of (M.conflictRows || [])) rows.push(r.slice());
+  return rows;
+}
 async function rebuildFromCsvSources(){
   await processRows(rowsFromCsvSources());
 }
@@ -460,10 +471,17 @@ async function processRows(rows){
   const dmxLoose = [];                 // << NIEUW
   const issues = [];
   const veamPool = new Map();
+  // Ongeldige rijen bewaren (niet weggooien), zodat ze vanuit Validation hersteld kunnen worden
+  const invalidRows = [];
+  const keepInvalid = (r, issue) => {
+    invalidRows.push(Array.isArray(r) ? r.slice() : []);
+    issue.fix = { type:'row', index:invalidRows.length - 1 };
+    issues.push(issue);
+  };
 
   for (const r of rows){
     if (r.length < 4){ 
-      issues.push({severity:'RED', code:'CSV_MIN_FIELDS', message:`Too few fields: ${r.join(',')}`});
+      keepInvalid(r, {severity:'RED', code:'CSV_MIN_FIELDS', message:`Too few fields: ${r.join(',')}`});
       continue;
     }
 
@@ -483,7 +501,7 @@ async function processRows(rows){
     if (!id){
       const dimcity = maybeDim || null;
       if (!dimcity){
-        issues.push({severity:'RED', code:'DMX_DIMCITY_REQ', message:`Loose DMX row without DimCity (add DBxx in column 6)`});
+        keepInvalid(r, {severity:'RED', code:'DMX_DIMCITY_REQ', message:`Loose DMX line${position ? ` “${position}”` : ''} has no DimCity`});
         continue;
       }
       dmxLoose.push({
@@ -501,8 +519,13 @@ async function processRows(rows){
 
     // --- LK/VEAM met ID ---
     const dimcity = dimCityFromId(id);
-    if(!dimcity) { issues.push({severity:'RED', code:'ID_PATTERN', message:`Unknown ID "${id}" — expected LK###, VEAM12### or V###`}); continue; }
-    if(!portRangeOk(id, port)){ issues.push({severity:'RED', code:'PORT_RANGE', dimcity, ref: isV(id) ? {kind:'VEAM', id} : {kind:'LK', id:normLK(id)}, message:`Port out of range: ${id}#${port}`}); continue; }
+    if(!dimcity) { keepInvalid(r, {severity:'RED', code:'ID_PATTERN', message:`Unknown ID "${id}" — expected LK###, VEAM12### or V###`}); continue; }
+    if(!portRangeOk(id, port)){
+      const max = isV(id) ? 4 : 12;
+      keepInvalid(r, {severity:'RED', code:'PORT_RANGE', dimcity, port, ref: isV(id) ? {kind:'VEAM', id} : {kind:'LK', id:normLK(id)},
+        message:`${id} port ${Number.isFinite(port) ? port : `“${portS}”`} does not exist — a ${isV(id) ? 'Veam' : 'LK'} has ports 1–${max}${universe != null ? ` (universe ${universe}${position ? `, ${position}` : ''})` : ''}`});
+      continue;
+    }
 
     const rec = {
       id,
@@ -525,6 +548,9 @@ async function processRows(rows){
     }
   }
 
+  // Rijen die botsen (zelfde poort, andere universe) bewaren tot de gebruiker kiest
+  const conflictRows = [];
+  const rawRow = L => [L.id, String(L.port ?? ''), L.universe ?? '', L.dest || '', '', '', L.sourceId ?? null, L.sourceName ?? null];
   function dedup(lines){
     const key = L => `${normLK(L.id)||L.id}#${L.port}`;
     const seen = new Map(); const outIssues = [];
@@ -534,8 +560,11 @@ async function processRows(rows){
       const arr = seen.get(k);
       const universes = new Set(arr.concat([L]).map(x => x.universe).filter(v => v!=null));
       if(universes.size>1){
-        outIssues.push({severity:'RED', code:'UNIVERSE_CONFLICT', dimcity:L.dimcity, ref: isV(L.id) ? {kind:'VEAM', id:L.id} : {kind:'LK', id:normLK(L.id)}, message:`Conflicting universe on ${k}`});
+        const options = arr.concat([L]).filter((x, i, all) => all.findIndex(y => y.universe === x.universe && y.dest === x.dest) === i).map(x => ({ universe:x.universe, dest:x.dest, source:x.sourceName }));
+        outIssues.push({severity:'RED', code:'UNIVERSE_CONFLICT', dimcity:L.dimcity, port:L.port, ref: isV(L.id) ? {kind:'VEAM', id:L.id} : {kind:'LK', id:normLK(L.id)},
+          fix:{ type:'conflict', id:L.id, port:L.port, options }, message:`${normLK(L.id)||L.id} port ${L.port} is patched twice with different universes (${[...universes].map(u=>`U${u}`).join(' / ')})`});
         arr.forEach(x => x.status='RED'); L.status='RED';
+        if(L.universe !== arr[0].universe || L.dest !== arr[0].dest) conflictRows.push(rawRow(L));
       } else {
         const nonNull = [ ...arr, L ].find(x => x.universe!=null);
         arr[0].universe = nonNull?.universe ?? arr[0].universe;
@@ -613,6 +642,8 @@ async function processRows(rows){
     veamLines: d2.ded,
     dmxLoose,                         // << NIEUW
     customRows: MODEL.customRows || [],
+    invalidRows,
+    conflictRows,
     issues,
     byDim,
     byLK,
@@ -1098,9 +1129,11 @@ function issueRef(it){
 }
 function issueItemHtml(it){
   const ref = issueRef(it);
-  return `<li class="issue ${it.severity==='RED'?'RED':'YELLOW'}"><span class="sev">${I('alert',13)}</span>
-    <div><div class="msg">${esc(it.message||'')}</div><div class="where"><span class="code">${esc(it.code||'')}</span>${it.dimcity?` <span class="subtle">·</span> <span class="muted">${esc(it.dimcity)}</span>`:''}</div></div>
-    ${ref ? `<button class="sm ghost" data-open-kind="${ref.kind}" data-open-id="${esc(ref.id)}">Open ${esc(ref.id)} ${I('arrowRight',13)}</button>` : '<span></span>'}</li>`;
+  const idx = (MODEL.issues||[]).indexOf(it);
+  const canFix = window.IssueFix?.canFix?.(it);
+  return `<li class="issue ${it.severity==='RED'?'RED':'YELLOW'} ${ref?'clickable':''}" data-issue="${idx}" title="${ref ? `Go to ${esc(ref.id)}${it.port ? ` port ${esc(it.port)}` : ''}` : ''}"><span class="sev">${I('alert',13)}</span>
+    <div><div class="msg">${esc(it.message||'')}</div><div class="where"><span class="code">${esc(it.code||'')}</span>${it.dimcity?` <span class="subtle">·</span> <span class="muted">${esc(it.dimcity)}</span>`:''}${ref?` <span class="subtle">·</span> <span class="muted">${esc(ref.id)}${it.port?` port ${esc(it.port)}`:''}</span>`:''}</div></div>
+    <div class="issue-actions">${canFix ? `<button class="sm primary" data-fix-issue="${idx}">${I('check',13)}Fix…</button>` : ''}${ref ? `<button class="sm ghost" data-open-kind="${ref.kind}" data-open-id="${esc(ref.id)}">Open ${I('arrowRight',13)}</button>` : ''}</div></li>`;
 }
 function renderIssuesView(){
   const f = MODEL.ui.issueFilter || 'ALL';
@@ -1256,7 +1289,7 @@ function veamPortsHtml(ve){
   for(let i=1;i<=4;i++){
     const L = ve.lines.find(x=>Number(x.port)===i) || {universe:null,dest:''};
     const filled = L.universe != null && L.universe !== '';
-    ports.push(`<div class="lk-port-cell ${filled?'filled':''}" title="${esc(ve.id)} port ${i}${filled?` • UNI ${esc(L.universe)}`:''}${L.dest?` • ${esc(L.dest)}`:''}"><div class="pnum">${i}</div><div class="puniverse">${filled?`UNI ${esc(L.universe)}`:'—'}</div><div class="pdest">${esc(L.dest||'')}</div></div>`);
+    ports.push(`<div class="lk-port-cell ${filled?'filled':''}" data-port="${i}" title="${esc(ve.id)} port ${i}${filled?` • UNI ${esc(L.universe)}`:''}${L.dest?` • ${esc(L.dest)}`:''}"><div class="pnum">${i}</div><div class="puniverse">${filled?`UNI ${esc(L.universe)}`:'—'}</div><div class="pdest">${esc(L.dest||'')}</div></div>`);
   }
   return `<div class="veam-port-grid">${ports.join('')}</div>`;
 }
@@ -1536,7 +1569,9 @@ function renderVeamDetail(vid){
     const L = ve.lines.find(x=>x.port===p) || {universe:null,dest:'',status:'YELLOW'};
     return `<tr><td class="num">${p}</td><td class="num">${L.universe ?? ''}</td><td>${esc(L.dest||'')}</td><td>${statusDot(L.status)}</td></tr>`;
   }).join('');
+  const iss = (MODEL.issues||[]).filter(i=>i.ref?.id===ve.id);
   root.innerHTML = `<div class="stack">
+    ${iss.length ? `<div class="card"><ul class="issue-list">${iss.map(issueItemHtml).join('')}</ul></div>` : ''}
     ${card({ key:'ve-link', title:'Linked LK', icon:'box', collapsible:false, body:link, flush:true })}
     ${card({ key:'ve-ports', title:'Ports', icon:'grid', collapsible:false, body:`<div class="lk-mini-card" style="--dim-color:${dimColor(ve.dimcity)}"><div class="lk-visual">${veamPortsHtml(ve)}</div></div><div class="table-wrap" style="margin-top:12px"><table class="data-table"><thead><tr><th class="num">Port</th><th class="num">Universe</th><th>Location</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>` })}
   </div>`;
@@ -1544,6 +1579,10 @@ function renderVeamDetail(vid){
 
 // ---- Gedelegeerde klikken binnen de view en de zijbalk ----
 function handleNavClick(e){
+  const fixBtn = e.target.closest('[data-fix-issue]');
+  if(fixBtn){ e.stopPropagation(); window.IssueFix?.open?.(MODEL.issues[Number(fixBtn.dataset.fixIssue)]); return; }
+  const issueEl = e.target.closest('li[data-issue]');
+  if(issueEl && !e.target.closest('button,a,select,input')){ window.IssueFix?.go?.(MODEL.issues[Number(issueEl.dataset.issue)]); return; }
   const t = e.target.closest('[data-open-kind],[data-nav-view],[data-view],[data-cmd],[data-collapse]');
   if(!t) return;
   if(t.matches('select,input')) return;
@@ -1798,7 +1837,7 @@ function renderCombinedPortCells(lk, ports){
     if(filled) titleParts.push(`UNI ${m.universe}`);
     if(m.dest) titleParts.push(m.dest);
     if(m.conflict) titleParts.push('CONFLICT: LK and Veam universe differ');
-    return `<div class="lk-port-cell ${filled?'filled':''} ${m.conflict?'conflict':''}" title="${esc(titleParts.join(' • '))}"><div class="pnum">${p}</div><div class="puniverse">${filled?`UNI ${esc(m.universe)}`:'—'}</div><div class="pdest">${esc(m.dest || '')}</div><div class="psource">${esc(m.source || '')}</div></div>`;
+    return `<div class="lk-port-cell ${filled?'filled':''} ${m.conflict?'conflict':''}" data-port="${p}" title="${esc(titleParts.join(' • '))}"><div class="pnum">${p}</div><div class="puniverse">${filled?`UNI ${esc(m.universe)}`:'—'}</div><div class="pdest">${esc(m.dest || '')}</div><div class="psource">${esc(m.source || '')}</div></div>`;
   }).join('');
 }
 function createNodeInstance(dc, nt, index, universes=[]){
@@ -2154,6 +2193,9 @@ window.LKApp = {
   // UI helpers
   ui: { toast, openDialog, confirmDialog, showMenu, icon: I },
 
+  applyBlockType,
+  currentRows,
+
   // network device helpers (Device Builder / Library)
   net: { normalizeNetworkDevices, nextTypedId, safeHex, isValidIpv4, bindIpv4Input, esc },
 
@@ -2195,6 +2237,12 @@ async function runCommand(cmd, arg){
     case 'shortcuts':     return UI?.showShortcuts?.();
     case 'about':         return UI?.showAbout?.();
     case 'recentChanged': return;
+    case 'undo':          return window.PatchHistory?.undo?.();
+    case 'redo':          return window.PatchHistory?.redo?.();
+    case 'history':       return window.PatchHistory?.openPanel?.();
+    case 'settings':      return window.Settings?.open?.(arg);
+    case 'search':        return window.Search?.open?.();
+    case 'checkUpdates':  return window.Updater?.check?.({ manual:true });
   }
 }
 window.LKApp.runCommand = runCommand;

@@ -20,6 +20,15 @@ ui/welcome.js      Welcome screen, new-project flow, guided tour, project info, 
 core/library.js    Personal library (userData/library.lklib): device types, racks, PDF templates;
                    sync with the open show, review dialog for unknown items, export/import .lklib
 ui/device-builder.js  Device Builder: node/splitter/switch/panel types + 19" rack builder
+core/settings.js   App preferences (userData/settings.json): theme, language, autosave/backup, updates
+core/i18n.js       Dutch UI: dictionary + rules, applied to text nodes by a MutationObserver
+core/history.js    Undo/redo + readable change history (hooks MODEL.ui.dirty, snapshots the project)
+core/autosave.js   Autosave every N changes / N minutes, backup copies, crash recovery
+core/updater.js    Update check against GitHub Releases, guided installer download
+core/rack-engine.js  Rack auto-patch: LK/VIM4 sockets, node ports, splitters, recommendations
+ui/rack-plan.js    Racks card on the DimCity page (+ "Use as network plan")
+ui/issue-fix.js    Validation: jump to the problem, Fix… dialogs
+ui/search.js       Cmd+K search
 ```
 
 Commands from the native menu, toolbar buttons and `data-cmd` attributes all go through
@@ -168,3 +177,13 @@ pdf/layout-designer.js
 ```
 
 Do not do this split in one huge risky step. First keep the app stable, then move one module at a time.
+
+## Invalid and conflicting rows
+Rows that fail validation (`MODEL.invalidRows`, e.g. a Veam on port 6) and the losing side of a
+universe conflict (`MODEL.conflictRows`) are kept, saved with the project and shown in Edit Rows,
+so they can be fixed instead of disappearing.
+
+## Releases and updates
+`npm run release` (with `GH_TOKEN` set) builds and publishes a GitHub release for the version in
+package.json. The app checks the repository set in Settings → Updates; for a private repository a
+token is needed, so publishing releases in a public repository is easiest for colleagues.

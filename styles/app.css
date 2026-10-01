@@ -844,3 +844,8 @@ kbd{font:500 10.5px var(--font);color:var(--text-3);border:1px solid var(--borde
 :root[data-theme="light"] input,:root[data-theme="light"] select,:root[data-theme="light"] textarea{background-color:#fff}
 /* rack-hardware is altijd donker, ook in het lichte thema */
 .ru,.rack{--text:#e8eaef;--text-2:#a3aab7;--text-3:#7d8594;color:var(--text)}
+.update-notes{max-height:320px;overflow:auto;padding:4px 2px 10px;font-size:13px;line-height:1.5}
+.update-notes h4{margin:12px 0 4px;font-size:13px}
+.update-notes li{margin-left:18px}
+.update-notes p{margin:4px 0}
+.update-notes code{font-family:var(--mono);font-size:12px;background:var(--bg-sunken);padding:0 4px;border-radius:3px}

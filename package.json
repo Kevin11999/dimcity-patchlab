@@ -11,7 +11,8 @@
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
-    "dist:linux": "electron-builder --linux"
+    "dist:linux": "electron-builder --linux",
+    "release": "electron-builder --publish always"
   },
   "dependencies": {
     "papaparse": "^5.4.1"
@@ -22,6 +23,14 @@
   },
   "build": {
     "appId": "nl.dimcity.patchlab",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Kevin11999",
+        "repo": "dimcity-patchlab",
+        "releaseType": "release"
+      }
+    ],
     "productName": "DimCity PatchLab",
     "files": [
       "main.js",
@@ -39,9 +48,10 @@
     ],
     "mac": {
       "target": [
-        "dmg",
-        "zip"
+        { "target": "dmg", "arch": ["arm64", "x64"] },
+        { "target": "zip", "arch": ["arm64", "x64"] }
       ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
       "icon": "assets/dimcity-patchlab.icns"
     },
     "win": {

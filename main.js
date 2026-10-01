@@ -9,6 +9,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
 const APP_NAME = 'DimCity PatchLab';
+// Versie altijd uit package.json (ook als de app via een ander startscript draait)
+let APP_VERSION = '0.0.0';
+try { APP_VERSION = JSON.parse(await fs.readFile(path.join(__dirname, 'package.json'), 'utf8')).version || APP_VERSION; } catch {}
 const isMac = process.platform === 'darwin';
 
 // UI-taal van Chromium (bestandskiezer, datumvelden) altijd Engels.
@@ -277,7 +280,7 @@ app.on('activate', () => {
 // ===== IPC =====
 
 ipcMain.handle('ping', async () => 'pong');
-ipcMain.handle('appInfo', async () => ({ name: APP_NAME, version: app.getVersion(), platform: process.platform }));
+ipcMain.handle('appInfo', async () => ({ name: APP_NAME, version: APP_VERSION, platform: process.platform }));
 
 ipcMain.handle('openCsv', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
@@ -391,7 +394,7 @@ ipcMain.handle('updateCheck', async (_evt, { repo, token }) => {
   if (!res.ok) return { error: `GitHub answered ${res.status}` };
   const r = await res.json();
   return {
-    current: app.getVersion(), latest: String(r.tag_name || '').replace(/^v/i, ''), name: r.name, notes: r.body || '',
+    current: APP_VERSION, latest: String(r.tag_name || '').replace(/^v/i, ''), name: r.name, notes: r.body || '',
     url: r.html_url, publishedAt: r.published_at, platform: process.platform, arch: process.arch,
     assets: (r.assets || []).map(a => ({ name: a.name, size: a.size, url: a.url, browserUrl: a.browser_download_url }))
   };

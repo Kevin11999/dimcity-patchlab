@@ -1,5 +1,5 @@
 // main.js (ESM)
-import { app, BrowserWindow, ipcMain, dialog, nativeImage, Menu, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, nativeImage, Menu, shell, nativeTheme } from 'electron';
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs/promises';
@@ -197,7 +197,7 @@ async function createWindow() {
     minWidth: 1100,
     minHeight: 680,
     title: APP_NAME,
-    backgroundColor: '#0e1014',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0e1014' : '#f4f5f7',
     show: false,
     icon,
     webPreferences: {
@@ -227,11 +227,11 @@ async function createWindow() {
     if (dirty) {
       const { response } = await dialog.showMessageBox(win, {
         type: 'warning',
-        buttons: ['Close Without Saving', 'Cancel'],
+        buttons: menuLang === 'nl' ? ['Sluiten zonder opslaan', 'Annuleren'] : ['Close Without Saving', 'Cancel'],
         defaultId: 1,
         cancelId: 1,
-        message: 'This project has unsaved changes.',
-        detail: `Close ${APP_NAME} anyway? Your changes will be lost.`
+        message: menuLang === 'nl' ? 'Dit project heeft niet-opgeslagen wijzigingen.' : 'This project has unsaved changes.',
+        detail: menuLang === 'nl' ? `${APP_NAME} toch sluiten? Je wijzigingen gaan verloren.` : `Close ${APP_NAME} anyway? Your changes will be lost.`
       });
       if (response !== 0) return;
       // bewust zonder opslaan gesloten: geen herstel aanbieden bij de volgende start
@@ -261,7 +261,7 @@ if (!app.requestSingleInstanceLock()) {
 
 app.whenReady().then(async () => {
   if (isMac && icon && !icon.isEmpty()) app.dock.setIcon(icon);
-  try { menuLang = JSON.parse(await fs.readFile(settingsFile(), 'utf8')).language || 'en'; } catch {}
+  try { const st = JSON.parse(await fs.readFile(settingsFile(), 'utf8')); menuLang = st.language || 'en'; applyNativeTheme(st.theme || 'dark'); } catch {}
   buildMenu(await readRecent());
   createWindow();
 });
@@ -330,12 +330,18 @@ ipcMain.handle('libraryWrite', async (_evt, content) => {
 
 // ===== App settings =====
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
+// Systeemdialogen en vensterachtergrond volgen het thema van de app
+function applyNativeTheme(theme){
+  nativeTheme.themeSource = theme === 'light' ? 'light' : theme === 'system' ? 'system' : 'dark';
+  if (win && !win.isDestroyed()) win.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#0e1014' : '#f4f5f7');
+}
 ipcMain.handle('settingsRead', async () => {
   try { return JSON.parse(await fs.readFile(settingsFile(), 'utf8')); } catch { return {}; }
 });
 ipcMain.handle('settingsWrite', async (_evt, data) => {
   await fs.writeFile(settingsFile(), JSON.stringify(data || {}, null, 2), 'utf8');
   if (data?.language && data.language !== menuLang){ menuLang = data.language; buildMenu(); }
+  if (data?.theme) applyNativeTheme(data.theme);
   return true;
 });
 ipcMain.handle('appPaths', async () => ({

@@ -808,3 +808,39 @@ kbd{font:500 10.5px var(--font);color:var(--text-3);border:1px solid var(--borde
 .rp-table summary{cursor:pointer;padding:10px 12px;display:flex;align-items:center;gap:8px;background:var(--surface-2)}
 .rp-table .table-wrap{max-height:420px;overflow:auto}
 @media (max-width:1100px){.rp-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ---------- Light theme ---------- */
+:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#f4f5f7; --bg-sunken:#eceef2; --surface:#ffffff; --surface-2:#f8f9fb; --surface-3:#eef0f4; --hover:#f0f2f6;
+  --border:#e1e4ea; --border-strong:#cdd2db;
+  --text:#14171c; --text-2:#4a5260; --text-3:#7a8291;
+  --accent:#ee7a0c; --accent-hover:#dc6d04; --accent-ink:#ffffff; --accent-soft:rgba(238,122,12,.11); --accent-line:rgba(238,122,12,.45);
+  --blue:#2f7be6; --blue-soft:rgba(47,123,230,.1);
+  --green:#1f9d5c; --green-soft:rgba(31,157,92,.1);
+  --yellow:#c98a10; --yellow-soft:rgba(201,138,16,.12);
+  --red:#d93a32; --red-soft:rgba(217,58,50,.09);
+  --shadow-pop:0 12px 40px rgba(20,24,32,.16), 0 0 0 1px rgba(20,24,32,.05);
+  --shadow-card:0 1px 2px rgba(20,24,32,.04);
+}
+:root:not([data-theme="light"]){color-scheme:dark}
+:root[data-theme="light"] button:hover{background:#e6e9ef;border-color:#bfc5cf}
+:root[data-theme="light"] button.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+:root[data-theme="light"] button.danger:hover{background:var(--red-soft);border-color:var(--red)}
+:root[data-theme="light"] button.ghost{background:transparent;border-color:transparent}
+:root[data-theme="light"] button.ghost:hover{background:var(--hover)}
+:root[data-theme="light"] ::-webkit-scrollbar-thumb{background:#cdd2da;border:2px solid transparent;background-clip:padding-box}
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover{background-color:#b6bcc7}
+:root[data-theme="light"] .switch span{background:#c9ced7}
+:root[data-theme="light"] .brand-mark,:root[data-theme="light"] .welcome-left .logo{background:#1b1f27}
+:root[data-theme="light"] table tbody tr:hover td{background:rgba(20,24,32,.025)}
+:root[data-theme="light"] .clickable-row:hover td{background:rgba(20,24,32,.035)!important}
+:root[data-theme="light"] .modal-backdrop,:root[data-theme="light"] .backdrop{background:rgba(30,36,46,.32)}
+:root[data-theme="light"] .segmented button.active{background:var(--surface);box-shadow:0 1px 2px rgba(20,24,32,.12)}
+:root[data-theme="light"] .color-swatch{border-color:rgba(0,0,0,.15)}
+:root[data-theme="light"] .rk-badge{color:#fff}
+:root[data-theme="light"] .rk-canvas,:root[data-theme="light"] .db-preview{background:#e4e7ec}
+:root[data-theme="light"] select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234a5260' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")}
+:root[data-theme="light"] input,:root[data-theme="light"] select,:root[data-theme="light"] textarea{background-color:#fff}
+/* rack-hardware is altijd donker, ook in het lichte thema */
+.ru,.rack{--text:#e8eaef;--text-2:#a3aab7;--text-3:#7d8594;color:var(--text)}

@@ -316,11 +316,24 @@ ipcMain.on('documentState', (_evt, { title, dirty, filePath }) => {
 // ===== PDF =====
 const escHtml = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 
-function footerTemplate(footer){
-  if (!footer) return '<span></span>';
-  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:7px;color:#64748b;width:100%;padding:0 10mm;display:flex;justify-content:space-between;">
-    <span>${escHtml(footer.left)}</span><span>${escHtml(footer.center)}</span>
-    <span>${footer.pageNumbers === false ? '' : 'Page <span class="pageNumber"></span> of <span class="totalPages"></span>'}</span>
+// Bedrijfslogo (brand) in de kop of voet van elke pagina: { logo, pos:'header-left'|'header-right'|'footer-left'|'footer-right', height, margin }
+const brandLogoImg = brand => brand?.logo && /^data:image\//.test(brand.logo)
+  ? `<img src="${brand.logo}" style="height:${Number(brand.height) || 9}mm;max-width:70mm;object-fit:contain;display:block">` : '';
+function headerTemplate(brand){
+  const img = String(brand?.pos || '').startsWith('header') ? brandLogoImg(brand) : '';
+  if (!img) return '<span></span>';
+  const m = Number(brand.margin) || 10;
+  return `<div style="-webkit-print-color-adjust:exact;width:100%;padding:0 ${m}mm;margin-top:${Math.max(3, m / 2 - 1)}mm;display:flex;justify-content:${brand.pos === 'header-left' ? 'flex-start' : 'flex-end'}">${img}</div>`;
+}
+function footerTemplate(footer, brand){
+  const img = String(brand?.pos || '').startsWith('footer') ? brandLogoImg(brand) : '';
+  if (!footer && !img) return '<span></span>';
+  const m = Number(brand?.margin) || 10;
+  const logoCell = img ? `<span style="flex:none">${img}</span>` : '';
+  const text = footer ? `<span style="flex:1">${escHtml(footer.left)}</span><span style="flex:1;text-align:center">${escHtml(footer.center)}</span>
+    <span style="flex:1;text-align:right">${footer.pageNumbers === false ? '' : 'Page <span class="pageNumber"></span> of <span class="totalPages"></span>'}</span>` : '<span style="flex:1"></span>';
+  return `<div style="-webkit-print-color-adjust:exact;font-family:Arial,Helvetica,sans-serif;font-size:7px;color:#64748b;width:100%;padding:0 ${m}mm;display:flex;align-items:center;gap:4mm;">
+    ${brand?.pos === 'footer-left' ? logoCell : ''}${text}${brand?.pos === 'footer-right' ? logoCell : ''}
   </div>`;
 }
 
@@ -342,9 +355,9 @@ async function renderHtmlToPdf(html, opts = {}){
       printBackground: true,
       preferCSSPageSize: true,
       margins: { marginType: 'default' }, // 'default' respecteert de @page-marges uit de CSS
-      displayHeaderFooter: !!opts.footer,
-      headerTemplate: '<span></span>',
-      footerTemplate: footerTemplate(opts.footer)
+      displayHeaderFooter: !!(opts.footer || brandLogoImg(opts.brand)),
+      headerTemplate: headerTemplate(opts.brand),
+      footerTemplate: footerTemplate(opts.footer, opts.brand)
     });
   } finally {
     if (!off.isDestroyed()) off.destroy();
@@ -352,7 +365,7 @@ async function renderHtmlToPdf(html, opts = {}){
   }
 }
 
-ipcMain.handle('exportPdfFromHtml', async (_evt, { html, defaultPath, landscape, pageSize, footer }) => {
+ipcMain.handle('exportPdfFromHtml', async (_evt, { html, defaultPath, landscape, pageSize, footer, brand }) => {
   const res = await dialog.showSaveDialog(win, {
     title: 'Export PDF',
     defaultPath: defaultPath || 'lk-veam-report.pdf',
@@ -360,13 +373,13 @@ ipcMain.handle('exportPdfFromHtml', async (_evt, { html, defaultPath, landscape,
   });
   if (res.canceled || !res.filePath) return null;
 
-  const pdf = await renderHtmlToPdf(html, { landscape, pageSize, footer });
+  const pdf = await renderHtmlToPdf(html, { landscape, pageSize, footer, brand });
   await fs.writeFile(res.filePath, pdf);
   return res.filePath;
 });
 
 // Meerdere PDF's (bijv. één per DimCity) in één gekozen map.
-ipcMain.handle('exportPdfBatch', async (_evt, { items, landscape, pageSize, footer }) => {
+ipcMain.handle('exportPdfBatch', async (_evt, { items, landscape, pageSize, footer, brand }) => {
   if (!Array.isArray(items) || !items.length) return null;
   const res = await dialog.showOpenDialog(win, {
     title: 'Choose folder for PDF files',
@@ -379,7 +392,7 @@ ipcMain.handle('exportPdfBatch', async (_evt, { items, landscape, pageSize, foot
   const written = [];
   for (const item of items) {
     const name = path.basename(String(item.fileName || 'export.pdf'));
-    const pdf = await renderHtmlToPdf(item.html, { landscape, pageSize, footer: item.footer || footer });
+    const pdf = await renderHtmlToPdf(item.html, { landscape, pageSize, footer: item.footer || footer, brand });
     const outPath = path.join(dir, name.toLowerCase().endsWith('.pdf') ? name : name + '.pdf');
     await fs.writeFile(outPath, pdf);
     written.push(outPath);

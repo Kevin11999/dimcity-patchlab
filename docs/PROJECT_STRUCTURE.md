@@ -96,6 +96,11 @@ in `libraryDismissed`.
 Stored in `MODEL.pdfSettings`. The Report Builder layout lives in `MODEL.pdfSettings.layout`
 (version 2: scope, output, page, style, header, footer, cover, ordered sections with options).
 Saved report templates live in `MODEL.pdfTemplates` (`[{ id, name, layout }]`).
+`layout.brand` holds the company style: `logo`, `logoPos` (none / header-left|right / footer-left|right),
+`logoHeight` (mm) and `wm` (watermark: type none|logo|text, text, opacity %, size %, angle). The logo on
+every page is drawn by printToPDF's header/footer templates (main.js); the watermark is a fixed element
+that Chromium repeats on each printed page. The cover image position is `cover.logoX/logoY` (0–1) and
+`cover.logoW` (mm).
 Older settings below are still read and converted.
 
 ```text

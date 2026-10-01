@@ -43,7 +43,8 @@
       style: { accent:'#ff8a1f', font:'helvetica', fontSize:9.5, density:'comfortable', colorUniverses:true, dimBand:true, grayscale:false },
       header: { show:true, text:'{project} · {dimcity}' },
       footer: { show:true, left:'{project} · {area}', center:'Prepared by {prepared} · {date}', pageNumbers:true },
-      cover: { show:true, title:'', subtitle:'{area} · {location}', showLogo:true, logoSize:'M', fields:{ area:true, location:true, date:true, prepared:true, dimcities:true, totals:true }, note:'', summaryPage:true },
+      brand: { logo:null, logoPos:'none', logoHeight:9, wm:{ type:'none', text:'CONFIDENTIAL', opacity:8, size:55, angle:-30 } },
+      cover: { show:true, title:'', subtitle:'{area} · {location}', showLogo:true, logoX:1, logoY:0, logoW:60, fields:{ area:true, location:true, date:true, prepared:true, dimcities:true, totals:true }, note:'', summaryPage:true },
       sections: [
         { key:'summary', on:true }, { key:'network', on:true, opts:{ universeTable:true, switches:false } },
         { key:'splitters', on:true }, { key:'patch', on:true, opts:{ standaloneVeams:true, location:true, source:false, groupColors:true } },
@@ -80,7 +81,10 @@
     const out = { ...L, ...saved,
       page:{ ...L.page, ...(saved.page||{}) }, style:{ ...L.style, ...(saved.style||{}) },
       header:{ ...L.header, ...(saved.header||{}) }, footer:{ ...L.footer, ...(saved.footer||{}) },
+      brand:{ ...L.brand, ...(saved.brand||{}), wm:{ ...L.brand.wm, ...(saved.brand?.wm||{}) } },
       cover:{ ...L.cover, ...(saved.cover||{}), fields:{ ...L.cover.fields, ...(saved.cover?.fields||{}) } } };
+    // oude S/M/L-logogrootte omzetten naar millimeters
+    if(saved.cover && saved.cover.logoW == null && saved.cover.logoSize) out.cover.logoW = { S:35, M:60, L:90 }[saved.cover.logoSize] || 60;
     const known = Array.isArray(saved.sections) ? saved.sections.filter(s => SECTIONS[s.key]) : [];
     out.sections = known.map(s => ({ ...L.sections.find(d=>d.key===s.key), ...s, opts:{ ...(L.sections.find(d=>d.key===s.key)?.opts||{}), ...(s.opts||{}) } }));
     for(const d of L.sections) if(!out.sections.some(s=>s.key===d.key)) out.sections.push(clone(d));
@@ -131,13 +135,62 @@
   const plan = (M, dc) => M?.networkDevices?.dimCityPlans?.[dc] || { nodes:[], splitters:[], switches:[] };
   const splitterType = (M, id) => (M?.networkDevices?.splitterTypes || []).find(t => String(t.id) === String(id)) || {};
 
+  // ===================== Brand: logo op elke pagina + watermerk =====================
+  const pageDims = L => { const [w, h] = PAGE_MM[L.page.size] || PAGE_MM.A4; return L.page.orientation !== 'portrait' ? [h, w] : [w, h]; };
+  const brandLogoOn = L => !!(L.brand?.logo && L.brand.logoPos && L.brand.logoPos !== 'none');
+  const logoTop = m => Math.max(3, m / 2 - 1);
+  function pageMargins(L){
+    const m = Math.max(5, Number(L.page.margin) || 10);
+    const h = Number(L.brand?.logoHeight) || 9;
+    const pos = brandLogoOn(L) ? L.brand.logoPos : '';
+    let mt = m, mb = L.footer.show ? Math.max(m, 13) : m;
+    if(pos.startsWith('header')) mt = Math.max(m, logoTop(m) + h + 7);
+    if(pos.startsWith('footer')) mb = Math.max(mb, h + 6);
+    return { m, mt, mb };
+  }
+  // SVG (mm-eenheden) met watermerk en, voor de preview, het logo op de plek van kop/voet
+  function brandSvg(L, meta, { w, h, withLogo }){
+    const b = L.brand || {}, wm = b.wm || {};
+    let inner = '';
+    const op = Math.max(1, Math.min(60, Number(wm.opacity) || 8)) / 100;
+    const cx = w / 2, cy = h / 2, rot = `rotate(${Number(wm.angle) || 0} ${cx} ${cy})`;
+    const wmLogo = b.logo || meta.logo;
+    if(wm.type === 'logo' && wmLogo){
+      const s = w * Math.max(10, Math.min(100, Number(wm.size) || 55)) / 100;
+      inner += `<image href="${wmLogo}" x="${cx - s/2}" y="${cy - s/2}" width="${s}" height="${s}" opacity="${op}" transform="${rot}" preserveAspectRatio="xMidYMid meet"/>`;
+    } else if(wm.type === 'text' && String(wm.text || '').trim()){
+      const t = String(wm.text).trim();
+      const fs = Math.min(w * (Number(wm.size) || 55) / 100 / Math.max(3, t.length * .62), h * .4);
+      inner += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-family="Helvetica,Arial,sans-serif" font-weight="800" font-size="${fs}" fill="#0f172a" fill-opacity="${op}" letter-spacing="${fs * .06}" transform="${rot}">${esc(t)}</text>`;
+    }
+    if(withLogo && brandLogoOn(L)){
+      const { m, mb } = pageMargins(L);
+      const lh = Number(b.logoHeight) || 9, lw = 70;
+      const right = b.logoPos.endsWith('right');
+      const y = b.logoPos.startsWith('header') ? logoTop(m) : h - mb / 2 - lh / 2;
+      inner += `<image href="${b.logo}" x="${right ? w - m - lw : m}" y="${y}" width="${lw}" height="${lh}" preserveAspectRatio="${right ? 'xMaxYMid' : 'xMinYMid'} meet"/>`;
+    }
+    if(!inner) return '';
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${w}mm" height="${h}mm" viewBox="0 0 ${w} ${h}">${inner}</svg>`)}`;
+  }
+  // In de print staat het watermerk vast (herhaalt op elke pagina) binnen het inhoudsvlak
+  function printWatermark(L, meta){
+    const [pw, ph] = pageDims(L);
+    const { m, mt, mb } = pageMargins(L);
+    const src = brandSvg(L, meta, { w:pw - 2*m, h:ph - mt - mb, withLogo:false });
+    return src ? `<div class="wm-print"><img src="${src}" alt=""></div>` : '';
+  }
+
   // ===================== HTML generation =====================
-  function printCss(L, { preview=false } = {}){
+  function printCss(L, { preview=false, meta={} } = {}){
     const [w, h] = PAGE_MM[L.page.size] || PAGE_MM.A4;
     const land = L.page.orientation !== 'portrait';
     const pw = land ? h : w, ph = land ? w : h;
     const m = Math.max(5, Number(L.page.margin) || 10);
-    const mb = L.footer.show ? Math.max(m, 13) : m;
+    const { mt, mb } = pageMargins(L);
+    // binnenmarges van de pagina (alleen in de preview; in print doet @page dat)
+    const padT = preview ? mt : 0, padS = preview ? m : 0, padB = preview ? mb : 0;
+    const previewTile = preview ? brandSvg(L, meta, { w:pw, h:ph, withLogo:true }) : '';
     const compact = L.style.density === 'compact';
     const fs = Number(L.style.fontSize) || 9.5;
     const font = L.style.font === 'system' ? '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif' : L.style.font === 'georgia' ? 'Georgia,"Times New Roman",serif' : 'Helvetica,Arial,sans-serif';
@@ -146,14 +199,19 @@
     const screen = preview ? `
       html{background:#2a2e35}
       body{padding:18px 0 40px;zoom:var(--zoom,1)}
-      .page{width:${pw}mm;min-height:${ph}mm;margin:0 auto 18px;background:#fff;padding:${m}mm ${m}mm ${mb}mm;box-shadow:0 4px 18px rgba(0,0,0,.35);position:relative;
+      .page{width:${pw}mm;min-height:${ph}mm;margin:0 auto 18px;background:#fff;padding:${mt}mm ${m}mm ${mb}mm;box-shadow:0 4px 18px rgba(0,0,0,.35);position:relative;
         background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(${ph}mm - 1px),rgba(255,138,31,.55) calc(${ph}mm - 1px),rgba(255,138,31,.55) ${ph}mm)}
       .page::after{content:attr(data-label);position:absolute;top:-15px;left:0;font:600 10px/1 system-ui;color:#9aa3b2;letter-spacing:.04em}
       [data-sec]{cursor:pointer;outline-offset:2mm;border-radius:2mm}
       [data-sec]:hover{outline:1.5px dashed rgba(255,138,31,.55)}
       [data-sec].sel{outline:2px solid #ff8a1f}
-      .pv-footer{position:absolute;left:${m}mm;right:${m}mm;bottom:${Math.max(4, mb/2 - 2)}mm;display:flex;justify-content:space-between;font-size:7px;color:#64748b}` : `
-      @page{size:${L.page.size} ${land?'landscape':'portrait'};margin:${m}mm ${m}mm ${mb}mm}
+      .pv-footer{position:absolute;left:${m}mm;right:${m}mm;bottom:${Math.max(4, mb/2 - 2)}mm;display:flex;justify-content:space-between;font-size:7px;color:#64748b}
+      ${previewTile ? `.page::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:5;background:url("${previewTile}") top center/100% ${ph}mm repeat-y}` : ''}
+      .cover .logo{cursor:move}
+      .cover .logo:hover{outline:1.5px dashed rgba(255,138,31,.8);outline-offset:1.5mm}` : `
+      @page{size:${L.page.size} ${land?'landscape':'portrait'};margin:${mt}mm ${m}mm ${mb}mm}
+      .wm-print{position:fixed;inset:0;pointer-events:none;z-index:50}
+      .wm-print img{width:100%;height:100%;display:block}
       .page{page-break-after:always;break-after:page}
       .page:last-child{page-break-after:auto;break-after:auto}
       .pv-footer{display:none}`;
@@ -162,13 +220,13 @@
       body{margin:0;font:${fs}px/1.32 ${font};color:#0f172a;${L.style.grayscale?'filter:grayscale(1);':''}}
       ${screen}
       h1,h2,h3,h4{margin:0}
-      .cover{display:flex;flex-direction:column;min-height:${ph - m - mb - 2}mm}
+      .cover{display:flex;flex-direction:column;min-height:${ph - mt - mb - 2}mm;position:relative}
       .cover-bar{height:3mm;background:${acc};border-radius:1mm;margin-bottom:12mm;width:40mm}
       .cover-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10mm}
       .cover h1{font-size:${fs*3.8}px;line-height:1.05;letter-spacing:-.02em;font-weight:800;max-width:65%}
       .cover .subtitle{font-size:${fs*1.6}px;color:#475569;margin-top:4mm}
-      .cover .logo img{object-fit:contain;display:block}
-      .cover .logo.S img{max-width:35mm;max-height:22mm}.cover .logo.M img{max-width:60mm;max-height:35mm}.cover .logo.L img{max-width:90mm;max-height:55mm}
+      .cover .logo{position:absolute;z-index:2;left:calc(${padS}mm + (100% - ${2*padS}mm) * var(--x));top:calc(${padT}mm + (100% - ${padT+padB}mm) * var(--y));transform:translate(calc(var(--x) * -100%), calc(var(--y) * -100%))}
+      .cover .logo img{object-fit:contain;display:block;width:var(--w);max-height:calc(var(--w) * .8);height:auto}
       .cover-meta{margin-top:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4mm;border-top:.4mm solid #e2e8f0;padding-top:6mm}
       .cover-meta dt{font-size:${fs*.82}px;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;font-weight:700}
       .cover-meta dd{margin:1mm 0 0;font-size:${fs*1.25}px;font-weight:600}
@@ -231,7 +289,8 @@
     const c = L.cover;
     const title = esc(tokens(c.title, meta) || meta.project || 'Untitled project');
     const sub = esc(tokens(c.subtitle, meta));
-    const logo = c.showLogo && meta.logo ? `<div class="logo ${esc(c.logoSize||'M')}"><img src="${meta.logo}"></div>` : '';
+    const clamp01 = v => Math.max(0, Math.min(1, Number(v)));
+    const logo = c.showLogo && meta.logo ? `<div class="logo" id="coverLogo" style="--x:${clamp01(c.logoX ?? 1)};--y:${clamp01(c.logoY ?? 0)};--w:${Math.max(10, Number(c.logoW) || 60)}mm"><img src="${meta.logo}" alt="" draggable="false"></div>` : '';
     const f = c.fields || {};
     const date = meta.date ? new Date(meta.date + 'T12:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' }) : '';
     const items = [
@@ -247,7 +306,7 @@
       totals = `<div class="cover-totals"><div><b>${dcs.length}</b><span>DimCities</span></div><div><b>${lk}</b><span>LK blocks</span></div><div><b>${ve}</b><span>Veams</span></div><div><b>${unis.size}</b><span>Universes</span></div><div><b>${pts}</b><span>Patch points</span></div></div>`;
     }
     return `<section class="page cover" data-label="COVER" data-sec="cover"><div class="cover-bar"></div>
-      <div class="cover-top"><div><h1>${title}</h1>${sub?`<div class="subtitle">${sub}</div>`:''}${totals}</div>${logo}</div>
+      <div class="cover-top"><div><h1>${title}</h1>${sub?`<div class="subtitle">${sub}</div>`:''}${totals}</div></div>${logo}
       ${c.note ? `<div class="cover-note">${esc(c.note)}</div>` : ''}
       ${items.length ? `<dl class="cover-meta">${items.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : '<div style="margin-top:auto"></div>'}
       <div class="cover-gen">Generated with DimCity PatchLab · ${new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
@@ -383,7 +442,7 @@
     const L = layout;
     const cover = L.cover.show ? buildCover(M, meta, dcs, L) : '';
     const summary = L.cover.summaryPage && dcs.length > 1 ? buildProjectSummary(M, meta, dcs, L) : '';
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.project || 'PatchLab report')}</title><style>${printCss(L, { preview })}</style></head><body>${coverOnce ? cover + summary : ''}${dcs.map(dc => buildDimCity(M, meta, dc, L)).join('')}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.project || 'PatchLab report')}</title><style>${printCss(L, { preview, meta })}</style></head><body>${preview ? '' : printWatermark(L, meta)}${coverOnce ? cover + summary : ''}${dcs.map(dc => buildDimCity(M, meta, dc, L)).join('')}</body></html>`;
   }
 
   // ===================== Builder UI =====================
@@ -450,6 +509,7 @@
             <button data-tab="content">${I('layers',14)}Content</button>
             <button data-tab="style">${I('sliders',14)}Style</button>
             <button data-tab="cover">${I('image',14)}Cover</button>
+            <button data-tab="brand">${I('star',14)}Brand</button>
           </div>
           <div class="rb-panel-body" id="rbPanel"></div>
         </aside>
@@ -548,6 +608,7 @@
     const P = root.querySelector('#rbPanel');
     if(B.tab === 'content') P.innerHTML = panelContent();
     else if(B.tab === 'style') P.innerHTML = panelStyle();
+    else if(B.tab === 'brand') P.innerHTML = panelBrand();
     else P.innerHTML = panelCover();
     bindPanel(P);
   }
@@ -608,6 +669,29 @@
         <div class="hint">Placeholders: {project} {area} {location} {date} {prepared} {dimcity}</div>
       </div>`;
   }
+  function panelBrand(){
+    const b = B.L.brand, wm = b.wm, meta = currentMeta();
+    const range = (id, label, v, min, max, unit, step=1) => `<label class="field">${label} <span class="subtle" id="${id}Val">${v}${unit}</span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${v}"></label>`;
+    return `<div class="rb-group"><div class="rb-label">Company logo</div>
+        <div class="rb-logo">${b.logo ? `<img src="${b.logo}" alt="">` : `<div class="rb-logo-empty">${I('image',22)}<span>No company logo</span></div>`}
+          <div class="rb-logo-actions"><button class="sm" id="rbBrandPick">${I('upload',13)}${b.logo?'Replace':'Upload'}</button>
+            ${b.logo ? `<button class="sm ghost" id="rbBrandDel">${I('trash',13)}Remove</button>` : meta.logo ? `<button class="sm ghost" id="rbBrandUseProject">Use project logo</button>` : ''}</div></div>
+        <input type="file" id="rbBrandFile" accept="image/*" hidden>
+        ${b.logo ? `<div class="rb-label" style="margin-top:14px">On every page</div>
+          <div class="segmented rb-full rb-wrap" id="rbBrandPos">${[['none','Off'],['header-left','Top left'],['header-right','Top right'],['footer-left','Bottom left'],['footer-right','Bottom right']].map(([v,l])=>`<button data-v="${v}" class="${b.logoPos===v?'active':''}">${l}</button>`).join('')}</div>
+          ${b.logoPos !== 'none' ? range('rbBrandH', 'Logo height', Number(b.logoHeight) || 9, 5, 25, ' mm') : ''}` : ''}
+      </div>
+      <div class="rb-group"><div class="rb-label">Watermark</div>
+        <div class="segmented rb-full" id="rbWmType">${[['none','None'],['logo','Logo'],['text','Text']].map(([v,l])=>`<button data-v="${v}" class="${wm.type===v?'active':''}">${l}</button>`).join('')}</div>
+        ${wm.type === 'logo' && !(b.logo || meta.logo) ? `<div class="hint">${I('info',12)} Upload a company logo above first.</div>` : ''}
+        ${wm.type === 'text' ? `<label class="field" style="margin-top:12px">Text<input type="text" id="rbWmText" value="${esc(wm.text)}" placeholder="CONFIDENTIAL / DRAFT / CONCEPT"></label>` : ''}
+        ${wm.type !== 'none' ? `<div class="rb-stack">
+          ${range('rbWmOp', 'Strength', Number(wm.opacity) || 8, 2, 40, '%')}
+          ${range('rbWmSize', 'Size', Number(wm.size) || 55, 15, 100, '%')}
+          ${range('rbWmAngle', 'Angle', Number(wm.angle) || 0, -90, 90, '°', 5)}</div>` : ''}
+      </div>
+      <div class="hint">${I('info',12)} Your company style is part of the layout: use <b>Save as template</b> to reuse it in every show — templates are stored in your library.</div>`;
+  }
   function panelCover(){
     const L = B.L, c = L.cover, meta = currentMeta();
     const f = c.fields;
@@ -622,8 +706,13 @@
         <div class="rb-label" style="margin-top:14px">Logo</div>
         <div class="rb-logo">${meta.logo ? `<img src="${meta.logo}" alt="">` : `<div class="rb-logo-empty">${I('image',22)}<span>No logo</span></div>`}
           <div class="rb-logo-actions"><button class="sm" id="rbLogoPick">${I('upload',13)}${meta.logo?'Replace':'Upload'}</button>${meta.logo?`<button class="sm ghost" id="rbLogoDel">${I('trash',13)}Remove</button>`:''}
-          ${meta.logo ? `<div class="segmented" id="rbLogoSize">${['S','M','L'].map(s=>`<button data-v="${s}" class="${c.logoSize===s?'active':''}">${s}</button>`).join('')}</div>` : ''}</div></div>
+          </div></div>
         <input type="file" id="rbLogoFile" accept="image/*" hidden>
+        ${meta.logo ? `<div class="rb-pos-row">
+          <div class="rb-pos" id="rbLogoPos" title="Position on the cover">${[0, .5, 1].map(y => [0, .5, 1].map(x => `<button data-x="${x}" data-y="${y}" class="${Number(c.logoX) === x && Number(c.logoY) === y ? 'active' : ''}"></button>`).join('')).join('')}</div>
+          <div style="flex:1"><label class="field">Size <span class="subtle" id="rbLogoWVal">${Number(c.logoW) || 60} mm</span><input type="range" id="rbLogoW" min="15" max="180" step="1" value="${Number(c.logoW) || 60}"></label>
+          <div class="hint">${I('info',12)} Or drag the image in the preview.</div></div>
+        </div>` : ''}
         <label class="field" style="margin-top:14px">Note on cover<textarea id="rbCNote" rows="3" placeholder="Optional — e.g. version, revision or crew note">${esc(c.note)}</textarea></label>
       </div>` : ''}
       ${sw('rbSummaryPage', c.summaryPage, 'Project summary page (when exporting more than one DimCity)')}
@@ -704,7 +793,25 @@
     val('rbCSub', n => L.cover.subtitle = n.value, 'input');
     val('rbCNote', n => L.cover.note = n.value, 'input');
     on('[data-field]', 'change', e => { L.cover.fields[e.target.dataset.field] = e.target.checked; e.target.closest('.rb-chip').classList.toggle('on', e.target.checked); changed(); });
-    seg('rbLogoSize', v => L.cover.logoSize = v);
+    on('#rbLogoPos button', 'click', e => { L.cover.logoX = Number(e.currentTarget.dataset.x); L.cover.logoY = Number(e.currentTarget.dataset.y); changed(true); });
+    val('rbLogoW', n => { L.cover.logoW = Number(n.value); P.querySelector('#rbLogoWVal').textContent = `${n.value} mm`; }, 'input');
+
+    // Brand
+    const bfile = P.querySelector('#rbBrandFile');
+    on('#rbBrandPick', 'click', () => bfile.click());
+    if(bfile) bfile.onchange = async () => {
+      const f = bfile.files?.[0]; if(!f) return;
+      try { L.brand.logo = await imageToDataUrl(f); if(L.brand.logoPos === 'none') L.brand.logoPos = 'header-right'; changed(true); }
+      catch(err){ App()?.ui?.toast?.(`Could not read image: ${err.message || err}`, 'err'); }
+    };
+    on('#rbBrandDel', 'click', () => { L.brand.logo = null; changed(true); });
+    on('#rbBrandUseProject', 'click', () => { L.brand.logo = currentMeta().logo; if(L.brand.logoPos === 'none') L.brand.logoPos = 'header-right'; changed(true); });
+    seg('rbBrandPos', v => L.brand.logoPos = v);
+    val('rbBrandH', n => { L.brand.logoHeight = Number(n.value); P.querySelector('#rbBrandHVal').textContent = `${n.value} mm`; }, 'input');
+    seg('rbWmType', v => L.brand.wm.type = v);
+    val('rbWmText', n => L.brand.wm.text = n.value, 'input');
+    const rng = (id, key, unit) => val(id, n => { L.brand.wm[key] = Number(n.value); P.querySelector(`#${id}Val`).textContent = `${n.value}${unit}`; }, 'input');
+    rng('rbWmOp', 'opacity', '%'); rng('rbWmSize', 'size', '%'); rng('rbWmAngle', 'angle', '°');
     const M = getM();
     const setMeta = (k, v) => { M.projectMeta = { ...(M.projectMeta||{}), [k]: v }; if(M.ui) M.ui.dirty = true; };
     on('[data-meta]', 'input', e => { setMeta(e.target.dataset.meta, e.target.value); changed(); });
@@ -713,8 +820,8 @@
     if(pick) pick.onclick = ()=> file.click();
     if(file) file.onchange = async ()=>{
       const f = file.files?.[0]; if(!f) return;
-      if(f.size > 4 * 1024 * 1024){ App()?.ui?.toast?.('Logo is larger than 4 MB — please use a smaller image.', 'err'); return; }
-      setMeta('logo', await fileToDataUrl(f)); changed(true);
+      try { setMeta('logo', await imageToDataUrl(f)); changed(true); }
+      catch(err){ App()?.ui?.toast?.(`Could not read image: ${err.message || err}`, 'err'); }
     };
     const del = P.querySelector('#rbLogoDel'); if(del) del.onclick = ()=>{ setMeta('logo', null); changed(true); };
   }
@@ -725,6 +832,19 @@
     renderPanel(); schedulePreview();
   }
   function fileToDataUrl(file){ return new Promise((res, rej)=>{ const r = new FileReader(); r.onload = ()=>res(r.result); r.onerror = rej; r.readAsDataURL(file); }); }
+  // Afbeeldingen verkleinen (max 1200 px, PNG met transparantie) zodat project, templates en PDF klein blijven
+  async function imageToDataUrl(file){
+    if(file.size > 15 * 1024 * 1024) throw new Error('image is larger than 15 MB');
+    const url = await fileToDataUrl(file);
+    if(/svg/i.test(file.type)) return url;
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('not a supported image')); i.src = url; });
+    const k = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight));
+    if(k === 1 && file.size < 400 * 1024) return url;
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/png');
+  }
 
   // ---- Preview ----
   function schedulePreview(){ clearTimeout(B.timer); B.timer = setTimeout(()=>renderPreview(), 140); updateSummary(); }
@@ -763,8 +883,34 @@
         document.querySelector(`.rb-sec[data-key="${key}"]`)?.scrollIntoView({ block:'nearest', behavior:'smooth' });
       });
       highlightPreview();
+      bindCoverLogoDrag(doc);
     };
     frame.srcdoc = html;
+  }
+  // Coverafbeelding vrij verslepen in de preview
+  function bindCoverLogoDrag(doc){
+    const logo = doc.getElementById('coverLogo'); if(!logo) return;
+    const cover = logo.closest('.cover');
+    logo.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const c = B.L.cover, cr = cover.getBoundingClientRect(), lr = logo.getBoundingClientRect();
+      const [pw, ph] = pageDims(B.L), { m, mt, mb } = pageMargins(B.L);
+      const freeW = cr.width * (1 - 2*m/pw) - lr.width, freeH = cr.height * (1 - (mt+mb)/ph) - lr.height;
+      const sx = e.clientX, sy = e.clientY, x0 = Number(c.logoX ?? 1), y0 = Number(c.logoY ?? 0);
+      let moved = false;
+      const clamp = v => Math.round(Math.max(0, Math.min(1, v)) * 1000) / 1000;
+      const mv = ev => {
+        moved = true;
+        c.logoX = clamp(x0 + (freeW > 0 ? (ev.clientX - sx) / freeW : 0));
+        c.logoY = clamp(y0 + (freeH > 0 ? (ev.clientY - sy) / freeH : 0));
+        logo.style.setProperty('--x', c.logoX); logo.style.setProperty('--y', c.logoY);
+      };
+      const up = () => {
+        doc.removeEventListener('mousemove', mv); doc.removeEventListener('mouseup', up);
+        if(moved){ B.tab = 'cover'; renderPanel(); }
+      };
+      doc.addEventListener('mousemove', mv); doc.addEventListener('mouseup', up);
+    });
   }
   function highlightPreview(){
     const doc = document.getElementById('rbFrame')?.contentDocument; if(!doc) return;
@@ -795,18 +941,19 @@
     const landscape = L.page.orientation !== 'portrait';
     const footer = dc => L.footer.show ? { left:tokens(L.footer.left, meta, dc), center:tokens(L.footer.center, meta, dc), pageNumbers:L.footer.pageNumbers } : null;
     const base = safeFile(meta.project || 'PatchLab');
+    const brand = brandLogoOn(L) ? { logo:L.brand.logo, pos:L.brand.logoPos, height:L.brand.logoHeight, margin:pageMargins(L).m } : null;
     const btn = document.getElementById('rbExport');
     btn.disabled = true; const label = btn.querySelector('span').textContent; btn.querySelector('span').textContent = 'Exporting…';
     try{
       if(L.output === 'PER_DIM'){
         const items = dcs.map(dc => ({ fileName:`${base}-${safeFile(dc)}.pdf`, html:buildPdfHtml({ M, meta, dcs:[dc], layout:L }), footer:footer(dc) }));
-        const res = await window.app?.exportPdfBatch?.({ items, landscape, pageSize:L.page.size });
+        const res = await window.app?.exportPdfBatch?.({ items, landscape, pageSize:L.page.size, brand });
         if(!res) return;
         App()?.ui?.toast?.(`${res.files.length} PDF file${res.files.length===1?'':'s'} exported`, 'ok', { action:{ label:'Show in folder', run:()=>window.app?.showItemInFolder?.(res.files[0]) }, ms:6000 });
       } else {
         const all = allDims();
         const name = dcs.length === all.length ? `${base}.pdf` : `${base}-${dcs.map(safeFile).join('_')}.pdf`;
-        const out = await window.app?.exportPdfFromHtml?.({ html:buildPdfHtml({ M, meta, dcs, layout:L }), defaultPath:name, landscape, pageSize:L.page.size, footer:footer('') });
+        const out = await window.app?.exportPdfFromHtml?.({ html:buildPdfHtml({ M, meta, dcs, layout:L }), defaultPath:name, landscape, pageSize:L.page.size, footer:footer(''), brand });
         if(!out) return;
         App()?.ui?.toast?.(`Exported ${out.split(/[\\/]/).pop()}`, 'ok', { action:{ label:'Show in folder', run:()=>window.app?.showItemInFolder?.(out) }, ms:6000 });
       }

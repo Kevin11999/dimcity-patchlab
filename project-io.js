@@ -83,23 +83,27 @@
   }
 
   function defaultPdfSettings(existing={}){
+    const e = existing && typeof existing === 'object' ? existing : {};
     return {
-      preset: existing.preset || 'DB_DETAILED',
-      page: existing.page || 'landscape',
-      incProject: existing.incProject ?? true,
-      incNetwork: existing.incNetwork ?? true,
-      incSwitches: existing.incSwitches ?? true,
-      incSplitters: existing.incSplitters ?? true,
-      incPatch: existing.incPatch ?? true,
-      incWarnings: existing.incWarnings ?? true
+      ...e,
+      preset: e.preset || 'DB_DETAILED',
+      page: e.page || 'landscape',
+      incProject: e.incProject ?? true,
+      incNetwork: e.incNetwork ?? true,
+      incSwitches: e.incSwitches ?? true,
+      incSplitters: e.incSplitters ?? true,
+      incPatch: e.incPatch ?? true,
+      incWarnings: e.incWarnings ?? true
     };
   }
 
+  // Effectieve rijen uit het model (incl. CSV-editor wijzigingen), met bron-informatie in kolom 7/8.
   function buildRowsFromModel(M){
     const rows = [];
-    for (const L of (M.lines || [])) rows.push([ L.id, String(L.port ?? ''), (L.universe ?? ''), (L.dest ?? ''), '' ]);
-    for (const V of (M.veamLines || [])) rows.push([ V.id, String(V.port ?? ''), (V.universe ?? ''), (V.dest ?? ''), '' ]);
-    for (const D of (M.dmxLoose || [])) rows.push([ '', '', (D.universe ?? ''), (D.dest ?? ''), '', (D.dimcity ?? '') ]);
+    const src = x => [x.sourceId ?? null, x.sourceName ?? null];
+    for (const L of (M.lines || [])) rows.push([ L.id, String(L.port ?? ''), (L.universe ?? ''), (L.dest ?? ''), '', '', ...src(L) ]);
+    for (const V of (M.veamLines || [])) rows.push([ V.id, String(V.port ?? ''), (V.universe ?? ''), (V.dest ?? ''), '', '', ...src(V) ]);
+    for (const D of (M.dmxLoose || [])) rows.push([ '', '', (D.universe ?? ''), (D.dest ?? ''), '', (D.dimcity ?? ''), ...src(D) ]);
     return rows;
   }
 
@@ -120,12 +124,18 @@
       };
     }
 
+    const manualLKs = [...(M.byLK || new Map()).values()].filter(r => r.manual).map(r => r.id);
+    const manualVeams = [...(M.byVeam || new Map()).values()].filter(r => r.manual).map(r => r.id);
+
     return {
-      fileVersion: 3,
+      fileVersion: 4,
       app: 'DimCity PatchLab',
       savedAt: new Date().toISOString(),
       rows: buildRowsFromModel(M),
       csvSources: Array.isArray(M.csvSources) ? M.csvSources : [],
+      customRows: Array.isArray(M.customRows) ? M.customRows : [],
+      manualLKs,
+      manualVeams,
       lkAssign,
       lkBlockType,
       dimFromManual: [...(M.dimFromManual || new Set())],
@@ -138,6 +148,8 @@
   }
 
   function rowsFromSnapshot(snap){
+    // Vanaf v4 zijn `rows` de effectieve rijen (CSV + editor-wijzigingen + custom); die zijn leidend.
+    if (Number(snap.fileVersion) >= 4 && Array.isArray(snap.rows)) return snap.rows;
     if (Array.isArray(snap.csvSources) && snap.csvSources.length){
       const rows = [];
       for (const src of snap.csvSources){
@@ -166,14 +178,34 @@
   async function applySnapshot(snap){
     const rows = rowsFromSnapshot(snap);
     if (!rows){
-      alert('Unknown project format.');
+      notify('Unknown project format — this file was not made with PatchLab.', 'err');
       return;
     }
+
+    // Begin met een leeg model: processRows neemt handmatige staat over uit het vorige model,
+    // en dat mag niet het project zijn dat nu open staat.
+    const seed = freshModel();
+    seed.ui = App.getMODEL()?.ui || seed.ui;
+    seed.dimFromManual = new Set(snap.dimFromManual || []);
+    for (const id of (snap.manualLKs || [])){
+      const bt = snap.lkBlockType?.[id];
+      seed.byLK.set(id, {
+        id, dimcity: App.dimCityFromId(id), lines: [], manual: true,
+        names: {'1-4':null,'5-8':null,'9-12':null}, veam: {1:null,2:null,3:null},
+        blockType: { mode:'Manual', value: bt?.value || 'MIXED' }
+      });
+    }
+    for (const id of (snap.manualVeams || [])){
+      seed.byVeam.set(id, { id, dimcity: App.dimCityFromId(id), lines: [], manual: true });
+    }
+    seed.customRows = Array.isArray(snap.customRows) ? snap.customRows : [];
+    App.setMODEL(seed);
 
     await App.processRows(rows);
 
     const M = App.getMODEL();
     M.csvSources = Array.isArray(snap.csvSources) ? snap.csvSources : [];
+    M.customRows = Array.isArray(snap.customRows) ? snap.customRows : [];
     M.projectMeta = snap.projectMeta || M.projectMeta || null;
     M.dimColors = snap.dimColors && typeof snap.dimColors === 'object' ? snap.dimColors : (M.dimColors || {});
     M.networkDevices = normalizeNetworkDevices(snap.networkDevices || M.networkDevices);
@@ -213,97 +245,136 @@
     App.renderAll?.();
   }
 
-  async function fileSaveProject(){
-    const M = App.getMODEL();
-    let path = M.filePath || M.projectPath || null;
-    if (!path) return fileSaveProjectAs();
+  const UI = () => App.ui || window.LKApp?.ui || {};
+  const notify = (msg, kind='ok', opts) => (UI().toast ? UI().toast(msg, kind, opts) : null);
+  const fileName = p => String(p || '').split(/[\\/]/).pop();
+  const projectName = (M, path) => M.projectMeta?.project || fileName(path).replace(/\.lkproj$/i, '');
 
+  async function writeProject(path, M){
     const snap = buildSnapshot();
-    if (window.app?.writeTextFile){
-      path = ensureLkprojPath(path);
-      await window.app.writeTextFile({ filePath:path, content:JSON.stringify(snap, null, 2) });
-      M.filePath = path;
-      M.projectPath = path;
-      M.ui.dirty = false;
-      App.setMODEL(M);
-      return;
-    }
-
-    downloadJson(path || 'project.lkproj', snap);
+    await window.app.writeTextFile({ filePath:path, content:JSON.stringify(snap, null, 2) });
+    M.filePath = path;
+    M.projectPath = path;
     M.ui.dirty = false;
     App.setMODEL(M);
+    await window.app.recentAdd?.(path, projectName(M, path));
+    App.updateChrome?.();
+    notify(`Saved ${fileName(path)}`);
+    return true;
+  }
+
+  async function fileSaveProject(){
+    const M = App.getMODEL();
+    const path = M.filePath || M.projectPath || null;
+    if (!path) return fileSaveProjectAs();
+    if (!window.app?.writeTextFile){
+      downloadJson(path, buildSnapshot());
+      M.ui.dirty = false; App.setMODEL(M);
+      return true;
+    }
+    try { return await writeProject(ensureLkprojPath(path), M); }
+    catch (err) { notify(`Could not save: ${err.message}`, 'err'); return false; }
   }
 
   async function fileSaveProjectAs(){
     const M = App.getMODEL();
-    const snap = buildSnapshot();
-
-    if (window.app?.showSaveDialog && window.app?.writeTextFile){
-      const res = await window.app.showSaveDialog({
-        title: 'Save project',
-        defaultPath: ensureLkprojPath(M.filePath || 'project.lkproj'),
-        filters: [{ name:'LK Project', extensions:['lkproj'] }]
-      });
-      if (!res || res.canceled) return;
-
-      const path = ensureLkprojPath(res.filePath || res);
-      await window.app.writeTextFile({ filePath:path, content:JSON.stringify(snap, null, 2) });
-      M.filePath = path;
-      M.projectPath = path;
-      M.ui.dirty = false;
-      App.setMODEL(M);
-      return;
+    if (!(window.app?.showSaveDialog && window.app?.writeTextFile)){
+      downloadJson(`${projectName(M, 'project') || 'project'}.lkproj`, buildSnapshot());
+      M.ui.dirty = false; App.setMODEL(M);
+      return true;
     }
-
-    downloadJson('project.lkproj', snap);
-    M.filePath = 'project.lkproj';
-    M.projectPath = M.filePath;
-    M.ui.dirty = false;
-    App.setMODEL(M);
+    const suggested = M.filePath || `${(M.projectMeta?.project || 'Untitled project').replace(/[\\/:*?"<>|]+/g, '_')}.lkproj`;
+    const res = await window.app.showSaveDialog({
+      title: 'Save Project',
+      defaultPath: ensureLkprojPath(suggested),
+      filters: [{ name:'PatchLab Project', extensions:['lkproj'] }]
+    });
+    if (!res || res.canceled || !res.filePath) return false;
+    try { return await writeProject(ensureLkprojPath(res.filePath), M); }
+    catch (err) { notify(`Could not save: ${err.message}`, 'err'); return false; }
   }
 
-  async function fileOpenProject(){
-    let path, content;
-
-    if (window.app?.showOpenDialog && window.app?.readTextFile){
-      const res = await window.app.showOpenDialog({
-        title: 'Open project',
-        properties: ['openFile'],
-        filters: [
-          { name:'LK Project', extensions:['lkproj'] },
-          { name:'JSON', extensions:['json'] },
-          { name:'All Files', extensions:['*'] }
-        ]
-      });
-      if (!res || res.canceled) return;
-      path = Array.isArray(res.filePaths) ? res.filePaths[0] : (res.filePath || res);
-      if (!path) return;
+  // Laadt een projectbestand vanaf een pad (Open-dialoog, recente bestanden, welkomstscherm).
+  async function openProjectPath(path, { skipDirtyCheck=false } = {}){
+    if (!path) return false;
+    if (!skipDirtyCheck && !(await confirmSaveIfDirty())) return false;
+    let content;
+    try {
       content = await window.app.readTextFile(path);
-    } else {
-      const pick = await pickFileOnce();
-      if (!pick) return;
-      path = pick.path;
-      content = pick.content;
+    } catch (err) {
+      notify(`Could not open ${fileName(path)} — the file was moved or deleted.`, 'err');
+      await window.app.recentRemove?.(path);
+      return false;
     }
+    return loadProjectContent(path, content);
+  }
 
-    const snap = JSON.parse(content);
+  async function loadProjectContent(path, content){
+    let snap;
+    try {
+      snap = JSON.parse(content);
+    } catch (err) {
+      await UI().confirmDialog?.({ title:'Could not open project', message:`${fileName(path)} is not a valid PatchLab project file.\n\n${err.message}`, okLabel:'OK', cancelLabel:'Close' });
+      return false;
+    }
     await applySnapshot(snap);
-
     const M = App.getMODEL();
     M.filePath = ensureLkprojPath(path);
     M.projectPath = M.filePath;
     M.ui.dirty = false;
     App.setMODEL(M);
+    await window.app?.recentAdd?.(M.filePath, projectName(M, path));
+    App.navigate?.('HOME');
+    notify(`Opened ${fileName(path)}`);
+    return true;
   }
 
-  async function confirmSaveIfDirty(){
+  async function fileOpenProject(){
+    if (!(await confirmSaveIfDirty())) return false;
+    if (window.app?.showOpenDialog && window.app?.readTextFile){
+      const res = await window.app.showOpenDialog({
+        title: 'Open Project',
+        properties: ['openFile'],
+        filters: [
+          { name:'PatchLab Project', extensions:['lkproj'] },
+          { name:'JSON', extensions:['json'] },
+          { name:'All Files', extensions:['*'] }
+        ]
+      });
+      if (!res || res.canceled) return false;
+      const path = Array.isArray(res.filePaths) ? res.filePaths[0] : (res.filePath || res);
+      return openProjectPath(path, { skipDirtyCheck:true });
+    }
+    const pick = await pickFileOnce();
+    if (!pick) return false;
+    return loadProjectContent(pick.path, pick.content);
+  }
+
+  // true = doorgaan (opgeslagen of bewust weggegooid), false = annuleren
+  function confirmSaveIfDirty(){
     const M = App.getMODEL();
-    if (!M?.ui?.dirty) return true;
-    return window.confirm('Current project has unsaved changes. Continue without saving?');
+    if (!M?.ui?.dirty) return Promise.resolve(true);
+    const openDialog = UI().openDialog;
+    if (!openDialog) return Promise.resolve(window.confirm('This project has unsaved changes. Continue without saving?'));
+    return new Promise(resolve=>{
+      let done = false;
+      const name = projectName(M, M.filePath || '') || 'this project';
+      const d = openDialog({
+        title: 'Save changes?',
+        width: '460px',
+        body: `<p style="margin:0;color:var(--text-2);line-height:1.55">Do you want to save the changes to <b style="color:var(--text)">${String(name).replace(/[&<>"]/g,'')}</b>? Your changes will be lost if you don't save them.</p>`,
+        footer: `<button data-a="discard" style="margin-right:auto">Don't Save</button><button data-a="cancel">Cancel</button><button data-a="save" class="primary">Save</button>`,
+        onClose: ()=>{ if(!done) resolve(false); }
+      });
+      const finish = v => { done = true; d.close(); resolve(v); };
+      d.footer.querySelector('[data-a=discard]').onclick = ()=> finish(true);
+      d.footer.querySelector('[data-a=cancel]').onclick = ()=> finish(false);
+      d.footer.querySelector('[data-a=save]').onclick = async ()=>{ done = true; d.close(); resolve(!!(await fileSaveProject())); };
+    });
   }
 
-  function emptyModel(){
-    App.setMODEL({
+  function freshModel(){
+    return {
       filePath: null,
       projectPath: null,
       projectMeta: null,
@@ -337,64 +408,32 @@
         rightMode: 'HOME',
         dirty: false
       }
-    });
+    };
+  }
+
+  function emptyModel(){
+    App.setMODEL(freshModel());
     App.renderAll?.();
     const fi = document.getElementById('fileInfo');
     if (fi) fi.textContent = '';
   }
 
-  async function newFileWithMeta(){
-    return new Promise((resolve)=>{
-      const bd = document.createElement('div');
-      bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:10001';
-      const modal = document.createElement('div');
-      modal.style.cssText = 'width:520px;background:#121820;color:#eaf2ff;border:1px solid #1e2835;border-radius:10px;padding:14px;font:14px/1.4 system-ui;';
-      modal.innerHTML = `
-        <h3 style="margin-top:0;margin-bottom:10px">New project — Project information</h3>
-        <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin-bottom:8px;"><div>Project</div><input id="_new_proj" type="text"></div>
-        <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin-bottom:8px;"><div>Area</div><input id="_new_area" type="text"></div>
-        <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin-bottom:8px;"><div>Location</div><input id="_new_loc" type="text"></div>
-        <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin-bottom:8px;"><div>Date</div><input id="_new_date" type="date"></div>
-        <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin-bottom:12px;"><div>Prepared by</div><input id="_new_prep" type="text"></div>
-        <div style="display:flex;justify-content:flex-end;gap:8px;"><button id="_new_cancel" style="padding:6px 10px;border-radius:8px;background:#0b0f14;color:#eaf2ff;border:1px solid #2a3442">Cancel</button><button id="_new_ok" style="padding:6px 10px;border-radius:8px;background:#4ea8ff;color:#00121a;border:1px solid #4ea8ff">Create new project</button></div>
-      `;
-      bd.appendChild(modal);
-      document.body.appendChild(bd);
-
-      const M = App.getMODEL();
-      const meta = M?.projectMeta || {};
-      modal.querySelector('#_new_proj').value = meta.project || '';
-      modal.querySelector('#_new_area').value = meta.area || '';
-      modal.querySelector('#_new_loc').value = meta.location || '';
-      modal.querySelector('#_new_date').value = meta.date || '';
-      modal.querySelector('#_new_prep').value = meta.prepared || '';
-
-      const cleanup = ()=> bd.remove();
-      modal.querySelector('#_new_cancel').addEventListener('click', ()=>{ cleanup(); resolve(false); });
-      modal.querySelector('#_new_ok').addEventListener('click', ()=>{
-        const meta = {
-          project: modal.querySelector('#_new_proj').value.trim(),
-          area: modal.querySelector('#_new_area').value.trim(),
-          location: modal.querySelector('#_new_loc').value.trim(),
-          date: modal.querySelector('#_new_date').value,
-          prepared: modal.querySelector('#_new_prep').value.trim(),
-          logo: null
-        };
-        cleanup();
-        emptyModel();
-        const M2 = App.getMODEL();
-        M2.projectMeta = meta;
-        M2.ui.dirty = false;
-        App.setMODEL(M2);
-        resolve(true);
-      });
-    });
+  // Nieuw leeg project met projectinformatie (welkomstscherm / File → New Project)
+  function newProject(meta){
+    emptyModel();
+    const M = App.getMODEL();
+    M.projectMeta = { project:'', area:'', location:'', date:'', prepared:'', logo:null, ...(meta || {}) };
+    M.ui.dirty = false;
+    M.ui.view = 'HOME';
+    App.setMODEL(M);
+    App.renderAll?.();
   }
 
   async function createNewFile(){
-    const ok = await confirmSaveIfDirty();
-    if (!ok) return false;
-    return await newFileWithMeta();
+    if (!(await confirmSaveIfDirty())) return false;
+    if (window.PatchLabUI?.newProject) { await window.PatchLabUI.newProject({ skipDirtyCheck:true }); return true; }
+    newProject({});
+    return true;
   }
 
   async function importCsvStart(){
@@ -402,40 +441,23 @@
       await window.startImportCsv();
       return;
     }
-    if (window.app?.openCsv){
-      const res = await window.app.openCsv();
-      if (!res) return;
-      const parsed = window.Papa.parse(res.content.trim(), { delimiter:',', skipEmptyLines:true });
-      const rows = (parsed.data||[]).map(r => [r[0]||'', r[1]||'', r[2]||'', r[3]||'', '']);
-      await App.processRows(rows);
-      const M = App.getMODEL();
-      M.ui.dirty = true;
-      App.setMODEL(M);
-    } else {
-      alert('Import CSV is not available.');
-    }
+    notify('CSV import is not available.', 'err');
   }
 
   async function exportPdf(){
-    if (window.PdfExport?.open){
-      window.PdfExport.open();
-      return;
-    }
-    if (window.app?.exportPdf){
-      const out = await window.app.exportPdf('lk-veam-report.pdf');
-      alert(`PDF saved: ${out}`);
-    } else {
-      alert('PDF export is not available.');
-    }
+    window.PdfExport?.open?.();
   }
 
   window.ProjectIO = {
     fileOpenProject,
     fileSaveProject,
     fileSaveProjectAs,
+    openProjectPath,
+    confirmSaveIfDirty,
     importCsvStart,
     exportPdf,
     createNewFile,
+    newProject,
     buildSnapshot,
     applySnapshot
   };

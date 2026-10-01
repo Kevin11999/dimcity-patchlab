@@ -24,8 +24,8 @@ function portRangeOk(id, port){ if(isV(id)) return port>=1 && port<=4; if(isLK(i
 function statusColor(u, pos){ if(u!=null && pos) return 'GREEN'; if((u!=null && !pos) || (u==null && pos)) return 'YELLOW'; return 'YELLOW'; }
 
 function statusLabel(st){
-  if(st==='GREEN') return 'Good';
-  if(st==='YELLOW') return 'Warning';
+  if(st==='GREEN') return 'OK';
+  if(st==='YELLOW') return 'Incomplete';
   if(st==='RED') return 'Error';
   return st || '—';
 }
@@ -41,7 +41,7 @@ function issueLabel(st){
 }
 function shortFileName(path){
   const s = (path || '').toString();
-  return s.split(/[\/]/).pop() || s || 'CSV bestand';
+  return s.split(/[\\/]/).pop() || s || 'CSV file';
 }
 
 const DEFAULT_DIM_COLORS = ['#4ea8ff','#42A5F5','#21d4fd','#54a0ff','#5f8cff','#7b61ff','#1DB954','#FFC107','#9b5cff','#f368e0','#10ac84','#ee5253'];
@@ -110,7 +110,20 @@ function rowsFromCsvSources(){
       out.push(row);
     }
   }
-  return out;
+  return out.concat(rowsFromCustomRows(MODEL.customRows));
+}
+// Custom-rijen uit de CSV-editor in processRows-vorm: [id, port, uni, dest, '', dimcity, sourceId, sourceName]
+function rowsFromCustomRows(customRows){
+  return (customRows || []).map(r => [
+    r.kind === 'DMX' ? '' : (r.id || ''),
+    r.kind === 'DMX' || r.port == null ? '' : String(r.port),
+    r.universe == null ? '' : String(r.universe),
+    r.dest || '',
+    '',
+    r.kind === 'DMX' ? (r.dimcity || '') : '',
+    null,
+    'Custom'
+  ]);
 }
 async function rebuildFromCsvSources(){
   await processRows(rowsFromCsvSources());
@@ -118,9 +131,9 @@ async function rebuildFromCsvSources(){
 
 // Bloktype helpers
 function blockTypeLabel(t){
-  if(t==='MIXED')     return '4X XLR 3p+5p + 3X Veam 4';
-  if(t==='VEAM_ONLY') return '3X Veam 4';
-  if(t==='XLR12')     return '12X XLR 3p+5p';
+  if(t==='MIXED')     return '4× XLR + 3× Veam';
+  if(t==='VEAM_ONLY') return '3× Veam';
+  if(t==='XLR12')     return '12× XLR';
   return t || '—';
 }
 function autoBlockType(lk){
@@ -320,7 +333,7 @@ $('#wizImport').onclick = ()=> importSelected();
 function fillMappingSelect(sel, label, selectedIndex){
   sel.innerHTML = '';
   for(let i=0;i<5;i++){
-    const opt = el('option', null, `${label} ← kolom ${i+1}`);
+    const opt = el('option', null, `Column ${i+1}`);
     opt.value = i; if(i===selectedIndex) opt.selected = true;
     sel.appendChild(opt);
   }
@@ -336,7 +349,7 @@ function renderWizard(){
   const mapTrussSel = document.getElementById('mapTruss');
   if (mapTrussSel){
     mapTrussSel.disabled = !WIZ.useTruss;
-    fillMappingSelect(mapTrussSel,'—', WIZ.map.truss);
+    fillMappingSelect(mapTrussSel,'', WIZ.map.truss);
   }
 }
 
@@ -351,7 +364,7 @@ fillMappingSelect(document.getElementById('mapDest'), 'POSITION',      WIZ.map.d
   const start = WIZ.skipFirst;
   const end   = total - WIZ.skipLast - 1;
   const include = (idx)=> idx>=start && idx<=end;
-  $('#wizCount').textContent = `${Math.max(0, end-start+1)} selected of ${total}`;
+  $('#wizCount').textContent = `${Math.max(0, end-start+1)} of ${total} rows selected`;
 
   const tb = $('#wizRows'); tb.innerHTML='';
   // preview zonder limiet
@@ -413,6 +426,11 @@ async function importSelected(){
   closeWizard();
   await rebuildFromCsvSources();
   MODEL.ui.dirty = true;
+  MODEL.ui.view = 'HOME';
+  renderAll();
+  const errs = MODEL.issues.filter(i=>i.severity==='RED').length;
+  toast(`Imported ${rows.length} rows from ${sourceName}${errs ? ` — ${errs} error${errs===1?'':'s'} found` : ''}`, errs ? 'err' : 'ok',
+        errs ? { action:{ label:'Show', run:()=>navigate('ISSUES') } } : {});
 }
 
 
@@ -434,38 +452,11 @@ window.startImportCsv = async function(options={}){
 
   $('#wizPath').textContent = `${WIZ.replaceSourceId ? 'Replace: ' : ''}${WIZ.sourceName}`;
   openWizard(); renderWizard();
-  MODEL.ui.dirty = true;
 };
 
 
-// renderer.js — Bestand-menu events (zonder eigen Export-PDF handler)
-(function bindFileMenu(){
-  const q = id => document.getElementById(id);
-  q('fileSave')     ?.addEventListener('click', ()=> ProjectIO.fileSaveProject());
-  q('fileSaveAs')   ?.addEventListener('click', ()=> ProjectIO.fileSaveProjectAs());
-  q('fileOpen')     ?.addEventListener('click', ()=> ProjectIO.fileOpenProject());
-  q('fileImportCsv')?.addEventListener('click', ()=> ProjectIO.importCsvStart());
-  q('fileNew')      ?.addEventListener('click', async ()=> {
-     const ok = await ProjectIO.createNewFile?.(); 
-     if (!ok) console.log('Nieuwe file geannuleerd'); 
-    });
-  // GEEN q('fileExportPdf') hier: export-pdf.js regelt dit.
-})();
-
-// Herbereken-knop in de header
-(function bindRebuildButton(){
-  const btn = document.getElementById('btnRebuild');
-  if (!btn) return;
-  btn.addEventListener('click', ()=>{
-    if (typeof fullRebuildAndRender === 'function'){
-      fullRebuildAndRender();
-    }
-  });
-})();
-
 // ===== Verwerking =====
 async function processRows(rows){
-  $('#fileInfo').textContent = `Selected rows: ${rows.length}`;
 
   const lkLines = [];
   const veLines = [];
@@ -495,7 +486,7 @@ async function processRows(rows){
     if (!id){
       const dimcity = maybeDim || null;
       if (!dimcity){
-        issues.push({severity:'RED', code:'DMX_DIMCITY_REQ', message:`DMX row without DimCity (add DBxx in field 6)`});
+        issues.push({severity:'RED', code:'DMX_DIMCITY_REQ', message:`Loose DMX row without DimCity (add DBxx in column 6)`});
         continue;
       }
       dmxLoose.push({
@@ -513,8 +504,8 @@ async function processRows(rows){
 
     // --- LK/VEAM met ID ---
     const dimcity = dimCityFromId(id);
-    if(!dimcity) { issues.push({severity:'RED', code:'ID_PATTERN', message:`Unknown ID: ${id}`}); continue; }
-    if(!portRangeOk(id, port)){ issues.push({severity:'RED', code:'PORT_RANGE', message:`Port out of range: ${id}#${port}`}); continue; }
+    if(!dimcity) { issues.push({severity:'RED', code:'ID_PATTERN', message:`Unknown ID "${id}" — expected LK###, VEAM12### or V###`}); continue; }
+    if(!portRangeOk(id, port)){ issues.push({severity:'RED', code:'PORT_RANGE', dimcity, ref: isV(id) ? {kind:'VEAM', id} : {kind:'LK', id:normLK(id)}, message:`Port out of range: ${id}#${port}`}); continue; }
 
     const rec = {
       id,
@@ -546,7 +537,7 @@ async function processRows(rows){
       const arr = seen.get(k);
       const universes = new Set(arr.concat([L]).map(x => x.universe).filter(v => v!=null));
       if(universes.size>1){
-        outIssues.push({severity:'RED', code:'UNIVERSE_CONFLICT', message:`Conflicting universe on ${k}`});
+        outIssues.push({severity:'RED', code:'UNIVERSE_CONFLICT', dimcity:L.dimcity, ref: isV(L.id) ? {kind:'VEAM', id:L.id} : {kind:'LK', id:normLK(L.id)}, message:`Conflicting universe on ${k}`});
         arr.forEach(x => x.status='RED'); L.status='RED';
       } else {
         const nonNull = [ ...arr, L ].find(x => x.universe!=null);
@@ -601,6 +592,14 @@ async function processRows(rows){
     if(!byDim.has(dc)) byDim.set(dc, { lks:new Set(), veams:new Set(), lines_total:0, filled:0, empty:0, red:0, yellow:0 });
     byDim.get(dc).veams.add(V.id);
   }
+  // DimCities die alleen losse DMX hebben moeten ook bestaan (anders ontbreken ze in UI en PDF)
+  for(const D of dmxLoose){
+    if(D.dimcity && !byDim.has(D.dimcity)) byDim.set(D.dimcity, emptyDimStats());
+  }
+
+  // Handmatige instellingen uit het vorige model meenemen, zodat een (her)import
+  // geen Veam-koppelingen, bloktypes of handmatig toegevoegde LK/Veam/DimCities wist.
+  carryOverManualState(MODEL, { byLK, byVeam, byDim, veamPool });
 
   // --- MODEL opbouwen, inclusief DMX ---
   MODEL = {
@@ -639,6 +638,45 @@ async function processRows(rows){
   renderAll();
 }
 
+function emptyDimStats(){
+  return { lks:new Set(), veams:new Set(), lines_total:0, filled:0, empty:0, red:0, yellow:0 };
+}
+
+function carryOverManualState(prev, { byLK, byVeam, byDim, veamPool }){
+  const ensureDim = dc => { if(dc && !byDim.has(dc)) byDim.set(dc, emptyDimStats()); return byDim.get(dc); };
+
+  for(const [id, old] of (prev?.byLK || new Map())){
+    let rec = byLK.get(id);
+    if(!rec){
+      if(!old.manual) continue; // LK kwam uit CSV en staat er niet meer in
+      rec = {
+        id, dimcity: old.dimcity, lines: [],
+        names: {'1-4':null,'5-8':null,'9-12':null},
+        veam: {1:null,2:null,3:null},
+        blockType: { mode:'Manual', value: old.blockType?.value || 'MIXED' }
+      };
+      byLK.set(id, rec);
+      ensureDim(rec.dimcity)?.lks.add(id);
+    }
+    if(old.manual) rec.manual = true;
+    if(old.blockType?.mode === 'Manual') rec.blockType = { mode:'Manual', value: old.blockType.value || 'MIXED' };
+    if(old.names) rec.names = { ...rec.names, ...old.names };
+    rec.veam = { 1: old.veam?.[1] ?? null, 2: old.veam?.[2] ?? null, 3: old.veam?.[3] ?? null };
+  }
+
+  for(const [id, old] of (prev?.byVeam || new Map())){
+    if(!old.manual) continue;
+    const existing = byVeam.get(id);
+    if(existing){ existing.manual = true; continue; }
+    byVeam.set(id, { id, dimcity: old.dimcity, lines: [], manual: true });
+    ensureDim(old.dimcity)?.veams.add(id);
+    if(!veamPool.has(old.dimcity)) veamPool.set(old.dimcity, new Set());
+    veamPool.get(old.dimcity).add(id);
+  }
+
+  for(const dc of (prev?.dimFromManual || [])) ensureDim(dc);
+}
+
 // ===== Veam-allocaties en issues =====
 function recomputeVeamUseAndIssues(){
   const veamUse = new Map();
@@ -663,6 +701,8 @@ function recomputeVeamUseAndIssues(){
   // Oude issues weg voor deze codes
   MODEL.issues = MODEL.issues.filter(x =>
     x.code !== 'VEAM_DUPLICATE' &&
+    x.code !== 'VEAM_MISSING' &&
+    x.code !== 'XLR12_VEAM_IGNORED' &&
     x.code !== 'BLOCKTYPE_XLR_CONFLICT'
   );
 
@@ -673,7 +713,32 @@ function recomputeVeamUseAndIssues(){
       MODEL.issues.push({
         severity:'RED',
         code:'VEAM_DUPLICATE',
+        dimcity: MODEL.byLK.get(uses[0].lkId)?.dimcity || dimCityFromId(vid),
+        ref: MODEL.byVeam.has(vid) ? { kind:'VEAM', id:vid } : { kind:'LK', id:uses[0].lkId },
         message:`Veam ${vid} is linked more than once: ${refs}`
+      });
+    }
+    if(!MODEL.byVeam.has(vid)){
+      for(const u of uses){
+        MODEL.issues.push({
+          severity:'YELLOW',
+          code:'VEAM_MISSING',
+          dimcity: MODEL.byLK.get(u.lkId)?.dimcity || null,
+          ref: { kind:'LK', id:u.lkId },
+          message:`${u.lkId} (Veam ${u.slot}) is linked to ${vid}, but ${vid} no longer exists`
+        });
+      }
+    }
+  }
+
+  // 12× XLR maar er staan nog Veam-koppelingen => waarschuwing (koppelingen worden genegeerd)
+  for (const [, rec] of MODEL.byLK){
+    if (effectiveBlockType(rec) !== 'XLR12') continue;
+    const linked = [1,2,3].map(s=>rec.veam?.[s]).filter(Boolean);
+    if (linked.length){
+      MODEL.issues.push({
+        severity:'YELLOW', code:'XLR12_VEAM_IGNORED', dimcity: rec.dimcity, ref:{ kind:'LK', id:rec.id },
+        message:`${rec.id} is a 12× XLR block, so its Veam link${linked.length>1?'s':''} (${linked.join(', ')}) ${linked.length>1?'are':'is'} ignored. Change the block type or remove the link.`
       });
     }
   }
@@ -686,7 +751,9 @@ function recomputeVeamUseAndIssues(){
         MODEL.issues.push({
           severity:'YELLOW',
           code:'BLOCKTYPE_XLR_CONFLICT',
-          message:`${rec.id}: VEAM_ONLY selected but ${used} LK port(s) contain data`
+          dimcity: rec.dimcity,
+          ref: { kind:'LK', id:rec.id },
+          message:`${rec.id} is set to 3× Veam, but ${used} of its own LK port(s) contain data`
         });
       }
     }
@@ -730,211 +797,474 @@ function fullRebuildAndRender(){
 
 
 // ===== Rendering =====
+const I = (name, size=16, cls='') => window.Icons?.icon(name, size, cls) || '';
+const byId = (a,b)=> String(a.id).localeCompare(String(b.id), undefined, {numeric:true});
+function sortedDims(){ return [...(MODEL.byDim?.keys?.() || [])].sort((a,b)=>a.localeCompare(b, undefined, {numeric:true})); }
+function uniHue(u){ return `hsl(${(Number(u||0)*47)%360} 72% 60%)`; }
+function issuesForDim(dc){ return (MODEL.issues||[]).filter(i=>i.dimcity===dc); }
+function fmtDate(iso){
+  if(!iso) return '';
+  const d = new Date(iso.length===10 ? iso+'T12:00:00' : iso);
+  return isNaN(d) ? iso : d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+}
+function plural(n, one, many){ return `${n} ${n===1?one:(many||one+'s')}`; }
+
+function hydrateIcons(root=document){
+  root.querySelectorAll('[data-icon]').forEach(n=>{ n.outerHTML = I(n.dataset.icon, Number(n.dataset.size||16)); });
+}
+
+// ---- Toasts, menus en dialogen ----
+function toast(message, kind='ok', opts={}){
+  const host = $('#toastHost'); if(!host) return;
+  const t = el('div', `toast ${kind}`, `${I(kind==='err'?'alert':kind==='info'?'info':'checkCircle',16)}<span>${esc(message)}</span>`);
+  if(opts.action){
+    const b = el('button','sm', esc(opts.action.label));
+    b.onclick = ()=>{ opts.action.run(); t.remove(); };
+    t.appendChild(b);
+  }
+  host.appendChild(t);
+  setTimeout(()=>{ t.style.transition='opacity .3s'; t.style.opacity='0'; setTimeout(()=>t.remove(), 300); }, opts.ms || 3200);
+}
+
+function showMenu(anchor, items){
+  document.querySelectorAll('.popover-menu').forEach(m=>m.remove());
+  const r = anchor.getBoundingClientRect();
+  const m = el('div','popover-menu');
+  m.innerHTML = items.map((it,i)=> it==='-' ? '<div class="sep"></div>'
+    : `<button data-i="${i}">${it.icon?I(it.icon,15):''}<span>${esc(it.label)}</span></button>`).join('');
+  document.body.appendChild(m);
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
+  m.style.top = (r.bottom + 4) + 'px';
+  m.querySelectorAll('button[data-i]').forEach(b=> b.onclick = ()=>{ m.remove(); items[Number(b.dataset.i)].run(); });
+  setTimeout(()=>{
+    const off = e=>{ if(!m.contains(e.target)){ m.remove(); document.removeEventListener('mousedown', off, true); } };
+    document.addEventListener('mousedown', off, true);
+  }, 0);
+}
+
+function openDialog({ title, subtitle='', body='', width='', cls='', footer=null, onClose }){
+  const bd = el('div','modal-backdrop');
+  const m = el('div', `modal ${cls}`);
+  if(width) m.style.width = `min(${width}, 100%)`;
+  m.innerHTML = `<div class="modal-header"><div><h2>${esc(title)}</h2>${subtitle?`<div class="sub">${subtitle}</div>`:''}</div><button class="ghost icon-only dlg-x" title="Close">${I('x',16)}</button></div><div class="modal-body">${body}</div>${footer!==null?`<div class="modal-footer">${footer}</div>`:''}`;
+  bd.appendChild(m);
+  document.body.appendChild(bd);
+  const onKey = e=>{ if(e.key==='Escape' && [...document.querySelectorAll('.modal-backdrop')].pop()===bd) close(); };
+  function close(){ bd.remove(); document.removeEventListener('keydown', onKey); onClose?.(); }
+  document.addEventListener('keydown', onKey);
+  m.querySelector('.dlg-x').onclick = close;
+  bd.addEventListener('mousedown', e=>{ if(e.target===bd) close(); });
+  return { bd, modal:m, body:m.querySelector('.modal-body'), footer:m.querySelector('.modal-footer'), close };
+}
+
+function confirmDialog({ title='Are you sure?', message='', okLabel='Continue', cancelLabel='Cancel', danger=false }){
+  return new Promise(resolve=>{
+    let done = false;
+    const d = openDialog({
+      title, width:'440px', body:`<p style="margin:0;color:var(--text-2);line-height:1.55;white-space:pre-line">${esc(message)}</p>`,
+      footer:`<button data-act="cancel">${esc(cancelLabel)}</button><button data-act="ok" class="${danger?'danger':'primary'}">${esc(okLabel)}</button>`,
+      onClose:()=>{ if(!done) resolve(false); }
+    });
+    d.footer.querySelector('[data-act=cancel]').onclick = ()=>{ done=true; d.close(); resolve(false); };
+    d.footer.querySelector('[data-act=ok]').onclick = ()=>{ done=true; d.close(); resolve(true); };
+    d.footer.querySelector('[data-act=ok]').focus();
+  });
+}
+
+// ---- Navigatie ----
+function navigate(view){
+  MODEL.ui.view = view;
+  MODEL.ui.rightMode = 'HOME';
+  MODEL.selected = { kind:null, id:null };
+  renderSummary();
+  renderRight();
+  const sc = $('#mainScroll'); if(sc) sc.scrollTop = 0;
+}
+function openEntity(kind, id){
+  MODEL.selected = { kind, id };
+  MODEL.ui.rightMode = 'DETAIL';
+  renderSummary();
+  renderRight();
+  const sc = $('#mainScroll'); if(sc) sc.scrollTop = 0;
+}
+
+function pageHead({ eyebrow='', title='', sub='', actions='', crumbs='' }){
+  const h = $('#lkHeader'); if(!h) return;
+  h.innerHTML = `<div style="min-width:0">${crumbs?`<div class="breadcrumb">${crumbs}</div>`:''}${eyebrow?`<div class="eyebrow">${eyebrow}</div>`:''}<h1>${title}</h1>${sub?`<div class="sub">${sub}</div>`:''}</div>${actions?`<div class="page-actions">${actions}</div>`:''}`;
+}
+function card({ key='', title='', icon='', meta='', actions='', body='', flush=false, collapsible=true, collapsed:defaultCollapsed=false, style='' }){
+  const collapsed = key ? (MODEL.ui.cardCollapsed?.[key] ?? defaultCollapsed) : false;
+  return `<section class="card ${collapsed?'collapsed':''}" ${key?`data-card="${esc(key)}"`:''} ${style?`style="${style}"`:''}>
+    <div class="card-head"><h3>${icon?I(icon,15):''}${title}${meta?`<span class="meta">${meta}</span>`:''}</h3>
+      <div class="actions">${actions}${collapsible && key ? `<button class="ghost sm icon-only collapse-btn" data-collapse="${esc(key)}" title="Show / hide">${I('chevronDown',15)}</button>` : ''}</div></div>
+    <div class="card-body ${flush?'flush':''}">${body}</div></section>`;
+}
+function kpi(label, value, icon, cls='', foot=''){
+  return `<div class="kpi ${cls}"><div class="label">${I(icon,14)}${esc(label)}</div><div class="value">${value}</div>${foot?`<div class="foot">${foot}</div>`:''}</div>`;
+}
+
+// ---- Centrale render ----
 function renderAll(){
-  renderRawRows();
   renderSummary();
   renderIssues();
-  renderRight();   // ← centrale controller
-}
-
-
-
-function renderRawRows(){
-  const tb = $('#rawRows'); 
-  tb.innerHTML = '';
-
-  // Combineer alle rijen die we willen tonen
-  const all = []
-    .concat(MODEL.lines.map(L => ({ type:'LK',   ...L })))
-    .concat(MODEL.veamLines.map(V => ({ type:'VEAM', ...V })))
-    .concat((MODEL.dmxLoose || []).map(D => ({ type:'DMX', ...D })));
-
-  // Sorteer: Type → ID → Port → Universe (mag zo blijven)
-  all.sort((a,b)=>{
-    const ord = (x)=> x.type==='LK'?0 : x.type==='VEAM'?1 : 2;
-    if (ord(a)!==ord(b)) return ord(a)-ord(b);
-    const ida=(a.id||''), idb=(b.id||'');
-    if (ida!==idb) return ida.localeCompare(idb);
-    const pa=(a.port??1e9), pb=(b.port??1e9);
-    if (pa!==pb) return pa-pb;
-    const ua=(a.universe??1e9), ub=(b.universe??1e9);
-    return ua-ub;
-  });
-
-  for(const R of all){
-    // Bepaal status (val terug op 'YELLOW' als onbekend)
-    const st = R.status || 'YELLOW';
-
-    // Bouw exact 6 cellen op in dezelfde volgorde als de nieuwe <thead>:
-    // 1) LK/veam Name (= id)
-    // 2) Port
-    // 3) Universe
-    // 4) Location (= dest)
-    // 5) DimCity
-    // 6) status (gekleurde pill)
-    const tr = el('tr', null, `
-      <td>${R.id ?? '—'}</td>
-      <td>${R.port ?? '—'}</td>
-      <td>${R.universe ?? ''}</td>
-      <td>${R.dest || ''}</td>
-      <td>${R.dimcity ?? ''}</td>
-      <td>${statusDot(st)}</td>
-    `);
-    tb.appendChild(tr);
-  }
-}
-
-
-function renderSummary(){
-  const c = $('#summary'); c.innerHTML='';
-  renderDimCitiesBanner(c);
-  ensureDimColors();
-
-  const dims = [...MODEL.byDim.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
-  for(const [dc,s] of dims){
-    const open = MODEL.ui.dimOpen.has(dc) ? MODEL.ui.dimOpen.get(dc) : !MODEL.ui.defaultClosed;
-    const lkCount = s.lks.size;
-    const veCount = s.veams.size;
-    const color = dimColor(dc);
-    const stat = MODEL.uniStats.get(dc);
-    const uniCount = stat?.totalUniq || 0;
-
-    const header = el('div','toggle', `
-      <span><span class="twist">${open?'▾':'▸'}</span> ${colorChip(color)}<b>${dc}</b></span>
-      <span><span class="badge">${uniCount} UNI</span> <span class="badge">${lkCount} LK</span> <span class="badge">${veCount} Veam</span></span>
-    `);
-    const box = el('div','section dim-section');
-    box.style.setProperty('--dim-color', color);
-    const hdr = el('h3'); hdr.appendChild(header);
-    const meta = el('div','content', `<div class="muted">patch points ${s.lines_total} • with universe ${s.filled} • empty ${s.empty} • <span class="danger">errors ${s.red}</span> • <span class="warn">warnings ${s.yellow}</span></div>`);
-    box.appendChild(hdr); box.appendChild(meta);
-
-    const content = el('div','content');
-    if(open){
-      const gLK = `${dc}::LK`;
-      const lkOpen = MODEL.ui.groupOpen.has(gLK) ? MODEL.ui.groupOpen.get(gLK) : false;
-      const lkHdr = el('div','toggle', `<span><span class="twist">${lkOpen?'▾':'▸'}</span> LKs</span>`);
-      lkHdr.onclick = ()=>{ MODEL.ui.groupOpen.set(gLK, !lkOpen); renderSummary(); };
-      content.appendChild(lkHdr);
-
-      if(lkOpen){
-        const lks = [...MODEL.byLK.values()].filter(x=>x.dimcity===dc).sort((a,b)=>a.id.localeCompare(b.id));
-        const ul = el('ul','list subsec');
-        if(!lks.length) ul.appendChild(el('li','item','<div class="muted">No LKs</div>'));
-        for (const lk of lks) {
-          const rowKey = `LKROW::${dc}::${lk.id}`;
-          const rowOpen = MODEL.ui.groupOpen.get(rowKey) ?? false;
-          const li = el('li','item');
-          const loc = lkAutoLocation(lk) || '';
-          const headerRow = el('div','toggle', `<span><span class="twist">${rowOpen ? '▾' : '▸'}</span> <b>${lk.id}</b> <span class="dimcity-tag">${esc(loc)}</span></span>`);
-          headerRow.querySelector('.twist').onclick = (e)=>{ e.stopPropagation(); MODEL.ui.groupOpen.set(rowKey, !rowOpen); renderSummary(); };
-          headerRow.onclick = ()=>{ MODEL.selected = { kind:'LK', id: lk.id }; MODEL.ui.rightMode = 'DETAIL'; renderRight(); };
-          li.appendChild(headerRow);
-          if (rowOpen) {
-            const mini = el('div','subsec');
-            const eff = effectiveBlockType(lk);
-            mini.innerHTML = `<div><b>Block type:</b> ${blockTypeLabel(eff)}</div><div style="margin-top:6px"><b>V1:</b> ${lk.veam?.[1] ?? '—'}</div><div><b>V2:</b> ${lk.veam?.[2] ?? '—'}</div><div><b>V3:</b> ${lk.veam?.[3] ?? '—'}</div>`;
-            li.appendChild(mini);
-          }
-          ul.appendChild(li);
-        }
-        content.appendChild(ul);
-      }
-
-      const gVE = `${dc}::VE`;
-      const veOpen = MODEL.ui.groupOpen.has(gVE) ? MODEL.ui.groupOpen.get(gVE) : false;
-      const veHdr = el('div','toggle', `<span><span class="twist">${veOpen?'▾':'▸'}</span> Veams</span>`);
-      veHdr.onclick = ()=>{ MODEL.ui.groupOpen.set(gVE, !veOpen); renderSummary(); };
-      content.appendChild(veHdr);
-      if(veOpen){
-        const pool = [...(MODEL.byDim.get(dc)?.veams || new Set())].sort();
-        const ul = el('ul','list subsec');
-        if(!pool.length) ul.appendChild(el('li','item','<div class="muted">No Veams found</div>'));
-        for(const v of pool){
-          const uses = MODEL.veamUse.get(v)||[];
-          const status = uses.length===0 ? '<span class="ok">free</span>' : uses.length===1 ? `linked to ${uses[0].lkId} (Veam ${uses[0].slot})` : `<span class="danger">DOUBLE: ${uses.map(u=>u.lkId+'(V'+u.slot+')').join(', ')}</span>`;
-          const ve = MODEL.byVeam.get(v);
-          const loc = veamAutoLocation(ve) || '';
-          const li = el('li','item');
-          li.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><div><b>${v}</b></div><div class="dimcity-tag">Location: ${esc(loc) || '—'}</div></div><div class="sub">${status}</div>`;
-          li.onclick = ()=>{ MODEL.selected = { kind:'VEAM', id: v }; MODEL.ui.rightMode = 'DETAIL'; renderRight(); };
-          ul.appendChild(li);
-        }
-        content.appendChild(ul);
-      }
-
-      renderDmxCablesGroup(dc, content);
-      renderSummaryUniversesSection(dc, content);
-    }
-
-    header.onclick = ()=>{
-      const willOpen = !open;
-      MODEL.ui.dimOpen.set(dc, willOpen);
-      if (willOpen){
-        MODEL.ui.groupOpen.set(`${dc}::LK`,  false);
-        MODEL.ui.groupOpen.set(`${dc}::VE`,  false);
-        MODEL.ui.groupOpen.set(`${dc}::DMX`, false);
-        MODEL.ui.groupOpen.set(`${dc}::UNI`, false);
-      }
-      MODEL.selected = { kind:'DIM', id: dc };
-      MODEL.ui.rightMode = 'DETAIL';
-      renderSummary();
-      renderRight();
-    };
-
-    c.appendChild(box); box.appendChild(content);
-  }
+  renderRight();
 }
 
 function renderIssues(){
-  const ul = $('#issues'); ul.innerHTML='';
-  if(!MODEL.issues.length){ ul.appendChild(el('li','item','<span class="ok">No issues found</span>')); return; }
-  for(const it of MODEL.issues){
-    const li = el('li','item', `<div>${statusDot(it.severity)} <b>${issueLabel(it.severity)}</b> • ${it.code}</div><div class="sub">${it.message||''}</div>`);
-    ul.appendChild(li);
+  const errs = (MODEL.issues||[]).filter(i=>i.severity==='RED').length;
+  const warns = (MODEL.issues||[]).length - errs;
+  const c = $('#navIssueCount');
+  if(c){
+    c.className = 'count' + (errs ? ' err' : warns ? ' warn' : '');
+    c.textContent = errs || warns || '';
   }
+  if(MODEL.ui.rightMode !== 'DETAIL' && MODEL.ui.view === 'ISSUES') renderIssuesView();
+  updateChrome();
 }
 
-function labelForLK(lk){
-  const n1 = lk.names['1-4']?.value || '-';
-  const n2 = lk.names['5-8']?.value || '-';
-  const n3 = lk.names['9-12']?.value || '-';
-  const v = lk.veam || {};
-  const vtxt = [v[1]?`V1:${v[1]}`:'V1:—', v[2]?`V2:${v[2]}`:'V2:—', v[3]?`V3:${v[3]}`:'V3:—'].join(' ');
-  return `Blokken: 1–4=${n1} • 5–8=${n2} • 9–12=${n3} • Veams [${vtxt}]`;
+// Titelbalk, statusbalk en venstertitel
+let _chromeSig = '';
+function updateChrome(){
+  const meta = MODEL.projectMeta || {};
+  const name = meta.project || (MODEL.filePath ? shortFileName(MODEL.filePath).replace(/\.lkproj$/i,'') : '');
+  const dirty = !!MODEL.ui?.dirty;
+  const errs = (MODEL.issues||[]).filter(i=>i.severity==='RED').length;
+  const warns = (MODEL.issues||[]).length - errs;
+  const rows = (MODEL.lines?.length||0) + (MODEL.veamLines?.length||0) + (MODEL.dmxLoose?.length||0);
+  const sig = [name, dirty, errs, warns, rows, MODEL.filePath, MODEL.byDim?.size, MODEL.byLK?.size, MODEL.byVeam?.size].join('|');
+  if(sig === _chromeSig) return;
+  _chromeSig = sig;
+
+  const t = $('#projectTitle'); if(t) t.textContent = name || 'Untitled project';
+  const dd = $('#dirtyDot'); if(dd) dd.hidden = !dirty;
+  const fi = $('#fileInfo'); if(fi) fi.textContent = [meta.area, meta.location].filter(Boolean).join(' · ');
+  const sv = $('#statusValidation');
+  if(sv) sv.innerHTML = errs ? `<span class="status-err">${I('alert',13)} ${plural(errs,'error')}</span>${warns?` · <span class="status-warn">${plural(warns,'warning')}</span>`:''}`
+    : warns ? `<span class="status-warn">${I('alert',13)} ${plural(warns,'warning')}</span>`
+    : rows ? `<span class="status-ok">${I('checkCircle',13)} No issues</span>` : '';
+  const sc = $('#statusCounts');
+  if(sc) sc.innerHTML = rows ? `<b>${MODEL.byDim.size}</b> DimCities · <b>${MODEL.byLK.size}</b> LK · <b>${MODEL.byVeam.size}</b> Veam · <b>${rows}</b> patch rows` : '';
+  const sf = $('#statusFile'); if(sf) sf.innerHTML = MODEL.filePath ? `${I('file',13)} ${esc(shortFileName(MODEL.filePath))}` : '<span class="subtle">Not saved yet</span>';
+  const ss = $('#statusSaved'); if(ss) ss.innerHTML = dirty ? '<span class="status-warn">● Unsaved changes</span>' : (MODEL.filePath ? '<span class="status-ok">Saved</span>' : '');
+  const nr = $('#navRowCount'); if(nr) nr.textContent = rows || '';
+  window.app?.setDocumentState?.({ title: name || 'Untitled project', dirty, filePath: MODEL.filePath || '' });
+}
+// Veel code zet alleen MODEL.ui.dirty; de chrome volgt via een goedkope poll.
+setInterval(()=>{ try { updateChrome(); } catch {} }, 400);
+
+// ---- Zijbalk ----
+function navEntity(kind, id, icon, active, extra=''){
+  return `<button class="nav-item ${active?'active':''}" data-open-kind="${kind}" data-open-id="${esc(id)}">${I(icon,14)}<span class="label">${esc(id)}</span>${extra}</button>`;
+}
+function renderSummary(){
+  const c = $('#summary'); if(!c) return;
+  ensureDimColors();
+  const dims = sortedDims();
+  const sel = MODEL.selected || {};
+  const detail = MODEL.ui.rightMode === 'DETAIL';
+  const activeDim = !detail ? null
+    : sel.kind==='DIM' ? sel.id
+    : sel.kind==='LK' ? MODEL.byLK.get(sel.id)?.dimcity
+    : sel.kind==='VEAM' ? MODEL.byVeam.get(sel.id)?.dimcity : null;
+
+  if(!dims.length){
+    c.innerHTML = '<div class="nav-empty">No DimCities yet. Import a CSV or add an LK to get started.</div>';
+  } else {
+    c.innerHTML = dims.map(dc=>{
+      const iss = issuesForDim(dc);
+      const errs = iss.filter(i=>i.severity==='RED').length;
+      const warns = iss.length - errs;
+      const count = errs ? `<span class="count err" title="${plural(errs,'error')}">${errs}</span>`
+        : warns ? `<span class="count warn" title="${plural(warns,'warning')}">${warns}</span>`
+        : `<span class="count">${MODEL.byDim.get(dc)?.lks?.size || 0} LK</span>`;
+      let sub = '';
+      if(activeDim === dc){
+        const lks = [...MODEL.byLK.values()].filter(x=>x.dimcity===dc).sort(byId);
+        const ves = [...MODEL.byVeam.values()].filter(x=>x.dimcity===dc).sort(byId);
+        sub = `<div class="nav-sub">${lks.map(lk=>navEntity('LK', lk.id, 'box', detail && sel.kind==='LK' && sel.id===lk.id)).join('')}${ves.map(v=>{
+          const uses = MODEL.veamUse.get(v.id)||[];
+          const mark = uses.length>1 ? '<span class="count err">2×</span>' : uses.length===0 ? '<span class="count">free</span>' : '';
+          return navEntity('VEAM', v.id, 'plug', detail && sel.kind==='VEAM' && sel.id===v.id, mark);
+        }).join('')}${!lks.length && !ves.length ? '<div class="nav-empty">No LK or Veam yet</div>' : ''}</div>`;
+      }
+      return `<button class="nav-item ${detail && sel.kind==='DIM' && sel.id===dc ? 'active' : ''}" data-open-kind="DIM" data-open-id="${esc(dc)}"><span class="dim-dot" style="background:${dimColor(dc)}"></span><span class="label">${esc(dc)}</span>${count}</button>${sub}`;
+    }).join('');
+  }
+
+  const view = MODEL.ui.view || 'HOME';
+  document.querySelectorAll('.nav-item[data-view]').forEach(b=> b.classList.toggle('active', !detail && view===b.dataset.view));
 }
 
+// ---- Router ----
+function renderRight(){
+  const sel = MODEL.selected || {};
+  const detail = MODEL.ui.rightMode === 'DETAIL' && sel.kind;
+  const view = detail ? 'DETAIL' : (MODEL.ui.view || 'HOME');
+  const table = $('#rightCsvSection'); if(table) table.hidden = view !== 'TABLE';
+  const detailEl = $('#lkDetail'); if(detailEl){ detailEl.hidden = view === 'TABLE'; detailEl.style.removeProperty('--dim-color'); }
 
+  if(view === 'DETAIL') renderRightDetail();
+  else if(view === 'ISSUES') renderIssuesView();
+  else if(view === 'TABLE') renderTableView();
+  else if(view === 'NETWORK') renderNetworkView();
+  else renderRightHome();
+  updateChrome();
+}
+function renderRightDetail(){
+  const sel = MODEL.selected || {};
+  if (sel.kind === 'LK')   return renderLKDetail(sel.id);
+  if (sel.kind === 'VEAM') return renderVeamDetail(sel.id);
+  if (sel.kind === 'DIM')  return renderDimCityDetail(sel.id);
+  return renderRightHome();
+}
+function updateRightCsvVisibility(){ /* patch list is a separate view now */ }
 
+// ---- Overview ----
+function renderRightHome(){
+  const meta = MODEL.projectMeta || {};
+  const dims = sortedDims();
+  const hasData = dims.length > 0;
+  const subParts = [meta.area, meta.location, meta.date ? fmtDate(meta.date) : '', meta.prepared ? `Prepared by ${meta.prepared}` : ''].filter(Boolean).map(esc);
+  pageHead({
+    eyebrow: 'Project overview',
+    title: esc(meta.project || 'Untitled project'),
+    sub: subParts.join('<span class="subtle"> · </span>') || '<span class="subtle">No project details yet — add them via Project Info.</span>',
+    actions: `<button data-cmd="projectInfo">${I('edit',15)}Project Info</button><button data-cmd="importCsv">${I('upload',15)}Import CSV</button><button class="primary" data-cmd="exportPdf">${I('file',15)}Export PDF</button>`
+  });
+  const root = $('#lkDetail');
+  if(!hasData){
+    root.innerHTML = `<div class="card"><div class="empty">${I('upload',36)}<h3>Import your patch data</h3>
+      <p>Start with a CSV export of LK, Veam and DMX patch points. DimCities, LK blocks and Veams are created automatically. You can also add them by hand.</p>
+      <div class="actions"><button class="primary" data-cmd="importCsv">${I('upload',15)}Import CSV</button><button data-cmd="addLK">${I('plus',15)}Add LK</button><button data-cmd="addVeam">${I('plus',15)}Add Veam</button></div></div></div>`;
+    return;
+  }
+
+  const allUnis = new Set();
+  let points = 0;
+  for(const [, s] of MODEL.uniStats){ for(const u of s.counts.keys()) allUnis.add(u); points += s.totalPorts; }
+  const errs = MODEL.issues.filter(i=>i.severity==='RED').length;
+  const warns = MODEL.issues.length - errs;
+  const linkedVeams = [...MODEL.byVeam.keys()].filter(v=>(MODEL.veamUse.get(v)||[]).length===1).length;
+
+  const kpis = `<div class="kpis">
+    ${kpi('DimCities', dims.length, 'layers')}
+    ${kpi('LK blocks', MODEL.byLK.size, 'box')}
+    ${kpi('Veams', MODEL.byVeam.size, 'plug', '', `${linkedVeams} linked`)}
+    ${kpi('Universes', allUnis.size, 'universe')}
+    ${kpi('Patch points', points, 'cable')}
+    ${kpi('Errors', errs, 'alert', errs?'err':'ok')}
+    ${kpi('Warnings', warns, 'alert', warns?'warn':'')}
+  </div>`;
+
+  const dimRows = dims.map(dc=>{
+    const s = MODEL.byDim.get(dc);
+    const st = MODEL.uniStats.get(dc);
+    const iss = issuesForDim(dc);
+    const e = iss.filter(i=>i.severity==='RED').length, w = iss.length - e;
+    const vs = [...(s.veams||[])];
+    const linked = vs.filter(v=>(MODEL.veamUse.get(v)||[]).length>=1).length;
+    const status = e ? `<span class="tag red">${plural(e,'error')}</span>` : w ? `<span class="tag yellow">${plural(w,'warning')}</span>` : '<span class="tag green">OK</span>';
+    return `<tr class="clickable-row" data-open-kind="DIM" data-open-id="${esc(dc)}">
+      <td><span class="dim-dot" style="display:inline-block;margin-right:8px;vertical-align:-1px;background:${dimColor(dc)}"></span><b>${esc(dc)}</b></td>
+      <td class="num">${s.lks.size}</td><td class="num">${vs.length}</td><td class="num">${vs.length ? `${linked}/${vs.length}` : '—'}</td>
+      <td class="num">${st?.totalUniq || 0}</td><td class="num">${st?.totalPorts || 0}</td>
+      <td>${status}</td><td class="num subtle">${I('chevronRight',15)}</td></tr>`;
+  }).join('');
+  const dimTable = `<table class="data-table"><thead><tr><th>DimCity</th><th class="num">LK</th><th class="num">Veam</th><th class="num">Veams linked</th><th class="num">Universes</th><th class="num">Patch points</th><th>Status</th><th></th></tr></thead><tbody>${dimRows}</tbody></table>`;
+
+  const topIssues = MODEL.issues.slice().sort((a,b)=>(a.severity==='RED'?0:1)-(b.severity==='RED'?0:1)).slice(0,6);
+  const issuesBody = topIssues.length
+    ? `<ul class="issue-list">${topIssues.map(issueItemHtml).join('')}</ul>`
+    : `<div class="empty" style="padding:28px">${I('checkCircle',28)}<h3>All checks passed</h3><p>No duplicate Veams, conflicts or missing data found.</p></div>`;
+
+  const sources = Array.isArray(MODEL.csvSources) ? MODEL.csvSources : [];
+  const custom = (MODEL.customRows||[]).length;
+  const srcBody = sources.length || custom
+    ? `<table class="data-table"><thead><tr><th>Source</th><th class="num">Rows</th><th>Updated</th></tr></thead><tbody>${sources.map(s=>`<tr><td>${I('file',14)} ${esc(s.name || shortFileName(s.path))}</td><td class="num">${s.rowCount || s.rows?.length || 0}</td><td class="subtle">${s.updatedAt ? new Date(s.updatedAt).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'}) : '—'}</td></tr>`).join('')}${custom?`<tr><td>${I('edit',14)} Manual rows</td><td class="num">${custom}</td><td class="subtle">—</td></tr>`:''}</tbody></table>`
+    : '<div class="empty" style="padding:24px"><p>No CSV files imported. Rows were added by hand.</p></div>';
+
+  root.innerHTML = `<div class="stack">${kpis}
+    ${card({ key:'home-dims', title:'DimCities', icon:'layers', meta:plural(dims.length,'DimCity','DimCities'), body:dimTable, flush:true, collapsible:false })}
+    <div class="grid-2">
+      ${card({ key:'home-issues', title:'Validation', icon:'alert', meta: MODEL.issues.length ? `${MODEL.issues.length} total` : '', actions: MODEL.issues.length ? `<button class="sm ghost" data-nav-view="ISSUES">View all ${I('arrowRight',13)}</button>` : '', body:issuesBody, flush:true, collapsible:false })}
+      ${card({ key:'home-sources', title:'Data sources', icon:'file', actions:`<button class="sm ghost" data-cmd="csvSources">Manage</button>`, body:srcBody, flush:true, collapsible:false })}
+    </div></div>`;
+}
+
+// ---- Validation ----
+function issueRef(it){
+  if(it.ref?.kind && it.ref?.id) return it.ref;
+  return null;
+}
+function issueItemHtml(it){
+  const ref = issueRef(it);
+  return `<li class="issue ${it.severity==='RED'?'RED':'YELLOW'}"><span class="sev">${I('alert',13)}</span>
+    <div><div class="msg">${esc(it.message||'')}</div><div class="where"><span class="code">${esc(it.code||'')}</span>${it.dimcity?` <span class="subtle">·</span> <span class="muted">${esc(it.dimcity)}</span>`:''}</div></div>
+    ${ref ? `<button class="sm ghost" data-open-kind="${ref.kind}" data-open-id="${esc(ref.id)}">Open ${esc(ref.id)} ${I('arrowRight',13)}</button>` : '<span></span>'}</li>`;
+}
+function renderIssuesView(){
+  const f = MODEL.ui.issueFilter || 'ALL';
+  const fdc = MODEL.ui.issueDim || '';
+  const all = MODEL.issues || [];
+  const errs = all.filter(i=>i.severity==='RED').length;
+  const warns = all.length - errs;
+  const list = all.filter(i=>(f==='ALL' || (f==='RED' ? i.severity==='RED' : i.severity!=='RED')) && (!fdc || i.dimcity===fdc))
+                  .sort((a,b)=>(a.severity==='RED'?0:1)-(b.severity==='RED'?0:1));
+  const dimOpts = ['<option value="">All DimCities</option>'].concat(sortedDims().map(dc=>`<option value="${esc(dc)}" ${dc===fdc?'selected':''}>${esc(dc)}</option>`)).join('');
+  pageHead({
+    eyebrow:'Project', title:'Validation',
+    sub: all.length ? `${plural(errs,'error')} · ${plural(warns,'warning')}` : 'Everything checks out',
+    actions:`<div class="segmented" id="issueFilter">${['ALL','RED','YELLOW'].map(k=>`<button data-f="${k}" class="${f===k?'active':''}">${k==='ALL'?'All':k==='RED'?'Errors':'Warnings'}</button>`).join('')}</div>
+      <select id="issueDim" style="width:150px">${dimOpts}</select><button data-cmd="rebuild">${I('refresh',15)}Recalculate</button>`
+  });
+  $('#lkDetail').innerHTML = list.length
+    ? `<div class="card"><ul class="issue-list">${list.map(issueItemHtml).join('')}</ul></div>`
+    : `<div class="card"><div class="empty">${I('checkCircle',36)}<h3>${all.length ? 'Nothing matches this filter' : 'No issues found'}</h3><p>${all.length ? 'Try another filter.' : 'Duplicate Veam links, universe conflicts, missing Veams and block-type conflicts are checked automatically.'}</p></div></div>`;
+  $('#issueFilter')?.querySelectorAll('button').forEach(b=> b.onclick = ()=>{ MODEL.ui.issueFilter = b.dataset.f; renderIssuesView(); });
+  const sd = $('#issueDim'); if(sd) sd.onchange = ()=>{ MODEL.ui.issueDim = sd.value; renderIssuesView(); };
+}
+
+// ---- Patch list ----
+function renderTableView(){
+  const sources = (MODEL.csvSources||[]).length;
+  pageHead({
+    eyebrow:'Project', title:'Patch List',
+    sub:`All LK, Veam and loose DMX rows${sources?` from ${plural(sources,'CSV file')}`:''}`,
+    actions:`<button data-cmd="csvSources">${I('file',15)}Imported Files</button><button data-cmd="importCsv">${I('upload',15)}Import CSV</button>`
+  });
+  $('#lkDetail').innerHTML = '';
+  const f = $('#rawFilter');
+  if(f && !f.dataset.bound){ f.dataset.bound = '1'; f.addEventListener('input', renderRawRows); }
+  renderRawRows();
+}
+function renderRawRows(){
+  const tb = $('#rawRows'); if(!tb) return;
+  const q = ($('#rawFilter')?.value || '').trim().toLowerCase();
+  const all = []
+    .concat(MODEL.lines.map(L => ({ type:'LK', ...L })))
+    .concat(MODEL.veamLines.map(V => ({ type:'Veam', ...V })))
+    .concat((MODEL.dmxLoose || []).map(D => ({ type:'DMX', ...D })))
+    .filter(R => !q || [R.type, R.id, R.port, R.universe, R.dest, R.dimcity, R.sourceName].some(v => String(v ?? '').toLowerCase().includes(q)));
+  all.sort((a,b)=>{
+    const ord = x => x.type==='LK'?0 : x.type==='Veam'?1 : 2;
+    if (ord(a)!==ord(b)) return ord(a)-ord(b);
+    const ida=(a.id||''), idb=(b.id||'');
+    if (ida!==idb) return ida.localeCompare(idb, undefined, {numeric:true});
+    return (a.port??1e9)-(b.port??1e9);
+  });
+  const cnt = $('#rawCount'); if(cnt) cnt.textContent = `${all.length} row${all.length===1?'':'s'}`;
+  tb.innerHTML = all.length ? all.map(R=>`<tr>
+      <td><span class="tag ${R.type==='LK'?'accent':R.type==='Veam'?'blue':''}">${R.type}</span></td>
+      <td>${R.id ? `<a data-open-kind="${R.type==='LK'?'LK':'VEAM'}" data-open-id="${esc(R.type==='LK'?normLK(R.id):R.id)}">${esc(R.id)}</a>` : '<span class="subtle">—</span>'}</td>
+      <td class="num">${R.port ?? '—'}</td>
+      <td class="num">${R.universe ?? ''}</td>
+      <td>${esc(R.dest || '')}</td>
+      <td>${esc(R.dimcity ?? '')}</td>
+      <td class="subtle">${esc(R.sourceName || '')}</td>
+      <td>${statusDot(R.status || 'YELLOW')}</td></tr>`).join('')
+    : `<tr><td colspan="8"><div class="empty" style="padding:28px"><p>${q ? 'No rows match this filter.' : 'No patch rows yet. Import a CSV to get started.'}</p></div></td></tr>`;
+}
+
+// ---- Network planner (page) ----
+function renderNetworkView(){
+  MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
+  const nd = MODEL.networkDevices;
+  pageHead({
+    eyebrow:'Project', title:'Network Planner',
+    sub:'Plan DMX nodes and splitters per DimCity. Device types are kept in reusable libraries.',
+    actions:`<button data-cmd="nodeBuilder">${I('network',15)}Node Types <span class="badge">${nd.nodeTypes.length}</span></button><button data-cmd="splitterBuilder">${I('cable',15)}Splitter Types <span class="badge">${nd.splitterTypes.length}</span></button>`
+  });
+  const dims = sortedDims();
+  const nodeOpts = sel => nd.nodeTypes.map(nt=>`<option value="${esc(nt.id)}" ${sel===nt.id?'selected':''}>${esc([nt.brand, nt.name || nt.id].filter(Boolean).join(' '))} · ${Number(nt.portCount||0)} ports</option>`).join('') || '<option value="">No node types yet</option>';
+  const splitOpts = sel => nd.splitterTypes.map(sp=>`<option value="${esc(sp.id)}" ${sel===sp.id?'selected':''}>${esc([sp.brand, sp.name || sp.id].filter(Boolean).join(' '))} · ${Number(sp.outputCount||0)} outputs</option>`).join('') || '<option value="">No splitter types yet</option>';
+  const libsEmpty = !nd.nodeTypes.length || !nd.splitterTypes.length;
+
+  const prefs = card({ key:'net-prefs', title:'Preferences', icon:'sliders', collapsible:false, body:`<div class="planner-controls" style="max-width:560px">
+      <label>Spare ports per node<input id="netPrefNodeSpare" type="number" min="0" value="${Number(nd.prefs.nodeSparePorts||0)}"></label>
+      <label>Spare outputs per splitter<input id="netPrefSplitterSpare" type="number" min="0" value="${Number(nd.prefs.splitterSparePorts||0)}"></label></div>
+      ${libsEmpty ? `<div class="hint">${I('info',13)} Create at least one node type and one splitter type first (buttons top right).</div>` : ''}` });
+
+  const rows = dims.map(dc=>{
+    const plan = getDimPlan(dc);
+    const unis = uniqueUniversesInDim(dc);
+    const nt = nd.nodeTypes.find(x=>x.id===plan.nodeTypeId) || nd.nodeTypes[0];
+    const need = nt ? calculateNodeNeedForDim(dc, nt.portCount) : null;
+    return `<div class="planner-row" style="--dim-color:${dimColor(dc)}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px"><b style="font-size:14px">${esc(dc)}</b><span class="info-pill">${plural(unis.length,'universe')}</span>${need?`<span class="info-pill">${plural(need.nodeCount,'node')} needed</span>`:''}<span class="info-pill">${plural(plan.nodes.length,'node')} placed</span><span class="info-pill">${plural(plan.splitters.length,'splitter')} placed</span></div>
+        <button class="sm ghost" data-open-kind="DIM" data-open-id="${esc(dc)}">Open DimCity ${I('arrowRight',13)}</button>
+      </div>
+      <div class="planner-controls" style="margin-top:12px">
+        <label>Node type<select class="planNodeType" data-dc="${esc(dc)}">${nodeOpts(plan.nodeTypeId)}</select></label>
+        <button class="planAutoNode" data-dc="${esc(dc)}" ${nd.nodeTypes.length?'':'disabled'}>${I('refresh',14)}Auto-assign nodes</button>
+        <label>Splitter type<select class="planSplitterType" data-dc="${esc(dc)}">${splitOpts(plan.lastSplitterTypeId)}</select></label>
+        <button class="planAutoSplit" data-dc="${esc(dc)}" ${nd.splitterTypes.length?'':'disabled'}>${I('refresh',14)}Auto-calculate splitters</button>
+      </div>
+      <div class="universe-chip-grid">${unis.map(u=>`<span class="info-pill"><span class="status-dot" style="background:${uniHue(u)};margin:0"></span>UNI ${u}</span>`).join('') || '<span class="subtle">No universes</span>'}</div>
+    </div>`;
+  }).join('') || '<div class="device-list-empty">No DimCities yet.</div>';
+
+  $('#lkDetail').innerHTML = `<div class="stack">${prefs}${card({ key:'net-dims', title:'DimCities', icon:'layers', collapsible:false, body:rows })}</div>`;
+
+  const root = $('#lkDetail');
+  root.querySelector('#netPrefNodeSpare').oninput = e=>{ nd.prefs.nodeSparePorts = Math.max(0, Number(e.target.value||0)); MODEL.ui.dirty = true; };
+  root.querySelector('#netPrefSplitterSpare').oninput = e=>{ nd.prefs.splitterSparePorts = Math.max(0, Number(e.target.value||0)); MODEL.ui.dirty = true; };
+  root.querySelectorAll('.planNodeType').forEach(sel=> sel.onchange = ()=>{ getDimPlan(sel.dataset.dc).nodeTypeId = sel.value; MODEL.ui.dirty = true; renderNetworkView(); });
+  root.querySelectorAll('.planSplitterType').forEach(sel=> sel.onchange = ()=>{ getDimPlan(sel.dataset.dc).lastSplitterTypeId = sel.value; MODEL.ui.dirty = true; });
+  root.querySelectorAll('.planAutoNode').forEach(btn=> btn.onclick = ()=>{
+    const dc = btn.dataset.dc;
+    const plan = autoAssignDimCityNodes(dc, root.querySelector(`.planNodeType[data-dc="${dc}"]`)?.value || '');
+    if(plan) toast(`${dc}: ${plural(plan.nodes.length,'node')} assigned`);
+    renderNetworkView();
+  });
+  root.querySelectorAll('.planAutoSplit').forEach(btn=> btn.onclick = ()=>{
+    const dc = btn.dataset.dc;
+    const plan = autoAddSplittersForDim(dc, root.querySelector(`.planSplitterType[data-dc="${dc}"]`)?.value || '');
+    if(plan) toast(`${dc}: ${plural(plan.splitters.length,'splitter')} calculated`);
+    renderNetworkView();
+  });
+}
+function showNetworkDevicesTool(){ navigate('NETWORK'); }
+
+// ---- Gedeelde LK/Veam visuals ----
 function lkLineForPort(lk, p){
   return lk.lines.find(x=>Number(x.port)===Number(p)) || {port:p, universe:null, dest:'', status:'YELLOW'};
 }
-function renderPortCells(lk, start, end){
-  let out = '';
-  for(let p=start;p<=end;p++){
-    const L = lkLineForPort(lk, p);
-    const filled = L && L.universe != null && L.universe !== '';
-    out += `<div class="lk-port-cell ${filled?'filled':''}" title="${esc(lk.id)} port ${p}${filled?` • UNI ${esc(L.universe)}`:''}${L.dest?` • ${esc(L.dest)}`:''}"><div class="pnum">${p}</div><div class="puniverse">${filled?`U${esc(L.universe)}`:'—'}</div><div class="pdest">${esc(L.dest || '')}</div></div>`;
-  }
-  return out;
-}
+const SLOT_META = {
+  1: { name:'Veam A', ports:[1,2,3,4], range:'LK ports 1–4' },
+  2: { name:'Veam B', ports:[5,6,7,8], range:'LK ports 5–8' },
+  3: { name:'Veam C', ports:[9,10,11,12], range:'LK ports 9–12' }
+};
 function renderLkVisual(lk){
   const eff = effectiveBlockType(lk);
   const color = dimColor(lk.dimcity);
   const loc = lkAutoLocation(lk) || '';
+  const head = `<div class="lk-visual-head"><div class="left"><b>${esc(lk.id)}</b><span class="tag">${esc(blockTypeLabel(eff))}</span>${lk.blockType?.mode==='Manual'?'':'<span class="tag" title="Block type detected automatically">Auto</span>'}${lk.manual?'<span class="tag blue">Manual</span>':''}</div><span class="dimcity-tag">${esc(loc) || ''}</span></div>`;
   if(eff === 'XLR12'){
-    return `<div class="lk-visual" style="--dim-color:${color}"><div class="lk-visual-head"><div><b>${esc(lk.id)}</b> <span class="badge">12× XLR outputs</span></div><span class="dimcity-tag">${esc(loc) || '—'}</span></div><div class="lk-xlr12-grid">${renderCombinedPortCells(lk,[1,2,3,4,5,6,7,8,9,10,11,12])}</div></div>`;
+    return `<div class="lk-visual" style="--dim-color:${color}">${head}<div class="lk-xlr12-grid">${renderCombinedPortCells(lk,[1,2,3,4,5,6,7,8,9,10,11,12])}</div></div>`;
   }
-  const groups = [
-    {slot:1, title: eff==='MIXED' ? 'Top XLR 1–4' : 'Veam A', subtitle: eff==='MIXED' ? 'same circuit as optional Veam A' : 'ports 1–4', ports:[1,2,3,4]},
-    {slot:2, title:'Veam B', subtitle:'LK ports 5–8', ports:[5,6,7,8]},
-    {slot:3, title:'Veam C', subtitle:'LK ports 9–12', ports:[9,10,11,12]}
-  ].map(g=>{
-    const linked = lk.veam?.[g.slot] || '';
-    const linkText = linked ? `Linked: ${linked}` : 'No Veam linked';
-    return `<div class="lk-group ${linked?'linked':'not-linked'}"><div class="lk-group-title"><div><b>${g.title}</b><span>${g.subtitle}</span></div><em>${esc(linkText)}</em></div><div class="lk-port-grid">${renderCombinedPortCells(lk,g.ports)}</div></div>`;
+  const groups = [1,2,3].map(slot=>{
+    const meta = SLOT_META[slot];
+    const title = slot===1 && eff==='MIXED' ? 'XLR 1–4 / Veam A' : meta.name;
+    const linked = lk.veam?.[slot] || '';
+    return `<div class="lk-group g${slot} ${linked?'linked':'not-linked'}"><div class="lk-group-title"><div><b>${title}</b><span>${meta.range}</span></div><em>${linked ? `${I('check',11)} ${esc(linked)}` : 'No Veam'}</em></div><div class="lk-port-grid">${renderCombinedPortCells(lk, meta.ports)}</div></div>`;
   }).join('');
-  return `<div class="lk-visual" style="--dim-color:${color}"><div class="lk-visual-head"><div><b>${esc(lk.id)}</b> <span class="badge">${esc(blockTypeLabel(eff))}</span></div><span class="dimcity-tag">${esc(loc) || '—'}</span></div><div class="lk-block-layout"><div class="lk-input">LK<br>INPUT</div><div class="lk-groups">${groups}</div></div></div>`;
+  return `<div class="lk-visual" style="--dim-color:${color}">${head}<div class="lk-block-layout"><div class="lk-input">LK<br>INPUT</div><div class="lk-groups">${groups}</div></div></div>`;
+}
+function veamPortsHtml(ve){
+  const ports = [];
+  for(let i=1;i<=4;i++){
+    const L = ve.lines.find(x=>Number(x.port)===i) || {universe:null,dest:''};
+    const filled = L.universe != null && L.universe !== '';
+    ports.push(`<div class="lk-port-cell ${filled?'filled':''}" title="${esc(ve.id)} port ${i}${filled?` • UNI ${esc(L.universe)}`:''}${L.dest?` • ${esc(L.dest)}`:''}"><div class="pnum">${i}</div><div class="puniverse">${filled?`UNI ${esc(L.universe)}`:'—'}</div><div class="pdest">${esc(L.dest||'')}</div></div>`);
+  }
+  return `<div class="veam-port-grid">${ports.join('')}</div>`;
+}
+function veamLinkBadge(vid){
+  const uses = MODEL.veamUse.get(vid)||[];
+  if(uses.length===1) return `<span class="veam-link-badge good">${I('check',12)} ${esc(uses[0].lkId)} · Veam ${'ABC'[uses[0].slot-1]}</span>`;
+  if(uses.length>1) return `<span class="veam-link-badge bad">${I('alert',12)} Linked ${uses.length}×: ${uses.map(u=>esc(u.lkId)).join(', ')}</span>`;
+  return '<span class="veam-link-badge warn">Not linked</span>';
 }
 function universeInfoForDim(dc){
   const perU = new Map();
@@ -946,946 +1276,324 @@ function universeInfoForDim(dc){
   };
   for (const [, lk] of MODEL.byLK){
     if (lk.dimcity !== dc) continue;
-    for (const L of lk.lines){
-      if(!L || L.universe==null || L.universe==='') continue;
-      bump(L.universe, 'lk', { lkId: lk.id, port: L.port, dest: L.dest||'' });
-    }
+    for (const L of lk.lines) bump(L?.universe, 'lk', { lk: lk.id, port: L.port, location: L.dest||'' });
   }
   for (const [, ve] of MODEL.byVeam){
     if (ve.dimcity !== dc) continue;
-    for (const R of ve.lines){
-      if(!R || R.universe==null || R.universe==='') continue;
-      bump(R.universe, 'veam', { veamId: ve.id, port: R.port, dest: R.dest||'' });
-    }
+    for (const R of ve.lines) bump(R?.universe, 'veam', { veam: ve.id, port: R.port, location: R.dest||'' });
   }
   for (const D of (MODEL.dmxLoose||[])){
-    if(D.dimcity !== dc || D.universe==null || D.universe==='') continue;
-    bump(D.universe, 'dmx', { dest:D.dest||'' });
+    if(D.dimcity === dc) bump(D.universe, 'dmx', { location:D.dest||'' });
   }
   return perU;
 }
 function renderInlineUniverseDetails(dc, focusU){
-  if(focusU == null || focusU === '') return '<div class="hint">Click a UNI card to show its LK/Veam patch points here.</div>';
-  const perU = universeInfoForDim(dc);
-  const info = perU.get(String(focusU));
+  if(focusU == null || focusU === '') return '<div class="hint">Select a universe to see which LK and Veam ports carry it.</div>';
+  const info = universeInfoForDim(dc).get(String(focusU));
   if(!info) return '<div class="inline-uni-detail muted">No patch points for this universe.</div>';
-  const rows = (arr, cols) => arr.length ? `<table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${arr.map(x=>`<tr>${cols.map(c=>`<td>${esc(x[c] ?? '—')}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '<div class="muted">None</div>';
-  return `<div class="inline-uni-detail" style="--dim-color:${dimColor(dc)}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><h3 style="margin:0;border:0;background:none;padding:0">UNI ${esc(focusU)}</h3><span class="info-pill">${info.lk.length + info.veam.length + info.dmx.length} patch points</span></div><div class="inline-uni-columns"><div><b>LK ports</b>${rows(info.lk, ['lkId','port','dest'])}</div><div><b>Veam ports</b>${rows(info.veam, ['veamId','port','dest'])}</div><div><b>Loose DMX</b>${rows(info.dmx, ['dest'])}</div></div></div>`;
+  const tbl = (arr, cols) => arr.length
+    ? `<div class="table-wrap"><table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${arr.map(x=>`<tr>${cols.map(c=>`<td>${esc(x[c.toLowerCase()] ?? '—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+    : '<div class="subtle">None</div>';
+  return `<div class="inline-uni-detail"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b style="font-size:14px"><span class="status-dot" style="background:${uniHue(focusU)}"></span>Universe ${esc(focusU)}</b><span class="info-pill">${plural(info.lk.length + info.veam.length + info.dmx.length,'patch point')}</span></div>
+    <div class="inline-uni-columns"><div><b>LK ports</b>${tbl(info.lk, ['LK','Port','Location'])}</div><div><b>Veam ports</b>${tbl(info.veam, ['Veam','Port','Location'])}</div>${info.dmx.length?`<div><b>Loose DMX</b>${tbl(info.dmx, ['Location'])}</div>`:''}</div></div>`;
 }
 
-function renderInlineLkDetails(lk){
-  if(!lk) return '';
+// Bloktype + Veam-slots: één implementatie voor inline paneel en LK-pagina
+function slotState(lk, slot){
   const eff = effectiveBlockType(lk);
-  const color = dimColor(lk.dimcity);
-  const veams = Array.from(MODEL.byDim.get(lk.dimcity)?.veams || []).sort();
-  const optionHtml = (selected)=> ['<option value="">— not linked —</option>'].concat(veams.map(v=>`<option value="${esc(v)}" ${selected===v?'selected':''}>${esc(v)}</option>`)).join('');
-  const slotControls = eff === 'XLR12' ? '<div class="hint">12× XLR mode: Veam links are not used for the visual block.</div>' : [1,2,3].map(slot=>`<label>Veam ${slot===1?'A':slot===2?'B':'C'} link<select class="inlineLkVeamSlot" data-lk="${esc(lk.id)}" data-slot="${slot}">${optionHtml(lk.veam?.[slot] || '')}</select></label>`).join('');
-  const mergedRows = [1,2,3,4,5,6,7,8,9,10,11,12].map(p=>{
+  if(eff === 'XLR12') return lk.veam?.[slot]
+    ? { disabled:false, reason:'Ignored in 12× XLR mode — choose “Not linked” to remove it' }
+    : { disabled:true, reason:'Not used in 12× XLR mode' };
+  const usage = slotUsage(lk, slot);
+  if(usage.full) return { disabled:true, reason:`${SLOT_META[slot].range} are all patched on the LK itself` };
+  return { disabled:false, reason: usage.partial ? `${usage.used} of 4 LK ports in this range are patched` : '' };
+}
+function blockTypeSelectHtml(lk, cls){
+  const m = lk.blockType?.mode==='Manual' ? lk.blockType.value : 'Auto';
+  return `<select class="${cls}" data-lk="${esc(lk.id)}">
+    <option value="Auto" ${m==='Auto'?'selected':''}>Auto-detect (${esc(blockTypeLabel(autoBlockType(lk)))})</option>
+    <option value="MIXED" ${m==='MIXED'?'selected':''}>${esc(blockTypeLabel('MIXED'))}</option>
+    <option value="VEAM_ONLY" ${m==='VEAM_ONLY'?'selected':''}>${esc(blockTypeLabel('VEAM_ONLY'))}</option>
+    <option value="XLR12" ${m==='XLR12'?'selected':''}>${esc(blockTypeLabel('XLR12'))}</option></select>`;
+}
+function veamSlotSelectHtml(lk, slot, cls){
+  const st = slotState(lk, slot);
+  const pool = [...(MODEL.byDim.get(lk.dimcity)?.veams || [])].sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}));
+  const cur = lk.veam?.[slot] || '';
+  const opt = v => {
+    const uses = (MODEL.veamUse.get(v)||[]).filter(u=>!(u.lkId===lk.id && u.slot===slot));
+    const note = uses.length ? ` — used by ${uses.map(u=>u.lkId).join(', ')}` : '';
+    return `<option value="${esc(v)}" ${cur===v?'selected':''}>${esc(v)}${esc(note)}</option>`;
+  };
+  return `<select class="${cls}" data-lk="${esc(lk.id)}" data-slot="${slot}" ${st.disabled?'disabled':''} title="${esc(st.reason)}"><option value="">Not linked</option>${pool.map(opt).join('')}${cur && !pool.includes(cur) ? `<option value="${esc(cur)}" selected>${esc(cur)} (missing)</option>` : ''}</select>`;
+}
+function applyBlockType(lk, value){
+  if(value === 'Auto') lk.blockType = { mode:'Auto', value:autoBlockType(lk) };
+  else lk.blockType = { mode:'Manual', value };
+  if(effectiveBlockType(lk) === 'XLR12') lk.veam = {1:null,2:null,3:null};
+  recomputeVeamUseAndIssues();
+  MODEL.ui.dirty = true;
+}
+function applyVeamSlot(lk, slot, value){
+  lk.veam[slot] = value || null;
+  recomputeVeamUseAndIssues();
+  MODEL.ui.dirty = true;
+}
+function bindLkControls(root, rerender){
+  root.querySelectorAll('select.lkBlockType').forEach(sel=>{
+    sel.onclick = e=>e.stopPropagation();
+    sel.onchange = ()=>{ const lk = MODEL.byLK.get(sel.dataset.lk); if(!lk) return; applyBlockType(lk, sel.value); renderSummary(); renderIssues(); rerender(); };
+  });
+  root.querySelectorAll('select.lkVeamSlot').forEach(sel=>{
+    sel.onclick = e=>e.stopPropagation();
+    sel.onchange = ()=>{ const lk = MODEL.byLK.get(sel.dataset.lk); if(!lk) return; applyVeamSlot(lk, Number(sel.dataset.slot), sel.value); renderSummary(); renderIssues(); rerender(); };
+  });
+}
+function mergedPortsTable(lk){
+  const rows = [1,2,3,4,5,6,7,8,9,10,11,12].map(p=>{
     const m = mergedPortRecord(lk,p);
-    return `<tr><td>${p}</td><td>${m.universe ?? ''}</td><td>${esc(m.dest||'')}</td><td>${esc(m.source||'')}</td><td>${m.ve.veamId ? `${esc(m.ve.veamId)} / ${m.ve.veamPort}` : '—'}</td><td>${m.conflict?statusDot('RED'):statusDot(m.status||'YELLOW')}</td></tr>`;
+    return `<tr><td class="num">${p}</td><td class="num">${m.universe ?? ''}</td><td>${esc(m.dest||'')}</td><td>${esc(m.source||'')}</td><td>${m.ve.veamId ? `${esc(m.ve.veamId)} · port ${m.ve.veamPort}` : '<span class="subtle">—</span>'}</td><td>${m.conflict?'<span class="tag red">Conflict</span>':statusDot(m.status||'YELLOW')}</td></tr>`;
   }).join('');
-  return `<div class="inline-detail-panel lk-open-panel" style="--dim-color:${color}" data-inline-lk="${esc(lk.id)}">
-    <div class="inline-detail-head"><div><b class="inline-title">${esc(lk.id)} opened</b><div class="hint">Edit this LK block inline. No page switch.</div></div><span class="badge">${esc(blockTypeLabel(eff))}</span></div>
-    <div class="inline-controls">
-      <label>Block type<select class="inlineLkBlockType" data-lk="${esc(lk.id)}">
-        <option value="Auto" ${lk.blockType?.mode!=='Manual'?'selected':''}>Auto</option>
-        <option value="MIXED" ${lk.blockType?.mode==='Manual' && lk.blockType.value==='MIXED'?'selected':''}>4× XLR + 3× Veam</option>
-        <option value="VEAM_ONLY" ${lk.blockType?.mode==='Manual' && lk.blockType.value==='VEAM_ONLY'?'selected':''}>3× Veam</option>
-        <option value="XLR12" ${lk.blockType?.mode==='Manual' && lk.blockType.value==='XLR12'?'selected':''}>12× XLR</option>
-      </select></label>
-      ${slotControls}
-    </div>
-    ${renderLkVisual(lk)}
-    <div class="inline-table-wrap"><table><thead><tr><th>LK port</th><th>UNI</th><th>Location</th><th>Source</th><th>Linked Veam port</th><th>Status</th></tr></thead><tbody>${mergedRows}</tbody></table></div>
+  return `<table class="data-table"><thead><tr><th class="num">LK port</th><th class="num">Universe</th><th>Location</th><th>Source</th><th>Veam port</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function renderInlineLkDetails(lk){
+  const eff = effectiveBlockType(lk);
+  const slots = eff === 'XLR12' ? '' : [1,2,3].map(s=>`<label>${SLOT_META[s].name} <span class="subtle">(${SLOT_META[s].range})</span>${veamSlotSelectHtml(lk, s, 'lkVeamSlot')}</label>`).join('');
+  return `<div class="inline-detail-panel">
+    <div class="inline-controls"><label>Block type${blockTypeSelectHtml(lk, 'lkBlockType')}</label>${slots}</div>
+    ${eff==='XLR12' ? '<div class="hint" style="margin:-4px 0 10px">12× XLR mode: Veam links are not used.</div>' : ''}
+    <div class="inline-table-wrap">${mergedPortsTable(lk)}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="sm" data-open-kind="LK" data-open-id="${esc(lk.id)}">Open LK page ${I('arrowRight',13)}</button></div>
   </div>`;
 }
-function renderInlineVeamDetails(ve){
-  if(!ve) return '';
-  const color = dimColor(ve.dimcity);
-  const loc = veamAutoLocation(ve) || '';
-  const ports = [];
-  for(let i=1;i<=4;i++){
-    const L = ve.lines.find(x=>Number(x.port)===i) || {universe:null,dest:'',status:'YELLOW'};
-    const filled = L.universe != null && L.universe !== '';
-    ports.push(`<div class="lk-port-cell ${filled?'filled':''}" title="${esc(ve.id)} port ${i}${filled?` • UNI ${esc(L.universe)}`:''}"><div class="pnum">${i}</div><div class="puniverse">${filled?`UNI ${esc(L.universe)}`:'—'}</div><div class="pdest">${esc(L.dest||'')}</div></div>`);
-  }
-  const uses = MODEL.veamUse.get(ve.id)||[];
-  const status = uses.length===0 ? 'Not linked to an LK yet' : uses.length===1 ? `Linked to ${uses[0].lkId} / Veam ${uses[0].slot}` : `Linked multiple times: ${uses.map(u=>u.lkId+' V'+u.slot).join(', ')}`;
-  return `<div class="inline-detail-panel veam-open-panel" style="--dim-color:${color}" data-inline-veam="${esc(ve.id)}">
-    <div class="inline-detail-head"><div><b class="inline-title">${esc(ve.id)} opened</b><div class="hint">${esc(status)}</div></div><span class="badge">Veam 4</span></div>
-    <div class="hint">Location: ${esc(loc)||'—'}</div>
-    <div class="veam-port-grid" style="margin-top:8px">${ports.join('')}</div>
-  </div>`;
-}
+
+// ---- DimCity ----
 function renderDimCityDetail(dc){
   const root = $('#lkDetail');
-  const head = $('#lkHeader');
   const dim = MODEL.byDim.get(dc);
   if(!dim){
-    head.textContent = dc || 'DimCity';
-    root.innerHTML = '<div class="muted">No data for this DimCity.</div>';
-    updateRightCsvVisibility();
+    pageHead({ title: esc(dc || 'DimCity') });
+    root.innerHTML = '<div class="card"><div class="empty"><p>No data for this DimCity.</p></div></div>';
     return;
   }
   ensureDimColors();
   MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
   const color = dimColor(dc);
-  const rows = []
-    .concat(MODEL.lines.map(L => ({ type:'LK', ...L })))
-    .concat(MODEL.veamLines.map(V => ({ type:'VEAM', ...V })))
-    .concat((MODEL.dmxLoose || []).map(D => ({ type:'DMX', ...D })))
-    .filter(r => r.dimcity === dc)
-    .sort((a,b)=>{
-      const ua=(a.universe??1e9), ub=(b.universe??1e9);
-      if(ua!==ub) return ua-ub;
-      const ia=(a.id||''), ib=(b.id||'');
-      if(ia!==ib) return ia.localeCompare(ib);
-      return (a.port??1e9) - (b.port??1e9);
-    });
-
   const stat = MODEL.uniStats.get(dc);
   const uniCount = stat?.totalUniq || 0;
   const pointCount = stat?.totalPorts || 0;
-  const lks = [...MODEL.byLK.values()].filter(x=>x.dimcity===dc).sort((a,b)=>a.id.localeCompare(b.id));
-  const veams = [...MODEL.byVeam.values()].filter(x=>x.dimcity===dc).sort((a,b)=>a.id.localeCompare(b.id));
+  const lks = [...MODEL.byLK.values()].filter(x=>x.dimcity===dc).sort(byId);
+  const veams = [...MODEL.byVeam.values()].filter(x=>x.dimcity===dc).sort(byId);
+  const dmx = (MODEL.dmxLoose||[]).filter(d=>d.dimcity===dc);
   const focusU = MODEL.ui.dimFocusUniverse?.[dc] || null;
+  const iss = issuesForDim(dc);
+  const errs = iss.filter(i=>i.severity==='RED').length, warns = iss.length - errs;
+  const linked = veams.filter(v=>(MODEL.veamUse.get(v.id)||[]).length>=1).length;
 
-  head.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div>${colorChip(color)}<b style="font-size:26px">${dc}</b> <span class="dimcity-tag">DimCity visual overview</span></div></div>`;
+  pageHead({
+    crumbs:`<a data-nav-view="HOME">Overview</a>${I('chevronRight',12)}<span>DimCities</span>`,
+    title:`<span class="dim-dot" style="width:14px;height:14px;border-radius:4px;background:${color}"></span>${esc(dc)}`,
+    sub:`${plural(lks.length,'LK block')} · ${plural(veams.length,'Veam')} · ${plural(uniCount,'universe')} · ${plural(pointCount,'patch point')}`,
+    actions:`<button id="dimColorBtn">${I('sliders',15)}Color</button><button data-cmd="addLK">${I('plus',15)}Add LK</button><button class="primary" id="dimExport">${I('file',15)}Export ${esc(dc)}</button>`
+  });
+
+  const kpis = `<div class="kpis">
+    ${kpi('LK blocks', lks.length, 'box')}
+    ${kpi('Veams', veams.length, 'plug', '', veams.length ? `${linked} of ${veams.length} linked` : '')}
+    ${kpi('Universes', uniCount, 'universe')}
+    ${kpi('Patch points', pointCount, 'cable')}
+    ${kpi('Errors', errs, 'alert', errs?'err':'ok')}
+    ${kpi('Warnings', warns, 'alert', warns?'warn':'')}
+  </div>`;
 
   const uniCards = stat && stat.counts.size ? [...stat.counts.entries()].sort((a,b)=>Number(a[0])-Number(b[0])).map(([u,c])=>{
     const total = c.lk + c.veam + (c.dmx || 0);
-    const active = String(focusU) === String(u);
-    return `<div class="uni-card ${active?'active':''}" data-uni="${u}" title="LK ${c.lk} • Veam ${c.veam}${c.dmx?` • DMX ${c.dmx}`:''}"><div class="uni-title">UNI ${u}</div><div class="uni-sub">${total} patch points</div><div class="dim-pill-row"><span class="info-pill">LK ${c.lk}</span><span class="info-pill">Veam ${c.veam}</span>${c.dmx?`<span class="info-pill">DMX ${c.dmx}</span>`:''}</div></div>`;
-  }).join('') : '<div class="muted">No universes</div>';
+    return `<div class="uni-card ${String(focusU)===String(u)?'active':''}" data-uni="${esc(u)}" style="--uni:${uniHue(u)}"><div class="uni-title">UNI ${esc(u)}</div><div class="uni-sub">${plural(total,'patch point')}</div><div class="dim-pill-row">${c.lk?`<span class="info-pill">LK ${c.lk}</span>`:''}${c.veam?`<span class="info-pill">Veam ${c.veam}</span>`:''}${c.dmx?`<span class="info-pill">DMX ${c.dmx}</span>`:''}</div></div>`;
+  }).join('') : '<div class="device-list-empty">No universes patched in this DimCity.</div>';
 
-  const lkCards = lks.length ? lks.map(lk=>`<div class="lk-mini-card clickable v6" data-lk="${esc(lk.id)}">${renderLkVisual(lk)}</div>${isInlineOpen(dc,'lk',lk.id) ? renderInlineLkDetails(lk) : ''}`).join('') : '<div class="device-list-empty">No LKs in this DimCity.</div>';
+  const lkCards = lks.length ? lks.map(lk=>{
+    const open = isInlineOpen(dc,'lk',lk.id);
+    return `<div class="lk-mini-card clickable ${open?'open':''}" data-lk="${esc(lk.id)}">${renderLkVisual(lk)}${open ? renderInlineLkDetails(lk) : ''}</div>`;
+  }).join('') : '<div class="device-list-empty">No LK blocks in this DimCity.</div>';
+
   const veamCards = veams.length ? veams.map(ve=>{
     const loc = veamAutoLocation(ve) || '';
-    const ports = [];
-    for(let i=1;i<=4;i++){
-      const L = ve.lines.find(x=>Number(x.port)===i) || {universe:null,dest:'',status:'YELLOW'};
-      const filled = L.universe != null && L.universe !== '';
-      ports.push(`<div class="lk-port-cell ${filled?'filled':''}" title="${esc(ve.id)} port ${i}${filled?` • UNI ${esc(L.universe)}`:''}"><div class="pnum">${i}</div><div class="puniverse">${filled?`U${esc(L.universe)}`:'—'}</div><div class="pdest">${esc(L.dest||'')}</div></div>`);
-    }
-    return `<div class="lk-mini-card clickable veam-mini v6" data-veam="${esc(ve.id)}"><div class="lk-visual" style="--dim-color:${color}"><div class="lk-visual-head"><div><b>${esc(ve.id)}</b> <span class="badge">Veam 4</span></div><span class="dimcity-tag">${esc(loc)||'—'}</span></div><div class="veam-port-grid">${ports.join('')}</div></div></div>${isInlineOpen(dc,'veam',ve.id) ? renderInlineVeamDetails(ve) : ''}`;
+    return `<div class="lk-mini-card clickable veam-mini" data-veam="${esc(ve.id)}"><div class="lk-visual" style="--dim-color:${color}"><div class="lk-visual-head"><div class="left"><b>${esc(ve.id)}</b>${veamLinkBadge(ve.id)}</div><span class="dimcity-tag">${esc(loc)}</span></div>${veamPortsHtml(ve)}</div></div>`;
   }).join('') : '<div class="device-list-empty">No Veams in this DimCity.</div>';
 
-  const importRows = rows.map(r=>`
-    <tr>
-      <td>${esc(r.type)}</td>
-      <td>${esc(r.id || 'DMX')}</td>
-      <td>${r.port ?? '—'}</td>
-      <td>${r.universe ?? ''}</td>
-      <td>${esc(r.dest || '')}</td>
-      <td>${statusDot(r.status || 'YELLOW')}</td>
-    </tr>
-  `).join('');
+  const dmxBody = dmx.length ? `<table class="data-table"><thead><tr><th class="num">Universe</th><th>Location</th><th>Source</th></tr></thead><tbody>${dmx.slice().sort((a,b)=>(a.universe??1e9)-(b.universe??1e9)).map(d=>`<tr><td class="num">${d.universe ?? '—'}</td><td>${esc(d.dest||'')}</td><td class="subtle">${esc(d.sourceName||'')}</td></tr>`).join('')}</tbody></table>` : '';
 
+  const rows = []
+    .concat(MODEL.lines.map(L => ({ type:'LK', ...L })))
+    .concat(MODEL.veamLines.map(V => ({ type:'Veam', ...V })))
+    .concat(dmx.map(D => ({ type:'DMX', ...D })))
+    .filter(r => r.dimcity === dc)
+    .sort((a,b)=> (a.universe??1e9)-(b.universe??1e9) || String(a.id||'').localeCompare(String(b.id||''), undefined, {numeric:true}) || (a.port??1e9)-(b.port??1e9));
+  const rowsBody = `<div class="table-scroll"><table class="data-table"><thead><tr><th>Type</th><th>ID</th><th class="num">Port</th><th class="num">Universe</th><th>Location</th><th>Status</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.type}</td><td>${esc(r.id || '—')}</td><td class="num">${r.port ?? '—'}</td><td class="num">${r.universe ?? ''}</td><td>${esc(r.dest || '')}</td><td>${statusDot(r.status || 'YELLOW')}</td></tr>`).join('') || '<tr><td colspan="6" class="subtle">No rows</td></tr>'}</tbody></table></div>`;
+
+  const anyOpen = lks.some(lk=>isInlineOpen(dc,'lk',lk.id));
   root.style.setProperty('--dim-color', color);
-  root.innerHTML = `
-    <div class="dim-hero v4" style="--dim-color:${color}">
-      <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap">
-        <div>
-          <div class="dim-title v4">${dc}</div>
-          <div class="dim-subtitle">This is ${dc} • physical patch points only, not DMX-channel usage</div>
-          <div class="dim-pill-row"><span class="info-pill">${dim.lks.size} LK blocks</span><span class="info-pill">${dim.veams.size} Veams</span><span class="info-pill">${uniCount} universes</span><span class="info-pill">${pointCount} patch points</span></div>
-          <div class="dim-action-row"><button id="dimExpandAll" style="background:#334155;color:#eaf2ff">Expand all LK/Veam</button><button id="dimCollapseAll" style="background:#334155;color:#eaf2ff">Collapse all</button></div>
-        </div>
-        <div>
-          <div class="dim-subtitle">DimCity color</div>
-          <div class="dim-color-row">${colorSwatchesHtml(color)}</div>
-        </div>
-      </div>
-      <div class="stat-grid">
-        <div class="stat-card"><b>${dim.lks.size}</b><span>LK blocks</span></div>
-        <div class="stat-card"><b>${dim.veams.size}</b><span>Veams</span></div>
-        <div class="stat-card"><b>${rows.length}</b><span>total rows</span></div>
-        <div class="stat-card"><b>${uniCount}</b><span>unique universes</span></div>
-        <div class="stat-card"><b>${pointCount}</b><span>universe patch points</span></div>
-        <div class="stat-card"><b>${dim.red}</b><span>errors</span></div>
-        <div class="stat-card"><b>${dim.yellow}</b><span>warnings</span></div>
-      </div>
-    </div>
-
-    <div class="section dim-section" style="--dim-color:${color}"><h3>Universe overview</h3><div class="content">
-      <div class="uni-overview-grid">${uniCards}</div>
-      ${renderInlineUniverseDetails(dc, focusU)}
-    </div></div>
-
-    <div class="section dim-section" style="--dim-color:${color}"><h3>LK overview</h3><div class="content">
-      <div class="lk-card-grid">${lkCards}</div>
-    </div></div>
-
-    <div class="section dim-section" style="--dim-color:${color}"><h3>Veam overview</h3><div class="content">
-      <div class="lk-card-grid">${veamCards}</div>
-    </div></div>
-
+  root.innerHTML = `<div class="stack">${kpis}
+    ${card({ key:`${dc}:uni`, title:'Universes', icon:'universe', meta:plural(uniCount,'universe'), body:`<div class="uni-overview-grid">${uniCards}</div>${renderInlineUniverseDetails(dc, focusU)}` })}
+    ${card({ key:`${dc}:lk`, title:'LK blocks', icon:'box', meta:plural(lks.length,'block'), actions: lks.length ? `<button class="sm ghost" id="dimToggleAll">${anyOpen?'Collapse all':'Expand all'}</button>` : '', body:`<div class="hint" style="margin:-4px 0 10px">Click a block to edit its block type and Veam links.</div><div class="lk-card-grid">${lkCards}</div>` })}
+    ${card({ key:`${dc}:veam`, title:'Veams', icon:'plug', meta:`${linked}/${veams.length} linked`, body:`<div class="lk-card-grid veams">${veamCards}</div>` })}
+    ${dmx.length ? card({ key:`${dc}:dmx`, title:'Loose DMX', icon:'cable', meta:plural(dmx.length,'line'), body:dmxBody, flush:true }) : ''}
     ${renderDimNetworkDevices(dc)}
+    ${card({ key:`${dc}:rows`, title:'Patch rows', icon:'table', meta:plural(rows.length,'row'), body:rowsBody, flush:true, collapsed:true })}
+  </div>`;
 
-    <div class="section dim-section" style="--dim-color:${color}"><h3>Import rows in ${dc}</h3><div class="content" style="max-height:520px;overflow:auto;">
-      <table><thead><tr><th>Type</th><th>ID</th><th>Port</th><th>Universe</th><th>Location</th><th>Status</th></tr></thead><tbody>${importRows || '<tr><td colspan="6" class="muted">No rows</td></tr>'}</tbody></table>
-    </div></div>
-  `;
-
-  root.querySelectorAll('.color-swatch').forEach(btn=>{
-    btn.onclick = ()=>{
-      MODEL.dimColors[dc] = safeHex(btn.dataset.color, color);
-      MODEL.ui.dirty = true;
-      renderSummary();
-      renderDimCityDetail(dc);
-    };
-  });
-  const custom = root.querySelector('#dimCustomColor');
-  if(custom){
-    custom.oninput = ()=>{
-      MODEL.dimColors[dc] = safeHex(custom.value, color);
-      MODEL.ui.dirty = true;
-      renderSummary();
-      renderDimCityDetail(dc);
-    };
-  }
+  const rerender = ()=> renderDimCityDetail(dc);
+  const exp = $('#dimExport'); if(exp) exp.onclick = ()=> window.PdfExport?.open?.({ dcs:[dc] });
+  const colorBtn = $('#dimColorBtn'); if(colorBtn) colorBtn.onclick = e=> openDimColorPicker(e.currentTarget, dc);
   root.querySelectorAll('.uni-card[data-uni]').forEach(chip=>{
     chip.onclick = ()=>{
       if(!MODEL.ui.dimFocusUniverse) MODEL.ui.dimFocusUniverse = {};
-      MODEL.ui.dimFocusUniverse[dc] = chip.dataset.uni;
-      MODEL.selected = { kind:'DIM', id: dc };
-      MODEL.ui.rightMode = 'DETAIL';
-      renderDimCityDetail(dc);
+      MODEL.ui.dimFocusUniverse[dc] = String(focusU)===chip.dataset.uni ? null : chip.dataset.uni;
+      rerender();
     };
   });
-  root.querySelectorAll('.lk-mini-card[data-lk]').forEach(card=>{
-    card.onclick = (e)=>{
-      if(!MODEL.ui.dimFocusLK) MODEL.ui.dimFocusLK = {};
-      const id = card.dataset.lk;
-      openInlineState(dc, 'lk', id);
-      renderDimCityDetail(dc);
-    };
+  root.querySelectorAll('.lk-mini-card[data-lk] > .lk-visual').forEach(v=>{
+    v.onclick = ()=>{ openInlineState(dc, 'lk', v.parentElement.dataset.lk); rerender(); };
   });
-  root.querySelectorAll('.lk-mini-card[data-veam]').forEach(card=>{
-    card.onclick = ()=>{
-      if(!MODEL.ui.dimFocusVeam) MODEL.ui.dimFocusVeam = {};
-      const id = card.dataset.veam;
-      openInlineState(dc, 'veam', id);
-      renderDimCityDetail(dc);
-    };
+  root.querySelectorAll('.lk-mini-card[data-veam]').forEach(c=>{
+    c.onclick = ()=> openEntity('VEAM', c.dataset.veam);
   });
-  root.querySelectorAll('.inlineLkBlockType').forEach(sel=>{
-    sel.onclick = e=>e.stopPropagation();
-    sel.onchange = ()=>{
-      const lk = MODEL.byLK.get(sel.dataset.lk); if(!lk) return;
-      if(sel.value === 'Auto') lk.blockType = {mode:'Auto', value:'MIXED'};
-      else lk.blockType = {mode:'Manual', value:sel.value};
-      recomputeVeamUseAndIssues();
-      recomputeUniverseStats();
-      MODEL.ui.dirty = true;
-      renderDimCityDetail(dc);
-    };
-  });
-  root.querySelectorAll('.inlineLkVeamSlot').forEach(sel=>{
-    sel.onclick = e=>e.stopPropagation();
-    const lk = MODEL.byLK.get(sel.dataset.lk); if(lk) sel.value = lk.veam?.[Number(sel.dataset.slot)] || '';
-    sel.onchange = ()=>{
-      const lk = MODEL.byLK.get(sel.dataset.lk); if(!lk) return;
-      const slot = Number(sel.dataset.slot);
-      lk.veam[slot] = sel.value || null;
-      recomputeVeamUseAndIssues();
-      MODEL.ui.dirty = true;
-      renderDimCityDetail(dc);
-    };
-  });
-  const nodeSelect = root.querySelector('#dimNodeType');
-  const splitterSelect = root.querySelector('#dimSplitterType');
-  const btnAuto = root.querySelector('#dimAutoAssignNodes');
-  const btnAddSplit = root.querySelector('#dimAddSplitter');
-  if(btnAuto){
-    btnAuto.onclick = ()=>{
-      autoAssignDimCityNodes(dc, nodeSelect?.value || '');
-      renderDimCityDetail(dc);
-    };
-  }
-  const assignToggle = root.querySelector('#dimNetAssignToggle');
-  if(assignToggle){
-    assignToggle.onclick = ()=>{
-      if(!MODEL.ui.dimNetworkAssignOpen) MODEL.ui.dimNetworkAssignOpen = {};
-      MODEL.ui.dimNetworkAssignOpen[dc] = !MODEL.ui.dimNetworkAssignOpen[dc];
-      renderDimCityDetail(dc);
-    };
-  }
-  if(btnAddSplit){
-    btnAddSplit.onclick = ()=>{
-      const plan=getDimPlan(dc); plan.lastSplitterTypeId = splitterSelect?.value || '';
-      addSplitterToDimCity(dc, splitterSelect?.value || '');
-      renderDimCityDetail(dc);
-    };
-  }
-  const btnAutoSplitters = root.querySelector('#dimAutoSplitters');
-  if(btnAutoSplitters){
-    btnAutoSplitters.onclick = ()=>{
-      const plan=getDimPlan(dc); plan.lastSplitterTypeId = splitterSelect?.value || '';
-      autoAddSplittersForDim(dc, splitterSelect?.value || '');
-      renderDimCityDetail(dc);
-    };
-  }
-  if(splitterSelect){ splitterSelect.onchange = ()=>{ const plan=getDimPlan(dc); plan.lastSplitterTypeId = splitterSelect.value; MODEL.ui.dirty=true; renderDimCityDetail(dc); }; }
-  root.querySelectorAll('.dimRemoveNode').forEach(btn=>btn.onclick=()=>{ const plan=getDimPlan(dc); plan.nodes.splice(Number(btn.dataset.nodeIndex),1); MODEL.ui.dirty=true; renderDimCityDetail(dc); });
-  root.querySelectorAll('.dimRemoveSplitter').forEach(btn=>btn.onclick=()=>{ const plan=getDimPlan(dc); plan.splitters.splice(Number(btn.dataset.splitterIndex),1); MODEL.ui.dirty=true; renderDimCityDetail(dc); });
-  root.querySelectorAll('.dimNodeField').forEach(inp=>{
-    if(inp.classList.contains('ipv4')) bindIpv4Input(inp, inp.dataset.field==='ip');
-    inp.onclick=e=>e.stopPropagation();
-    inp.onchange=()=>{ const plan=getDimPlan(dc); const n=plan.nodes[Number(inp.dataset.nodeIndex)]; if(!n) return; n[inp.dataset.field]=inp.value.trim(); MODEL.ui.dirty=true; if(inp.classList.contains('ipv4') && !isValidIpv4(inp.value, inp.dataset.field==='ip')) inp.classList.add('invalid'); };
-  });
-  root.querySelectorAll('.dimSplitterField').forEach(inp=>{ inp.onclick=e=>e.stopPropagation(); inp.onchange=()=>{ const plan=getDimPlan(dc); const sp=plan.splitters[Number(inp.dataset.splitterIndex)]; if(!sp) return; sp[inp.dataset.field]=inp.value.trim(); MODEL.ui.dirty=true; }; });
-  root.querySelectorAll('.device-port.assignable[data-node-index]').forEach(port=>{ port.onclick=(e)=>{ e.stopPropagation(); openPortUniversePicker(dc, Number(port.dataset.nodeIndex), Number(port.dataset.portIndex)); }; });
-  const btnExpandAll = root.querySelector('#dimExpandAll');
-  if(btnExpandAll){ btnExpandAll.onclick = ()=>{ setAllInline(dc, true); renderDimCityDetail(dc); }; }
-  const btnCollapseAll = root.querySelector('#dimCollapseAll');
-  if(btnCollapseAll){ btnCollapseAll.onclick = ()=>{ setAllInline(dc, false); renderDimCityDetail(dc); }; }
-  root.querySelectorAll('.uni-pool-chip').forEach(chip=>{
-    chip.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', chip.dataset.uni || ''); });
-  });
-  root.querySelectorAll('.device-port.assignable[data-node-index]').forEach(port=>{
-    port.addEventListener('dragover', e=>{ e.preventDefault(); port.classList.add('drop-hover'); });
-    port.addEventListener('dragleave', ()=>port.classList.remove('drop-hover'));
-    port.addEventListener('drop', e=>{
-      e.preventDefault(); port.classList.remove('drop-hover');
-      const uni = e.dataTransfer.getData('text/plain');
-      const plan = getDimPlan(dc); const n = plan.nodes[Number(port.dataset.nodeIndex)]; if(!n) return;
-      n.universes[Number(port.dataset.portIndex)] = Number(uni);
-      MODEL.ui.dirty = true; renderDimCityDetail(dc);
-    });
-  });
-  updateRightCsvVisibility();
+  const tAll = root.querySelector('#dimToggleAll');
+  if(tAll) tAll.onclick = ()=>{ setAllInline(dc, !anyOpen); rerender(); };
+  bindLkControls(root, rerender);
+  bindDimNetworkDevices(root, dc, rerender);
+}
+function openDimColorPicker(anchor, dc){
+  document.querySelectorAll('.popover-menu').forEach(m=>m.remove());
+  const r = anchor.getBoundingClientRect();
+  const m = el('div','popover-menu', `<div style="padding:6px 6px 2px;font-size:11px;color:var(--text-3);font-weight:600;letter-spacing:.05em;text-transform:uppercase">${esc(dc)} color</div><div class="dim-color-row" style="padding:6px;max-width:220px">${colorSwatchesHtml(dimColor(dc))}</div>`);
+  document.body.appendChild(m);
+  m.style.left = Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8)) + 'px';
+  m.style.top = (r.bottom + 4) + 'px';
+  const apply = c => { MODEL.dimColors[dc] = safeHex(c, dimColor(dc)); MODEL.ui.dirty = true; renderSummary(); renderDimCityDetail(dc); };
+  m.querySelectorAll('.color-swatch').forEach(b=> b.onclick = ()=>{ apply(b.dataset.color); m.remove(); });
+  const custom = m.querySelector('#dimCustomColor'); if(custom) custom.oninput = ()=> apply(custom.value);
+  setTimeout(()=>{
+    const off = e=>{ if(!m.contains(e.target)){ m.remove(); document.removeEventListener('mousedown', off, true); } };
+    document.addEventListener('mousedown', off, true);
+  }, 0);
 }
 
-// ===== Detailrouter =====
-function renderDetail(kind, id, arg){
-  if(kind==='VEAM')   return renderVeamDetail(id);
-  if(kind==='LK')     return renderLKDetail(id);
-  if(kind==='UNISUM') return renderUniverseDetail(id, arg);
-  // Niet meer opstarten vanuit hier; de controller bepaalt.
-  return renderRight();
-}
-
-// -- Rechterpaneel: HOME/DETAIL controller implementaties --
-function renderRightHome(){
-  const head = $('#lkHeader');
-  const root = $('#lkDetail');
-  if (!head || !root) return; // als de DOM-secties ontbreken, stil terugvallen
-
-  head.textContent = 'Select an LK';
-  root.innerHTML = '<div class="muted">No LK selected yet.</div>';
-}
-
-function renderRightDetail(){
-  const sel = MODEL.selected || {};
-  // Routeer uitsluitend het detail in de bovenste kaart (#lkDetail/#lkHeader);
-  // het vaste CSV-paneel (#rightCsvSection) blijft buiten deze functie.
-  if (sel.kind === 'LK')        return renderLKDetail(sel.id);
-  if (sel.kind === 'VEAM')      return renderVeamDetail(sel.id);
-  if (sel.kind === 'UNISUM')    return renderUniverseDetail(sel.id, sel.arg);
-  if (sel.kind === 'DIM')       return renderDimCityDetail(sel.id);
-
-  // Onbekend -> terug naar home
-  return renderRightHome();
-}
-
-
-
-function renderDimCitiesBanner(container){
-  hydrateDimOrigins();
-  ensureDimColors();
-  const sec = el('div','section');
-  sec.appendChild(el('h3', null, 'DimCities'));
-  const cnt = el('div','content');
-  const dims = [...(MODEL.byDim?.keys?.() || [])].sort((a,b)=>a.localeCompare(b));
-  cnt.innerHTML = dims.length
-    ? `<div class="universe-chip-grid">${dims.map(dc=>`<button class="badge dim-quick" data-dc="${dc}" style="border-color:${dimColor(dc)};color:#eaf2ff;background:color-mix(in srgb,${dimColor(dc)} 20%,#0d1420)">${colorChip(dimColor(dc))}${dc}</button>`).join('')}</div><div class="hint">Select a DimCity to open the visual overview and change its color.</div>`
-    : '<div class="muted">No DimCities yet.</div>';
-  sec.appendChild(cnt);
-  container.appendChild(sec);
-  cnt.querySelectorAll('.dim-quick').forEach(btn=>{
-    btn.onclick = ()=>{
-      MODEL.selected = { kind:'DIM', id: btn.dataset.dc };
-      MODEL.ui.rightMode = 'DETAIL';
-      renderRight();
-    };
-  });
-}
-
-function renderDmxCablesGroup(dc, content){
-  const key = `${dc}::DMX`;
-  const open = MODEL.ui.groupOpen.has(key) ? MODEL.ui.groupOpen.get(key) : false;
-  const hdr = el('div','toggle', `<span><span class="twist">${open?'▾':'▸'}</span> DMX Cables</span>`);
-  hdr.onclick = ()=>{ MODEL.ui.groupOpen.set(key, !open); renderSummary(); };
-  content.appendChild(hdr);
-
-  if(!open) return;
-
-  const list = el('ul','list subsec');
-  const dmx = (MODEL.dmxLoose || []).filter(r=>r.dimcity===dc);
-  if(!dmx.length){
-    list.appendChild(el('li','item','<div class="muted">No loose DMX lines</div>'));
-  } else {
-    // sorteer: universe → dest
-    dmx.sort((a,b)=>{
-      const ua=(a.universe??1e9), ub=(b.universe??1e9);
-      if(ua!==ub) return ua-ub;
-      return (a.dest||'').localeCompare(b.dest||'');
-    });
-    for(const row of dmx){
-      const li = el('li','item', `<div><b>Uni ${row.universe??'—'}</b> <span class="muted">${row.dest||'—'}</span> <span class="badge">DMX</span></div>`);
-      list.appendChild(li);
-    }
-  }
-  content.appendChild(list);
-}
-
-
+// ---- LK pagina ----
 function renderLKDetail(id){
-  const root = $('#lkDetail'); const head = $('#lkHeader');
-  if(!id){ head.textContent='Select an LK'; root.innerHTML='<div class="muted">No LK selected yet.</div>'; return; }
+  const root = $('#lkDetail');
   const lk = MODEL.byLK.get(id);
+  if(!lk){ pageHead({ title: esc(id || 'LK') }); root.innerHTML = '<div class="card"><div class="empty"><p>This LK no longer exists.</p></div></div>'; return; }
   const eff = effectiveBlockType(lk);
-
-  // Kop
-  const loc = (typeof lkAutoLocation === 'function' ? lkAutoLocation(lk) : '') || '';
-  head.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-      <div><b>${lk.id}</b></div>
-      <div class="dimcity-tag">Location: ${loc || '—'}</div>
-    </div>`;
-
-  const container = el('div');
-
-  // ========== Bloktype ==========
-  const blkSec = el('div','section');
-  blkSec.appendChild(el('h3', null, 'Bloktype'));
-  const blkCnt = el('div','content');
-
-  const selBlk = el('select');
-  selBlk.innerHTML = `
-    <option value="AUTO"  ${lk.blockType.mode==='Auto' ? 'selected' : ''}>Auto (detectie)</option>
-    <option value="MIXED" ${lk.blockType.mode==='Manual'&&lk.blockType.value==='MIXED' ? 'selected' : ''}>${blockTypeLabel('MIXED')}</option>
-    <option value="VEAM_ONLY" ${lk.blockType.mode==='Manual'&&lk.blockType.value==='VEAM_ONLY' ? 'selected' : ''}>${blockTypeLabel('VEAM_ONLY')}</option>
-    <option value="XLR12" ${lk.blockType.mode==='Manual'&&lk.blockType.value==='XLR12' ? 'selected' : ''}>${blockTypeLabel('XLR12')}</option>
-  `;
-  const infoBlk = el('span','muted', ` Huidig: ${blockTypeLabel(eff)}`);
-  blkCnt.appendChild(selBlk);
-  blkCnt.appendChild(infoBlk);
-  blkSec.appendChild(blkCnt);
-  container.appendChild(blkSec);
-
-  selBlk.onchange = ()=>{
-    if (selBlk.value==='AUTO'){
-      lk.blockType.mode='Auto';
-      lk.blockType.value=autoBlockType(lk);
-    } else {
-      lk.blockType.mode='Manual';
-      lk.blockType.value=selBlk.value;
-    }
-    if (effectiveBlockType(lk)==='XLR12'){
-      // bij XLR12 alle Veam-koppelingen wissen
-      lk.veam[1]=lk.veam[2]=lk.veam[3]=null;
-    }
-// In #lkAddConfirm
-recomputeVeamUseAndIssues();
-hydrateDimOrigins();   // ← toevoegen
-renderSummary();
-renderIssues();
-MODEL.selected = { kind:'LK', id };
-MODEL.ui.rightMode = 'DETAIL';
-renderRight();
-
-  };
-
-  // Helper voor Veam-koppeling (alleen dropdown, GEEN handmatige input)
-  const makeVeamRow = (label, slot, rangeTxt)=>{
-    const wrap = el('div','row');
-    wrap.appendChild(el('div',null,`<b>${label}</b> <span class="muted">(${rangeTxt})</span>`));
-
-    // statusbadge
-    const usage = slotUsage(lk, slot);
-    const hardDisable = (effectiveBlockType(lk) === 'XLR12');
-    const assigned = lk.veam[slot];
-    const uses = assigned ? (MODEL.veamUse.get(assigned)||[]) : [];
-    let badgeTxt, badgeClr;
-    if (hardDisable){ badgeTxt='XLR12'; badgeClr='#9fb0c3'; }
-    else if(usage.full){ badgeTxt='VOL'; badgeClr='#E53935'; }
-    else if(assigned){
-      if(uses.length>1){ badgeTxt='DUBBEL'; badgeClr='#E53935'; }
-      else { badgeTxt='OK'; badgeClr='#1DB954'; }
-    } else if(usage.partial){ badgeTxt='DEEL'; badgeClr='#FFC107'; }
-    else { badgeTxt='VRIJ'; badgeClr='#9fb0c3'; }
-    const note = el('span','badge', badgeTxt); note.style.color = badgeClr;
-    wrap.appendChild(note);
-
-    // dropdown (geen tekstveld)
-    const pool = Array.from(MODEL.byDim.get(lk.dimcity)?.veams || []).sort();
-    const sel = el('select'); sel.style.minWidth='180px';
-    sel.innerHTML = `<option value="">— None —</option>` + pool.map(v=>`<option ${lk.veam[slot]===v?'selected':''} value="${v}">${v}</option>`).join('');
-    sel.disabled = usage.full || hardDisable;
-
-    // blokkerings-afhandeling
-    if ((usage.full || hardDisable) && lk.veam[slot]) { lk.veam[slot] = null; }
-
-    sel.onchange = ()=>{
-      const u = slotUsage(lk, slot);
-      const hd = effectiveBlockType(lk) === 'XLR12';
-      if(u.full || hd){ sel.value=''; lk.veam[slot]=null; return; }
-      lk.veam[slot] = sel.value || null;
-recomputeVeamUseAndIssues();
-renderIssues();
-renderSummary();
-MODEL.selected = { kind:'LK', id: lk.id };
-MODEL.ui.rightMode = 'DETAIL';
-renderRight();
-
-    };
-
-    wrap.appendChild(sel);
-    return wrap;
-  };
-
-  // ========== Koppeling-sectie (alleen tonen als NIET XLR12) ==========
-  if(eff !== 'XLR12'){
-    const veSec = el('div','section');
-    veSec.appendChild(el('h3', null, 'Veams aangesloten op LK'));
-    const veCnt = el('div','content');
-    const pool = Array.from(MODEL.byDim.get(lk.dimcity)?.veams || []).sort();
-    veCnt.appendChild(el('div','hint', pool.length ? `Available in ${lk.dimcity}: ${pool.join(', ')}` : 'No Veams (V-IDs) in this DimCity.'));
-
-    veCnt.appendChild(makeVeamRow('Veam 1','1','ports 1–4'));
-    veCnt.appendChild(makeVeamRow('Veam 2','2','ports 5–8'));
-    veCnt.appendChild(makeVeamRow('Veam 3','3','ports 9–12'));
-    veSec.appendChild(veCnt);
-    container.appendChild(veSec);
-  }
-
-  // ========== Detail-secties ==========
-  const addXlr12PortsSection = ()=>{
-    const sec = el('div','section');
-    sec.appendChild(el('h3', null, 'LK ports 1–12'));
-    const grid = el('div','grid4');
-    for(let p=1;p<=12;p++){
-      const LkLine = lk.lines.find(x=>x.port===p) || {universe:null,dest:'',status:'YELLOW'};
-      const card = el('div','port', `
-        <h5>Port ${p}</h5>
-        <div class="kv">
-          <div><b>LK Universe</b> ${LkLine.universe??'<span class="muted">leeg</span>'}</div>
-          <div><b>LK Position</b> ${LkLine.dest||'<span class="muted">leeg</span>'}</div>
-          <div><span class="pill ${LkLine.status}">${LkLine.status}</span></div>
-        </div>`);
-      grid.appendChild(card);
-    }
-    sec.appendChild(grid);
-    container.appendChild(sec);
-  };
-
-  const addSlotSection = (slotIdx)=>{
-    // Titel per modus
-    const title =
-      (eff === 'VEAM_ONLY')
-        ? `Veam ${slotIdx}`
-        : (slotIdx===1 ? `Veam 1 / Top 1–4` : (slotIdx===2 ? `Veam 2` : `Veam 3`));
-
-    const ranges = {1:[1,4], 2:[5,8], 3:[9,12]};
-    const [s,e] = ranges[slotIdx];
-
-    const sec = el('div','section'); sec.appendChild(el('h3', null, title));
-    const cnt = el('div','content');
-    cnt.appendChild(el('div','hint',
-      eff==='MIXED' && slotIdx===1
-        ? 'Dit blok toont zowel LK- als Veam-waarden (zelfde circuit).'
-        : 'Dit blok toont alleen Veam-waarden.'
-    ));
-
-    const grid = el('div','grid4');
-    const assignedVeam = lk.veam[slotIdx] || null;
-
-    for(let p=s;p<=e;p++){
-      // LK-bron (alleen tonen bij MIXED & slot 1)
-      const LkLine = lk.lines.find(x=>x.port===p) || {universe:null,dest:'',status:'YELLOW'};
-      // Veam-bron
-      let vePort=null;
-      if(assignedVeam){
-        const vPort = 1 + (p - s); // 1..4
-        vePort = veamPortRecord(assignedVeam, vPort) || {universe:null,dest:''};
-      }
-
-      // inhoud conditioneel opbouwen
-      const rows = [];
-      const showLK = (eff==='MIXED' && slotIdx===1); // alleen voor slot 1 in MIXED
-      const showVeam = (eff!=='XLR12');              // in MIXED/VEAM_ONLY altijd Veam-regels
-
-      if (showLK){
-        rows.push(`<div><b>LK Universe</b> ${LkLine.universe ?? '<span class="muted">leeg</span>'}</div>`);
-        rows.push(`<div><b>LK Position</b> ${LkLine.dest || '<span class="muted">leeg</span>'}</div>`);
-      }
-      if (showVeam){
-        rows.push(`<div><b>Veam Universe</b> ${vePort?.universe ?? '<span class="muted">—</span>'}</div>`);
-        rows.push(`<div><b>Veam Position</b> ${vePort?.dest || '<span class="muted">—</span>'}</div>`);
-      }
-      // statusbadge alleen zinvol als LK zichtbaar is, anders laten we hem weg
-      if (showLK){
-        rows.push(`<div><span class="pill ${LkLine.status}">${LkLine.status}</span></div>`);
-      }
-
-      const card = el('div','port', `
-        <h5>Port ${p}</h5>
-        <div class="kv">${rows.join('')}</div>
-      `);
-      grid.appendChild(card);
-    }
-
-    cnt.appendChild(grid);
-    sec.appendChild(cnt);
-    container.appendChild(sec);
-  };
-
-  // Render detail volgens bloktype
-  if (eff === 'XLR12'){
-    // Alleen één sectie met LK ports
-    addXlr12PortsSection();
-  } else {
-    // MIXED of VEAM_ONLY: drie slot-secties
-    addSlotSection(1);
-    addSlotSection(2);
-    addSlotSection(3);
-  }
-
-  root.innerHTML=''; root.appendChild(container);
-}
-
-
-
-
-
-function renderVeamDetail(vid){
-  const root = $('#lkDetail'); const head=$('#lkHeader');
-  const ve = MODEL.byVeam.get(vid);
-  if(!ve){ head.textContent=`${vid}`; root.innerHTML='<div class="muted">No data for this Veam.</div>'; return; }
-  const loc = veamAutoLocation(ve) || '';
-head.innerHTML = `
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-    <div><b>${ve.id}</b></div>
-    <div class="dimcity-tag">Location: ${loc || '—'}</div>
+  const loc = lkAutoLocation(lk) || '';
+  const iss = (MODEL.issues||[]).filter(i=>i.ref?.id===lk.id);
+  pageHead({
+    crumbs:`<a data-nav-view="HOME">Overview</a>${I('chevronRight',12)}<a data-open-kind="DIM" data-open-id="${esc(lk.dimcity)}">${esc(lk.dimcity)}</a>${I('chevronRight',12)}<span>LK</span>`,
+    title:`${esc(lk.id)} <span class="tag accent" style="font-size:12px;height:22px">${esc(blockTypeLabel(eff))}</span>`,
+    sub: loc ? `Main location: ${esc(loc)}` : 'No locations patched yet',
+    actions:`<button data-open-kind="DIM" data-open-id="${esc(lk.dimcity)}">${I('chevronLeft',15)}Back to ${esc(lk.dimcity)}</button>`
+  });
+  const slotRows = [1,2,3].map(s=>{
+    const st = slotState(lk, s);
+    const v = lk.veam?.[s];
+    const uses = v ? (MODEL.veamUse.get(v)||[]) : [];
+    const tag = eff==='XLR12' ? (v ? '<span class="tag yellow">Ignored</span>' : '<span class="tag">Unused</span>')
+      : st.disabled ? '<span class="tag">Full</span>'
+      : !v ? '<span class="tag">Free</span>'
+      : !MODEL.byVeam.has(v) ? '<span class="tag yellow">Missing</span>'
+      : uses.length>1 ? '<span class="tag red">Duplicate</span>' : '<span class="tag green">Linked</span>';
+    return `<div class="slot-row"><div class="slot-name"><b>${SLOT_META[s].name}</b><span>${SLOT_META[s].range}</span></div><div>${tag}</div><div>${veamSlotSelectHtml(lk, s, 'lkVeamSlot')}</div><div class="subtle" style="font-size:12px">${esc(st.reason || (v && MODEL.byVeam.has(v) ? `${veamAutoLocation(MODEL.byVeam.get(v)) || ''}` : ''))}${v && MODEL.byVeam.has(v) ? ` <a data-open-kind="VEAM" data-open-id="${esc(v)}">Open ${esc(v)}</a>` : ''}</div></div>`;
+  }).join('');
+  const config = `<div style="display:grid;grid-template-columns:150px minmax(0,360px);gap:12px;align-items:center;margin-bottom:6px"><b>Block type</b>${blockTypeSelectHtml(lk, 'lkBlockType')}</div>
+    <div class="hint" style="margin:0 0 10px 162px">Auto-detect picks 12× XLR when more than 4 LK ports are patched.</div>
+    ${slotRows}`;
+  root.innerHTML = `<div class="stack">
+    ${iss.length ? `<div class="card"><ul class="issue-list">${iss.map(issueItemHtml).join('')}</ul></div>` : ''}
+    ${card({ key:'lk-config', title:'Configuration', icon:'sliders', collapsible:false, body:config })}
+    ${card({ key:'lk-visual', title:'Port layout', icon:'grid', collapsible:false, body:`<div class="lk-mini-card" style="--dim-color:${dimColor(lk.dimcity)}">${renderLkVisual(lk)}</div>` })}
+    ${card({ key:'lk-ports', title:'Ports', icon:'table', collapsible:false, body:mergedPortsTable(lk), flush:true })}
   </div>`;
+  bindLkControls(root, ()=>renderLKDetail(id));
+}
 
-  const container = el('div');
-
-  const sec = el('div','section');
-  sec.appendChild(el('h3', null, `Veam ${ve.id} — ports`));
-  const cnt = el('div','content');
-  const grid = el('div','grid4');
-
-  for(let p=1;p<=4;p++){
-    const L = ve.lines.find(x=>x.port===p) || {universe:null,dest:'',status:'YELLOW'};
-    const card = el('div','port', `
-      <h5>Port ${p}</h5>
-      <div class="kv">
-        <div><b>Universe</b> ${L.universe??'<span class="muted">leeg</span>'}</div>
-        <div><b>Position</b> ${L.dest||'<span class="muted">leeg</span>'}</div>
-        <div><span class="pill ${L.status}">${L.status}</span></div>
-      </div>`);
-    grid.appendChild(card);
-  }
-  cnt.appendChild(grid);
+// ---- Veam pagina ----
+function renderVeamDetail(vid){
+  const root = $('#lkDetail');
+  const ve = MODEL.byVeam.get(vid);
+  if(!ve){ pageHead({ title: esc(vid || 'Veam') }); root.innerHTML = '<div class="card"><div class="empty"><p>This Veam no longer exists.</p></div></div>'; return; }
+  const loc = veamAutoLocation(ve) || '';
   const uses = MODEL.veamUse.get(ve.id)||[];
-  const status = uses.length===0 ? '<span class="ok">Niet gekoppeld</span>'
-                : uses.length===1 ? `Gekoppeld aan ${uses[0].lkId} (Veam ${uses[0].slot})`
-                : `<span class="danger">DUBBEL: ${uses.map(u=>u.lkId+'(V'+u.slot+')').join(', ')}</span>`;
-  cnt.appendChild(el('div','hint', `Status: ${status}`));
-  sec.appendChild(cnt);
-  container.appendChild(sec);
-
-  root.innerHTML=''; root.appendChild(container);
+  pageHead({
+    crumbs:`<a data-nav-view="HOME">Overview</a>${I('chevronRight',12)}<a data-open-kind="DIM" data-open-id="${esc(ve.dimcity)}">${esc(ve.dimcity)}</a>${I('chevronRight',12)}<span>Veam</span>`,
+    title:`${esc(ve.id)} ${veamLinkBadge(ve.id)}`,
+    sub: loc ? `Main location: ${esc(loc)}` : 'No locations patched yet',
+    actions:`<button data-open-kind="DIM" data-open-id="${esc(ve.dimcity)}">${I('chevronLeft',15)}Back to ${esc(ve.dimcity)}</button>`
+  });
+  const link = uses.length===0
+    ? `<div class="empty" style="padding:20px"><p>This Veam is not linked to an LK yet. Open an LK in ${esc(ve.dimcity)} and pick ${esc(ve.id)} in one of its Veam slots.</p></div>`
+    : `<table class="data-table"><thead><tr><th>LK</th><th>Slot</th><th>LK ports</th><th></th></tr></thead><tbody>${uses.map(u=>`<tr><td><b>${esc(u.lkId)}</b></td><td>${SLOT_META[u.slot].name}</td><td>${SLOT_META[u.slot].range}</td><td class="num"><button class="sm ghost" data-open-kind="LK" data-open-id="${esc(u.lkId)}">Open ${I('arrowRight',13)}</button></td></tr>`).join('')}</tbody></table>${uses.length>1?'<div class="hint" style="padding:0 16px 12px;color:var(--red)">A Veam can only be connected to one LK slot. Remove the extra links.</div>':''}`;
+  const rows = [1,2,3,4].map(p=>{
+    const L = ve.lines.find(x=>x.port===p) || {universe:null,dest:'',status:'YELLOW'};
+    return `<tr><td class="num">${p}</td><td class="num">${L.universe ?? ''}</td><td>${esc(L.dest||'')}</td><td>${statusDot(L.status)}</td></tr>`;
+  }).join('');
+  root.innerHTML = `<div class="stack">
+    ${card({ key:'ve-link', title:'Linked LK', icon:'box', collapsible:false, body:link, flush:true })}
+    ${card({ key:'ve-ports', title:'Ports', icon:'grid', collapsible:false, body:`<div class="lk-mini-card" style="--dim-color:${dimColor(ve.dimcity)}"><div class="lk-visual">${veamPortsHtml(ve)}</div></div><div class="table-wrap" style="margin-top:12px"><table class="data-table"><thead><tr><th class="num">Port</th><th class="num">Universe</th><th>Location</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>` })}
+  </div>`;
 }
 
-// ——— Rechterpaneel: universes per DimCity, uitklapbaar in tabellen ———
-function renderUniverseDetail(dc, focusU){
-  const head = $('#lkHeader'), root = $('#lkDetail');
-  head.innerHTML = `Universes in <span class="dimcity-tag">${dc}</span>`;
-
-  // eigen open/dicht map voor RECHTERpaneel
-  if (!MODEL.ui.universeOpenRight) MODEL.ui.universeOpenRight = new Map();
-
-  // verzamel per-universe alle hits
-  const perU = new Map(); // '123' -> { lk:[{lkId,port,dest}], veam:[{veamId,port,dest}] }
-  const bump = (u, kind, rec) => {
-    if(u==null || u==='') return;
-    u = String(u);
-    if(!perU.has(u)) perU.set(u, { lk:[], veam:[] });
-    perU.get(u)[kind].push(rec);
-  };
-
-  // LK-bron
-  for (const [, lk] of MODEL.byLK){
-    if (lk.dimcity !== dc) continue;
-    for (const L of lk.lines){
-      if(!L || L.universe==null || L.universe==='') continue;
-      bump(L.universe, 'lk',   { lkId: lk.id,   port: L.port, dest: L.dest||'' });
-    }
-  }
-  // Veam-bron
-  for (const [, ve] of MODEL.byVeam){
-    if (ve.dimcity !== dc) continue;
-    for (const R of ve.lines){
-      if(!R || R.universe==null || R.universe==='') continue;
-      bump(R.universe, 'veam', { veamId: ve.id, port: R.port, dest: R.dest||'' });
-    }
-  }
-
-  const entries = [...perU.entries()].sort((a,b)=> Number(a[0]) - Number(b[0]));
-  const container = el('div');
-
-  // samenvatting bovenaan
-  const totalUniq  = entries.length;
-  const totalPorts = entries.reduce((acc,[,info])=> acc + info.lk.length + info.veam.length, 0);
-  container.appendChild(
-    el('div','content', `<div><b>${totalUniq}</b> unique universes • <b>${totalPorts}</b> patch points</div>`)
-  );
-
-  // accordeonlijst
-  const ul = el('ul','list');
-
-  for (const [u, info] of entries){
-    const key = `RIGHT::${dc}::U::${u}`;
-    const presetOpen = (focusU != null && String(focusU) === String(u));
-    const remembered  = MODEL.ui.universeOpenRight.get(key);
-    const open = (remembered == null) ? !!presetOpen : remembered;
-
-    const li  = el('li','item');
-    const hdr = el('div','toggle',
-      `<span class="twist">${open ? '▾' : '▸'}</span> <b>Uni${u}</b> <span class="muted">Total ${info.lk.length + info.veam.length} • LK ${info.lk.length} • Veam ${info.veam.length}</span>`
-    );
-
-    const toggle = ()=>{
-      MODEL.ui.universeOpenRight.set(key, !open);
-      renderUniverseDetail(dc, u);
-    };
-    hdr.querySelector('.twist').onclick = (e)=>{ e.stopPropagation(); toggle(); };
-    hdr.onclick = toggle;
-    li.appendChild(hdr);
-
-    if(open){
-      const sub = el('div','subsec');
-
-      // ===== Tabel: LK ports =====
-      if (info.lk.length){
-        const rowsLK = info.lk
-          .sort((a,b)=> (a.lkId===b.lkId ? a.port-b.port : a.lkId.localeCompare(b.lkId)))
-          .map(x => `<tr><td>${x.lkId}</td><td>${x.port}</td><td>${x.dest || '—'}</td></tr>`)
-          .join('');
-        const tblLK = `
-          <div><b>LK ports</b></div>
-          <div class="content" style="padding-left:0;">
-            <table>
-              <thead><tr><th>LK</th><th>Port</th><th>Locatie</th></tr></thead>
-              <tbody>${rowsLK}</tbody>
-            </table>
-          </div>`;
-        sub.appendChild(el('div', null, tblLK));
-      } else {
-        sub.appendChild(el('div','muted','Geen LK ports'));
-      }
-
-      // ===== Tabel: Veam ports =====
-      if (info.veam.length){
-        const rowsV = info.veam
-          .sort((a,b)=> (a.veamId===b.veamId ? a.port-b.port : a.veamId.localeCompare(b.veamId)))
-          .map(x => `<tr><td>${x.veamId}</td><td>${x.port}</td><td>${x.dest || '—'}</td></tr>`)
-          .join('');
-        const tblV = `
-          <div style="margin-top:10px;"><b>Veam ports</b></div>
-          <div class="content" style="padding-left:0;">
-            <table>
-              <thead><tr><th>Veam</th><th>Port</th><th>Locatie</th></tr></thead>
-              <tbody>${rowsV}</tbody>
-            </table>
-          </div>`;
-        sub.appendChild(el('div', null, tblV));
-      } else {
-        sub.appendChild(el('div','muted','Geen Veam ports'));
-      }
-
-      li.appendChild(sub);
-    }
-
-    ul.appendChild(li);
-  }
-
-  container.appendChild(ul);
-  root.innerHTML = '';
-  root.appendChild(container);
-
-  // bij focus: scroll die Uni in beeld
-  if (focusU != null){
-    setTimeout(()=>{
-      const items = [...root.querySelectorAll('.item')];
-      const t = items.find(el => el.textContent.trim().startsWith(`Uni${focusU}`));
-      if (t) t.scrollIntoView({ block:'start' });
-    }, 0);
-  }
-}
-
-
-
-
-
-
-function renderHeaderInline(lk){
-  const loc = (typeof lkAutoLocation === 'function' ? lkAutoLocation(lk) : '') || '';
-  $('#lkHeader').innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-      <div><b>${lk.id}</b></div>
-      <div class="dimcity-tag">Location: ${loc || '—'}</div>
-    </div>`;
-}
-
-
-// ——— Universes-sectie in het Overzicht (links) ———
-function renderSummaryUniversesSection(dc, content){
-  const gUNI = `${dc}::UNI`;
-  const uniOpen = MODEL.ui.groupOpen.has(gUNI) ? MODEL.ui.groupOpen.get(gUNI) : false;
-
-  const uniHdr = el('div','toggle', `<span><span class="twist">${uniOpen?'▾':'▸'}</span> Universes</span>`);
-  uniHdr.onclick = ()=>{ MODEL.ui.groupOpen.set(gUNI, !uniOpen); renderSummary(); };
-  uniHdr.ondblclick = (e)=>{
+// ---- Gedelegeerde klikken binnen de view en de zijbalk ----
+function handleNavClick(e){
+  const t = e.target.closest('[data-open-kind],[data-nav-view],[data-view],[data-cmd],[data-collapse]');
+  if(!t) return;
+  if(t.matches('select,input')) return;
+  if(t.dataset.collapse){
     e.stopPropagation();
-    MODEL.selected = { kind:'DIM', id: dc };
-    MODEL.ui.rightMode = 'DETAIL';
-    renderRight();
-  };
-  content.appendChild(uniHdr);
-  if (!uniOpen) return;
-
-  const ulU = el('ul','list subsec');
-  const stat = MODEL.uniStats.get(dc);
-  if (!stat || stat.counts.size === 0){
-    ulU.appendChild(el('li','item','<div class="muted">No universes</div>'));
-    content.appendChild(ulU);
+    if(!MODEL.ui.cardCollapsed) MODEL.ui.cardCollapsed = {};
+    const cardEl = t.closest('.card');
+    const now = !cardEl.classList.contains('collapsed');
+    cardEl.classList.toggle('collapsed', now);
+    MODEL.ui.cardCollapsed[t.dataset.collapse] = now;
     return;
   }
-
-  const liTot = el('li','item', `<div><b>${stat.totalUniq}</b> unique • <b>${stat.totalPorts}</b> patch points</div>`);
-  liTot.onclick = ()=>{
-    MODEL.selected = { kind:'DIM', id: dc };
-    MODEL.ui.rightMode = 'DETAIL';
-    renderRight();
-  };
-  ulU.appendChild(liTot);
-
-  const all = [...stat.counts.entries()].sort((a,b)=> Number(a[0]) - Number(b[0]));
-  for (const [u,c] of all){
-    const total = c.lk + c.veam + (c.dmx||0);
-    const parts = [`Total ${total}`, `LK ${c.lk}`, `Veam ${c.veam}`];
-    if ((c.dmx||0) > 0) parts.push(`DMX ${c.dmx}`);
-    const liU = el('li','item', `<div><b>UNI ${u}</b> <span class="muted">${parts.join(' • ')}</span></div>`);
-    liU.onclick = ()=>{
-      if(!MODEL.ui.dimFocusUniverse) MODEL.ui.dimFocusUniverse = {};
-      MODEL.ui.dimFocusUniverse[dc] = String(u);
-      MODEL.selected = { kind:'DIM', id: dc };
-      MODEL.ui.rightMode = 'DETAIL';
-      renderRight();
-    };
-    ulU.appendChild(liU);
-  }
-  content.appendChild(ulU);
+  if(t.dataset.openKind){ e.stopPropagation(); openEntity(t.dataset.openKind, t.dataset.openId); return; }
+  if(t.dataset.navView){ navigate(t.dataset.navView); return; }
+  if(t.dataset.view){ navigate(t.dataset.view); return; }
+  if(t.dataset.cmd){ runCommand(t.dataset.cmd); }
 }
-
-
-// LAAT IN renderRightDetail() ALLEEN HET DETAIL STAAN
-function updateRightCsvVisibility(){
-  const sec = document.querySelector('#rightCsvSection');
-  if(!sec) return;
-  const sel = MODEL.selected || {};
-  const show = (MODEL.ui.rightMode === 'DETAIL' && sel.kind === 'DIM');
-  sec.style.display = show ? '' : 'none';
-}
-function renderRight(){
-  const mode = MODEL.ui.rightMode || 'HOME';
-  const sel = MODEL.selected || {kind:null};
-  updateRightCsvVisibility();
-  if (mode === 'DETAIL' && sel.kind){
-    return renderRightDetail();
-  }
-  return renderRightHome();
-}
-
-// ===== Tools: helpers =====
-function showToolsModal(which){
-  // which: 'LK' | 'VEAM'
-  $('#toolsBackdrop').style.display = 'flex';
-  $('#modalAddLK').style.display   = (which==='LK')   ? 'block' : 'none';
-  $('#modalAddVeam').style.display = (which==='VEAM') ? 'block' : 'none';
-  if (which==='LK'){
-    $('#lkInputId').value = '';
-    $('#lkInputBlockType').value = 'MIXED';
-    $('#lkAddError').textContent = '';
-    $('#lkInputId').focus();
-  } else {
-    $('#veamInputId').value = '';
-    $('#veamAddError').textContent = '';
-    $('#veamInputId').focus();
-  }
-}
-function closeToolsModal(){
-  $('#toolsBackdrop').style.display = 'none';
-  $('#modalAddLK').style.display = 'none';
-  $('#modalAddVeam').style.display = 'none';
-}
-
 
 // ===== File: Imported CSV files modal =====
 function showCsvSourcesModal(){
   const sources = Array.isArray(MODEL.csvSources) ? MODEL.csvSources : [];
-  const bd = document.createElement('div');
-  bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:10002';
-  const modal = document.createElement('div');
-  modal.style.cssText = 'width:min(760px,94vw);max-height:86vh;overflow:auto;background:#121820;color:#eaf2ff;border:1px solid #1e2835;border-radius:12px;padding:14px;font:14px/1.4 system-ui';
-  modal.innerHTML = `
-    <h3 style="margin:0 0 10px 0">Imported CSV files</h3>
-    <div class="hint" style="margin-bottom:10px">These files are part of the project. Use Replace when a source CSV has been updated.</div>
-    <div id="csvSourceList"></div>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button id="csvSourcesClose" style="background:#334155;color:#eaf2ff">Close</button></div>
-  `;
-  bd.appendChild(modal);
-  document.body.appendChild(bd);
-  const list = modal.querySelector('#csvSourceList');
-  if(!sources.length){
-    list.innerHTML = '<div class="device-list-empty">No imported CSV files yet.</div>';
-  } else {
-    list.innerHTML = sources.map(src => `
-      <div class="device-card">
-        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center">
-          <div>
-            <h4>${src.name || shortFileName(src.path)}</h4>
-            <div class="muted">Rows: ${src.rowCount || (src.rows?.length || 0)}</div>
-            <div class="muted">Imported: ${src.importedAt ? new Date(src.importedAt).toLocaleString() : '—'}</div>
-            <div class="muted">Updated: ${src.updatedAt ? new Date(src.updatedAt).toLocaleString() : '—'}</div>
-          </div>
-          <button class="csv-replace" data-source-id="${src.id}" style="background:#4ea8ff;color:#00111f">Replace</button>
-        </div>
-      </div>
-    `).join('');
-  }
-  modal.querySelector('#csvSourcesClose').onclick = ()=> bd.remove();
-  bd.addEventListener('mousedown', e=>{ if(e.target===bd) bd.remove(); });
-  modal.querySelectorAll('.csv-replace').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
+  const fmt = iso => iso ? new Date(iso).toLocaleString('en-GB', { dateStyle:'medium', timeStyle:'short' }) : '—';
+  const body = sources.length
+    ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>File</th><th class="num">Rows</th><th>Imported</th><th>Updated</th><th></th></tr></thead><tbody>${sources.map(src=>`<tr>
+        <td>${I('file',14)} <b>${esc(src.name || shortFileName(src.path))}</b><div class="subtle" style="font-size:11.5px">${esc(src.path || '')}</div></td>
+        <td class="num">${src.rowCount || (src.rows?.length || 0)}</td><td class="subtle">${fmt(src.importedAt)}</td><td class="subtle">${fmt(src.updatedAt)}</td>
+        <td class="num"><button class="sm csv-replace" data-source-id="${esc(src.id)}">${I('refresh',13)}Replace</button></td></tr>`).join('')}</tbody></table></div>`
+    : `<div class="empty">${I('file',30)}<h3>No CSV files imported</h3><p>Imported files are stored inside the project, so you can replace them when the source changes.</p></div>`;
+  const d = openDialog({
+    title:'Imported CSV Files', subtitle:'Use Replace when a source CSV has been updated. Veam links and block types are kept.',
+    width:'860px', body,
+    footer:`<button data-act="import">${I('upload',14)}Import Another CSV</button><button class="primary" data-act="close">Done</button>`
+  });
+  d.footer.querySelector('[data-act=close]').onclick = d.close;
+  d.footer.querySelector('[data-act=import]').onclick = ()=>{ d.close(); window.startImportCsv?.(); };
+  d.body.querySelectorAll('.csv-replace').forEach(btn=>{
+    btn.onclick = async ()=>{
       const src = sources.find(s=>s.id===btn.dataset.sourceId);
       if(!src) return;
-      const ok = window.confirm(`Replace CSV: ${src.name || shortFileName(src.path)}\n\nWarning: if rows from this CSV were changed manually, they will be overwritten by the new import.`);
+      const ok = await confirmDialog({ title:`Replace ${src.name || shortFileName(src.path)}?`, message:'Rows from this file will be replaced by the new import. Manual edits to these rows are overwritten. Veam links, block types and manual rows are kept.', okLabel:'Choose New File' });
       if(!ok) return;
-      bd.remove();
+      d.close();
       await window.startImportCsv?.({ replaceSourceId:src.id, sourceName:src.name || shortFileName(src.path) });
-    });
+    };
   });
 }
 
 // ===== Network Devices: data helpers =====
 function normalizeNetworkDevices(net){
-  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0 }, nodeTypes:[], splitterTypes:[], nodes:[], splitters:[], dimCityPlans:{} };
+  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0 }, nodeTypes:[], splitterTypes:[], switchTypes:[], nodes:[], splitters:[], switches:[], dimCityPlans:{} };
   if(!net || typeof net !== 'object') return base;
 
   const nodeTypes = Array.isArray(net.nodeTypes) ? net.nodeTypes.slice() : [];
@@ -1926,12 +1634,15 @@ function normalizeNetworkDevices(net){
   return {
     prefs: {
       nodeSparePorts: Number(net.prefs?.nodeSparePorts ?? 0),
-      splitterSparePorts: Number(net.prefs?.splitterSparePorts ?? 0)
+      splitterSparePorts: Number(net.prefs?.splitterSparePorts ?? 0),
+      switchSparePorts: Number(net.prefs?.switchSparePorts ?? 0)
     },
     nodeTypes,
     splitterTypes,
+    switchTypes: Array.isArray(net.switchTypes) ? net.switchTypes : [],
     nodes: Array.isArray(net.nodes) ? net.nodes : [],
     splitters: Array.isArray(net.splitters) ? net.splitters : [],
+    switches: Array.isArray(net.switches) ? net.switches : [],
     dimCityPlans: plans
   };
 }
@@ -2049,7 +1760,8 @@ function veamPortForLkPort(lk, lkPort){
   const p = Number(lkPort);
   const slot = p<=4 ? 1 : p<=8 ? 2 : 3;
   const vp = ((p-1) % 4) + 1;
-  const vid = lk.veam?.[slot] || null;
+  // In 12× XLR-modus worden Veam-koppelingen genegeerd (alleen LK-poorten tellen).
+  const vid = effectiveBlockType(lk) === 'XLR12' ? null : (lk.veam?.[slot] || null);
   return { slot, veamId:vid, veamPort:vp, rec: vid ? veamPortRecord(vid, vp) : null };
 }
 function mergedPortRecord(lk, lkPort){
@@ -2143,7 +1855,7 @@ function openPortUniversePicker(dc, nodeIndex, portIndex){
   const universes = uniqueUniversesInDim(dc);
   const bd = document.createElement('div');
   bd.className = 'mini-modal-backdrop';
-  bd.innerHTML = `<div class="mini-modal"><div class="mini-modal-head"><b>Select universe</b><button id="miniClose" style="background:#334155;color:#eaf2ff">Close</button></div><div class="hint">${esc(n.id || n.name)} • port ${portIndex+1}</div><div class="universe-picker"><button class="pick-empty">Empty</button>${universes.map(u=>`<button class="pick-uni" data-uni="${u}">UNI ${u}</button>`).join('')}</div></div>`;
+  bd.innerHTML = `<div class="mini-modal" style="width:420px"><div class="mini-modal-head"><div><b>Assign universe</b><div class="subtle" style="font-size:12px">${esc(n.id || n.name)} · port ${portIndex+1}</div></div><button id="miniClose" class="ghost icon-only">${I('x',16)}</button></div><div class="universe-picker"><button class="pick-empty">Empty</button>${universes.map(u=>`<button class="pick-uni" data-uni="${u}">UNI ${u}</button>`).join('')}</div></div>`;
   document.body.appendChild(bd);
   bd.querySelector('#miniClose').onclick=()=>bd.remove();
   bd.addEventListener('mousedown', e=>{ if(e.target===bd) bd.remove(); });
@@ -2225,15 +1937,17 @@ function autoAssignDimCityNodes(dc, nodeTypeId){
   const nt = MODEL.networkDevices.nodeTypes.find(x=>x.id===nodeTypeId) || MODEL.networkDevices.nodeTypes[0];
   if(!nt) return null;
   const universes = uniqueUniversesInDim(dc);
-  const spare = Number(MODEL.networkDevices.prefs.nodeSparePorts || 0);
-  const usable = Math.max(1, Number(nt.portCount || 1) - spare);
+  const portCount = Math.max(1, Number(nt.portCount || 1));
+  const spare = Math.max(0, Number(MODEL.networkDevices.prefs.nodeSparePorts || 0));
+  const usable = Math.max(1, portCount - spare);
   const plan = getDimPlan(dc);
   plan.nodeTypeId = nt.id;
   plan.nodes = [];
-  for(let i=0;i<universes.length;i+=usable){
+  // Universes laag→hoog, per node `usable` poorten gevuld; de rest blijft reserve.
+  for(let i=0; i<Math.max(1, universes.length); i+=usable){
     const chunk = universes.slice(i, i+usable);
-    const idx = plan.nodes.length;
-    plan.nodes.push(createNodeInstance(dc, nt, idx, chunk));
+    while(chunk.length < portCount) chunk.push(null);
+    plan.nodes.push(createNodeInstance(dc, nt, plan.nodes.length, chunk));
   }
   refreshDimDeviceIdentity(dc);
   MODEL.ui.dirty = true;
@@ -2244,98 +1958,163 @@ function addSplitterToDimCity(dc, splitterTypeId){
   const sp = MODEL.networkDevices.splitterTypes.find(x=>x.id===splitterTypeId) || MODEL.networkDevices.splitterTypes[0];
   if(!sp) return null;
   const plan = getDimPlan(dc);
-  if(!Array.isArray(plan.splitterTypeIds)) plan.splitterTypeIds = [];
-  plan.splitterTypeIds.push(sp.id);
-  plan.splitters.push(createSplitterInstance(dc, sp, plan.splitters.length, []));
+  const inst = createSplitterInstance(dc, sp, plan.splitters.length, []);
+  inst.portAssignments = Array.from({ length: Math.max(1, Number(sp.outputCount||1)) }, ()=>null);
+  plan.splitters.push(inst);
   refreshDimDeviceIdentity(dc);
   MODEL.ui.dirty = true;
   return plan;
 }
+function patchPointsForDim(dc){
+  const out = [];
+  for(const L of (MODEL.lines||[])) if(L.dimcity===dc && L.universe!=null && L.universe!=='') out.push({kind:'LK', id:L.id, port:L.port, universe:Number(L.universe), dest:L.dest||''});
+  for(const V of (MODEL.veamLines||[])) if(V.dimcity===dc && V.universe!=null && V.universe!=='') out.push({kind:'Veam', id:V.id, port:V.port, universe:Number(V.universe), dest:V.dest||''});
+  for(const D of (MODEL.dmxLoose||[])) if(D.dimcity===dc && D.universe!=null && D.universe!=='') out.push({kind:'DMX', id:'Loose DMX', port:'—', universe:Number(D.universe), dest:D.dest||''});
+  return out.sort((a,b)=>a.universe-b.universe || String(a.id).localeCompare(String(b.id), undefined, {numeric:true}) || Number(a.port||0)-Number(b.port||0));
+}
+// Single input = 1 universe feed per splitter; A/B input = max. 2 universe feeds per splitter.
+// Elke patch point krijgt een splitter-output; reserve-outputs blijven leeg.
 function autoAddSplittersForDim(dc, splitterTypeId){
   MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
   const sp = MODEL.networkDevices.splitterTypes.find(x=>x.id===splitterTypeId) || MODEL.networkDevices.splitterTypes[0];
   if(!sp) return null;
-  const calc = splitCalcForDim(dc, sp.id);
+  const outCount = Math.max(1, Number(sp.outputCount || 1));
+  const usable = Math.max(1, outCount - Math.max(0, Number(MODEL.networkDevices.prefs.splitterSparePorts || 0)));
+  const buses = sp.mode === 'AB' ? 2 : 1;
+  const points = patchPointsForDim(dc);
+  const universes = [...new Set(points.map(p=>p.universe))].sort((a,b)=>a-b);
   const plan = getDimPlan(dc);
+  plan.lastSplitterTypeId = sp.id;
   plan.splitters = [];
-  const universes = uniqueUniversesInDim(dc);
-  for(let i=0;i<calc.splitterCount;i++){
-    const u = universes.slice(i*(sp.mode==='AB'?2:1), i*(sp.mode==='AB'?2:1)+(sp.mode==='AB'?2:1));
-    plan.splitters.push(createSplitterInstance(dc, sp, plan.splitters.length, u));
+  for(let u=0; u<universes.length; u+=buses){
+    const feed = universes.slice(u, u+buses);
+    const feedPoints = points.filter(p=>feed.includes(p.universe));
+    let cursor = 0;
+    do {
+      const inst = createSplitterInstance(dc, sp, plan.splitters.length, []);
+      inst.portAssignments = Array.from({ length: outCount }, (_, i)=> i < usable && cursor < feedPoints.length ? feedPoints[cursor++] : null);
+      inst.inputUniverses = feed;
+      inst.universes = [...new Set(inst.portAssignments.filter(Boolean).map(x=>x.universe))];
+      plan.splitters.push(inst);
+    } while(cursor < feedPoints.length);
   }
   refreshDimDeviceIdentity(dc);
   MODEL.ui.dirty = true;
   return plan;
 }
+function splitterPortMapHtml(sp, inst){
+  const count = Math.max(1, Number(sp.outputCount || inst.portAssignments?.length || 1));
+  const assigns = Array.isArray(inst.portAssignments) ? inst.portAssignments : [];
+  const feed = (inst.inputUniverses || inst.universes || []).map(u=>`UNI ${u}`).join(' / ') || 'not assigned';
+  const ports = Array.from({ length: count }, (_, i)=>{
+    const a = assigns[i];
+    if(!a) return `<div class="split-map-port spare"><b>${i+1}</b><span>Spare</span></div>`;
+    return `<div class="split-map-port" style="--uni:${uniHue(a.universe)}" title="UNI ${esc(a.universe)} • ${esc(a.kind)} ${esc(a.id)} P${esc(a.port)} • ${esc(a.dest)}"><b>${i+1}</b><strong>UNI ${esc(a.universe)}</strong><span>${esc(a.kind)} ${esc(a.id)}${a.port!=='—'?' · P'+esc(a.port):''}</span><em>${esc(a.dest||'')}</em></div>`;
+  }).join('');
+  return `<div class="splitter-port-map"><div class="split-feed-line"><b>Input feed:</b> ${esc(feed)} <span class="subtle">(${sp.mode==='AB'?'A/B input':'single input'})</span></div>${ports}</div>`;
+}
 function renderDimNetworkDevices(dc){
   MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
+  const nd = MODEL.networkDevices;
   const plan = getDimPlan(dc);
   refreshDimDeviceIdentity(dc);
-  const assignOpen = !!MODEL.ui.dimNetworkAssignOpen?.[dc];
   const universes = uniqueUniversesInDim(dc);
-  const universePool = universes.map(u=>`<button class="uni-pool-chip" draggable="true" data-uni="${u}" title="Drag to a node port or click a node port to choose">UNI ${u}</button>`).join('') || '<span class="muted">No universes in this DimCity.</span>';
-  const nodeTypeOptions = MODEL.networkDevices.nodeTypes.map(nt=>`<option value="${esc(nt.id)}" ${plan.nodeTypeId===nt.id?'selected':''}>${esc(nt.brand || '')} ${esc(nt.name || nt.id)} (${Number(nt.portCount||0)} ports)</option>`).join('');
-  const splitterTypeOptions = MODEL.networkDevices.splitterTypes.map(sp=>`<option value="${esc(sp.id)}">${esc(sp.brand || '')} ${esc(sp.name || sp.id)} (${Number(sp.outputCount||0)} outputs)</option>`).join('');
-  const selectedSplitter = MODEL.networkDevices.splitterTypes.find(x=>x.id === (plan.lastSplitterTypeId || MODEL.networkDevices.splitterTypes[0]?.id)) || MODEL.networkDevices.splitterTypes[0];
+  const nodeTypeOptions = nd.nodeTypes.map(nt=>`<option value="${esc(nt.id)}" ${plan.nodeTypeId===nt.id?'selected':''}>${esc([nt.brand, nt.name || nt.id].filter(Boolean).join(' '))} · ${Number(nt.portCount||0)} ports</option>`).join('');
+  const splitterTypeOptions = nd.splitterTypes.map(sp=>`<option value="${esc(sp.id)}" ${plan.lastSplitterTypeId===sp.id?'selected':''}>${esc([sp.brand, sp.name || sp.id].filter(Boolean).join(' '))} · ${Number(sp.outputCount||0)} outputs</option>`).join('');
+  const selectedSplitter = nd.splitterTypes.find(x=>x.id === plan.lastSplitterTypeId) || nd.splitterTypes[0];
   const splitCalc = selectedSplitter ? splitCalcForDim(dc, selectedSplitter.id) : null;
 
-  const nodeHtml = (plan.nodes||[]).map((n,idx)=>{
-    const nt = MODEL.networkDevices.nodeTypes.find(x=>x.id===n.typeId);
+  const nodeHtml = plan.nodes.map((n,idx)=>{
+    const nt = nd.nodeTypes.find(x=>x.id===n.typeId);
     if(!nt) return '';
     if(!Array.isArray(n.universes)) n.universes = [];
-    const ip = n.ip || '';
-    const subnet = n.subnet || nt.subnet || '255.255.255.0';
-    return `<div class="network-instance node-instance" style="--device-color:${safeHex(nt.color || '#4ea8ff')}">
-      <div class="network-instance-head"><div><b>${esc(n.id || '')}</b> <span class="muted">${esc(n.name || '')}</span><div class="muted">${esc(nt.brand || '')} ${esc(nt.name || nt.id)} • segment ${esc(n.segment || '')} • ${Number(nt.portCount||0)} ports</div></div><button class="dimRemoveNode" data-node-index="${idx}" style="background:#E53935;color:#fff">Remove</button></div>
+    return `<div class="network-instance node-instance" style="--device-color:${safeHex(nt.color || '#4c9dff')}">
+      <div class="network-instance-head"><div><b>${esc(n.id || '')}</b> <span class="muted">${esc(n.name || '')}</span><div class="subtle" style="font-size:12px">${esc([nt.brand, nt.name || nt.id].filter(Boolean).join(' '))} · segment ${esc(n.segment || '')} · ${Number(nt.portCount||0)} ports</div></div><button class="sm danger dimRemoveNode" data-node-index="${idx}">${I('trash',13)}Remove</button></div>
       <div class="network-instance-fields">
         <label>ID<input class="dimNodeField" data-node-index="${idx}" data-field="id" value="${esc(n.id || '')}"></label>
         <label>Name<input class="dimNodeField" data-node-index="${idx}" data-field="name" value="${esc(n.name || '')}"></label>
-        <label>Device no.<input class="dimNodeField" data-node-index="${idx}" data-field="deviceNo" value="${esc(n.deviceNo || '')}"></label>
-        <label>Segment<input class="dimNodeField" data-node-index="${idx}" data-field="segment" value="${esc(n.segment || '')}"></label>
-        <label>IP address<input class="dimNodeField ipv4" data-node-index="${idx}" data-field="ip" value="${esc(ip)}" inputmode="numeric" placeholder="192.168.1.10"></label>
-        <label>Subnet<input class="dimNodeField ipv4" data-node-index="${idx}" data-field="subnet" value="${esc(subnet)}" inputmode="numeric" placeholder="255.255.255.0"></label>
+        <label>IP address<input class="dimNodeField ipv4" data-node-index="${idx}" data-field="ip" value="${esc(n.ip || '')}" inputmode="numeric" placeholder="192.168.1.10"></label>
+        <label>Subnet<input class="dimNodeField ipv4" data-node-index="${idx}" data-field="subnet" value="${esc(n.subnet || nt.subnet || '255.255.255.0')}" inputmode="numeric"></label>
       </div>
       ${renderNodeInstanceFace(nt, n, idx, dc)}
     </div>`;
   }).join('');
-  const splitterHtml = (plan.splitters||[]).map((spInst,idx)=>{
-    const sp = MODEL.networkDevices.splitterTypes.find(x=>x.id===spInst.typeId);
+  const splitterHtml = plan.splitters.map((inst,idx)=>{
+    const sp = nd.splitterTypes.find(x=>x.id===inst.typeId);
     if(!sp) return '';
-    return `<div class="network-instance splitter-instance" style="--device-color:${safeHex(sp.color || '#FFC107')}">
-      <div class="network-instance-head"><div><b>${esc(spInst.id || '')}</b> <span class="muted">${esc(spInst.name || '')}</span><div class="muted">${esc(sp.brand || '')} ${esc(sp.name || sp.id)} • ${sp.mode==='AB'?'A/B input':'Single input'} • ${Number(sp.outputCount||0)} outputs</div></div><button class="dimRemoveSplitter" data-splitter-index="${idx}" style="background:#E53935;color:#fff">Remove</button></div>
+    return `<div class="network-instance splitter-instance" style="--device-color:${safeHex(sp.color || '#f2b33d')}">
+      <div class="network-instance-head"><div><b>${esc(inst.id || '')}</b> <span class="muted">${esc(inst.name || '')}</span><div class="subtle" style="font-size:12px">${esc([sp.brand, sp.name || sp.id].filter(Boolean).join(' '))} · ${sp.mode==='AB'?'A/B input':'Single input'} · ${Number(sp.outputCount||0)} outputs</div></div><button class="sm danger dimRemoveSplitter" data-splitter-index="${idx}">${I('trash',13)}Remove</button></div>
       <div class="network-instance-fields">
-        <label>ID<input class="dimSplitterField" data-splitter-index="${idx}" data-field="id" value="${esc(spInst.id || '')}"></label>
-        <label>Name<input class="dimSplitterField" data-splitter-index="${idx}" data-field="name" value="${esc(spInst.name || '')}"></label>
-        <label>Device no.<input class="dimSplitterField" data-splitter-index="${idx}" data-field="deviceNo" value="${esc(spInst.deviceNo || '')}"></label>
-        <label>Segment<input class="dimSplitterField" data-splitter-index="${idx}" data-field="segment" value="${esc(spInst.segment || '')}"></label>
+        <label>ID<input class="dimSplitterField" data-splitter-index="${idx}" data-field="id" value="${esc(inst.id || '')}"></label>
+        <label>Name<input class="dimSplitterField" data-splitter-index="${idx}" data-field="name" value="${esc(inst.name || '')}"></label>
       </div>
-      ${renderSplitterTypeFace(sp)}
-      <div class="hint">Universes planned: ${(spInst.universes||[]).map(u=>`UNI ${u}`).join(', ') || 'not assigned yet'}</div>
+      ${Array.isArray(inst.portAssignments) && inst.portAssignments.length ? splitterPortMapHtml(sp, inst) : renderSplitterTypeFace(sp)}
     </div>`;
   }).join('');
-  return `
-    <div class="section dim-section network-dim-section" style="--dim-color:${dimColor(dc)}"><h3>Nodes in ${dc}</h3><div class="content">
-      <div class="toggle" id="dimNetAssignToggle"><span><span class="twist">${assignOpen?'▾':'▸'}</span> Auto-assign / add devices</span><span class="muted">${universes.length} universes</span></div>
-      <div class="network-assign-panel ${assignOpen?'open':''}">
-        <div class="planner-controls">
-          <label><span class="muted">Node type</span><select id="dimNodeType">${nodeTypeOptions || '<option value="">No node types yet</option>'}</select></label>
-          <button id="dimAutoAssignNodes">Auto-assign nodes</button>
-          <label><span class="muted">Splitter type</span><select id="dimSplitterType">${splitterTypeOptions || '<option value="">No splitter types yet</option>'}</select></label>
-          <button id="dimAddSplitter" style="background:#334155;color:#eaf2ff">Add one splitter</button>
-          <button id="dimAutoSplitters" style="background:#334155;color:#eaf2ff">Auto-calculate splitters</button>
-        </div>
-        <div class="hint">Node auto-assign places universes low-to-high. Device ID/IP are refreshed from the DimCity number and selected type.</div>
-        ${splitCalc ? `<div class="split-calc-box"><b>Splitter calculation</b><br>${esc(selectedSplitter.brand || '')} ${esc(selectedSplitter.name || selectedSplitter.id)}: ${splitCalc.splitterCount} splitter(s) estimated • capacity ${splitCalc.capacity} outputs per universe feed • ${splitCalc.buses} input bus(es)</div>` : ''}
-      </div>
-      <div class="network-layout">
-        <div class="universe-pool"><div class="network-list-title">Universe pool</div><div class="universe-pool-list">${universePool}</div><div class="hint">Drag a UNI to a node port, or click a node port for a selector.</div></div>
-        <div><div class="network-list-title">DMX nodes <span class="muted">${plan.nodes.length} placed</span></div><div class="network-device-list">${nodeHtml || '<div class="device-list-empty">No nodes assigned yet.</div>'}</div></div>
-      </div>
-    </div></div>
-    <div class="section dim-section splitter-dim-section" style="--dim-color:${dimColor(dc)}"><h3>Splitters in ${dc}</h3><div class="content">
-      <div class="dim-pill-row"><span class="info-pill">${plan.splitters.length} splitters placed</span><span class="info-pill">Spare outputs: ${Number(MODEL.networkDevices.prefs.splitterSparePorts || 0)}</span></div>
-      <div class="network-device-list">${splitterHtml || '<div class="device-list-empty">No splitters assigned yet.</div>'}</div>
-    </div></div>`;
+
+  const noLib = !nd.nodeTypes.length || !nd.splitterTypes.length;
+  const tools = `<div class="planner-controls">
+      <label>Node type<select id="dimNodeType">${nodeTypeOptions || '<option value="">No node types yet</option>'}</select></label>
+      <button id="dimAutoAssignNodes" ${nd.nodeTypes.length?'':'disabled'}>${I('refresh',14)}Auto-assign nodes</button>
+      <label>Splitter type<select id="dimSplitterType">${splitterTypeOptions || '<option value="">No splitter types yet</option>'}</select></label>
+      <button id="dimAutoSplitters" ${nd.splitterTypes.length?'':'disabled'}>${I('refresh',14)}Auto-calculate splitters</button>
+      <button id="dimAddSplitter" ${nd.splitterTypes.length?'':'disabled'}>${I('plus',14)}Add one splitter</button>
+    </div>
+    ${noLib ? `<div class="hint">${I('info',13)} No device types yet. <a data-cmd="nodeBuilder">Create a node type</a> or <a data-cmd="splitterBuilder">a splitter type</a> first.</div>` : ''}
+    ${splitCalc ? `<div class="split-calc-box">${I('info',13)} ${esc(selectedSplitter.brand || '')} ${esc(selectedSplitter.name || selectedSplitter.id)}: about <b>${plural(splitCalc.splitterCount,'splitter')}</b> needed · ${splitCalc.capacity} usable outputs per feed · ${plural(splitCalc.buses,'input bus','input buses')}</div>` : ''}`;
+
+  const universePool = universes.map(u=>`<button class="uni-pool-chip" draggable="true" data-uni="${u}" title="Drag onto a node port">UNI ${u}</button>`).join('') || '<span class="subtle">No universes</span>';
+  const nodesBody = `${tools}<div class="network-layout" style="margin-top:14px">
+      <div class="universe-pool"><div class="network-list-title">Universe pool</div><div class="universe-pool-list">${universePool}</div><div class="hint">Drag a universe onto a node port, or click a port to pick one.</div></div>
+      <div><div class="network-list-title">DMX nodes <span class="subtle">${plan.nodes.length} placed</span></div><div class="network-device-list">${nodeHtml || '<div class="device-list-empty">No nodes yet. Choose a node type and click Auto-assign.</div>'}</div></div>
+    </div>`;
+  const splitBody = `<div class="network-device-list">${splitterHtml || '<div class="device-list-empty">No splitters yet. Choose a splitter type and click Auto-calculate.</div>'}</div>`;
+
+  return card({ key:`${dc}:nodes`, title:'Network nodes', icon:'network', meta:`${plural(plan.nodes.length,'node')} · ${plural(universes.length,'universe')}`, body:nodesBody, collapsed: !plan.nodes.length })
+       + card({ key:`${dc}:splitters`, title:'Splitters', icon:'cable', meta:`${plural(plan.splitters.length,'splitter')} · ${Number(nd.prefs.splitterSparePorts || 0)} spare outputs`, body:splitBody, collapsed: !plan.splitters.length });
+}
+function bindDimNetworkDevices(root, dc, rerender){
+  const nodeSelect = root.querySelector('#dimNodeType');
+  const splitterSelect = root.querySelector('#dimSplitterType');
+  if(nodeSelect) nodeSelect.onchange = ()=>{ getDimPlan(dc).nodeTypeId = nodeSelect.value; MODEL.ui.dirty = true; };
+  if(splitterSelect) splitterSelect.onchange = ()=>{ getDimPlan(dc).lastSplitterTypeId = splitterSelect.value; MODEL.ui.dirty = true; rerender(); };
+  const on = (sel, fn) => { const b = root.querySelector(sel); if(b) b.onclick = fn; };
+  on('#dimAutoAssignNodes', ()=>{
+    const plan = autoAssignDimCityNodes(dc, nodeSelect?.value || '');
+    if(plan){ if(!MODEL.ui.cardCollapsed) MODEL.ui.cardCollapsed = {}; MODEL.ui.cardCollapsed[`${dc}:nodes`] = false; toast(`${plural(plan.nodes.length,'node')} assigned in ${dc}`); }
+    rerender();
+  });
+  on('#dimAutoSplitters', ()=>{
+    const plan = autoAddSplittersForDim(dc, splitterSelect?.value || '');
+    if(plan){ if(!MODEL.ui.cardCollapsed) MODEL.ui.cardCollapsed = {}; MODEL.ui.cardCollapsed[`${dc}:splitters`] = false; toast(`${plural(plan.splitters.length,'splitter')} calculated for ${dc}`); }
+    rerender();
+  });
+  on('#dimAddSplitter', ()=>{ addSplitterToDimCity(dc, splitterSelect?.value || ''); if(!MODEL.ui.cardCollapsed) MODEL.ui.cardCollapsed = {}; MODEL.ui.cardCollapsed[`${dc}:splitters`] = false; rerender(); });
+  root.querySelectorAll('.dimRemoveNode').forEach(btn=> btn.onclick = ()=>{ getDimPlan(dc).nodes.splice(Number(btn.dataset.nodeIndex),1); MODEL.ui.dirty = true; rerender(); });
+  root.querySelectorAll('.dimRemoveSplitter').forEach(btn=> btn.onclick = ()=>{ getDimPlan(dc).splitters.splice(Number(btn.dataset.splitterIndex),1); MODEL.ui.dirty = true; rerender(); });
+  root.querySelectorAll('.dimNodeField').forEach(inp=>{
+    if(inp.classList.contains('ipv4')) bindIpv4Input(inp, inp.dataset.field==='ip');
+    inp.onchange = ()=>{
+      const n = getDimPlan(dc).nodes[Number(inp.dataset.nodeIndex)]; if(!n) return;
+      n[inp.dataset.field] = inp.value.trim(); MODEL.ui.dirty = true;
+      inp.classList.toggle('invalid', inp.classList.contains('ipv4') && !isValidIpv4(inp.value, inp.dataset.field==='ip'));
+    };
+  });
+  root.querySelectorAll('.dimSplitterField').forEach(inp=>{
+    inp.onchange = ()=>{ const s = getDimPlan(dc).splitters[Number(inp.dataset.splitterIndex)]; if(!s) return; s[inp.dataset.field] = inp.value.trim(); MODEL.ui.dirty = true; };
+  });
+  root.querySelectorAll('.uni-pool-chip').forEach(chip=> chip.addEventListener('dragstart', e=> e.dataTransfer.setData('text/plain', chip.dataset.uni || '')));
+  root.querySelectorAll('.device-port.assignable[data-node-index]').forEach(port=>{
+    port.onclick = e=>{ e.stopPropagation(); openPortUniversePicker(dc, Number(port.dataset.nodeIndex), Number(port.dataset.portIndex)); };
+    port.addEventListener('dragover', e=>{ e.preventDefault(); port.classList.add('drop-hover'); });
+    port.addEventListener('dragleave', ()=> port.classList.remove('drop-hover'));
+    port.addEventListener('drop', e=>{
+      e.preventDefault(); port.classList.remove('drop-hover');
+      const n = getDimPlan(dc).nodes[Number(port.dataset.nodeIndex)]; if(!n) return;
+      n.universes[Number(port.dataset.portIndex)] = Number(e.dataTransfer.getData('text/plain'));
+      MODEL.ui.dirty = true; rerender();
+    });
+  });
 }
 function downloadNetworkLibrary(kind){
   MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
@@ -2393,20 +2172,11 @@ function importNetworkLibrary(kind, onDone){
 function showNodeTypeBuilder(){
   MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
   const bd = document.createElement('div');
-  bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;z-index:10002';
+  bd.className = 'modal-backdrop';
   const modal = document.createElement('div');
-  modal.style.cssText = 'width:min(1180px,96vw);max-height:92vh;overflow:auto;background:#101f34;color:#eaf4ff;border:1px solid #23405f;border-radius:14px;padding:16px;font:14px/1.4 system-ui';
+  modal.className = 'modal wide';
   modal.innerHTML = `
-    <div class="builder-v4-toolbar" style="margin-bottom:12px">
-      <h3 style="margin:0">Node Type Builder</h3>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button id="nodeNew">Build new node type</button>
-        <button id="nodeExport" style="background:#334155;color:#eaf2ff">Export library</button>
-        <button id="nodeImport" style="background:#334155;color:#eaf2ff">Import library</button>
-        <button id="nodeBuilderClose" style="background:#334155;color:#eaf2ff">Close</button>
-      </div>
-    </div>
-    <div class="builder-v4-grid">
+    <div class="modal-header"><div><h2>Node Type Library</h2><div class="sub">Reusable DMX node types. Actual device IDs and IP addresses are created per DimCity.</div></div><div style="display:flex;gap:8px;align-items:center"><button id="nodeImport">${I('upload',14)}Import</button><button id="nodeExport">${I('download',14)}Export</button><button id="nodeNew" class="primary">${I('plus',14)}New Node Type</button><button id="nodeBuilderClose" class="ghost icon-only" title="Close">${I('x',16)}</button></div></div><div class="modal-body"><div class="builder-layout">
       <div class="device-card builder-v4-form" id="nodeFormWrap">
         <h4 id="nodeFormTitle">New node type</h4>
         <input id="nodeEditId" type="hidden">
@@ -2421,15 +2191,15 @@ function showNodeTypeBuilder(){
         </div>
         <div id="nodeTypePreview" style="margin-top:10px"></div>
         <div class="device-actions">
-          <button id="nodeDelete" style="background:#E53935;color:#fff">Delete</button>
-          <button id="nodeSave">Save type</button>
+          <button id="nodeDelete" class="danger">${I('trash',14)}Delete</button>
+          <button id="nodeSave" class="primary">Save Type</button>
         </div>
       </div>
       <div>
-        <div class="hint" style="margin-bottom:10px">Create reusable node types once. Actual device IDs/IPs are created later inside a DimCity.</div>
+        <div class="network-list-title">Library</div>
         <div id="nodeTypeList" class="builder-list"></div>
       </div>
-    </div>`;
+    </div></div>`;
   bd.appendChild(modal);
   document.body.appendChild(bd);
   const formWrap = modal.querySelector('#nodeFormWrap');
@@ -2447,7 +2217,7 @@ function showNodeTypeBuilder(){
   const setForm = (nt=null)=>{
     formWrap.classList.add('open');
     modal.querySelector('#nodeEditId').value = nt?.id || '';
-    modal.querySelector('#nodeFormTitle').textContent = nt ? `Edit node type: ${nt.brand || ''} ${nt.name || nt.id}` : 'Build new node type';
+    modal.querySelector('#nodeFormTitle').textContent = nt ? `Edit: ${nt.brand || ''} ${nt.name || nt.id}` : 'New node type';
     modal.querySelector('#ntId').value = nt?.id || nextTypedId('NODE:', MODEL.networkDevices.nodeTypes);
     modal.querySelector('#ntName').value = nt?.name || '';
     modal.querySelector('#ntBrand').value = nt?.brand || '';
@@ -2465,7 +2235,7 @@ function showNodeTypeBuilder(){
         <h4>${colorChip(nt.color || '#4ea8ff')}${esc(nt.brand || 'DMX Node')} ${esc(nt.name || nt.id)}</h4>
         <div class="muted">Type key: ${esc(nt.id)} • ${Number(nt.portCount || 0)} ports • ${esc(nt.defaultIp || '')} ${esc(nt.subnet || '')}</div>
         ${renderNodeTypeFace(nt)}
-      </div>`).join('') : '<div class="device-list-empty">No node types yet. Click “Build new node type”.</div>';
+      </div>`).join('') : '<div class="device-list-empty">No node types yet. Fill in the form and click Save Type.</div>';
     modal.querySelectorAll('.builder-type-card[data-id]').forEach(card=>card.onclick=()=>{
       const nt = MODEL.networkDevices.nodeTypes.find(x=>x.id===card.dataset.id);
       if(nt) setForm(nt);
@@ -2484,6 +2254,8 @@ function showNodeTypeBuilder(){
     if(idx >= 0) MODEL.networkDevices.nodeTypes[idx] = item; else MODEL.networkDevices.nodeTypes.push(item);
     MODEL.ui.dirty = true;
     setForm(item);
+    toast(`Node type ${item.name || item.id} saved`);
+    renderRight();
   };
   modal.querySelector('#nodeDelete').onclick = ()=>{
     const id = modal.querySelector('#nodeEditId').value || modal.querySelector('#ntId').value.trim();
@@ -2496,27 +2268,18 @@ function showNodeTypeBuilder(){
   };
   modal.querySelector('#nodeExport').onclick = ()=>downloadNetworkLibrary('node');
   modal.querySelector('#nodeImport').onclick = ()=>importNetworkLibrary('node', redraw);
-  redraw();
+  setForm(MODEL.networkDevices.nodeTypes[0] || null);
 }
 
 // ===== Splitter Type Builder =====
 function showSplitterTypeBuilder(){
   MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
   const bd = document.createElement('div');
-  bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;z-index:10002';
+  bd.className = 'modal-backdrop';
   const modal = document.createElement('div');
-  modal.style.cssText = 'width:min(1180px,96vw);max-height:92vh;overflow:auto;background:#101f34;color:#eaf4ff;border:1px solid #23405f;border-radius:14px;padding:16px;font:14px/1.4 system-ui';
+  modal.className = 'modal wide';
   modal.innerHTML = `
-    <div class="builder-v4-toolbar" style="margin-bottom:12px">
-      <h3 style="margin:0">Splitter Type Builder</h3>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button id="splitterNew">Build new splitter type</button>
-        <button id="splitterExport" style="background:#334155;color:#eaf2ff">Export library</button>
-        <button id="splitterImport" style="background:#334155;color:#eaf2ff">Import library</button>
-        <button id="splitterBuilderClose" style="background:#334155;color:#eaf2ff">Close</button>
-      </div>
-    </div>
-    <div class="builder-v4-grid">
+    <div class="modal-header"><div><h2>Splitter Type Library</h2><div class="sub">Reusable DMX splitter types. Actual splitters are created per DimCity.</div></div><div style="display:flex;gap:8px;align-items:center"><button id="splitterImport">${I('upload',14)}Import</button><button id="splitterExport">${I('download',14)}Export</button><button id="splitterNew" class="primary">${I('plus',14)}New Splitter Type</button><button id="splitterBuilderClose" class="ghost icon-only" title="Close">${I('x',16)}</button></div></div><div class="modal-body"><div class="builder-layout">
       <div class="device-card builder-v4-form" id="splitterFormWrap">
         <h4 id="splitterFormTitle">New splitter type</h4>
         <input id="splitterEditId" type="hidden">
@@ -2534,15 +2297,15 @@ function showSplitterTypeBuilder(){
         <div id="splitterTypePreview" style="margin-top:10px"></div>
         <div class="hint">Single input = one universe feed. A/B input = two universe feeds. Paired switching means 1+2, 3+4, 5+6 etc. follow the same selector group.</div>
         <div class="device-actions">
-          <button id="splitterDelete" style="background:#E53935;color:#fff">Delete</button>
-          <button id="splitterSave">Save type</button>
+          <button id="splitterDelete" class="danger">${I('trash',14)}Delete</button>
+          <button id="splitterSave" class="primary">Save Type</button>
         </div>
       </div>
       <div>
-        <div class="hint" style="margin-bottom:10px">Create reusable splitter types once. Actual splitter IDs are created later inside a DimCity.</div>
+        <div class="network-list-title">Library</div>
         <div id="splitterTypeList" class="builder-list"></div>
       </div>
-    </div>`;
+    </div></div>`;
   bd.appendChild(modal);
   document.body.appendChild(bd);
   const formWrap = modal.querySelector('#splitterFormWrap');
@@ -2564,7 +2327,7 @@ function showSplitterTypeBuilder(){
   const setForm = (sp=null)=>{
     formWrap.classList.add('open');
     modal.querySelector('#splitterEditId').value = sp?.id || '';
-    modal.querySelector('#splitterFormTitle').textContent = sp ? `Edit splitter type: ${sp.brand || ''} ${sp.name || sp.id}` : 'Build new splitter type';
+    modal.querySelector('#splitterFormTitle').textContent = sp ? `Edit: ${sp.brand || ''} ${sp.name || sp.id}` : 'New splitter type';
     modal.querySelector('#stId').value = sp?.id || nextTypedId('SPLIT:', MODEL.networkDevices.splitterTypes);
     modal.querySelector('#stName').value = sp?.name || '';
     modal.querySelector('#stBrand').value = sp?.brand || '';
@@ -2585,7 +2348,7 @@ function showSplitterTypeBuilder(){
         <h4>${colorChip(sp.color || '#FFC107')}${esc(sp.brand || 'Splitter')} ${esc(sp.name || sp.id)}</h4>
         <div class="muted">Type key: ${esc(sp.id)} • ${sp.mode==='AB'?'A/B':'Single'} • ${Number(sp.outputCount||0)} outputs • ${sp.switching==='paired'?'paired':'independent'}</div>
         ${renderSplitterTypeFace(sp)}
-      </div>`).join('') : '<div class="device-list-empty">No splitter types yet. Click “Build new splitter type”.</div>';
+      </div>`).join('') : '<div class="device-list-empty">No splitter types yet. Fill in the form and click Save Type.</div>';
     modal.querySelectorAll('.builder-type-card[data-id]').forEach(card=>card.onclick=()=>{
       const sp = MODEL.networkDevices.splitterTypes.find(x=>x.id===card.dataset.id);
       if(sp) setForm(sp);
@@ -2604,6 +2367,8 @@ function showSplitterTypeBuilder(){
     if(idx >= 0) MODEL.networkDevices.splitterTypes[idx] = item; else MODEL.networkDevices.splitterTypes.push(item);
     MODEL.ui.dirty = true;
     setForm(item);
+    toast(`Splitter type ${item.name || item.id} saved`);
+    renderRight();
   };
   modal.querySelector('#splitterDelete').onclick = ()=>{
     const id = modal.querySelector('#splitterEditId').value || modal.querySelector('#stId').value.trim();
@@ -2616,71 +2381,27 @@ function showSplitterTypeBuilder(){
   };
   modal.querySelector('#splitterExport').onclick = ()=>downloadNetworkLibrary('splitter');
   modal.querySelector('#splitterImport').onclick = ()=>importNetworkLibrary('splitter', redraw);
-  redraw();
-}
-
-// ===== Network Planner modal =====
-function showNetworkDevicesTool(){
-  MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
-  const bd = document.createElement('div');
-  bd.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;z-index:10002';
-  const modal = document.createElement('div');
-  modal.style.cssText = 'width:min(1180px,96vw);max-height:92vh;overflow:auto;background:#101f34;color:#eaf4ff;border:1px solid #23405f;border-radius:14px;padding:16px;font:14px/1.4 system-ui';
-  const nodeOptions = MODEL.networkDevices.nodeTypes.map(nt=>`<option value="${esc(nt.id)}">${esc(nt.name || nt.id)} (${Number(nt.portCount||0)} ports)</option>`).join('');
-  const splitterOptions = MODEL.networkDevices.splitterTypes.map(sp=>`<option value="${esc(sp.id)}">${esc(sp.name || sp.id)} (${Number(sp.outputCount||0)} outputs)</option>`).join('');
-  modal.innerHTML = `
-    <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px">
-      <h3 style="margin:0">Network Planner</h3>
-      <button id="networkClose" style="background:#334155;color:#eaf2ff">Close</button>
-    </div>
-    <div class="device-card">
-      <h4>Preferences</h4>
-      <div class="planner-controls">
-        <label><span class="muted">Node spare ports</span><input id="netPrefNodeSpare" type="number" min="0" value="${MODEL.networkDevices.prefs.nodeSparePorts}"></label>
-        <label><span class="muted">Splitter spare outputs</span><input id="netPrefSplitterSpare" type="number" min="0" value="${MODEL.networkDevices.prefs.splitterSparePorts}"></label>
-      </div>
-    </div>
-    <div id="networkDimPreview"></div>`;
-  bd.appendChild(modal);
-  document.body.appendChild(bd);
-  const redraw = ()=>{
-    MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
-    const dims = [...(MODEL.byDim?.keys?.() || [])].sort((a,b)=>a.localeCompare(b));
-    modal.querySelector('#networkDimPreview').innerHTML = dims.length ? dims.map(dc=>{
-      const plan = getDimPlan(dc);
-      const selectedNt = MODEL.networkDevices.nodeTypes.find(x=>x.id===plan.nodeTypeId) || MODEL.networkDevices.nodeTypes[0];
-      const nodePorts = Number(selectedNt?.portCount || 1);
-      const calc = calculateNodeNeedForDim(dc, nodePorts);
-      const universes = uniqueUniversesInDim(dc);
-      const color = dimColor(dc);
-      const localNodeOptions = MODEL.networkDevices.nodeTypes.map(nt=>`<option value="${esc(nt.id)}" ${plan.nodeTypeId===nt.id?'selected':''}>${esc(nt.name || nt.id)} (${Number(nt.portCount||0)} ports)</option>`).join('') || '<option value="">No node types yet</option>';
-      const localSplitterOptions = splitterOptions || '<option value="">No splitter types yet</option>';
-      return `<div class="planner-row" style="--dim-color:${color}"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>${colorChip(color)}${dc}</b><span class="muted">${calc.universeCount} universes • ${calc.nodeCount} calculated nodes</span></div><div class="planner-controls"><label><span class="muted">Node type</span><select data-dc="${dc}" class="planNodeType">${localNodeOptions}</select></label><label><span class="muted">Splitter type</span><select data-dc="${dc}" class="planSplitterType">${localSplitterOptions}</select></label><button data-dc="${dc}" class="planAutoNode">Auto-assign nodes</button><button data-dc="${dc}" class="planAddSplitter" style="background:#334155;color:#eaf2ff">Add splitter</button></div><div class="universe-chip-grid" style="margin-top:8px">${universes.map(u=>`<span class="badge">UNI ${u}</span>`).join(' ') || '<span class="muted">No universes</span>'}</div><div class="hint">Placed in DimCity: ${plan.nodes.length} nodes • ${plan.splitters.length} splitters</div></div>`;
-    }).join('') : '<div class="device-list-empty">No DimCities yet. Import CSV first.</div>';
-    modal.querySelectorAll('.planNodeType').forEach(sel=>sel.onchange=()=>{ const plan=getDimPlan(sel.dataset.dc); plan.nodeTypeId=sel.value; MODEL.ui.dirty=true; redraw(); });
-    modal.querySelectorAll('.planAutoNode').forEach(btn=>btn.onclick=()=>{ const dc=btn.dataset.dc; const sel=modal.querySelector(`.planNodeType[data-dc="${dc}"]`); autoAssignDimCityNodes(dc, sel?.value || ''); renderSummary(); redraw(); });
-    modal.querySelectorAll('.planAddSplitter').forEach(btn=>btn.onclick=()=>{ const dc=btn.dataset.dc; const sel=modal.querySelector(`.planSplitterType[data-dc="${dc}"]`); addSplitterToDimCity(dc, sel?.value || ''); renderSummary(); redraw(); });
-  };
-  modal.querySelector('#networkClose').onclick = ()=> bd.remove();
-  bd.addEventListener('mousedown', e=>{ if(e.target===bd) bd.remove(); });
-  modal.querySelector('#netPrefNodeSpare').oninput = e=>{ MODEL.networkDevices.prefs.nodeSparePorts = Math.max(0, Number(e.target.value||0)); MODEL.ui.dirty = true; redraw(); };
-  modal.querySelector('#netPrefSplitterSpare').oninput = e=>{ MODEL.networkDevices.prefs.splitterSparePorts = Math.max(0, Number(e.target.value||0)); MODEL.ui.dirty = true; redraw(); };
-  redraw();
+  setForm(MODEL.networkDevices.splitterTypes[0] || null);
 }
 
 window.LKApp = {
   getMODEL: ()=> MODEL,
   setMODEL: (m)=> { MODEL = m; },
 
-  // functies die de editor nodig heeft
+  // functies die de editor en ProjectIO nodig hebben
   processRows,
   renderAll,
   renderRight,
+  renderSummary,
+  renderIssues,
   recomputeVeamUseAndIssues,
   recomputeUniverseStats,
   hydrateDimOrigins,
   fullRebuildAndRender,
   rebuildFromCsvSources,
+  navigate,
+  openEntity,
+  updateChrome,
 
   // helpers
   isLK,
@@ -2688,151 +2409,164 @@ window.LKApp = {
   dimCityFromId,
   portRangeOk,
   statusColor,
+  blockTypeLabel,
+  effectiveBlockType,
+  dimColor,
+  mergedPortRecord,
+  lkAutoLocation,
+  veamAutoLocation,
+  sortedDims,
+
+  // UI helpers
+  ui: { toast, openDialog, confirmDialog, showMenu, icon: I },
 
   // DOM helpers
   $,el
 };
 
-// Koppel de vaste Edit-knop uit index.html aan de popup-editor:
-const _btnCsvEdit = document.getElementById('btnCsvEdit');
-if (_btnCsvEdit){
-  _btnCsvEdit.onclick = ()=> window.CsvEditor?.open?.();
+// ===== Commando's (native menu, werkbalk, knoppen met data-cmd) =====
+async function runCommand(cmd, arg){
+  const PIO = window.ProjectIO, UI = window.PatchLabUI;
+  switch(cmd){
+    case 'newProject':    return UI?.newProject?.();
+    case 'openProject':   return PIO?.fileOpenProject?.();
+    case 'openRecent':    return PIO?.openProjectPath?.(arg);
+    case 'openFile':
+      if (await PIO?.openProjectPath?.(arg)) UI?.closeWelcome?.();
+      return;
+    case 'save':          return PIO?.fileSaveProject?.();
+    case 'saveAs':        return PIO?.fileSaveProjectAs?.();
+    case 'importCsv':     return PIO?.importCsvStart?.();
+    case 'csvSources':    return showCsvSourcesModal();
+    case 'editCsv':       return window.CsvEditor?.open?.();
+    case 'exportPdf':     return window.PdfExport?.open?.();
+    case 'addLK':         return showToolsModal('LK');
+    case 'addVeam':       return showToolsModal('VEAM');
+    case 'nodeBuilder':   return showNodeTypeBuilder();
+    case 'splitterBuilder': return showSplitterTypeBuilder();
+    case 'networkPlanner':  return navigate('NETWORK');
+    case 'projectInfo':   return UI?.editProjectInfo?.();
+    case 'rebuild':
+      fullRebuildAndRender();
+      return toast('Validation and statistics recalculated', 'info');
+    case 'view':          return navigate(arg || 'HOME');
+    case 'tour':          return UI?.startTour?.();
+    case 'welcome':       return UI?.showWelcome?.();
+    case 'shortcuts':     return UI?.showShortcuts?.();
+    case 'about':         return UI?.showAbout?.();
+    case 'recentChanged': return;
+  }
 }
+window.LKApp.runCommand = runCommand;
+window.app?.onMenuCommand?.((cmd, arg)=> runCommand(cmd, arg));
 
+// Werkbalk
+const bindClick = (id, fn) => { const n = document.getElementById(id); if(n) n.addEventListener('click', e=>{ e.preventDefault(); fn(e); }); };
+bindClick('tbImport',      ()=> runCommand('importCsv'));
+bindClick('tbEditRows',    ()=> runCommand('editCsv'));
+bindClick('btnRebuild',    ()=> runCommand('rebuild'));
+bindClick('tbSave',        ()=> runCommand('save'));
+bindClick('btnCsvEdit',    ()=> runCommand('editCsv'));
+bindClick('navAddMenu',    e=> showMenu(e.currentTarget, [
+  { label:'Add LK…', icon:'box', run:()=> runCommand('addLK') },
+  { label:'Add Veam…', icon:'plug', run:()=> runCommand('addVeam') },
+  '-',
+  { label:'Import CSV…', icon:'upload', run:()=> runCommand('importCsv') }
+]));
+// export-pdf.js bindt #fileExportPdf zelf.
 
+// Gedelegeerde navigatie in zijbalk en hoofdweergave
+$('#sidebar')?.addEventListener('click', handleNavClick);
+$('#view')?.addEventListener('click', handleNavClick);
 
-// ===== Tools: menu clicks =====
-$('#toolAddLK').addEventListener('click', (e)=>{ e.preventDefault(); showToolsModal('LK'); });
-$('#toolAddVeam').addEventListener('click', (e)=>{ e.preventDefault(); showToolsModal('VEAM'); });
-const _toolNodeBuilder = document.getElementById('toolNodeBuilder');
-if (_toolNodeBuilder) _toolNodeBuilder.addEventListener('click', (e)=>{ e.preventDefault(); showNodeTypeBuilder(); });
-const _toolSplitterBuilder = document.getElementById('toolSplitterBuilder');
-if (_toolSplitterBuilder) _toolSplitterBuilder.addEventListener('click', (e)=>{ e.preventDefault(); showSplitterTypeBuilder(); });
-const _toolNetworkDevices = document.getElementById('toolNetworkDevices');
-if (_toolNetworkDevices) _toolNetworkDevices.addEventListener('click', (e)=>{ e.preventDefault(); showNetworkDevicesTool(); });
-const _fileCsvSources = document.getElementById('fileCsvSources');
-if (_fileCsvSources) _fileCsvSources.addEventListener('click', (e)=>{ e.preventDefault(); showCsvSourcesModal(); });
-
-// backdrop: Cancel knoppen
+// ===== Add LK / Add Veam =====
+function showToolsModal(which){
+  $('#toolsBackdrop').style.display = 'flex';
+  $('#modalAddLK').style.display   = (which==='LK')   ? 'flex' : 'none';
+  $('#modalAddVeam').style.display = (which==='VEAM') ? 'flex' : 'none';
+  if (which==='LK'){
+    $('#lkInputId').value = '';
+    $('#lkInputBlockType').value = 'MIXED';
+    $('#lkAddError').textContent = '';
+    setTimeout(()=>$('#lkInputId').focus(), 30);
+  } else {
+    $('#veamInputId').value = '';
+    $('#veamAddError').textContent = '';
+    setTimeout(()=>$('#veamInputId').focus(), 30);
+  }
+}
+function closeToolsModal(){
+  $('#toolsBackdrop').style.display = 'none';
+  $('#modalAddLK').style.display = 'none';
+  $('#modalAddVeam').style.display = 'none';
+}
 $('#lkAddCancel').onclick   = closeToolsModal;
 $('#veamAddCancel').onclick = closeToolsModal;
-
-// Sluit alleen bij klik op de achtergrond zelf (niet op kinderen)
-$('#toolsBackdrop').addEventListener('click', (e)=>{
-  if (e.target === e.currentTarget) closeToolsModal();
-});
-// Extra robuust: ook bij mousedown (voorkomt korte “select” klik-bubbels)
-$('#toolsBackdrop').addEventListener('mousedown', (e)=>{
-  if (e.target === e.currentTarget) closeToolsModal();
+$('#toolsBackdrop').addEventListener('mousedown', (e)=>{ if (e.target === e.currentTarget) closeToolsModal(); });
+$('#toolsBackdrop').addEventListener('keydown', (e)=>{
+  if (e.key === 'Escape') closeToolsModal();
+  if (e.key === 'Enter') ($('#modalAddLK').style.display !== 'none' ? $('#lkAddConfirm') : $('#veamAddConfirm')).click();
 });
 
-// ===== Vast CSV-paneel: twist en Edit-knop =====
-(() => {
-  const sec = document.querySelector('#rightCsvSection');
-  const twist = document.querySelector('#csvTwist');
-  const content = sec?.querySelector('.content');
-  const btnEdit = document.querySelector('#btnCsvEdit');
-
-  if (twist && content) {
-    twist.addEventListener('click', () => {
-      const collapsed = content.style.display === 'none';
-      content.style.display = collapsed ? '' : 'none';
-      twist.textContent = collapsed ? '▾' : '▸';
-    });
-  }
-
-})();
-
-
-// ===== Tools: submit Add LK =====
-$('#lkAddConfirm').onclick = ()=>{
-  const raw = ($('#lkInputId').value || '').trim().toUpperCase();
-  const id  = raw.replace(/^VEAM12/,'LK'); // alias normaliseren
-  const typeSel = $('#lkInputBlockType').value; // 'MIXED' | 'VEAM_ONLY' | 'XLR12'
-
-  // validatie
-  if(!/^LK\d+$/.test(id)){
-    $('#lkAddError').textContent = 'Invalid format. Use for example LK101.';
-    return;
-  }
-  const dim = dimCityFromId(id);
-  if(!dim){ $('#lkAddError').textContent = 'DimCity cannot be derived from this number.'; return; }
-  if (MODEL.byLK.has(id)){ $('#lkAddError').textContent = `${id} already exists.`; return; }
-
-  // nieuwe DimCity?
-if(!MODEL.byDim.has(dim)){
-  const ok = window.confirm(`${id} belongs to ${dim}. This DimCity does not exist yet. Create ${dim}?`);
-  if(!ok) return;
-  MODEL.byDim.set(dim, { lks:new Set(), veams:new Set(), lines_total:0, filled:0, empty:0, red:0, yellow:0 });
+async function ensureDimForNew(id, dim, errEl){
+  if (MODEL.byDim.has(dim)) return true;
+  const ok = await confirmDialog({ title:`Create ${dim}?`, message:`${id} belongs to DimCity ${dim}, which does not exist yet.`, okLabel:`Create ${dim}` });
+  if (!ok){ errEl.textContent = ''; return false; }
+  MODEL.byDim.set(dim, emptyDimStats());
   if (!MODEL.dimFromManual) MODEL.dimFromManual = new Set();
-  MODEL.dimFromManual.add(dim); // ← markeer als handmatig
+  MODEL.dimFromManual.add(dim);
+  return true;
 }
 
+$('#lkAddConfirm').onclick = async ()=>{
+  const raw = ($('#lkInputId').value || '').trim().toUpperCase();
+  const id  = raw.replace(/^VEAM12/,'LK');
+  const typeSel = $('#lkInputBlockType').value;
+  const err = $('#lkAddError');
+  if(!/^LK\d+$/.test(id)){ err.textContent = 'Invalid format. Use for example LK101.'; return; }
+  const dim = dimCityFromId(id);
+  if(!dim){ err.textContent = 'The DimCity cannot be derived from this number.'; return; }
+  if (MODEL.byLK.has(id)){ err.textContent = `${id} already exists.`; return; }
+  if (!(await ensureDimForNew(id, dim, err))) return;
 
-  // nieuw LK-record
-  const rec = {
-    id, dimcity: dim,
-    lines: [],
+  MODEL.byLK.set(id, {
+    id, dimcity: dim, lines: [],
     names: {'1-4':null,'5-8':null,'9-12':null},
-    veam:{1:null,2:null,3:null},
-    blockType:{ mode:'Manual', value: typeSel }
-  };
-  MODEL.byLK.set(id, rec);
+    veam: {1:null,2:null,3:null},
+    blockType: { mode:'Manual', value: typeSel },
+    manual: true
+  });
   MODEL.byDim.get(dim).lks.add(id);
-
-recomputeVeamUseAndIssues();
-hydrateDimOrigins();
-renderSummary();
-renderIssues();
-MODEL.selected = { kind:'LK', id };
-MODEL.ui.rightMode = 'DETAIL';
-renderRight();
-
-
+  MODEL.ui.dirty = true;
+  hydrateDimOrigins();
+  recomputeVeamUseAndIssues();
   closeToolsModal();
+  renderIssues();
+  openEntity('LK', id);
+  toast(`${id} added to ${dim}`);
 };
 
-// ===== Tools: submit Add Veam =====
-$('#veamAddConfirm').onclick = ()=>{
+$('#veamAddConfirm').onclick = async ()=>{
   const id = ($('#veamInputId').value || '').trim().toUpperCase();
-
-  if(!/^V\d+$/.test(id)){
-    $('#veamAddError').textContent = 'Invalid format. Use for example V101.';
-    return;
-  }
+  const err = $('#veamAddError');
+  if(!/^V\d+$/.test(id)){ err.textContent = 'Invalid format. Use for example V101.'; return; }
   const dim = dimCityFromId(id);
-  if(!dim){ $('#veamAddError').textContent = 'DimCity cannot be derived from this number.'; return; }
-  if (MODEL.byVeam.has(id)){ $('#veamAddError').textContent = `${id} already exists.`; return; }
+  if(!dim){ err.textContent = 'The DimCity cannot be derived from this number.'; return; }
+  if (MODEL.byVeam.has(id)){ err.textContent = `${id} already exists.`; return; }
+  if (!(await ensureDimForNew(id, dim, err))) return;
 
-if(!MODEL.byDim.has(dim)){
-  const ok = window.confirm(`${id} belongs to ${dim}. This DimCity does not exist yet. Create ${dim}?`);
-  if(!ok) return;
-  MODEL.byDim.set(dim, { lks:new Set(), veams:new Set(), lines_total:0, filled:0, empty:0, red:0, yellow:0 });
-  if (!MODEL.dimFromManual) MODEL.dimFromManual = new Set();
-  MODEL.dimFromManual.add(dim); // ← markeer als handmatig
-}
-
-
-  // nieuw Veam-record
-  const rec = { id, dimcity: dim, lines: [] };
-  MODEL.byVeam.set(id, rec);
-
-  // registreren
+  MODEL.byVeam.set(id, { id, dimcity: dim, lines: [], manual: true });
   MODEL.byDim.get(dim).veams.add(id);
   const pool = MODEL.veamPool.get(dim) || new Set(); pool.add(id); MODEL.veamPool.set(dim, pool);
-
- // In #veamAddConfirm
-recomputeVeamUseAndIssues();
-hydrateDimOrigins();   // ← toevoegen
-renderSummary();
-renderIssues();
-MODEL.selected = { kind:'VEAM', id };
-MODEL.ui.rightMode = 'DETAIL';
-renderRight();
-
-
+  MODEL.ui.dirty = true;
+  hydrateDimOrigins();
+  recomputeVeamUseAndIssues();
   closeToolsModal();
+  renderIssues();
+  openEntity('VEAM', id);
+  toast(`${id} added to ${dim}`);
 };
 
-// Init
-$('#summary').textContent = 'Nog geen data';
+// ===== Init =====
+hydrateIcons();
+renderAll();

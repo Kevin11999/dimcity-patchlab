@@ -52,18 +52,26 @@ function ensureStateFromModel(){
   if (EDIT) return;
   const M = App.getMODEL();
 
+  // Regels die uit Custom-rijen komen staan al in M.customRows; niet dubbel tonen.
+  const fromCsv = L => L.sourceName !== 'Custom';
   const rowsCsv = []
-    .concat((M.lines||[]).map(L => ({
+    .concat((M.lines||[]).filter(fromCsv).map(L => ({
       rid:newRid('CSV'),
       id:L.id, port:L.port??null, universe:L.universe??null, dest:L.dest||'',
       dimcity:L.dimcity||App.dimCityFromId(L.id)||null, kind: App.isV(L.id)?'VEAM':'LK',
-      source:'CSV', status:L.status||'YELLOW'
+      source:'CSV', sourceId:L.sourceId||null, sourceName:L.sourceName||null, status:L.status||'YELLOW'
     })))
-    .concat((M.veamLines||[]).map(V => ({
+    .concat((M.veamLines||[]).filter(fromCsv).map(V => ({
       rid:newRid('CSV'),
       id:V.id, port:V.port??null, universe:V.universe??null, dest:V.dest||'',
       dimcity:V.dimcity||App.dimCityFromId(V.id)||null, kind:'VEAM',
-      source:'CSV', status:V.status||'YELLOW'
+      source:'CSV', sourceId:V.sourceId||null, sourceName:V.sourceName||null, status:V.status||'YELLOW'
+    })))
+    .concat((M.dmxLoose||[]).filter(fromCsv).map(D => ({
+      rid:newRid('CSV'),
+      id:'', port:null, universe:D.universe??null, dest:D.dest||'',
+      dimcity:D.dimcity||null, kind:'DMX',
+      source:'CSV', sourceId:D.sourceId||null, sourceName:D.sourceName||null, status:D.status||'YELLOW'
     })));
 
   const rowsCustom = deepClone(M.customRows||[]).map(r => validateRow({
@@ -84,60 +92,60 @@ function collectAsCsvRows(){
     .concat(EDIT.rowsCsv||[])
     .concat(EDIT.rowsCustom||[]);
 
-  // LK/VEAM → 5 velden (laat 5e leeg als placeholder voor oude 'truss')
-  // DMX     → 6 velden: ['', '', universe, dest, '', dimcity]
-  return all.map(r => {
-    const base5 = [
-      r.id || '',
-      (r.port==null?'':String(r.port)),
-      (r.universe==null?'':String(r.universe)),
-      r.dest || '',
-      '' // placeholder voor legacy kolom 5
-    ];
-    if (r.kind === 'DMX') {
-      return base5.concat([ (r.dimcity || '') ]);
-    }
-    return base5;
-  });
+  // [id, port, universe, dest, '' (legacy truss), dimcity (alleen DMX), sourceId, sourceName]
+  return all.map(r => [
+    r.kind === 'DMX' ? '' : (r.id || ''),
+    (r.kind === 'DMX' || r.port==null) ? '' : String(r.port),
+    (r.universe==null?'':String(r.universe)),
+    r.dest || '',
+    '',
+    r.kind === 'DMX' ? (r.dimcity || '') : '',
+    r.source === 'Custom' ? null : (r.sourceId || null),
+    r.source === 'Custom' ? 'Custom' : (r.sourceName || 'CSV')
+  ]);
 }
 
 
 
 // ===== UI bouwen =====
 function renderToolbar(container){
-  const row = el('div','row');
+  const ic = (n)=> (window.Icons?.icon?.(n, 14) || '');
+  const row = el('div','editor-toolbar');
 
-  const bSave   = el('button', null, 'Save');
-  const bCancel = el('button', null, 'Cancel');
-  const bRevert = el('button', null, 'Revert CSV');
-  const spacer  = el('span', 'right');
-  const bAddLK  = el('button', null, 'Add LK');
-  const bAddV   = el('button', null, 'Add Veam');
-  const bAddDMX = el('button', null, 'Add DMX');
+  const bAddLK  = el('button', null, `${ic('plus')}LK row`);
+  const bAddV   = el('button', null, `${ic('plus')}Veam row`);
+  const bAddDMX = el('button', null, `${ic('plus')}Loose DMX row`);
+  const search  = el('input'); search.type = 'search'; search.placeholder = 'Filter rows…'; search.style.width = '220px';
+  const bRevert = el('button', 'ghost right', `${ic('refresh')}Reset to imported`);
 
-  row.appendChild(bSave);
-  row.appendChild(bCancel);
-  row.appendChild(bRevert);
-  row.appendChild(spacer);
   row.appendChild(bAddLK);
   row.appendChild(bAddV);
   row.appendChild(bAddDMX);
+  row.appendChild(search);
+  row.appendChild(bRevert);
+
+  // footer met Cancel / Apply
+  const modal = BACKDROP.querySelector('.modal');
+  modal.querySelector('.modal-footer')?.remove();
+  const foot = el('div','modal-footer');
+  const hint = el('span','left','Changes are applied to the project when you click Apply. LK/Veam IDs determine the DimCity automatically.');
+  const bCancel = el('button', null, 'Cancel');
+  const bSave   = el('button', 'primary', 'Apply Changes');
+  foot.appendChild(hint); foot.appendChild(bCancel); foot.appendChild(bSave);
+  modal.appendChild(foot);
+  search.oninput = ()=>{ EDIT.filter = search.value.trim().toLowerCase(); renderTable._drawRows?.(); };
 
   // acties
-  bAddLK.onclick = ()=>{ EDIT.rowsCustom.push(validateRow({
+  bAddLK.onclick = ()=>{ EDIT.rowsCustom.unshift(validateRow({
     rid:newRid('CUST'), id:'LK', port:null, universe:null, dest:'', truss:'', dimcity:null, kind:'LK', source:'Custom', status:'YELLOW'
   })); EDIT.dirty=true; redraw(); };
 
-  bAddV.onclick = ()=>{ EDIT.rowsCustom.push(validateRow({
+  bAddV.onclick = ()=>{ EDIT.rowsCustom.unshift(validateRow({
     rid:newRid('CUST'), id:'V', port:null, universe:null, dest:'', truss:'', dimcity:null, kind:'VEAM', source:'Custom', status:'YELLOW'
   })); EDIT.dirty=true; redraw(); };
 
-bAddDMX.onclick = ()=>{ EDIT.rowsCustom.push(validateRow({
-  rid:newRid('CUST'), id:'', port:null, universe:null, dest:'', truss:'', dimcity:null, kind:'DMX', source:'Custom', status:'YELLOW'
-})); EDIT.dirty=true; redraw(); };
-
 bAddDMX.onclick = ()=>{
-  EDIT.rowsCustom.push(validateRow({
+  EDIT.rowsCustom.unshift(validateRow({
     rid:newRid('CUST'),
     id:'',             // ← onder water leeg laten (processRows => DMX)
     port:null,         // ← geen port voor DMX
@@ -152,8 +160,18 @@ bAddDMX.onclick = ()=>{
   redraw();
 };
 
-  bRevert.onclick = ()=>{ EDIT.rowsCsv = deepClone(EDIT.origCsv); EDIT.dirty=true; redraw(); };
-  bCancel.onclick = close;
+  bRevert.onclick = async ()=>{
+    const ok = await (App.ui?.confirmDialog?.({ title:'Reset imported rows?', message:'All edits to imported rows in this editor are undone. Rows you added yourself are kept.', okLabel:'Reset' }) ?? Promise.resolve(true));
+    if(!ok) return;
+    EDIT.rowsCsv = deepClone(EDIT.origCsv); EDIT.dirty=true; redraw();
+  };
+  bCancel.onclick = async ()=>{
+    if (EDIT?.dirty){
+      const ok = await (App.ui?.confirmDialog?.({ title:'Discard changes?', message:'Your edits in this editor have not been applied.', okLabel:'Discard', danger:true }) ?? Promise.resolve(true));
+      if(!ok) return;
+    }
+    close();
+  };
 
   bSave.onclick = async ()=>{
     const savedCustom = deepClone(EDIT.rowsCustom);
@@ -168,28 +186,30 @@ bAddDMX.onclick = ()=>{
     // custom terugzetten (processRows reset M.customRows)
     const M = App.getMODEL();
     M.customRows = savedCustom;
+    M.ui.dirty = true;
     App.setMODEL(M);
 
     // herberekenen + UI
     App.recomputeVeamUseAndIssues();
     App.recomputeUniverseStats();
     App.hydrateDimOrigins?.();
-    App.renderRight();
+    App.renderAll?.();
+    App.ui?.toast?.(`${rows.length} patch rows applied`);
   };
 
   container.appendChild(row);
 }
 
 function renderTable(container){
-  const sec = el('div','section');
-  sec.appendChild(el('h3', null, 'Rows'));
+  const sec = el('div','table-wrap');
+  sec.style.maxHeight = '62vh';
 
-  const cnt = el('div','content');
-  const tbl = el('table', null, `
+  const cnt = sec;
+  const tbl = el('table', 'editor-table', `
     <thead>
       <tr>
         <th>Source</th><th>Status</th><th>ID</th><th>Port</th>
-        <th>Universe</th><th>Bestemming</th><th>DimCity</th><th>Actie</th>
+        <th>Universe</th><th>Location</th><th>DimCity</th><th></th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -199,23 +219,25 @@ function renderTable(container){
   function drawAll(){
     tbody.innerHTML = '';
 
+    const q = EDIT.filter || '';
     const all = []
+      .concat(EDIT.rowsCustom||[])
       .concat(EDIT.rowsCsv||[])
-      .concat(EDIT.rowsCustom||[]);
+      .filter(r => !q || [r.id, r.port, r.universe, r.dest, r.dimcity, r.sourceName].some(v => String(v ?? '').toLowerCase().includes(q)));
 
     for (const row of all){
       validateRow(row);
 
       const tr = el('tr');
       tr.innerHTML = `
-        <td><span class="badge">${row.source}</span></td>
-        <td class="td-status"><span class="pill ${row.status}">${row.status}</span></td>
+        <td><span class="tag ${row.source==='Custom'?'blue':''}">${row.source==='Custom'?'Manual':(row.sourceName||'CSV')}</span></td>
+        <td class="td-status"><span class="pill ${row.status}">${({GREEN:'OK',YELLOW:'Incomplete',RED:'Error'})[row.status]||row.status}</span></td>
         <td class="td-id"></td>
         <td class="td-port"></td>
         <td class="td-uni"></td>
         <td class="td-dst"></td>
         <td class="td-dc"></td>
-        <td><button class="row-del" title="Delete">✕</button></td>
+        <td><button class="ghost row-del" title="Delete row">${window.Icons?.icon?.('trash',14)||'✕'}</button></td>
       `;
 
       // cell refs
@@ -238,7 +260,7 @@ function renderTable(container){
           EDIT.dirty = true;
           // herbereken afgeleiden (status/dimcity)
           validateRow(row);
-          tdStat.innerHTML = `<span class="pill ${row.status}">${row.status}</span>`;
+          tdStat.innerHTML = `<span class="pill ${row.status}">${({GREEN:'OK',YELLOW:'Incomplete',RED:'Error'})[row.status]||row.status}</span>`;
           // voor LK/VEAM wordt DimCity afgeleid, toon direct
           tdDc.textContent = row.dimcity || '';
         };
@@ -254,7 +276,7 @@ function renderTable(container){
           row.port = (inpPt.value===''? null : Number(inpPt.value));
           EDIT.dirty = true;
           validateRow(row);
-          tdStat.innerHTML = `<span class="pill ${row.status}">${row.status}</span>`;
+          tdStat.innerHTML = `<span class="pill ${row.status}">${({GREEN:'OK',YELLOW:'Incomplete',RED:'Error'})[row.status]||row.status}</span>`;
         };
       }
 
@@ -263,21 +285,21 @@ function renderTable(container){
       tdUni.appendChild(inpUni);
 
       // ===== BESTEMMING =====
-      const inpDst = el('input'); inpDst.type='text'; inpDst.value = row.dest || '';
+      const inpDst = el('input'); inpDst.type='text'; inpDst.value = row.dest || ''; inpDst.placeholder = 'Location';
       tdDst.appendChild(inpDst);
 
       // ===== DIMCITY =====
       if (row.kind === 'DMX'){
         const inpDc = el('input');
         inpDc.type = 'text';
-        inpDc.placeholder = 'DB01';
+        inpDc.placeholder = 'DB01'; inpDc.style.width = '80px';
         inpDc.value = (row.dimcity || '');
         tdDc.appendChild(inpDc);
         inpDc.oninput = ()=>{
           row.dimcity = (inpDc.value || '').toUpperCase();
           EDIT.dirty = true;
           validateRow(row);
-          tdStat.innerHTML = `<span class="pill ${row.status}">${row.status}</span>`;
+          tdStat.innerHTML = `<span class="pill ${row.status}">${({GREEN:'OK',YELLOW:'Incomplete',RED:'Error'})[row.status]||row.status}</span>`;
         };
       } else {
         tdDc.textContent = row.dimcity || '';
@@ -290,15 +312,13 @@ function renderTable(container){
         row.dest     = inpDst.value;
         EDIT.dirty = true;
         validateRow(row);
-        tdStat.innerHTML = `<span class="pill ${row.status}">${row.status}</span>`;
+        tdStat.innerHTML = `<span class="pill ${row.status}">${({GREEN:'OK',YELLOW:'Incomplete',RED:'Error'})[row.status]||row.status}</span>`;
       };
       inpUni.oninput = onCommon;
       inpDst.oninput = onCommon;
 
       // ===== Delete =====
       tr.querySelector('.row-del').onclick = ()=>{
-        const ok = window.confirm('Are you sure you want to delete this row?');
-        if (!ok) return;
         const a = EDIT.rowsCsv;
         const b = EDIT.rowsCustom;
         const ixA = a.findIndex(r=>r.rid===row.rid);
@@ -315,7 +335,6 @@ function renderTable(container){
   }
 
   cnt.appendChild(tbl);
-  sec.appendChild(cnt);
   container.appendChild(sec);
 
   renderTable._drawRows = drawAll;
@@ -328,7 +347,7 @@ function redraw(){
   // meta
   const total =
     (EDIT.rowsCsv?.length||0) + (EDIT.rowsCustom?.length||0);
-  META.textContent = `${total} rows (CSV: ${EDIT.rowsCsv.length} • Custom: ${EDIT.rowsCustom.length})`;
+  META.textContent = `${total} rows · ${EDIT.rowsCsv.length} imported · ${EDIT.rowsCustom.length} added manually`;
   // rows (alleen nodig na toevoegen/verwijderen/revert)
   renderTable._drawRows?.();
 }
@@ -349,8 +368,7 @@ function mountPopup(){
   // show
   BACKDROP.style.display = 'flex';
 
-  // klikken naast modal sluit af
-  BACKDROP.onclick = (e)=>{ if (e.target===BACKDROP) close(); };
+  BACKDROP.onkeydown = (e)=>{ if (e.key==='Escape') BACKDROP.querySelector('.modal-footer button:not(.primary)')?.click(); };
 }
 
 // ===== Public API =====
@@ -363,7 +381,7 @@ function close(silent=false){
   if (!silent){
     // alleen visueel sluiten; EDIT naar null
   }
-  if (BACKDROP){ BACKDROP.style.display = 'none'; }
+  if (BACKDROP){ BACKDROP.style.display = 'none'; BACKDROP.querySelector('.modal-footer')?.remove(); }
   if (BODY) BODY.innerHTML = '';
   EDIT = null;
 }

@@ -1,22 +1,171 @@
 // main.js (ESM)
-import { app, BrowserWindow, ipcMain, dialog, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, nativeImage, Menu, shell } from 'electron';
 import path from 'node:path';
+import os from 'node:os';
 import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
+const APP_NAME = 'DimCity PatchLab';
+const isMac = process.platform === 'darwin';
+
+// UI-taal van Chromium (bestandskiezer, datumvelden) altijd Engels.
+app.commandLine.appendSwitch('lang', 'en-GB');
+app.setName(APP_NAME);
+
 let win;
+// Projectbestand dat bij het opstarten (dubbelklik / "Open with") geopend moet worden
+let pendingOpen = process.argv.slice(1).find(a => /\.lkproj$/i.test(a)) || null;
+function openFileInApp(filePath){
+  if (!filePath) return;
+  if (win && !win.isDestroyed() && !win.webContents.isLoading()) send('openFile', filePath);
+  else pendingOpen = filePath;
+}
+app.on('open-file', (e, filePath) => { e.preventDefault(); openFileInApp(filePath); });
 
 const icon = nativeImage.createFromPath(
   path.join(__dirname, 'assets', 'dimcity-patchlab-256.png')
 );
 
+// ===== Recent projects =====
+const RECENT_MAX = 8;
+const recentFile = () => path.join(app.getPath('userData'), 'recent-projects.json');
+
+async function readRecent(){
+  try {
+    const list = JSON.parse(await fs.readFile(recentFile(), 'utf8'));
+    return Array.isArray(list) ? list.filter(x => x && typeof x.path === 'string') : [];
+  } catch { return []; }
+}
+async function writeRecent(list){
+  await fs.mkdir(path.dirname(recentFile()), { recursive: true });
+  await fs.writeFile(recentFile(), JSON.stringify(list.slice(0, RECENT_MAX), null, 2), 'utf8');
+  buildMenu(list);
+}
+async function addRecent(filePath, name){
+  if (!filePath) return;
+  const list = (await readRecent()).filter(x => x.path !== filePath);
+  list.unshift({ path: filePath, name: name || path.basename(filePath, path.extname(filePath)), openedAt: new Date().toISOString() });
+  await writeRecent(list);
+  if (isMac) app.addRecentDocument(filePath);
+}
+async function listRecentWithStatus(){
+  const list = await readRecent();
+  return Promise.all(list.map(async item => {
+    try {
+      const st = await fs.stat(item.path);
+      return { ...item, exists: true, modifiedAt: st.mtime.toISOString() };
+    } catch {
+      return { ...item, exists: false };
+    }
+  }));
+}
+
+// ===== Menu =====
+function send(command, arg){
+  if (win && !win.isDestroyed()) win.webContents.send('menu-command', { command, arg });
+}
+
+function buildMenu(recent = []){
+  const recentItems = recent.length
+    ? [
+        ...recent.map(r => ({ label: r.name || path.basename(r.path), sublabel: r.path, click: () => send('openRecent', r.path) })),
+        { type: 'separator' },
+        { label: 'Clear Recent', click: async () => { await writeRecent([]); send('recentChanged'); } }
+      ]
+    : [{ label: 'No recent projects', enabled: false }];
+
+  const template = [
+    ...(isMac ? [{
+      label: APP_NAME,
+      submenu: [
+        { label: `About ${APP_NAME}`, click: () => send('about') },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    }] : []),
+    {
+      label: 'File',
+      submenu: [
+        { label: 'New Project…', accelerator: 'CmdOrCtrl+N', click: () => send('newProject') },
+        { label: 'Open Project…', accelerator: 'CmdOrCtrl+O', click: () => send('openProject') },
+        { label: 'Open Recent', submenu: recentItems },
+        { type: 'separator' },
+        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: () => send('save') },
+        { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => send('saveAs') },
+        { type: 'separator' },
+        { label: 'Import CSV…', accelerator: 'CmdOrCtrl+I', click: () => send('importCsv') },
+        { label: 'Imported CSV Files…', click: () => send('csvSources') },
+        { type: 'separator' },
+        { label: 'Report Builder / Export PDF…', accelerator: 'CmdOrCtrl+P', click: () => send('exportPdf') },
+        { type: 'separator' },
+        { label: 'Welcome Screen', click: () => send('welcome') },
+        ...(isMac ? [] : [{ type: 'separator' }, { role: 'quit', label: 'Exit' }])
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' }, { role: 'redo' }, { type: 'separator' },
+        { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
+        { type: 'separator' },
+        { label: 'Edit Patch Rows…', accelerator: 'CmdOrCtrl+E', click: () => send('editCsv') },
+        { label: 'Add LK…', click: () => send('addLK') },
+        { label: 'Add Veam…', click: () => send('addVeam') }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { label: 'Project Overview', accelerator: 'CmdOrCtrl+1', click: () => send('view', 'HOME') },
+        { label: 'Validation', accelerator: 'CmdOrCtrl+2', click: () => send('view', 'ISSUES') },
+        { label: 'Patch List', accelerator: 'CmdOrCtrl+3', click: () => send('view', 'TABLE') },
+        { type: 'separator' },
+        { label: 'Recalculate', accelerator: 'CmdOrCtrl+R', click: () => send('rebuild') },
+        { type: 'separator' },
+        { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+        { role: 'toggleDevTools' }
+      ]
+    },
+    {
+      label: 'Network',
+      submenu: [
+        { label: 'Network Planner…', click: () => send('networkPlanner') },
+        { type: 'separator' },
+        { label: 'Node Type Library…', click: () => send('nodeBuilder') },
+        { label: 'Splitter Type Library…', click: () => send('splitterBuilder') }
+      ]
+    },
+    {
+      role: 'help',
+      submenu: [
+        { label: 'Take the Tour', click: () => send('tour') },
+        { label: 'Keyboard Shortcuts', click: () => send('shortcuts') },
+        ...(isMac ? [] : [{ type: 'separator' }, { label: `About ${APP_NAME}`, click: () => send('about') }])
+      ]
+    }
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+// ===== Window =====
 async function createWindow() {
   win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1440,
+    height: 900,
+    minWidth: 1100,
+    minHeight: 680,
+    title: APP_NAME,
+    backgroundColor: '#0e1014',
+    show: false,
     icon,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -25,20 +174,64 @@ async function createWindow() {
       sandbox: false
     }
   });
+  win.once('ready-to-show', () => win.show());
+
+  // Externe links in de standaardbrowser openen, niet in de app.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
+  // Vraag om bevestiging als het project onopgeslagen wijzigingen heeft.
+  let allowClose = false;
+  win.on('close', async (e) => {
+    if (allowClose) return;
+    e.preventDefault();
+    let dirty = false;
+    try {
+      dirty = await win.webContents.executeJavaScript('!!window.LKApp?.getMODEL?.()?.ui?.dirty');
+    } catch { /* renderer niet bereikbaar: gewoon sluiten */ }
+    if (dirty) {
+      const { response } = await dialog.showMessageBox(win, {
+        type: 'warning',
+        buttons: ['Close Without Saving', 'Cancel'],
+        defaultId: 1,
+        cancelId: 1,
+        message: 'This project has unsaved changes.',
+        detail: `Close ${APP_NAME} anyway? Your changes will be lost.`
+      });
+      if (response !== 0) return;
+    }
+    allowClose = true;
+    win.close();
+  });
+
+  win.webContents.on('did-finish-load', () => {
+    if (pendingOpen) { const p = pendingOpen; pendingOpen = null; setTimeout(() => send('openFile', p), 300); }
+  });
 
   await win.loadFile(path.join(__dirname, 'index.html'));
-  // win.webContents.openDevTools();
 }
 
-app.whenReady().then(() => {
-  if (process.platform === 'darwin' && icon && !icon.isEmpty()) {
-    app.dock.setIcon(icon);
-  }
+// Tweede instantie (Windows/Linux dubbelklik) → bestand in het bestaande venster openen
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', (_e, argv) => {
+    const f = argv.slice(1).find(a => /\.lkproj$/i.test(a));
+    if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+    if (f) openFileInApp(f);
+  });
+}
+
+app.whenReady().then(async () => {
+  if (isMac && icon && !icon.isEmpty()) app.dock.setIcon(icon);
+  buildMenu(await readRecent());
   createWindow();
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (!isMac) app.quit();
 });
 
 app.on('activate', () => {
@@ -48,6 +241,7 @@ app.on('activate', () => {
 // ===== IPC =====
 
 ipcMain.handle('ping', async () => 'pong');
+ipcMain.handle('appInfo', async () => ({ name: APP_NAME, version: app.getVersion(), platform: process.platform }));
 
 ipcMain.handle('openCsv', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
@@ -79,42 +273,95 @@ ipcMain.handle('readTextFile', async (_evt, filePath) => {
   return await fs.readFile(filePath, 'utf8');
 });
 
-ipcMain.handle('exportPdf', async (_evt, saveName = 'lk-veam-report.pdf') => {
-  const pdf = await win.webContents.printToPDF({});
-  const outPath = path.join(process.cwd(), saveName);
-  await fs.writeFile(outPath, pdf);
-  return outPath;
+ipcMain.handle('recentList', async () => listRecentWithStatus());
+ipcMain.handle('recentAdd', async (_evt, { filePath, name }) => { await addRecent(filePath, name); return true; });
+ipcMain.handle('recentRemove', async (_evt, filePath) => {
+  await writeRecent((await readRecent()).filter(x => x.path !== filePath));
+  return true;
 });
 
-ipcMain.handle('exportPdfFromHtml', async (_evt, { html, defaultPath }) => {
-  const off = new BrowserWindow({
-    show: false,
-    webPreferences: { offscreen: true }
-  });
-
-  try {
-    const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
-    await off.loadURL(dataUrl);
-    await new Promise(r => setTimeout(r, 75));
-
-    const pdf = await off.webContents.printToPDF({
-      pageSize: 'A4',
-      printBackground: true,
-      marginsType: 1
-    });
-
-    const res = await dialog.showSaveDialog(win, {
-      title: 'Export PDF',
-      defaultPath: defaultPath || 'lk-veam-report.pdf',
-      filters: [{ name: 'PDF', extensions: ['pdf'] }]
-    });
-
-    if (res.canceled) return null;
-
-    const outPath = res.filePath || defaultPath || 'lk-veam-report.pdf';
-    await fs.writeFile(outPath, pdf);
-    return outPath;
-  } finally {
-    if (!off.isDestroyed()) off.destroy();
+// Titel, "edited"-stip (macOS) en bestandsicoon in de titelbalk.
+ipcMain.on('documentState', (_evt, { title, dirty, filePath }) => {
+  if (!win || win.isDestroyed()) return;
+  win.setTitle(title ? `${title} — ${APP_NAME}` : APP_NAME);
+  if (isMac) {
+    win.setDocumentEdited(!!dirty);
+    win.setRepresentedFilename(filePath || '');
   }
 });
+
+// ===== PDF =====
+const escHtml = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+
+function footerTemplate(footer){
+  if (!footer) return '<span></span>';
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:7px;color:#64748b;width:100%;padding:0 10mm;display:flex;justify-content:space-between;">
+    <span>${escHtml(footer.left)}</span><span>${escHtml(footer.center)}</span>
+    <span>${footer.pageNumbers === false ? '' : 'Page <span class="pageNumber"></span> of <span class="totalPages"></span>'}</span>
+  </div>`;
+}
+
+// HTML via een tijdelijk bestand renderen: data-URL's lopen stuk op grote (logo-)inhoud.
+async function renderHtmlToPdf(html, opts = {}){
+  const tmpFile = path.join(os.tmpdir(), `patchlab-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.html`);
+  await fs.writeFile(tmpFile, html, 'utf8');
+  const off = new BrowserWindow({ show: false, webPreferences: { offscreen: true } });
+  try {
+    await off.loadFile(tmpFile);
+    // Wachten tot afbeeldingen (logo) en fonts klaar zijn
+    await off.webContents.executeJavaScript(`Promise.all([
+      document.fonts ? document.fonts.ready : null,
+      ...[...document.images].map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; }))
+    ]).then(() => true)`);
+    return await off.webContents.printToPDF({
+      pageSize: opts.pageSize || 'A4',
+      landscape: !!opts.landscape,
+      printBackground: true,
+      preferCSSPageSize: true,
+      margins: { marginType: 'default' }, // 'default' respecteert de @page-marges uit de CSS
+      displayHeaderFooter: !!opts.footer,
+      headerTemplate: '<span></span>',
+      footerTemplate: footerTemplate(opts.footer)
+    });
+  } finally {
+    if (!off.isDestroyed()) off.destroy();
+    fs.unlink(tmpFile).catch(() => {});
+  }
+}
+
+ipcMain.handle('exportPdfFromHtml', async (_evt, { html, defaultPath, landscape, pageSize, footer }) => {
+  const res = await dialog.showSaveDialog(win, {
+    title: 'Export PDF',
+    defaultPath: defaultPath || 'lk-veam-report.pdf',
+    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+  });
+  if (res.canceled || !res.filePath) return null;
+
+  const pdf = await renderHtmlToPdf(html, { landscape, pageSize, footer });
+  await fs.writeFile(res.filePath, pdf);
+  return res.filePath;
+});
+
+// Meerdere PDF's (bijv. één per DimCity) in één gekozen map.
+ipcMain.handle('exportPdfBatch', async (_evt, { items, landscape, pageSize, footer }) => {
+  if (!Array.isArray(items) || !items.length) return null;
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Choose folder for PDF files',
+    buttonLabel: 'Export Here',
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (res.canceled || !res.filePaths?.[0]) return null;
+
+  const dir = res.filePaths[0];
+  const written = [];
+  for (const item of items) {
+    const name = path.basename(String(item.fileName || 'export.pdf'));
+    const pdf = await renderHtmlToPdf(item.html, { landscape, pageSize, footer: item.footer || footer });
+    const outPath = path.join(dir, name.toLowerCase().endsWith('.pdf') ? name : name + '.pdf');
+    await fs.writeFile(outPath, pdf);
+    written.push(outPath);
+  }
+  return { dir, files: written };
+});
+
+ipcMain.handle('showItemInFolder', async (_evt, p) => { if (p) shell.showItemInFolder(p); return true; });

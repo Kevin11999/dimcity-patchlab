@@ -2,6 +2,26 @@
 
 This document describes how the app is intended to grow from V8 onward.
 
+## Files
+
+```text
+main.js            Electron main process: window, native menu + shortcuts, recent projects,
+                   file dialogs, PDF rendering (printToPDF with footer/page numbers), .lkproj file association
+preload.cjs        Safe bridge (window.app.*) between UI and main process
+index.html         App shell: title bar, sidebar, view area, status bar, static dialogs
+styles/app.css     The one design system (tokens → shell → components → views → dialogs → report builder)
+ui/icons.js        Inline SVG icon set (window.Icons)
+renderer.js        Model, CSV processing, validation, all views (Overview, Validation, Patch List,
+                   Network Planner, DimCity, LK, Veam), dialogs/toasts, command dispatcher
+csv-editor.js      "Edit Patch Rows" dialog
+project-io.js      New / Open / Save / Save As, recent files, unsaved-changes prompt (.lkproj v4)
+export-pdf.js      Report Builder: live preview, sections, style, cover, templates, PDF export
+ui/welcome.js      Welcome screen, new-project flow, guided tour, project info, shortcuts, about
+```
+
+Commands from the native menu, toolbar buttons and `data-cmd` attributes all go through
+`runCommand()` in renderer.js. All UI text is English.
+
 ## Current runtime flow
 
 ```text
@@ -61,7 +81,10 @@ dimCityPlans
 `switchTypes` and `switches` are reserved for future network switches.
 
 ### PDF settings
-Stored in `MODEL.pdfSettings`.
+Stored in `MODEL.pdfSettings`. The Report Builder layout lives in `MODEL.pdfSettings.layout`
+(version 2: scope, output, page, style, header, footer, cover, ordered sections with options).
+Saved report templates live in `MODEL.pdfTemplates` (`[{ id, name, layout }]`).
+Older settings below are still read and converted.
 
 ```text
 preset
@@ -76,6 +99,27 @@ incWarnings
 
 Later, custom user-made PDF templates should be stored in `MODEL.pdfTemplates`.
 
+### Manual state survives re-processing
+`processRows()` rebuilds `byLK` / `byVeam` / `byDim` from rows, but carries over from the previous
+MODEL (`carryOverManualState()`): Veam links, manual block types, LK names, manually added LKs/Veams
+(`manual: true`) and manual DimCities. Loading a project therefore starts from a fresh model first.
+
+## Project file (`.lkproj`, fileVersion 4)
+
+```text
+rows          effective rows (CSV + CSV-editor edits + custom), leading on load
+csvSources    original imported CSV files (used by "Replace" / rebuild)
+customRows    rows added in the CSV editor
+manualLKs     LK ids added by hand (no CSV rows)
+manualVeams   Veam ids added by hand
+lkAssign      LK -> Veam per slot
+lkBlockType   LK block type (Auto/Manual)
+projectMeta   project info + logo (also filled from the PDF export popup)
+pdfSettings   last used PDF export options, incl. output SINGLE | PER_DIM
+```
+
+Files with fileVersion < 4 are still read via `csvSources` / `rows` as before.
+
 ## Intended PDF order
 
 Every DB export should follow this order:
@@ -89,6 +133,9 @@ Every DB export should follow this order:
 ```
 
 ## Future cleanup plan
+
+The V9/V10/V11 runtime patch layers have been removed; their fixes (AB splitter calculation,
+Veam link badges, inline panels, collapsible sections) are part of renderer.js now.
 
 The current app still has a large `renderer.js`. It works, but it should eventually be split into smaller files:
 

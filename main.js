@@ -140,8 +140,12 @@ function buildMenu(recent = []){
       submenu: [
         { label: 'Network Planner…', click: () => send('networkPlanner') },
         { type: 'separator' },
-        { label: 'Node Type Library…', click: () => send('nodeBuilder') },
-        { label: 'Splitter Type Library…', click: () => send('splitterBuilder') }
+        { label: 'Device Builder…', accelerator: 'CmdOrCtrl+Shift+D', click: () => send('deviceBuilder') },
+        { label: 'Rack Builder…', click: () => send('deviceBuilder', 'rack') },
+        { type: 'separator' },
+        { label: 'Export Library…', click: () => send('libraryExport') },
+        { label: 'Import Library…', click: () => send('libraryImport') },
+        { label: 'Show Library File', click: async () => shell.showItemInFolder(await ensureLibraryFile()) }
       ]
     },
     {
@@ -271,6 +275,25 @@ ipcMain.handle('writeTextFile', async (_evt, { filePath, content }) => {
 ipcMain.handle('readTextFile', async (_evt, filePath) => {
   if (!filePath) return null;
   return await fs.readFile(filePath, 'utf8');
+});
+
+// ===== Personal device library (nodes, splitters, switches, panels, racks, PDF templates) =====
+const libraryFile = () => path.join(app.getPath('userData'), 'library.lklib');
+async function ensureLibraryFile(){
+  const p = libraryFile();
+  try { await fs.access(p); }
+  catch { await fs.writeFile(p, JSON.stringify({ fileType:'patchlab-library', version:1 }, null, 2), 'utf8'); }
+  return p;
+}
+ipcMain.handle('libraryRead', async () => {
+  try { return await fs.readFile(libraryFile(), 'utf8'); }
+  catch { return null; }
+});
+ipcMain.handle('libraryWrite', async (_evt, content) => {
+  const p = libraryFile();
+  await fs.writeFile(p + '.tmp', content, 'utf8');
+  await fs.rename(p + '.tmp', p);
+  return p;
 });
 
 ipcMain.handle('recentList', async () => listRecentWithStatus());

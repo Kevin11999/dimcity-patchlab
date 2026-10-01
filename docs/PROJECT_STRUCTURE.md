@@ -17,6 +17,9 @@ csv-editor.js      "Edit Patch Rows" dialog
 project-io.js      New / Open / Save / Save As, recent files, unsaved-changes prompt (.lkproj v4)
 export-pdf.js      Report Builder: live preview, sections, style, cover, templates, PDF export
 ui/welcome.js      Welcome screen, new-project flow, guided tour, project info, shortcuts, about
+core/library.js    Personal library (userData/library.lklib): device types, racks, PDF templates;
+                   sync with the open show, review dialog for unknown items, export/import .lklib
+ui/device-builder.js  Device Builder: node/splitter/switch/panel types + 19" rack builder
 ```
 
 Commands from the native menu, toolbar buttons and `data-cmd` attributes all go through
@@ -78,7 +81,16 @@ switches
 dimCityPlans
 ```
 
-`switchTypes` and `switches` are reserved for future network switches.
+`switchTypes` (RJ45 + SFP ports), `panelTypes` (LK7-1 / VIM4 / XLR / etherCON sockets) and
+`rackTypes` (`{ id, name, heightU, items:[{ iid, kind, typeId, u }] }`, `u` = top row counted from
+the top) are edited in the Device Builder. Every type has `heightU`. Type keys are fixed once saved.
+
+### Library vs. show
+The personal library (`core/library.js`) and each show both hold device types, racks and PDF templates.
+Saving in the Device Builder / Report Builder writes to both. Opening a show adds library items the
+show lacks, and offers show items the library lacks (or that differ). "Keep both" gives the show's
+item a new key and rewrites references (racks, DimCity plans). Skipped items are remembered per show
+in `libraryDismissed`.
 
 ### PDF settings
 Stored in `MODEL.pdfSettings`. The Report Builder layout lives in `MODEL.pdfSettings.layout`

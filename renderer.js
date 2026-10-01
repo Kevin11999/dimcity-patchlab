@@ -64,9 +64,6 @@ function dimColor(dc){
   const idx = Math.max(0, dims.indexOf(dc));
   return safeHex(MODEL.dimColors?.[dc], DEFAULT_DIM_COLORS[idx % DEFAULT_DIM_COLORS.length]);
 }
-function colorChip(c){
-  return `<span class="color-chip" style="background:${safeHex(c)}"></span>`;
-}
 function colorSwatchesHtml(active){
   return DEFAULT_DIM_COLORS.map(c=>`<button class="color-swatch ${safeHex(active)===c?'active':''}" style="background:${c}" data-color="${c}" title="${c}"></button>`).join('') + `<input id="dimCustomColor" type="color" value="${safeHex(active)}" title="Custom color">`;
 }
@@ -607,6 +604,9 @@ async function processRows(rows){
     projectPath: MODEL.projectPath,
     projectMeta: MODEL.projectMeta,
     networkDevices: normalizeNetworkDevices(MODEL.networkDevices),
+    pdfSettings: MODEL.pdfSettings,
+    pdfTemplates: Array.isArray(MODEL.pdfTemplates) ? MODEL.pdfTemplates : [],
+    libraryDismissed: Array.isArray(MODEL.libraryDismissed) ? MODEL.libraryDismissed : [],
     dimColors: MODEL.dimColors && typeof MODEL.dimColors === 'object' ? {...MODEL.dimColors} : {},
     csvSources: Array.isArray(MODEL.csvSources) ? MODEL.csvSources.slice() : [],
     lines: d1.ded,
@@ -1172,7 +1172,7 @@ function renderNetworkView(){
   pageHead({
     eyebrow:'Project', title:'Network Planner',
     sub:'Plan DMX nodes and splitters per DimCity. Device types are kept in reusable libraries.',
-    actions:`<button data-cmd="nodeBuilder">${I('network',15)}Node Types <span class="badge">${nd.nodeTypes.length}</span></button><button data-cmd="splitterBuilder">${I('cable',15)}Splitter Types <span class="badge">${nd.splitterTypes.length}</span></button>`
+    actions:`<button data-cmd="deviceBuilder">${I('network',15)}Device Builder <span class="badge">${nd.nodeTypes.length + nd.splitterTypes.length + nd.switchTypes.length + nd.panelTypes.length}</span></button><button data-cmd="deviceBuilder" data-arg="rack">${I('grid',15)}Racks <span class="badge">${nd.rackTypes.length}</span></button>`
   });
   const dims = sortedDims();
   const nodeOpts = sel => nd.nodeTypes.map(nt=>`<option value="${esc(nt.id)}" ${sel===nt.id?'selected':''}>${esc([nt.brand, nt.name || nt.id].filter(Boolean).join(' '))} · ${Number(nt.portCount||0)} ports</option>`).join('') || '<option value="">No node types yet</option>';
@@ -1559,7 +1559,7 @@ function handleNavClick(e){
   if(t.dataset.openKind){ e.stopPropagation(); openEntity(t.dataset.openKind, t.dataset.openId); return; }
   if(t.dataset.navView){ navigate(t.dataset.navView); return; }
   if(t.dataset.view){ navigate(t.dataset.view); return; }
-  if(t.dataset.cmd){ runCommand(t.dataset.cmd); }
+  if(t.dataset.cmd){ runCommand(t.dataset.cmd, t.dataset.arg); }
 }
 
 // ===== File: Imported CSV files modal =====
@@ -1609,7 +1609,7 @@ function showCsvSourcesModal(){
 
 // ===== Network Devices: data helpers =====
 function normalizeNetworkDevices(net){
-  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0 }, nodeTypes:[], splitterTypes:[], switchTypes:[], nodes:[], splitters:[], switches:[], dimCityPlans:{} };
+  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0 }, nodeTypes:[], splitterTypes:[], switchTypes:[], panelTypes:[], rackTypes:[], nodes:[], splitters:[], switches:[], dimCityPlans:{} };
   if(!net || typeof net !== 'object') return base;
 
   const nodeTypes = Array.isArray(net.nodeTypes) ? net.nodeTypes.slice() : [];
@@ -1656,6 +1656,8 @@ function normalizeNetworkDevices(net){
     nodeTypes,
     splitterTypes,
     switchTypes: Array.isArray(net.switchTypes) ? net.switchTypes : [],
+    panelTypes: Array.isArray(net.panelTypes) ? net.panelTypes : [],
+    rackTypes: Array.isArray(net.rackTypes) ? net.rackTypes : [],
     nodes: Array.isArray(net.nodes) ? net.nodes : [],
     splitters: Array.isArray(net.splitters) ? net.splitters : [],
     switches: Array.isArray(net.switches) ? net.switches : [],
@@ -1750,11 +1752,6 @@ function ipWithLastOctet(ip, last){
 function segmentFromDim(dc){
   const d = dimNumber(dc);
   return d || 1;
-}
-function normalizeTypeId(prefix, value, list){
-  const v = String(value || '').trim();
-  if(v) return v;
-  return nextTypedId(prefix, list || []);
 }
 function rowsForDimUniverse(dc, uni){
   const s = String(uni);
@@ -1892,17 +1889,6 @@ function setAllInline(dc, open){
   MODEL.ui.dimInline[dc] = { lks:{}, veams:{} };
   for(const lk of [...MODEL.byLK.values()].filter(x=>x.dimcity===dc)) MODEL.ui.dimInline[dc].lks[lk.id] = !!open;
   for(const ve of [...MODEL.byVeam.values()].filter(x=>x.dimcity===dc)) MODEL.ui.dimInline[dc].veams[ve.id] = !!open;
-}
-function renderNodeTypeFace(nodeType, assigned=[]){
-  const ports = Number(nodeType.portCount || 0);
-  const color = safeHex(nodeType.color || '#4ea8ff');
-  let html = '';
-  for(let i=1;i<=ports;i++){
-    const u = assigned[i-1];
-    const label = u != null && u !== '' ? `UNI ${u}` : String(i);
-    html += devicePortHtml(label, `Port ${i}${u != null && u !== '' ? ` • Universe ${u}` : ''}`);
-  }
-  return `<div class="device-face compact" style="--device-color:${color}"><div class="device-face-title"><b>${esc(nodeType.brand || 'DMX Node')} ${esc(nodeType.name || nodeType.id || '')}</b><span>${ports} universe ports</span></div><div class="device-ports">${html}</div></div>`;
 }
 function renderNodeInstanceFace(nodeType, inst, nodeIndex, dc){
   const ports = Number(nodeType.portCount || 0);
@@ -2132,274 +2118,6 @@ function bindDimNetworkDevices(root, dc, rerender){
     });
   });
 }
-function downloadNetworkLibrary(kind){
-  MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
-  const isNode = kind === 'node';
-  const payload = {
-    fileType: isNode ? 'dimcity-node-types' : 'dimcity-splitter-types',
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    items: isNode ? MODEL.networkDevices.nodeTypes : MODEL.networkDevices.splitterTypes
-  };
-  const name = isNode ? 'dimcity-node-types.json' : 'dimcity-splitter-types.json';
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
-}
-function importNetworkLibrary(kind, onDone){
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json,application/json';
-  input.onchange = ()=>{
-    const f = input.files?.[0];
-    if(!f) return;
-    const rd = new FileReader();
-    rd.onload = ()=>{
-      try{
-        const data = JSON.parse(rd.result);
-        const items = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : []);
-        MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
-        const key = kind === 'node' ? 'nodeTypes' : 'splitterTypes';
-        let added = 0, updated = 0;
-        for(const item of items){
-          if(!item || typeof item !== 'object') continue;
-          const id = String(item.id || '').trim();
-          if(!id) continue;
-          const list = MODEL.networkDevices[key];
-          const idx = list.findIndex(x=>x.id === id);
-          if(idx >= 0){ list[idx] = {...list[idx], ...item}; updated++; }
-          else { list.push(item); added++; }
-        }
-        MODEL.ui.dirty = true;
-        alert(`Library imported. Added: ${added}. Updated: ${updated}.`);
-        onDone?.();
-      }catch(err){
-        alert('Could not import library: ' + err.message);
-      }
-    };
-    rd.readAsText(f);
-  };
-  input.click();
-}
-
-// ===== Node Type Builder =====
-function showNodeTypeBuilder(){
-  MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
-  const bd = document.createElement('div');
-  bd.className = 'modal-backdrop';
-  const modal = document.createElement('div');
-  modal.className = 'modal wide';
-  modal.innerHTML = `
-    <div class="modal-header"><div><h2>Node Type Library</h2><div class="sub">Reusable DMX node types. Actual device IDs and IP addresses are created per DimCity.</div></div><div style="display:flex;gap:8px;align-items:center"><button id="nodeImport">${I('upload',14)}Import</button><button id="nodeExport">${I('download',14)}Export</button><button id="nodeNew" class="primary">${I('plus',14)}New Node Type</button><button id="nodeBuilderClose" class="ghost icon-only" title="Close">${I('x',16)}</button></div></div><div class="modal-body"><div class="builder-layout">
-      <div class="device-card builder-v4-form" id="nodeFormWrap">
-        <h4 id="nodeFormTitle">New node type</h4>
-        <input id="nodeEditId" type="hidden">
-        <div class="device-form">
-          <label>Type key</label><input id="ntId" type="text" value="${nextTypedId('NODE:', MODEL.networkDevices.nodeTypes)}" placeholder="NODE:01">
-          <label>Brand</label><input id="ntBrand" type="text" placeholder="Luminex / ELC / ...">
-          <label>Type</label><input id="ntName" type="text" placeholder="LumiNode 12">
-          <label>Universe ports</label><input id="ntPorts" type="number" min="1" max="64" value="8">
-          <label>Default IP</label><input id="ntIp" class="ipv4" type="text" inputmode="numeric" placeholder="192.168.1.1">
-          <label>Subnet</label><input id="ntSubnet" class="ipv4" type="text" inputmode="numeric" value="255.255.255.0">
-          <label>Color</label><input id="ntColor" type="color" value="#4ea8ff">
-        </div>
-        <div id="nodeTypePreview" style="margin-top:10px"></div>
-        <div class="device-actions">
-          <button id="nodeDelete" class="danger">${I('trash',14)}Delete</button>
-          <button id="nodeSave" class="primary">Save Type</button>
-        </div>
-      </div>
-      <div>
-        <div class="network-list-title">Library</div>
-        <div id="nodeTypeList" class="builder-list"></div>
-      </div>
-    </div></div>`;
-  bd.appendChild(modal);
-  document.body.appendChild(bd);
-  const formWrap = modal.querySelector('#nodeFormWrap');
-  bindIpv4Input(modal.querySelector('#ntIp'), true);
-  bindIpv4Input(modal.querySelector('#ntSubnet'), false);
-  const getForm = () => ({
-    id: normalizeTypeId('NODE:', modal.querySelector('#ntId').value, MODEL.networkDevices.nodeTypes),
-    name: modal.querySelector('#ntName').value.trim(),
-    brand: modal.querySelector('#ntBrand').value.trim(),
-    portCount: Math.max(1, Number(modal.querySelector('#ntPorts').value || 1)),
-    defaultIp: modal.querySelector('#ntIp').value.trim(),
-    subnet: modal.querySelector('#ntSubnet').value.trim() || '255.255.255.0',
-    color: safeHex(modal.querySelector('#ntColor').value, '#4ea8ff')
-  });
-  const setForm = (nt=null)=>{
-    formWrap.classList.add('open');
-    modal.querySelector('#nodeEditId').value = nt?.id || '';
-    modal.querySelector('#nodeFormTitle').textContent = nt ? `Edit: ${nt.brand || ''} ${nt.name || nt.id}` : 'New node type';
-    modal.querySelector('#ntId').value = nt?.id || nextTypedId('NODE:', MODEL.networkDevices.nodeTypes);
-    modal.querySelector('#ntName').value = nt?.name || '';
-    modal.querySelector('#ntBrand').value = nt?.brand || '';
-    modal.querySelector('#ntPorts').value = nt?.portCount || 8;
-    modal.querySelector('#ntIp').value = nt?.defaultIp || '';
-    modal.querySelector('#ntSubnet').value = nt?.subnet || '255.255.255.0';
-    modal.querySelector('#ntColor').value = safeHex(nt?.color || '#4ea8ff', '#4ea8ff');
-    redraw(nt?.id || '');
-  };
-  const redraw = (selectedId='')=>{
-    MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
-    modal.querySelector('#nodeTypePreview').innerHTML = renderNodeTypeFace(getForm());
-    modal.querySelector('#nodeTypeList').innerHTML = MODEL.networkDevices.nodeTypes.length ? MODEL.networkDevices.nodeTypes.map(nt=>`
-      <div class="builder-type-card ${selectedId===nt.id?'selected':''}" data-id="${esc(nt.id)}" style="--device-color:${safeHex(nt.color || '#4ea8ff')}">
-        <h4>${colorChip(nt.color || '#4ea8ff')}${esc(nt.brand || 'DMX Node')} ${esc(nt.name || nt.id)}</h4>
-        <div class="muted">Type key: ${esc(nt.id)} • ${Number(nt.portCount || 0)} ports • ${esc(nt.defaultIp || '')} ${esc(nt.subnet || '')}</div>
-        ${renderNodeTypeFace(nt)}
-      </div>`).join('') : '<div class="device-list-empty">No node types yet. Fill in the form and click Save Type.</div>';
-    modal.querySelectorAll('.builder-type-card[data-id]').forEach(card=>card.onclick=()=>{
-      const nt = MODEL.networkDevices.nodeTypes.find(x=>x.id===card.dataset.id);
-      if(nt) setForm(nt);
-    });
-  };
-  modal.querySelector('#nodeBuilderClose').onclick = ()=> bd.remove();
-  bd.addEventListener('mousedown', e=>{ if(e.target===bd) bd.remove(); });
-  ['ntId','ntName','ntBrand','ntPorts','ntIp','ntSubnet','ntColor'].forEach(id=>modal.querySelector('#'+id).addEventListener('input', ()=>redraw(modal.querySelector('#nodeEditId').value)));
-  modal.querySelector('#nodeNew').onclick = ()=> setForm(null);
-  modal.querySelector('#nodeSave').onclick = ()=>{
-    if(!isValidIpv4(modal.querySelector('#ntIp').value, true)){ alert('Default IP must be a valid IPv4 address, for example 192.168.1.1'); return; }
-    if(!isValidIpv4(modal.querySelector('#ntSubnet').value, false)){ alert('Subnet must be a valid IPv4 address, for example 255.255.255.0'); return; }
-    const item = getForm();
-    const oldId = modal.querySelector('#nodeEditId').value;
-    const idx = MODEL.networkDevices.nodeTypes.findIndex(x=>x.id === oldId || x.id === item.id);
-    if(idx >= 0) MODEL.networkDevices.nodeTypes[idx] = item; else MODEL.networkDevices.nodeTypes.push(item);
-    MODEL.ui.dirty = true;
-    setForm(item);
-    toast(`Node type ${item.name || item.id} saved`);
-    renderRight();
-  };
-  modal.querySelector('#nodeDelete').onclick = ()=>{
-    const id = modal.querySelector('#nodeEditId').value || modal.querySelector('#ntId').value.trim();
-    if(!id) return;
-    if(!confirm(`Delete node type ${id}?`)) return;
-    MODEL.networkDevices.nodeTypes = MODEL.networkDevices.nodeTypes.filter(x=>x.id !== id);
-    MODEL.ui.dirty = true;
-    formWrap.classList.remove('open');
-    redraw();
-  };
-  modal.querySelector('#nodeExport').onclick = ()=>downloadNetworkLibrary('node');
-  modal.querySelector('#nodeImport').onclick = ()=>importNetworkLibrary('node', redraw);
-  setForm(MODEL.networkDevices.nodeTypes[0] || null);
-}
-
-// ===== Splitter Type Builder =====
-function showSplitterTypeBuilder(){
-  MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
-  const bd = document.createElement('div');
-  bd.className = 'modal-backdrop';
-  const modal = document.createElement('div');
-  modal.className = 'modal wide';
-  modal.innerHTML = `
-    <div class="modal-header"><div><h2>Splitter Type Library</h2><div class="sub">Reusable DMX splitter types. Actual splitters are created per DimCity.</div></div><div style="display:flex;gap:8px;align-items:center"><button id="splitterImport">${I('upload',14)}Import</button><button id="splitterExport">${I('download',14)}Export</button><button id="splitterNew" class="primary">${I('plus',14)}New Splitter Type</button><button id="splitterBuilderClose" class="ghost icon-only" title="Close">${I('x',16)}</button></div></div><div class="modal-body"><div class="builder-layout">
-      <div class="device-card builder-v4-form" id="splitterFormWrap">
-        <h4 id="splitterFormTitle">New splitter type</h4>
-        <input id="splitterEditId" type="hidden">
-        <div class="device-form">
-          <label>Type key</label><input id="stId" type="text" value="${nextTypedId('SPLIT:', MODEL.networkDevices.splitterTypes)}" placeholder="SPLIT:01">
-          <label>Brand</label><input id="stBrand" type="text" placeholder="Luminex / EOC / ...">
-          <label>Type</label><input id="stName" type="text" placeholder="10 output splitter">
-          <label>Mode</label><select id="stMode"><option value="A">Single input</option><option value="AB">A/B input</option></select>
-          <label>Total outputs</label><input id="stOutputs" type="number" min="1" max="64" value="10">
-          <label>Switching</label><select id="stSwitching"><option value="independent">Every output independent</option><option value="paired">Outputs paired per 2</option></select>
-          <label>Default IP</label><input id="stIp" class="ipv4" type="text" inputmode="numeric" placeholder="optional">
-          <label>Subnet</label><input id="stSubnet" class="ipv4" type="text" inputmode="numeric" placeholder="optional">
-          <label>Color</label><input id="stColor" type="color" value="#FFC107">
-        </div>
-        <div id="splitterTypePreview" style="margin-top:10px"></div>
-        <div class="hint">Single input = one universe feed. A/B input = two universe feeds. Paired switching means 1+2, 3+4, 5+6 etc. follow the same selector group.</div>
-        <div class="device-actions">
-          <button id="splitterDelete" class="danger">${I('trash',14)}Delete</button>
-          <button id="splitterSave" class="primary">Save Type</button>
-        </div>
-      </div>
-      <div>
-        <div class="network-list-title">Library</div>
-        <div id="splitterTypeList" class="builder-list"></div>
-      </div>
-    </div></div>`;
-  bd.appendChild(modal);
-  document.body.appendChild(bd);
-  const formWrap = modal.querySelector('#splitterFormWrap');
-  bindIpv4Input(modal.querySelector('#stIp'), true);
-  bindIpv4Input(modal.querySelector('#stSubnet'), true);
-  const getForm = ()=>({
-    id: normalizeTypeId('SPLIT:', modal.querySelector('#stId').value, MODEL.networkDevices.splitterTypes),
-    name: modal.querySelector('#stName').value.trim(),
-    brand: modal.querySelector('#stBrand').value.trim(),
-    mode: modal.querySelector('#stMode').value,
-    inputs: modal.querySelector('#stMode').value === 'AB' ? 2 : 1,
-    outputCount: Math.max(1, Number(modal.querySelector('#stOutputs').value || 1)),
-    switching: modal.querySelector('#stSwitching').value,
-    pairSize: 2,
-    defaultIp: modal.querySelector('#stIp').value.trim(),
-    subnet: modal.querySelector('#stSubnet').value.trim(),
-    color: safeHex(modal.querySelector('#stColor').value, '#FFC107')
-  });
-  const setForm = (sp=null)=>{
-    formWrap.classList.add('open');
-    modal.querySelector('#splitterEditId').value = sp?.id || '';
-    modal.querySelector('#splitterFormTitle').textContent = sp ? `Edit: ${sp.brand || ''} ${sp.name || sp.id}` : 'New splitter type';
-    modal.querySelector('#stId').value = sp?.id || nextTypedId('SPLIT:', MODEL.networkDevices.splitterTypes);
-    modal.querySelector('#stName').value = sp?.name || '';
-    modal.querySelector('#stBrand').value = sp?.brand || '';
-    modal.querySelector('#stMode').value = sp?.mode || 'A';
-    modal.querySelector('#stOutputs').value = sp?.outputCount || 10;
-    modal.querySelector('#stSwitching').value = sp?.switching || 'independent';
-    modal.querySelector('#stIp').value = sp?.defaultIp || '';
-    modal.querySelector('#stSubnet').value = sp?.subnet || '';
-    modal.querySelector('#stColor').value = safeHex(sp?.color || '#FFC107', '#FFC107');
-    redraw(sp?.id || '');
-  };
-  const redraw = (selectedId='')=>{
-    MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
-    const current = getForm();
-    modal.querySelector('#splitterTypePreview').innerHTML = renderSplitterTypeFace(current);
-    modal.querySelector('#splitterTypeList').innerHTML = MODEL.networkDevices.splitterTypes.length ? MODEL.networkDevices.splitterTypes.map(sp=>`
-      <div class="builder-type-card ${selectedId===sp.id?'selected':''}" data-id="${esc(sp.id)}" style="--device-color:${safeHex(sp.color || '#FFC107')}">
-        <h4>${colorChip(sp.color || '#FFC107')}${esc(sp.brand || 'Splitter')} ${esc(sp.name || sp.id)}</h4>
-        <div class="muted">Type key: ${esc(sp.id)} • ${sp.mode==='AB'?'A/B':'Single'} • ${Number(sp.outputCount||0)} outputs • ${sp.switching==='paired'?'paired':'independent'}</div>
-        ${renderSplitterTypeFace(sp)}
-      </div>`).join('') : '<div class="device-list-empty">No splitter types yet. Fill in the form and click Save Type.</div>';
-    modal.querySelectorAll('.builder-type-card[data-id]').forEach(card=>card.onclick=()=>{
-      const sp = MODEL.networkDevices.splitterTypes.find(x=>x.id===card.dataset.id);
-      if(sp) setForm(sp);
-    });
-  };
-  modal.querySelector('#splitterBuilderClose').onclick = ()=> bd.remove();
-  bd.addEventListener('mousedown', e=>{ if(e.target===bd) bd.remove(); });
-  ['stId','stName','stBrand','stMode','stOutputs','stSwitching','stIp','stSubnet','stColor'].forEach(id=>modal.querySelector('#'+id).addEventListener('input', ()=>redraw(modal.querySelector('#splitterEditId').value)));
-  modal.querySelector('#splitterNew').onclick = ()=> setForm(null);
-  modal.querySelector('#splitterSave').onclick = ()=>{
-    if(!isValidIpv4(modal.querySelector('#stIp').value, true)){ alert('Default IP must be a valid IPv4 address, for example 192.168.1.1'); return; }
-    if(!isValidIpv4(modal.querySelector('#stSubnet').value, true)){ alert('Subnet must be a valid IPv4 address, for example 255.255.255.0'); return; }
-    const item = getForm();
-    const oldId = modal.querySelector('#splitterEditId').value;
-    const idx = MODEL.networkDevices.splitterTypes.findIndex(x=>x.id === oldId || x.id === item.id);
-    if(idx >= 0) MODEL.networkDevices.splitterTypes[idx] = item; else MODEL.networkDevices.splitterTypes.push(item);
-    MODEL.ui.dirty = true;
-    setForm(item);
-    toast(`Splitter type ${item.name || item.id} saved`);
-    renderRight();
-  };
-  modal.querySelector('#splitterDelete').onclick = ()=>{
-    const id = modal.querySelector('#splitterEditId').value || modal.querySelector('#stId').value.trim();
-    if(!id) return;
-    if(!confirm(`Delete splitter type ${id}?`)) return;
-    MODEL.networkDevices.splitterTypes = MODEL.networkDevices.splitterTypes.filter(x=>x.id !== id);
-    MODEL.ui.dirty = true;
-    formWrap.classList.remove('open');
-    redraw();
-  };
-  modal.querySelector('#splitterExport').onclick = ()=>downloadNetworkLibrary('splitter');
-  modal.querySelector('#splitterImport').onclick = ()=>importNetworkLibrary('splitter', redraw);
-  setForm(MODEL.networkDevices.splitterTypes[0] || null);
-}
-
 window.LKApp = {
   getMODEL: ()=> MODEL,
   setMODEL: (m)=> { MODEL = m; },
@@ -2436,6 +2154,9 @@ window.LKApp = {
   // UI helpers
   ui: { toast, openDialog, confirmDialog, showMenu, icon: I },
 
+  // network device helpers (Device Builder / Library)
+  net: { normalizeNetworkDevices, nextTypedId, safeHex, isValidIpv4, bindIpv4Input, esc },
+
   // DOM helpers
   $,el
 };
@@ -2458,8 +2179,11 @@ async function runCommand(cmd, arg){
     case 'exportPdf':     return window.PdfExport?.open?.();
     case 'addLK':         return showToolsModal('LK');
     case 'addVeam':       return showToolsModal('VEAM');
-    case 'nodeBuilder':   return showNodeTypeBuilder();
-    case 'splitterBuilder': return showSplitterTypeBuilder();
+    case 'deviceBuilder':   return window.DeviceBuilder?.open?.(arg);
+    case 'nodeBuilder':     return window.DeviceBuilder?.open?.('node');
+    case 'splitterBuilder': return window.DeviceBuilder?.open?.('splitter');
+    case 'libraryExport':   return window.Library?.exportFile?.();
+    case 'libraryImport':   return window.Library?.importFile?.();
     case 'networkPlanner':  return navigate('NETWORK');
     case 'projectInfo':   return UI?.editProjectInfo?.();
     case 'rebuild':

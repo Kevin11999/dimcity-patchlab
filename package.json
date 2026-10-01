@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "start": "electron .",
-    "check": "node --check main.js && node --check preload.cjs && node --check renderer.js && node --check project-io.js && node --check csv-editor.js && node --check export-pdf.js && node --check ui/welcome.js && node --check ui/icons.js",
+    "check": "node --check main.js && node --check preload.cjs && node --check renderer.js && node --check project-io.js && node --check csv-editor.js && node --check export-pdf.js && node --check ui/welcome.js && node --check ui/icons.js && node --check core/library.js && node --check ui/device-builder.js",
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",

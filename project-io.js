@@ -49,6 +49,8 @@
       nodeTypes: [],
       splitterTypes: [],
       switchTypes: [],
+      panelTypes: [],
+      rackTypes: [],
       nodes: [],
       splitters: [],
       switches: [],
@@ -75,6 +77,8 @@
       nodeTypes: Array.isArray(net.nodeTypes) ? net.nodeTypes : [],
       splitterTypes: Array.isArray(net.splitterTypes) ? net.splitterTypes : [],
       switchTypes: Array.isArray(net.switchTypes) ? net.switchTypes : [],
+      panelTypes: Array.isArray(net.panelTypes) ? net.panelTypes : [],
+      rackTypes: Array.isArray(net.rackTypes) ? net.rackTypes : [],
       nodes: Array.isArray(net.nodes) ? net.nodes : [],
       splitters: Array.isArray(net.splitters) ? net.splitters : [],
       switches: Array.isArray(net.switches) ? net.switches : [],
@@ -143,7 +147,8 @@
       dimColors: M.dimColors && typeof M.dimColors === 'object' ? M.dimColors : {},
       networkDevices: normalizeNetworkDevices(M.networkDevices),
       pdfSettings: defaultPdfSettings(M.pdfSettings || {}),
-      pdfTemplates: Array.isArray(M.pdfTemplates) ? M.pdfTemplates : []
+      pdfTemplates: Array.isArray(M.pdfTemplates) ? M.pdfTemplates : [],
+      libraryDismissed: Array.isArray(M.libraryDismissed) ? M.libraryDismissed : []
     };
   }
 
@@ -211,6 +216,7 @@
     M.networkDevices = normalizeNetworkDevices(snap.networkDevices || M.networkDevices);
     M.pdfSettings = defaultPdfSettings(snap.pdfSettings || M.pdfSettings || {});
     M.pdfTemplates = Array.isArray(snap.pdfTemplates) ? snap.pdfTemplates : [];
+    M.libraryDismissed = Array.isArray(snap.libraryDismissed) ? snap.libraryDismissed : [];
 
     if (snap.lkBlockType){
       for (const [id, bt] of Object.entries(snap.lkBlockType)){
@@ -326,6 +332,8 @@
     await window.app?.recentAdd?.(M.filePath, projectName(M, path));
     App.navigate?.('HOME');
     notify(`Opened ${fileName(path)}`);
+    // Devices/racks/templates uit de show die nog niet in de eigen bibliotheek staan aanbieden
+    await window.Library?.reviewProject?.(M);
     return true;
   }
 
@@ -387,6 +395,7 @@
       networkDevices: normalizeNetworkDevices(null),
       pdfSettings: defaultPdfSettings(),
       pdfTemplates: [],
+      libraryDismissed: [],
       issues: [],
       byDim: new Map(),
       byLK: new Map(),
@@ -412,7 +421,9 @@
   }
 
   function emptyModel(){
-    App.setMODEL(freshModel());
+    const M = freshModel();
+    window.Library?.fillProject?.(M);   // nieuw project start met alle devices uit de bibliotheek
+    App.setMODEL(M);
     App.renderAll?.();
     const fi = document.getElementById('fileInfo');
     if (fi) fi.textContent = '';

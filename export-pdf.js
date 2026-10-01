@@ -516,10 +516,13 @@
       if(!Array.isArray(M.pdfTemplates)) M.pdfTemplates = [];
       const existing = M.pdfTemplates.find(t => t.name.toLowerCase() === name.toLowerCase());
       const layout = clone(B.L); layout.scope = 'ALL'; layout.dims = [];
-      if(existing) existing.layout = layout; else M.pdfTemplates.push({ id:`tpl_${Date.now().toString(36)}`, name, layout });
+      const tpl = existing || { id:`tpl_${Date.now().toString(36)}`, name };
+      tpl.layout = layout;
+      if(!existing) M.pdfTemplates.push(tpl);
+      window.Library?.put?.('pdfTemplates', tpl);
       if(M.ui) M.ui.dirty = true;
       d.close(); renderTemplates();
-      ui.toast(`Template “${name}” saved in this project`);
+      ui.toast(`Template “${name}” saved in this project and your library`);
     };
     d.footer.querySelector('[data-a=c]').onclick = d.close;
     d.footer.querySelector('[data-a=s]').onclick = save;
@@ -530,9 +533,9 @@
     const draw = d => {
       const tpls = M.pdfTemplates || [];
       d.body.innerHTML = tpls.length ? `<div class="table-wrap"><table class="data-table"><tbody>${tpls.map(t=>`<tr><td>${esc(t.name)}</td><td class="num"><button class="sm danger" data-del="${esc(t.id)}">${I('trash',13)}Delete</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty"><p>No templates left.</p></div>';
-      d.body.querySelectorAll('[data-del]').forEach(b => b.onclick = ()=>{ M.pdfTemplates = tpls.filter(t => t.id !== b.dataset.del); if(M.ui) M.ui.dirty = true; draw(d); renderTemplates(); });
+      d.body.querySelectorAll('[data-del]').forEach(b => b.onclick = ()=>{ M.pdfTemplates = tpls.filter(t => t.id !== b.dataset.del); window.Library?.del?.('pdfTemplates', b.dataset.del); if(M.ui) M.ui.dirty = true; draw(d); renderTemplates(); });
     };
-    const d = ui.openDialog({ title:'Templates', width:'440px', body:'', footer:'<button class="primary" data-a="ok">Done</button>' });
+    const d = ui.openDialog({ title:'Templates', subtitle:'Deleting removes the template from this project and your library.', width:'440px', body:'', footer:'<button class="primary" data-a="ok">Done</button>' });
     d.footer.querySelector('[data-a=ok]').onclick = d.close;
     draw(d); renderTemplates();
   }

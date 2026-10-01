@@ -13,6 +13,10 @@ contextBridge.exposeInMainWorld('app', {
   appInfo: () => ipcRenderer.invoke('appInfo'),
   ping: () => ipcRenderer.invoke('ping'),
 
+  // Personal device library (userData/library.lklib)
+  libraryRead: () => ipcRenderer.invoke('libraryRead'),
+  libraryWrite: (content) => ipcRenderer.invoke('libraryWrite', content),
+
   // Recent projects
   recentList: () => ipcRenderer.invoke('recentList'),
   recentAdd: (filePath, name) => ipcRenderer.invoke('recentAdd', { filePath, name }),

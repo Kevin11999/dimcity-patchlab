@@ -22,6 +22,7 @@
     summary:   { title:'DimCity header & key figures', icon:'layout',   desc:'DimCity name, project line and totals.' },
     network:   { title:'Network / DMX nodes',          icon:'network',  desc:'Planned nodes with IP and universe per port.' },
     splitters: { title:'Splitters',                    icon:'cable',    desc:'Splitters with input feed and output map.' },
+    racks:     { title:'Racks',                        icon:'rack',     desc:'Racks with sockets, node colours and patch table.' },
     patch:     { title:'LK / Veam patch',              icon:'box',      desc:'Every LK block as a port grid, grouped per Veam.' },
     universes: { title:'Universe overview',            icon:'universe', desc:'Patch points per universe (LK / Veam / DMX).' },
     patchlist: { title:'Patch list table',             icon:'table',    desc:'All rows of this DimCity sorted by universe.' },
@@ -32,6 +33,7 @@
     network:   [['universeTable','Include universe overview table', true], ['switches','Show switches placeholder', false]],
     patch:     [['standaloneVeams','Include Veams that are not linked to an LK', true], ['location','Show location per port', true], ['source','Show source (LK / Veam) per port', false], ['groupColors','Tint Veam groups A / B / C', true]],
     patchlist: [['dmx','Include loose DMX', true]],
+    racks:     [['drawing','Rack drawing', true], ['table','Patch table (node port → LK / Veam)', true], ['advice','Recommendations', true]],
     warnings:  [['projectWide','Include project-wide issues', true]]
   };
 
@@ -47,7 +49,7 @@
       cover: { show:true, title:'', subtitle:'{area} · {location}', showLogo:true, logoX:1, logoY:0, logoW:60, fields:{ area:true, location:true, date:true, prepared:true, dimcities:true, totals:true }, note:'', summaryPage:true },
       sections: [
         { key:'summary', on:true }, { key:'network', on:true, opts:{ universeTable:true, switches:false } },
-        { key:'splitters', on:true }, { key:'patch', on:true, opts:{ standaloneVeams:true, location:true, source:false, groupColors:true } },
+        { key:'splitters', on:true }, { key:'racks', on:true, opts:{ drawing:true, table:true, advice:true } }, { key:'patch', on:true, opts:{ standaloneVeams:true, location:true, source:false, groupColors:true } },
         { key:'universes', on:false }, { key:'patchlist', on:false, opts:{ dmx:true } },
         { key:'warnings', on:true, opts:{ projectWide:true } }, { key:'notes', on:false, opts:{ text:'' } }
       ]
@@ -281,7 +283,16 @@
       .tag.red{background:#fee2e2;color:#b91c1c}.tag.yellow{background:#fef3c7;color:#b45309}.tag.green{background:#dcfce7;color:#15803d}
       .dot{display:inline-block;width:2mm;height:2mm;border-radius:50%;margin-right:1.2mm;vertical-align:middle}
       .notes{white-space:pre-line;border-left:1mm solid ${acc};padding:2mm 4mm;background:#f8fafc}
-      .small{font-size:${fs*.8}px;color:#64748b}`;
+      .small{font-size:${fs*.8}px;color:#64748b}
+      .rk-tbl td{vertical-align:middle}
+      .rk-u{width:12mm;color:#64748b;font-weight:700}
+      .rk-ports{line-height:1.9}
+      .rk-p{display:inline-block;min-width:6mm;text-align:center;padding:0 1.2mm;margin:0 .6mm .4mm 0;border-radius:3mm;border:.45mm solid var(--c,#94a3b8);font-size:${fs*.78}px;font-weight:700;color:#0f172a;background:color-mix(in srgb,var(--c,#94a3b8) 12%,#fff)}
+      .rk-p.free{border-style:dashed;color:#94a3b8;background:#fff;font-weight:500}
+      .rk-tag{display:inline-block;padding:0 1.4mm;margin-right:1.5mm;border-radius:1mm;background:var(--c,#e2e8f0);color:#0f172a;font-size:${fs*.8}px}
+      .rk-advice{display:flex;flex-direction:column;gap:1mm;margin-bottom:${gap}mm}
+      .rk-advice div{padding:1.2mm 2.5mm;border-radius:1mm;background:#f1f5f9;font-size:${fs*.9}px}
+      .rk-advice .warn{background:#fef3c7;color:#92400e}.rk-advice .ok{background:#dcfce7;color:#166534}`;
   }
 
 
@@ -345,6 +356,7 @@
       switch(s.key){
         case 'network':   return wrap('network', buildNetwork(M, dc, L, n, o));
         case 'splitters': return wrap('splitters', buildSplitters(M, dc, L, n));
+        case 'racks':     { const h = buildRacks(M, dc, L, n, o); if(!h) n--; return wrap('racks', h); }
         case 'patch':     return wrap('patch', buildPatch(M, dc, L, n, o));
         case 'universes': return wrap('universes', buildUniverses(M, dc, L, n));
         case 'patchlist': return wrap('patchlist', buildPatchList(M, dc, L, n, o));
@@ -393,6 +405,39 @@
       return `<div class="card"><div class="card-h"><span>${esc(inst.id || 'Splitter')}</span><small>${esc([t.brand, t.name].filter(Boolean).join(' '))} · ${t.mode==='AB'?'A/B':'Single'}${feed?' · feed '+esc(feed):''}</small></div><div class="card-b"><div class="ports p8">${ports}</div></div></div>`;
     }).join('')}</div>` : '<div class="placeholder">No splitters planned for this DimCity.</div>';
     return `<div class="section">${h3(n, 'Splitters', `${sps.length} splitter${sps.length===1?'':'s'}`)}${body}</div>`;
+  }
+  // Racks: lichte, printbare weergave van de rack-patch (core/rack-engine.js)
+  function buildRacks(M, dc, L, n, o={}){
+    const E = window.RackEngine;
+    if(!E || !E.placedRacks(M, dc).length) return '';
+    const P = E.computeRackPlan(M, dc);
+    const owners = E.ownerColors(P);
+    const find = (key, id) => (M.networkDevices?.[key] || []).find(x => x.id === id);
+    const chip = (label, color, free) => `<span class="rk-p ${free?'free':''}" style="${color?`--c:${color}`:''}">${esc(label)}</span>`;
+    const drawing = o.drawing === false ? '' : P.racks.map((R, ri) => {
+      if(!R.rack) return '';
+      const nodes = new Map(P.nodes.filter(x => x.rack === ri).map(x => [x.iid, x]));
+      const splits = new Map(P.splitters.filter(x => x.rack === ri).map(x => [x.iid, x]));
+      const rows = (R.rack.items || []).slice().sort((a, b) => a.u - b.u).map(it => {
+        const key = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes', panel:'panelTypes' }[it.kind];
+        const t = find(key, it.typeId); if(!t) return '';
+        let ports = '', tag = '';
+        if(it.kind === 'node'){ const x = nodes.get(it.iid); tag = x ? `<b class="rk-tag" style="--c:${x.color}">${x.label}</b>` : ''; ports = (x?.ports || []).map((p, i) => chip(p ? `U${p.universe}` : String(i + 1), x.color, !p)).join(''); }
+        else if(it.kind === 'splitter'){ const x = splits.get(it.iid); tag = x ? `<b class="rk-tag">${x.label}</b>` : ''; ports = (x?.inputs.length ? x.inputs.map(u => chip(`in U${u}`, x.feedColor)).join('') : chip('not used', null, true)) + ' ' + (x?.outputs || []).map((l, i) => chip(l ? l.label.replace(' · ', ':') : String(i + 1), l?.feed?.color, !l)).join(''); }
+        else if(it.kind === 'panel'){
+          ports = P.groups.filter(g => g.iid === it.iid && g.rack === ri).map(g => chip(g.lk ? g.lk.id : `${g.label} free`, g.lk ? owners.get(g.lk.id) : null, !g.lk) + g.vims.map(v => chip(v.used ? v.used.id : v.label, v.used ? owners.get(v.used.id) : null, !v.used)).join('')).join(' ')
+            + P.soloVims.filter(v => v.iid === it.iid && v.rack === ri).map(v => chip(v.used ? v.used.id : v.label, v.used ? owners.get(v.used.id) : null, !v.used)).join('');
+        }
+        const hu = Math.max(1, Number(t.heightU) || 1);
+        return `<tr><td class="num rk-u">${R.rack.heightU - it.u + 1}${hu > 1 ? `–${R.rack.heightU - it.u - hu + 2}` : ''}</td><td>${tag}${esc([t.brand, t.name].filter(Boolean).join(' ') || t.id)}</td><td class="rk-ports">${ports}</td></tr>`;
+      }).join('');
+      return `<div class="card"><div class="card-h"><span>${esc(R.placement.name || R.rack.name || R.rack.id)}</span><small>${R.rack.heightU}U</small></div><table class="rk-tbl"><thead><tr><th class="num">U</th><th>Device</th><th>Patch</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    }).join('');
+    const advice = o.advice === false ? '' : `<div class="rk-advice">${P.recs.map(r => `<div class="${r.level}">${esc(r.text)}</div>`).join('')}</div>`;
+    const lines = P.lines.slice().sort((a, b) => String(a.feed?.node || '~').localeCompare(String(b.feed?.node || '~'), undefined, { numeric:true }) || (a.feed?.port || 0) - (b.feed?.port || 0));
+    const table = o.table === false ? '' : `<table><thead><tr><th>Node port</th><th class="num">Universe</th><th>Via</th><th>Socket</th><th>LK / Veam port</th><th>Location</th></tr></thead><tbody>${lines.map(l => `<tr><td>${l.feed ? `<span class="dot" style="background:${l.feed.color}"></span><b>${esc(l.feed.node)}</b> · ${l.feed.port}` : '<span class="tag red">no port</span>'}</td><td class="num">U${l.universe}</td><td>${l.feed?.splitter ? `${esc(l.feed.splitter)} · out ${l.feed.out}` : 'direct'}</td><td>${esc(l.socket)}</td><td>${esc(l.label)}</td><td>${esc(l.dest)}</td></tr>`).join('')}</tbody></table>`;
+    const st = P.stats;
+    return `<div class="section">${h3(n, 'Racks', `${st.lkUsed}/${st.lkSockets} LK7-1 · ${st.vimUsed}/${st.vimSockets} VIM4 · ${st.nodePortsUsed}/${st.nodePorts} node ports`)}${advice}${drawing}${table}</div>`;
   }
   function portHtml(m, nr, L, o){
     const u = m.universe;

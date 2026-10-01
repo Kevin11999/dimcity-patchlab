@@ -779,3 +779,32 @@ kbd{font:500 10.5px var(--font);color:var(--text-3);border:1px solid var(--borde
 .search-empty{padding:28px;text-align:center;color:var(--text-3)}
 .search-foot{display:flex;gap:16px;padding:8px 14px;border-top:1px solid var(--border);font-size:11px;color:var(--text-3)}
 .search-foot kbd{margin-right:3px}
+
+/* ---------- Racks per DimCity ---------- */
+.rp-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px}
+.rp-stat{border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;background:var(--surface-2);display:flex;flex-direction:column}
+.rp-stat span{font-size:11px;color:var(--text-3)}
+.rp-stat b{font-size:18px}
+.rp-stat b em{font-style:normal;font-size:12px;color:var(--text-3);font-weight:500;margin-left:2px}
+.rp-stat.warn{border-color:rgba(242,179,61,.5);background:var(--yellow-soft)}
+.rp-recs{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.rp-recs li{display:flex;gap:8px;align-items:flex-start;padding:8px 12px;border-radius:var(--radius);font-size:12.5px;line-height:1.45;background:var(--surface-2)}
+.rp-recs li.warn{background:var(--yellow-soft)}.rp-recs li.warn .ico{color:var(--yellow)}
+.rp-recs li.ok .ico{color:var(--green)}
+.rp-recs li.info .ico{color:var(--blue)}
+.rp-legend{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:12px;font-size:12px}
+.rp-owner{display:inline-flex;align-items:center;gap:5px;padding:2px 8px 2px 6px;border-radius:20px;border:1px solid color-mix(in srgb,var(--c) 45%,var(--border));background:color-mix(in srgb,var(--c) 10%,transparent)}
+.rp-owner i{width:8px;height:8px;border-radius:50%;background:var(--c)}
+.rp-owner em{font-style:normal;color:var(--text-3);font-size:11px}
+.rp-racks{display:flex;flex-direction:column;gap:14px;margin-top:14px}
+.rp-rack-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.rp-rack-head .rp-name{margin-left:auto;width:220px;height:28px}
+.rk-canvas.compact{padding:12px 0}
+.rk-item.static{cursor:default}
+.rp.free{opacity:.45;border-style:dashed}
+.rk-badge{display:inline-block;font-size:10px;font-weight:700;padding:0 5px;border-radius:4px;margin-right:5px;background:var(--c,var(--surface-3));color:#0b0d10;line-height:15px}
+.rp-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--c);margin-right:6px;vertical-align:middle}
+.rp-table{margin-top:14px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.rp-table summary{cursor:pointer;padding:10px 12px;display:flex;align-items:center;gap:8px;background:var(--surface-2)}
+.rp-table .table-wrap{max-height:420px;overflow:auto}
+@media (max-width:1100px){.rp-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}

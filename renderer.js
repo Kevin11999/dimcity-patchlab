@@ -1471,6 +1471,7 @@ function renderDimCityDetail(dc){
     ${card({ key:`${dc}:lk`, title:'LK blocks', icon:'box', meta:plural(lks.length,'block'), actions: lks.length ? `<button class="sm ghost" id="dimToggleAll">${anyOpen?'Collapse all':'Expand all'}</button>` : '', body:`<div class="hint" style="margin:-4px 0 10px">Click a block to edit its block type and Veam links.</div><div class="lk-card-grid">${lkCards}</div>` })}
     ${card({ key:`${dc}:veam`, title:'Veams', icon:'plug', meta:`${linked}/${veams.length} linked`, body:`<div class="lk-card-grid veams">${veamCards}</div>` })}
     ${dmx.length ? card({ key:`${dc}:dmx`, title:'Loose DMX', icon:'cable', meta:plural(dmx.length,'line'), body:dmxBody, flush:true }) : ''}
+    ${window.RackPlan?.cardHtml?.(dc) || ''}
     ${renderDimNetworkDevices(dc)}
     ${card({ key:`${dc}:rows`, title:'Patch rows', icon:'table', meta:plural(rows.length,'row'), body:rowsBody, flush:true, collapsed:true })}
   </div>`;
@@ -1495,6 +1496,7 @@ function renderDimCityDetail(dc){
   if(tAll) tAll.onclick = ()=>{ setAllInline(dc, !anyOpen); rerender(); };
   bindLkControls(root, rerender);
   bindDimNetworkDevices(root, dc, rerender);
+  window.RackPlan?.bind?.(root, dc, rerender);
 }
 function openDimColorPicker(anchor, dc){
   document.querySelectorAll('.popover-menu').forEach(m=>m.remove());
@@ -2191,13 +2193,13 @@ window.LKApp = {
   sortedDims,
 
   // UI helpers
-  ui: { toast, openDialog, confirmDialog, showMenu, icon: I },
+  ui: { toast, openDialog, confirmDialog, showMenu, icon: I, card, plural },
 
   applyBlockType,
   currentRows,
 
   // network device helpers (Device Builder / Library)
-  net: { normalizeNetworkDevices, nextTypedId, safeHex, isValidIpv4, bindIpv4Input, esc },
+  net: { normalizeNetworkDevices, nextTypedId, safeHex, isValidIpv4, bindIpv4Input, esc, getDimPlan, createNodeInstance, createSplitterInstance, refreshDimDeviceIdentity },
 
   // DOM helpers
   $,el

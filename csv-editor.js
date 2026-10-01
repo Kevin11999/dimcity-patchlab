@@ -114,7 +114,7 @@ function renderToolbar(container){
 
   const bAddLK  = el('button', null, `${ic('plus')}LK row`);
   const bAddV   = el('button', null, `${ic('plus')}Veam row`);
-  const bAddDMX = el('button', null, `${ic('plus')}Loose DMX row`);
+  const bAddDMX = el('button', null, `${ic('plus')}Loose DMX Line`);
   const search  = el('input'); search.type = 'search'; search.placeholder = 'Filter rows…'; search.style.width = '220px';
   const bRevert = el('button', 'ghost right', `${ic('refresh')}Reset to imported`);
 

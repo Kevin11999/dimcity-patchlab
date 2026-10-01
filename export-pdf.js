@@ -566,7 +566,7 @@
       return `<div class="rb-sec ${s.on?'':'off'} ${open?'open':''} ${B.selSec===s.key?'sel':''}" draggable="true" data-key="${s.key}">
         <div class="rb-sec-head">
           <span class="grip" title="Drag to reorder">${I('grip',14)}</span>
-          <span class="switch" title="${s.on?'Hide':'Show'} section"><input type="checkbox" data-on="${s.key}" ${s.on?'checked':''}><span></span></span>
+          <label class="switch" title="${s.on?'Hide':'Show'} section"><input type="checkbox" data-on="${s.key}" ${s.on?'checked':''}><span></span></label>
           <div class="rb-sec-title" data-toggle="${s.key}"><b>${I(meta.icon,14)} ${esc(meta.title)}</b><span>${esc(meta.desc)}</span></div>
           <div class="rb-sec-move"><button class="ghost sm icon-only" data-up="${i}" ${i===0?'disabled':''} title="Move up">${I('chevronDown',13).replace('<svg','<svg style="transform:rotate(180deg)"')}</button><button class="ghost sm icon-only" data-down="${i}" ${i===L.sections.length-1?'disabled':''} title="Move down">${I('chevronDown',13)}</button></div>
           ${opts.length || s.key==='notes' ? `<button class="ghost sm icon-only" data-toggle="${s.key}" title="Options">${I(open?'chevronDown':'chevronRight',14)}</button>` : '<span style="width:26px"></span>'}

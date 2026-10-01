@@ -1570,10 +1570,10 @@ function showCsvSourcesModal(){
     ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>File</th><th class="num">Rows</th><th>Imported</th><th>Updated</th><th></th></tr></thead><tbody>${sources.map(src=>`<tr>
         <td>${I('file',14)} <b>${esc(src.name || shortFileName(src.path))}</b><div class="subtle" style="font-size:11.5px">${esc(src.path || '')}</div></td>
         <td class="num">${src.rowCount || (src.rows?.length || 0)}</td><td class="subtle">${fmt(src.importedAt)}</td><td class="subtle">${fmt(src.updatedAt)}</td>
-        <td class="num"><button class="sm csv-replace" data-source-id="${esc(src.id)}">${I('refresh',13)}Replace</button></td></tr>`).join('')}</tbody></table></div>`
+        <td class="num" style="white-space:nowrap"><button class="sm csv-replace" data-source-id="${esc(src.id)}">${I('refresh',13)}Replace</button> <button class="sm danger csv-remove" data-source-id="${esc(src.id)}">${I('trash',13)}Remove</button></td></tr>`).join('')}</tbody></table></div>`
     : `<div class="empty">${I('file',30)}<h3>No CSV files imported</h3><p>Imported files are stored inside the project, so you can replace them when the source changes.</p></div>`;
   const d = openDialog({
-    title:'Imported CSV Files', subtitle:'Use Replace when a source CSV has been updated. Veam links and block types are kept.',
+    title:'Imported Files', subtitle:'Use Replace when a source CSV has been updated, or Remove to drop it from the project. Veam links and block types are kept.',
     width:'860px', body,
     footer:`<button data-act="import">${I('upload',14)}Import Another CSV</button><button class="primary" data-act="close">Done</button>`
   });
@@ -1587,6 +1587,22 @@ function showCsvSourcesModal(){
       if(!ok) return;
       d.close();
       await window.startImportCsv?.({ replaceSourceId:src.id, sourceName:src.name || shortFileName(src.path) });
+    };
+  });
+  d.body.querySelectorAll('.csv-remove').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const src = sources.find(s=>s.id===btn.dataset.sourceId);
+      if(!src) return;
+      const name = src.name || shortFileName(src.path);
+      const ok = await confirmDialog({ title:`Remove ${name}?`, message:`All ${plural(src.rowCount || (src.rows?.length || 0), 'row')} from this file are removed from the project. Manual rows, Veam links and block types are kept.`, okLabel:'Remove File', danger:true });
+      if(!ok) return;
+      MODEL.csvSources = (MODEL.csvSources || []).filter(s=>s.id !== src.id);
+      await rebuildFromCsvSources();
+      MODEL.ui.dirty = true;
+      d.close();
+      renderAll();
+      toast(`${name} removed`);
+      showCsvSourcesModal();
     };
   });
 }

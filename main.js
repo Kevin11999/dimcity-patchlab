@@ -101,7 +101,7 @@ function buildMenu(recent = []){
         { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: () => send('saveAs') },
         { type: 'separator' },
         { label: 'Import CSV…', accelerator: 'CmdOrCtrl+I', click: () => send('importCsv') },
-        { label: 'Imported CSV Files…', click: () => send('csvSources') },
+        { label: 'Imported Files…', click: () => send('csvSources') },
         { type: 'separator' },
         { label: 'Report Builder / Export PDF…', accelerator: 'CmdOrCtrl+P', click: () => send('exportPdf') },
         { type: 'separator' },

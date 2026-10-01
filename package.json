@@ -1,7 +1,7 @@
 {
   "name": "lk-veam-tool",
-  "version": "0.1.0",
-  "description": "DimCity PatchLab \u2013 LK/Veam patch en DimCity universe validator",
+  "version": "0.2.0",
+  "description": "DimCity PatchLab – LK/Veam patch en DimCity universe validator",
   "author": "Kevin van Setten",
   "main": "main.js",
   "type": "module",
@@ -48,8 +48,20 @@
     ],
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["arm64", "x64"] },
-        { "target": "zip", "arch": ["arm64", "x64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
       ],
       "artifactName": "${productName}-${version}-${arch}.${ext}",
       "icon": "assets/dimcity-patchlab.icns"

@@ -6,6 +6,7 @@ Desktop app (macOS, Windows, Linux) that prepares, validates and documents the *
 - **Validate** continuously: duplicate Veam links, universe conflicts, impossible ports, missing data — with Fix buttons.
 - **Patch** LKs and Veams onto racks and loose devices automatically (LK7-1 / Veam4 sockets, node ports, splitters).
 - **Plan the network**: nodes, IP addresses, universes per port, splitters.
+- **See the signal flow**: a drawing of the cabling from the rack (drawn like in the Rack Builder) through LK multicores and Veam cables to every object; hover a universe or a line and the data moves along it; arrange it per DimCity and print it in the report.
 - **Document** everything in the Report Builder: live preview, rack drawings, sections you can place on the sheet, templates, company branding.
 - Standard device library with Luminex and ELC nodes, switches and splitters, updatable from GitHub separately from the app.
 - Demo show, guided tours per subject, progress checklist, English and Dutch interface, light and dark theme, undo / redo, autosave and backups, in-app manual, self-update from GitHub Releases.

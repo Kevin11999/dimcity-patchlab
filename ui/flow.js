@@ -337,7 +337,7 @@ function leadPath(b, key, side){
 // Columns: racks and loose devices → LK blocks, stand-alone Veams, direct DMX → Veams on an LK slot and
 // the objects of XLR ports → the objects of Veams. Each block wants to sit level with the port that feeds
 // it; blocks are stacked in that order without overlapping. Every DimCity is laid out on its own and the
-// DimCities are placed one below the other (left → right) or next to each other (bottom → top).
+// DimCities are placed one below the other.
 function layout(graph, dcs){
   const f = flowState(), dir = f.dir;
   const byId = new Map(graph.blocks.map(b => [b.id, b]));

@@ -208,6 +208,7 @@ function rekeyProject(M, key, oldId, newId){
     if(key === 'nodeTypes'){
       plan.nodeTypeId = swap(plan.nodeTypeId);
       for(const n of (plan.nodes || [])) n.typeId = swap(n.typeId);
+      for(const d of (plan.loose || [])) if(d.kind === 'node') d.typeId = swap(d.typeId);
     }
     if(key === 'splitterTypes'){
       plan.lastSplitterTypeId = swap(plan.lastSplitterTypeId);

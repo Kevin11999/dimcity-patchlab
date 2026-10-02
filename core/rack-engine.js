@@ -22,6 +22,13 @@ export function placedRacks(M, dc){
   const plan = M.networkDevices?.dimCityPlans?.[dc];
   return Array.isArray(plan?.racks) ? plan.racks : [];
 }
+// Losse apparaten zonder rek: { iid, kind:'node'|'lkSpider'|'vimSpider', typeId?, name?, nodeIid? }
+// (nodeIid = de losse node waar een spin bij voorkeur op gepatcht wordt)
+export function looseDevices(M, dc){
+  const plan = M.networkDevices?.dimCityPlans?.[dc];
+  return Array.isArray(plan?.loose) ? plan.loose : [];
+}
+export const hasRackPlan = (M, dc) => placedRacks(M, dc).length > 0 || looseDevices(M, dc).length > 0;
 
 // Alle lijnen (poorten met een universe) van een DimCity, met wat er fysiek op aangesloten moet worden
 function demand(M, dc){
@@ -83,7 +90,22 @@ function resources(M, dc){
       }
     }
   });
-  return { nodes, splitters, groups, soloVims, racks };
+  // Losse apparaten komen na de rekken (rack:-1): een node zonder rek, een losse LK- of VIM4-spin
+  const loose = [];
+  for(const d of looseDevices(M, dc)){
+    if(d.kind === 'node'){
+      const t = find('nodeTypes', d.typeId);
+      if(!t){ loose.push({ ...d, missing:true }); continue; }
+      const n = nodes.length;
+      nodes.push({ rack:-1, loose:true, iid:d.iid, type:t, name:d.name || '', label:`N${n + 1}`, color:NODE_COLORS[n % NODE_COLORS.length], ports:Array.from({ length:Math.max(1, num(t.portCount, 8)) }, () => null) });
+    } else if(d.kind === 'lkSpider'){
+      groups.push({ rack:-1, loose:true, panel:'Loose LK spider', iid:d.iid, nodeIid:d.nodeIid || null, label:`LK${++lkNo}`, vims:[], lk:null });
+    } else if(d.kind === 'vimSpider'){
+      soloVims.push({ rack:-1, loose:true, panel:'Loose VIM4 spider', iid:d.iid, nodeIid:d.nodeIid || null, label:`VIM${++vimNo}`, used:null });
+    }
+    loose.push(d);
+  }
+  return { nodes, splitters, groups, soloVims, racks, loose };
 }
 
 export function computeRackPlan(M, dc){
@@ -92,6 +114,7 @@ export function computeRackPlan(M, dc){
   const recs = [];
   const lines = [];                 // alle te voeden lijnen
   const noSocket = { lk:[], ve:[] };
+  const prefNode = new Map();       // LK/Veam-id -> iid van de losse node waar de spin bij voorkeur op zit
 
   // 1. LK's op LK-aansluitingen
   let gi = 0;
@@ -100,6 +123,7 @@ export function computeRackPlan(M, dc){
     const g = R.groups[gi++];
     if(g){
       g.lk = need;
+      if(g.nodeIid) prefNode.set(need.id, g.nodeIid);
       need.lines.forEach(l => lines.push({ ...l, socket:g.label }));
     } else {
       noSocket.lk.push(need.id);
@@ -115,7 +139,7 @@ export function computeRackPlan(M, dc){
   for(const need of D.veNeeds){
     if(!need.lines.length) continue;
     const v = freeVims[vi++];
-    if(v){ v.used = need; need.lines.forEach(l => lines.push({ ...l, socket:v.label })); }
+    if(v){ v.used = need; if(v.nodeIid) prefNode.set(need.id, v.nodeIid); need.lines.forEach(l => lines.push({ ...l, socket:v.label })); }
     else { noSocket.ve.push(need.id); need.lines.forEach(l => lines.push({ ...l, socket:'Loose VIM4 spider' })); }
   }
   D.loose.forEach(l => lines.push({ ...l, socket:'Direct (XLR)' }));
@@ -154,21 +178,26 @@ export function computeRackPlan(M, dc){
   const free = node => node.ports.filter(p => !p).length;
   const put = (node, f) => {
     const pi = node.ports.indexOf(null);
-    node.ports[pi] = { universe:f.universe, to:f.splitter ? `${f.splitter.label} in` : f.line.label, splitter:f.splitter?.label || null };
+    node.ports[pi] = { universe:f.universe, to:f.splitter ? `${f.splitter.label} in` : f.line.label, splitter:f.splitter?.label || null,
+      owner:f.splitter ? f.splitter.label : f.line.owner, ownerPort:f.splitter ? 'in' : f.line.port, dest:f.splitter ? '' : f.line.dest };
     const ref = { node:node.label, port:pi + 1, color:node.color };
     if(f.splitter){ f.lines.forEach(l => { l.feed = { ...l.feed, ...ref }; }); f.splitter.feedColor = node.color; }
     else f.line.feed = ref;
   };
-  const sortedUnits = [...units.values()].sort((x, y) => y.length - x.length);
+  // Een spin die aan een losse node hangt gaat eerst naar die node (prefNode); units daarvan eerst
+  const prefOf = u => prefNode.get(u[0].line?.owner) || null;
+  const sortedUnits = [...units.values()].sort((x, y) => (prefOf(y) ? 1 : 0) - (prefOf(x) ? 1 : 0) || y.length - x.length);
   const rest = [];
   for(const u of sortedUnits){
-    const node = R.nodes.find(n => free(n) >= u.length);
+    const pref = prefOf(u);
+    const node = (pref && R.nodes.find(n => n.iid === pref && free(n) >= u.length)) || R.nodes.find(n => free(n) >= u.length);
     if(node) u.sort((x, y) => (x.line?.port ?? 0) - (y.line?.port ?? 0)).forEach(f => put(node, f));
     else rest.push(...u);
   }
   let unfed = 0;
   for(const f of rest){
-    const node = R.nodes.find(n => free(n) > 0);
+    const pref = f.line ? prefNode.get(f.line.owner) : null;
+    const node = (pref && R.nodes.find(n => n.iid === pref && free(n) > 0)) || R.nodes.find(n => free(n) > 0);
     if(node) put(node, f);
     else { unfed += f.splitter ? f.lines.length : 1; if(f.line) f.line.feed = null; else f.lines.forEach(l => l.feed = null); }
   }
@@ -179,15 +208,17 @@ export function computeRackPlan(M, dc){
   const vimSockets = R.groups.reduce((n, g) => n + g.vims.length, 0) + R.soloVims.length;
   const vimUsed = freeVims.filter(v => v.used).length;
   const nodeTypes = [...new Set(R.nodes.map(n => n.type))];
-  if(!R.racks.length) recs.push({ level:'info', text:'Place a rack to patch this DimCity automatically.' });
+  if(!R.racks.length && !R.loose.length) recs.push({ level:'info', text:'Place a rack to patch this DimCity automatically.' });
   else {
+    const missing = R.loose.filter(d => d.missing);
+    if(missing.length) recs.push({ level:'warn', text:`${missing.length} loose node${missing.length > 1 ? 's use' : ' uses'} a node type that is no longer in this show.` });
     if(noSocket.lk.length) recs.push({ level:'warn', text:`${noSocket.lk.length} LK${noSocket.lk.length > 1 ? 's have' : ' has'} no LK7-1 socket (${noSocket.lk.join(', ')}) → add ${noSocket.lk.length > 1 ? `${noSocket.lk.length} loose LK spiders` : 'a loose LK spider'}, or a panel with more LK sockets.` });
     if(noSocket.ve.length) recs.push({ level:'warn', text:`${noSocket.ve.length} Veam${noSocket.ve.length > 1 ? 's have' : ' has'} no VIM4 socket (${noSocket.ve.join(', ')}) → add ${noSocket.ve.length > 1 ? `${noSocket.ve.length} loose VIM4 spiders` : 'a loose VIM4 spider'}.` });
     if(unfed){
       const per = num(nodeTypes[0]?.portCount, 8);
       recs.push({ level:'warn', text:`${unfed} line${unfed > 1 ? 's have' : ' has'} no node port → add ${Math.ceil(unfed / per)}× ${nodeTypes[0] ? typeName(nodeTypes[0]) : 'node'}${R.splitters.length ? '' : ', or a splitter for universes that are used more than once'}.` });
     }
-    if(!R.nodes.length && lines.length) recs.push({ level:'warn', text:'This rack has no DMX nodes.' });
+    if(!R.nodes.length && lines.length) recs.push({ level:'warn', text:R.racks.length ? 'This rack has no DMX nodes.' : 'There is no DMX node yet — add a loose node or place a rack.' });
     const freePorts = totalPorts - usedPorts;
     if(freePorts > 0 && !unfed) recs.push({ level:'ok', text:`${freePorts} node port${freePorts > 1 ? 's' : ''} still free.` });
     const freeLk = lkSockets - lkUsed;
@@ -197,7 +228,7 @@ export function computeRackPlan(M, dc){
     if(!recs.some(r => r.level === 'warn') && lines.length) recs.unshift({ level:'ok', text:`Everything fits: ${lines.length} line${lines.length > 1 ? 's' : ''} patched on ${usedPorts} node port${usedPorts === 1 ? '' : 's'}.` });
   }
   return {
-    dc, racks:R.racks, nodes:R.nodes, splitters:R.splitters, groups:R.groups, soloVims:R.soloVims, lines, recs,
+    dc, racks:R.racks, loose:R.loose, nodes:R.nodes, splitters:R.splitters, groups:R.groups, soloVims:R.soloVims, lines, recs,
     stats:{ lkSockets, lkUsed, vimSockets, vimUsed, nodePorts:totalPorts, nodePortsUsed:usedPorts, lines:lines.length, unfed,
       spiders:{ lk:noSocket.lk.length, vim:noSocket.ve.length } }
   };
@@ -217,4 +248,4 @@ export function ownerColors(plan){
   return out;
 }
 
-window.RackEngine = { computeRackPlan, placedRacks, ownerColors, NODE_COLORS };
+window.RackEngine = { computeRackPlan, placedRacks, looseDevices, hasRackPlan, ownerColors, NODE_COLORS };

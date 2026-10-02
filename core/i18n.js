@@ -104,7 +104,10 @@ const NL = {
   'IP address':'IP-adres', 'Subnet':'Subnet', 'Name':'Naam', 'Place rack':'Rek plaatsen', 'Rack Builder':'Rack Builder', 'Use as network plan':'Gebruik als netwerkplan',
   'LK7-1 sockets':'LK7-1-aansluitingen', 'VIM4 sockets':'VIM4-aansluitingen', 'Node ports':'Nodepoorten', 'Lines':'Lijnen', 'Node per LK / Veam:':'Node per LK / Veam:',
   'Patch table':'Patchtabel', 'Node port':'Nodepoort', 'Via':'Via', 'Socket':'Aansluiting', 'LK / Veam port':'LK- / Veam-poort', 'direct':'direct', 'no port':'geen poort',
-  'Name in this DimCity':'Naam in deze DimCity', 'Replace the network plan?':'Netwerkplan vervangen?', 'Place a rack to patch this DimCity automatically.':'Plaats een rek om deze DimCity automatisch te patchen.',
+  'Name in this DimCity':'Naam in deze DimCity', 'Loose devices':'Losse apparaten', 'Add loose node':'Losse node toevoegen', 'Add LK spider':'LK-spin toevoegen', 'Add VIM4 spider':'VIM4-spin toevoegen',
+  'LK spider':'LK-spin', 'VIM4 spider':'VIM4-spin', 'On node':'Op node', 'Any node':'Willekeurige node', 'Name / location':'Naam / locatie', 'Print racks':'Racks printen', 'Loose node':'Losse node',
+  'Patch this spider on a loose node first':'Patch deze spin eerst op een losse node', 'Export a PDF with only the racks of this DimCity':'Exporteer een PDF met alleen de racks van deze DimCity',
+  'There is no DMX node yet — add a loose node or place a rack.':'Er is nog geen DMX-node — voeg een losse node toe of plaats een rek.', 'free':'vrij', 'none':'geen', 'Replace the network plan?':'Netwerkplan vervangen?', 'Place a rack to patch this DimCity automatically.':'Plaats een rek om deze DimCity automatisch te patchen.',
   'This rack has no DMX nodes.':'Dit rek heeft geen DMX-nodes.', 'Create the network nodes and splitters of this DimCity from the rack patch':'Maak de netwerknodes en splitters van deze DimCity uit de rack-patch',
   'Plan DMX nodes and splitters per DimCity. Device types are kept in reusable libraries.':'Plan DMX-nodes en splitters per DimCity. Devicetypes staan in herbruikbare bibliotheken.',
   'Network switches will appear here.':'Netwerkswitches verschijnen hier.', 'No nodes planned for this DimCity.':'Geen nodes gepland voor deze DimCity.', 'No splitters planned for this DimCity.':'Geen splitters gepland voor deze DimCity.',
@@ -167,7 +170,8 @@ const NOUNS = {
   line:'lijn', lines:'lijnen', node:'node', nodes:'nodes', splitter:'splitter', splitters:'splitters', rack:'rek', racks:'racks', universe:'universe', universes:'universes',
   block:'blok', blocks:'blokken', 'LK block':'LK-blok', 'LK blocks':'LK-blokken', 'patch point':'patchpunt', 'patch points':'patchpunten', device:'device', devices:'devices',
   'CSV file':'CSV-bestand', 'CSV files':'CSV-bestanden', 'sheet in preview':'blad in voorbeeld', 'sheets in preview':'bladen in voorbeeld', port:'poort', ports:'poorten',
-  'universe ports':'universe-poorten', 'DMX ports':'DMX-poorten', outputs:'uitgangen', 'spare outputs':'reserve-uitgangen', linked:'gekoppeld', placed:'geplaatst', item:'item', items:'items'
+  'universe ports':'universe-poorten', 'DMX ports':'DMX-poorten', outputs:'uitgangen', 'spare outputs':'reserve-uitgangen', linked:'gekoppeld', placed:'geplaatst', item:'item', items:'items',
+  'loose device':'los apparaat', 'loose devices':'losse apparaten'
 };
 const RULES = [
   [/^(\d+) (.+)$/, (m, n, noun) => NOUNS[noun] ? `${n} ${NOUNS[noun]}` : null],
@@ -207,6 +211,7 @@ const RULES = [
   [/^(\d+) LK7-1 sockets? unused\.$/, (m, n) => `${n} LK7-1-aansluiting${n === '1' ? '' : 'en'} ongebruikt.`],
   [/^(\d+) splitters? (?:are|is) not needed — there are enough node ports\.$/, (m, n) => `${n} splitter${n === '1' ? ' is' : 's zijn'} niet nodig — er zijn genoeg nodepoorten.`],
   [/^(\d+) node ports? still free\.$/, (m, n) => `${n} nodepoort${n === '1' ? '' : 'en'} nog vrij.`],
+  [/^(\d+) loose nodes? uses? a node type that is no longer in this show\.$/, (m, n) => `${n} losse node${n === '1' ? ' gebruikt' : 's gebruiken'} een nodetype dat niet meer in deze show staat.`],
   [/^Everything fits: (\d+) lines? patched on (\d+) node ports?\.$/, (m, a, b) => `Alles past: ${a} lijn${a === '1' ? '' : 'en'} gepatcht op ${b} nodepoort${b === '1' ? '' : 'en'}.`]
 ];
 

@@ -95,6 +95,12 @@ dimCityPlans
 from the top, `heightU` from 1U) are edited in the Device Builder. Every type has `heightU`. Node types
 have `ethernetCount` (1 or 2 RJ45 ports). Type keys are fixed once saved.
 
+### Racks and loose devices per DimCity
+`dimCityPlans[dc].racks` holds placed racks (`{ iid, rackId, name }`) and `dimCityPlans[dc].loose` the
+devices without a rack: `{ iid, kind:'node'|'lkSpider'|'vimSpider', typeId?, name?, nodeIid? }`. A spider
+with `nodeIid` is patched on that loose node first. `core/rack-engine.js` computes the patch from both;
+every node port records `owner` / `ownerPort` (which LK or Veam port is on it).
+
 ### Library vs. show
 The personal library (`core/library.js`) and each show both hold device types, racks and PDF templates.
 Saving in the Device Builder / Report Builder writes to both. Opening a show adds library items the

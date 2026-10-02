@@ -12,7 +12,23 @@ function racksOf(dc){
   if(!Array.isArray(plan.racks)) plan.racks = [];
   return plan.racks;
 }
+function looseOf(dc){
+  const plan = App.net.getDimPlan(dc);
+  if(!Array.isArray(plan.loose)) plan.loose = [];
+  return plan.loose;
+}
 const typeName = t => [t?.brand, t?.name].filter(Boolean).join(' ') || t?.id || '';
+const newIid = p => `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+
+// Poortstrook van een node: per poort universe + de LK-/Veam-poort die erop zit
+function nodePortsStrip(n, size=''){
+  const cells = n.ports.map((p, i) => {
+    if(!p) return `<span class="np ${size} free" title="${esc(n.label)} port ${i + 1} · free"><b>${i + 1}</b><span>—</span></span>`;
+    const to = p.ownerPort === 'in' ? `${esc(p.owner)} in` : `${esc(p.owner)} · ${esc(p.ownerPort)}`;
+    return `<span class="np ${size}" style="--c:${n.color}" title="${esc(n.label)} port ${i + 1} · U${p.universe} → ${esc(p.to)}${p.dest ? ` (${esc(p.dest)})` : ''}"><b>${i + 1}</b><em>U${p.universe}</em><span>${to}</span></span>`;
+  }).join('');
+  return `<div class="np-strip">${cells}</div>`;
+}
 
 // Rek met de berekende patch erin: nodes met universes, panelen met aangesloten LK/Veam
 function rackFace(plan, ri){
@@ -56,23 +72,57 @@ function rackFace(plan, ri){
   return `<div class="rack" style="--h:${H}">${rail}<div class="rack-bay" style="grid-template-rows:repeat(${H}, var(--uh))">${Array.from({ length:H }, (_, i) => `<div class="rk-slot" style="grid-row:${i + 1}"></div>`).join('')}${rows}</div>${rail}</div>`;
 }
 
+// Losse apparaten (zonder rek): node, LK-spin, VIM4-spin
+function looseHtml(plan, dc){
+  const loose = looseOf(dc);
+  const nodeTypes = M().networkDevices?.nodeTypes || [];
+  const owners = E().ownerColors(plan);
+  const looseNodes = plan.nodes.filter(n => n.loose);
+  const nodeOpts = nodeTypes.map(t => `<option value="${esc(t.id)}">${esc(typeName(t))} · ${Number(t.portCount) || 8} ports</option>`).join('');
+  const controls = `<div class="planner-controls">
+      <label>Node<select id="rpLooseType" ${nodeTypes.length ? '' : 'disabled'}>${nodeOpts || '<option>No node types yet</option>'}</select></label>
+      <button data-loose-add="node" ${nodeTypes.length ? '' : 'disabled'}>${I('plus', 14)}Add loose node</button>
+      <button data-loose-add="lkSpider">${I('plus', 14)}Add LK spider</button>
+      <button data-loose-add="vimSpider">${I('plus', 14)}Add VIM4 spider</button>
+    </div>`;
+  const onNode = d => `<select class="rp-onnode" data-loose="${esc(d.iid)}" title="Patch this spider on a loose node first"><option value="">Any node</option>${looseNodes.map(n => `<option value="${esc(n.iid)}" ${d.nodeIid === n.iid ? 'selected' : ''}>${n.label} · ${esc(n.name || typeName(n.type))}</option>`).join('')}</select>`;
+  const rows = loose.map(d => {
+    const rm = `<button class="sm ghost" data-loose-remove="${esc(d.iid)}" title="Remove">${I('trash', 13)}</button>`;
+    if(d.kind === 'node'){
+      const n = plan.nodes.find(x => x.iid === d.iid);
+      if(!n) return `<div class="rp-loose missing"><div class="rp-loose-head">${I('alert', 14)}<b>Loose node</b><span class="subtle">${esc(d.typeId)} is not in this show any more</span>${rm}</div></div>`;
+      return `<div class="rp-loose" style="--c:${n.color}"><div class="rp-loose-head"><span class="rk-badge" style="--c:${n.color}">${n.label}</span><b>${esc(typeName(n.type))}</b>
+          <input type="text" class="rp-name" data-loose-name="${esc(d.iid)}" value="${esc(d.name || '')}" placeholder="Name / location">${rm}</div>${nodePortsStrip(n)}</div>`;
+    }
+    const isLk = d.kind === 'lkSpider';
+    const sock = isLk ? plan.groups.find(g => g.iid === d.iid) : plan.soloVims.find(v => v.iid === d.iid);
+    const used = isLk ? sock?.lk : sock?.used;
+    const chip = used ? `<span class="rp-owner" style="--c:${owners.get(used.id) || '#7d8594'}"><i></i>${esc(used.id)}<em>${[...new Set(plan.lines.filter(l => l.owner === used.id && l.feed?.node).map(l => l.feed.node))].join(' + ') || 'no port'}</em></span>` : '<span class="tag">free</span>';
+    return `<div class="rp-loose spider"><div class="rp-loose-head">${I(isLk ? 'box' : 'plug', 14)}<b>${sock?.label || ''} · ${isLk ? 'LK spider' : 'VIM4 spider'}</b>${chip}<label class="rp-inline">On node${onNode(d)}</label>${rm}</div></div>`;
+  }).join('');
+  return `<div class="rp-section-title">${I('cable', 14)} Loose devices <span class="subtle">${loose.length ? App.ui.plural(loose.length, 'device') : 'none'}</span></div>${controls}${rows ? `<div class="rp-loose-list">${rows}</div>` : ''}`;
+}
+
 function cardHtml(dc){
   if(!E()) return '';
   const placed = racksOf(dc);
+  const loose = looseOf(dc);
   const rackTypes = M().networkDevices?.rackTypes || [];
   const plan = E().computeRackPlan(M(), dc);
   const s = plan.stats;
   const owners = E().ownerColors(plan);
   const opts = rackTypes.map(r => `<option value="${esc(r.id)}">${esc(r.name || r.id)} · ${r.heightU}U</option>`).join('');
+  const any = placed.length || loose.length;
   const controls = `<div class="planner-controls">
       <label>Rack<select id="rpRackType" ${rackTypes.length ? '' : 'disabled'}>${opts || '<option>No racks yet</option>'}</select></label>
       <button id="rpPlace" ${rackTypes.length ? '' : 'disabled'}>${I('plus', 14)}Place rack</button>
       <button data-cmd="deviceBuilder" data-arg="rack">${I('rack', 14)}Rack Builder</button>
-      ${placed.length ? `<button class="primary" id="rpApply" title="Create the network nodes and splitters of this DimCity from the rack patch">${I('check', 14)}Use as network plan</button>` : ''}
+      ${any ? `<button class="primary" id="rpApply" title="Create the network nodes and splitters of this DimCity from the rack patch">${I('check', 14)}Use as network plan</button>` : ''}
+      ${any ? `<button id="rpPrint" title="Export a PDF with only the racks of this DimCity">${I('file', 14)}Print racks</button>` : ''}
     </div>`;
-  if(!placed.length){
+  if(!any){
     return App.ui.card({ key:`${dc}:racks`, title:'Racks', icon:'rack', meta:'none placed', collapsed:false,
-      body:`${controls}<div class="hint" style="margin-top:10px">${I('info', 13)} Place a rack and PatchLab patches the LKs and Veams of ${esc(dc)} onto its sockets and node ports automatically.${rackTypes.length ? '' : ' Build a rack in the Rack Builder first.'}</div>` });
+      body:`${controls}<div class="hint" style="margin-top:10px">${I('info', 13)} Place a rack and PatchLab patches the LKs and Veams of ${esc(dc)} onto its sockets and node ports automatically.${rackTypes.length ? '' : ' Build a rack in the Rack Builder first.'}</div>${looseHtml(plan, dc)}` });
   }
   const chip = (label, used, total, warn) => `<div class="rp-stat ${warn ? 'warn' : ''}"><span>${label}</span><b>${used}<em>/${total}</em></b></div>`;
   const stats = `<div class="rp-stats">
@@ -94,9 +144,13 @@ function cardHtml(dc){
     <div class="table-wrap"><table class="data-table"><thead><tr><th>Node port</th><th class="num">Universe</th><th>Via</th><th>Socket</th><th>LK / Veam port</th><th>Location</th></tr></thead><tbody>
     ${rowsSorted.map(l => `<tr><td>${l.feed ? `<span class="rp-dot" style="--c:${l.feed.color}"></span><b>${esc(l.feed.node)}</b> · ${l.feed.port}` : '<span class="tag red">no port</span>'}</td><td class="num">U${l.universe}</td><td>${l.feed?.splitter ? `${esc(l.feed.splitter)} · out ${l.feed.out}` : '<span class="subtle">direct</span>'}</td><td>${esc(l.socket)}</td><td>${esc(l.label)}${l.via ? ` <span class="subtle">(${esc(l.via)})</span>` : ''}</td><td>${esc(l.dest)}</td></tr>`).join('')}
     </tbody></table></div></details>`;
+  // Per node in een rek: welke LK-/Veam-poort op welke nodepoort zit (de rekweergave is daar te klein voor)
+  const rackNodes = plan.nodes.filter(n => !n.loose);
+  const nodeStrips = rackNodes.length ? `<details class="rp-table" open><summary>${I('network', 14)} Node ports <span class="subtle">${App.ui.plural(rackNodes.length, 'node')}</span></summary><div class="rp-nodes">${rackNodes.map(n => `<div class="rp-loose" style="--c:${n.color}"><div class="rp-loose-head"><span class="rk-badge" style="--c:${n.color}">${n.label}</span><b>${esc(typeName(n.type))}</b><span class="subtle">${esc(plan.racks[n.rack]?.placement.name || plan.racks[n.rack]?.rack?.name || '')}</span></div>${nodePortsStrip(n)}</div>`).join('')}</div></details>` : '';
   const warn = plan.recs.some(r => r.level === 'warn');
-  return App.ui.card({ key:`${dc}:racks`, title:'Racks', icon:'rack', meta:`${App.ui.plural(placed.length, 'rack')} · ${warn ? 'needs attention' : 'all patched'}`,
-    body:`${controls}${stats}${recs}${legend ? `<div class="rp-legend"><span class="subtle">Node per LK / Veam:</span>${legend}</div>` : ''}<div class="rp-racks">${racks}</div>${table}` });
+  const meta = [placed.length ? App.ui.plural(placed.length, 'rack') : '', loose.length ? App.ui.plural(loose.length, 'loose device') : ''].filter(Boolean).join(' + ');
+  return App.ui.card({ key:`${dc}:racks`, title:'Racks', icon:'rack', meta:`${meta} · ${warn ? 'needs attention' : 'all patched'}`,
+    body:`${controls}${stats}${recs}${legend ? `<div class="rp-legend"><span class="subtle">Node per LK / Veam:</span>${legend}</div>` : ''}<div class="rp-racks">${racks}</div>${nodeStrips}${looseHtml(plan, dc)}${table}` });
 }
 
 function bind(root, dc, rerender){
@@ -116,10 +170,48 @@ function bind(root, dc, rerender){
     plan.racks = racksOf(dc).filter(r => r.iid !== b.dataset.rpRemove);
     M().ui.dirty = true; rerender();
   });
-  root.querySelectorAll('.rp-name').forEach(inp => inp.onchange = () => {
+  root.querySelectorAll('.rp-name[data-rp]').forEach(inp => inp.onchange = () => {
     const r = racksOf(dc).find(x => x.iid === inp.dataset.rp); if(!r) return;
     r.name = inp.value.trim(); M().ui.dirty = true; rerender();
   });
+  // losse apparaten
+  root.querySelectorAll('[data-loose-add]').forEach(b => b.onclick = () => {
+    const kind = b.dataset.looseAdd;
+    const item = { iid:newIid('ls'), kind };
+    if(kind === 'node'){
+      const id = root.querySelector('#rpLooseType')?.value;
+      const t = (M().networkDevices?.nodeTypes || []).find(x => x.id === id); if(!t) return;
+      item.typeId = t.id; item.name = '';
+      window.PatchHistory?.label?.(`Added loose ${typeName(t)} in ${dc}`);
+    } else {
+      // een nieuwe spin hangt standaard aan de laatst toegevoegde losse node
+      const lastNode = looseOf(dc).filter(d => d.kind === 'node').pop();
+      if(lastNode) item.nodeIid = lastNode.iid;
+      window.PatchHistory?.label?.(`Added loose ${kind === 'lkSpider' ? 'LK' : 'VIM4'} spider in ${dc}`);
+    }
+    looseOf(dc).push(item);
+    if(!M().ui.cardCollapsed) M().ui.cardCollapsed = {};
+    M().ui.cardCollapsed[`${dc}:racks`] = false;
+    M().ui.dirty = true; rerender();
+  });
+  root.querySelectorAll('[data-loose-remove]').forEach(b => b.onclick = () => {
+    const plan = App.net.getDimPlan(dc);
+    const iid = b.dataset.looseRemove;
+    window.PatchHistory?.label?.(`Removed loose device from ${dc}`);
+    plan.loose = looseOf(dc).filter(d => d.iid !== iid);
+    for(const d of plan.loose) if(d.nodeIid === iid) d.nodeIid = null;
+    M().ui.dirty = true; rerender();
+  });
+  root.querySelectorAll('[data-loose-name]').forEach(inp => inp.onchange = () => {
+    const d = looseOf(dc).find(x => x.iid === inp.dataset.looseName); if(!d) return;
+    d.name = inp.value.trim(); M().ui.dirty = true; rerender();
+  });
+  root.querySelectorAll('.rp-onnode').forEach(sel => sel.onchange = () => {
+    const d = looseOf(dc).find(x => x.iid === sel.dataset.loose); if(!d) return;
+    d.nodeIid = sel.value || null; M().ui.dirty = true; rerender();
+  });
+  const print = root.querySelector('#rpPrint');
+  if(print) print.onclick = () => window.PdfExport?.open?.({ dcs:[dc], preset:'RACKS_ONLY' });
   const apply = root.querySelector('#rpApply');
   if(apply) apply.onclick = async () => {
     const plan = App.net.getDimPlan(dc);
@@ -137,7 +229,11 @@ function applyToNetworkPlan(dc){
   const r = E().computeRackPlan(M(), dc);
   const plan = App.net.getDimPlan(dc);
   window.PatchHistory?.label?.(`${dc}: network plan from rack patch`);
-  plan.nodes = r.nodes.map((n, i) => App.net.createNodeInstance(dc, n.type, i, n.ports.map(p => p ? p.universe : null)));
+  plan.nodes = r.nodes.map((n, i) => {
+    const inst = App.net.createNodeInstance(dc, n.type, i, n.ports.map(p => p ? p.universe : null));
+    if(n.loose && n.name) inst.name = `${dc} ${n.name}`;
+    return inst;
+  });
   plan.nodeTypeId = r.nodes[0]?.type.id || plan.nodeTypeId;
   const used = r.splitters.filter(s => s.inputs.length);
   plan.splitters = used.map((s, i) => {
@@ -152,4 +248,4 @@ function applyToNetworkPlan(dc){
   App.ui.toast(`${dc}: ${App.ui.plural(plan.nodes.length, 'node')}${plan.splitters.length ? ` and ${App.ui.plural(plan.splitters.length, 'splitter')}` : ''} taken from the rack`);
 }
 
-window.RackPlan = { cardHtml, bind, rackFace, applyToNetworkPlan };
+window.RackPlan = { cardHtml, bind, rackFace, nodePortsStrip, applyToNetworkPlan };

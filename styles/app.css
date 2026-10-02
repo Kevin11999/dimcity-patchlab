@@ -806,6 +806,23 @@ kbd{font:500 10.5px var(--font);color:var(--text-3);border:1px solid var(--borde
 .rp.free{opacity:.45;border-style:dashed}
 .rk-badge{display:inline-block;font-size:10px;font-weight:700;padding:0 5px;border-radius:4px;margin-right:5px;background:var(--c,var(--surface-3));color:#0b0d10;line-height:15px}
 .rp-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--c);margin-right:6px;vertical-align:middle}
+.rp-section-title{display:flex;align-items:center;gap:6px;font-weight:600;font-size:13px;margin:16px 0 8px;padding-top:12px;border-top:1px solid var(--border)}
+.rp-loose-list,.rp-nodes{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.rp-nodes{padding:10px 12px}
+.rp-loose{--c:var(--blue);border:1px solid var(--border);border-left:3px solid var(--c);border-radius:var(--radius);padding:8px 10px;background:var(--surface-2)}
+.rp-loose.missing{--c:var(--red)}
+.rp-loose-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.rp-loose-head .rp-name{margin-left:auto;width:200px;height:26px}
+.rp-loose-head > button:last-child{margin-left:auto}
+.rp-loose-head .rp-name + button{margin-left:0}
+.rp-inline{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-3)}
+.rp-inline select{height:26px;font-size:12px}
+.np-strip{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.np{--c:#7d8594;display:inline-flex;flex-direction:column;align-items:center;min-width:52px;padding:3px 5px;border:2px solid var(--c);border-radius:6px;background:var(--surface);line-height:1.15;font-size:10px}
+.np b{font-size:9px;color:var(--text-3)}
+.np em{font-style:normal;font-weight:700;font-size:11.5px;color:var(--text)}
+.np span{font-size:9.5px;color:var(--text-2);white-space:nowrap}
+.np.free{border-style:dashed;opacity:.55}
 .rp-table{margin-top:14px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
 .rp-table summary{cursor:pointer;padding:10px 12px;display:flex;align-items:center;gap:8px;background:var(--surface-2)}
 .rp-table .table-wrap{max-height:420px;overflow:auto}

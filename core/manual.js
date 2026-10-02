@@ -340,8 +340,8 @@ Een rek is een sjabloon: je plaatst het in een DimCity op de [[racks|Racks-kaart
 - **Loose devices**: a **loose node** without a rack, a **loose LK spider** (one LK7-1 socket on a breakout) or a **loose VIM4 spider** (one VIM4 socket). A spider can be pinned to a loose node with **On node**; its lines are then patched on that node first.
 
 ## How the patch is made
-1. Every LK with data gets an **LK7-1 socket**, in order (rack panels first, then loose spiders).
-2. Veams that are not fed by an LK get a **VIM4 socket**: first a free VIM4 next to an LK that does not use those lines, then separate VIM4s, then spiders.
+1. Every LK with data gets an **LK7-1 socket**: first a loose LK spider that is pinned to a node, then the rack panels, then other loose spiders.
+2. Veams that are not fed by an LK get a **VIM4 socket**: first a VIM4 spider pinned to a node, then a free VIM4 next to an LK that does not use those lines, then separate VIM4s, then other spiders.
 3. Every used line gets a **node port**. Lines of one LK or Veam stay on one node where possible — the legend shows the node per LK / Veam, and every node has its own colour.
 4. When node ports run short, universes that are used more than once go through a **splitter** in the rack.
 
@@ -362,8 +362,8 @@ Een rek is een sjabloon: je plaatst het in een DimCity op de [[racks|Racks-kaart
 - **Losse apparaten**: een **losse node** zonder rek, een **losse LK-spin** (één LK7-1-aansluiting op een breakout) of een **losse VIM4-spin** (één VIM4-aansluiting). Een spin kun je met **Op node** aan een losse node hangen; zijn lijnen worden dan eerst op die node gepatcht.
 
 ## Hoe de patch tot stand komt
-1. Elke LK met gegevens krijgt een **LK7-1-aansluiting**, op volgorde (eerst rekpanelen, dan losse spinnen).
-2. Veams die niet door een LK gevoed worden krijgen een **VIM4-aansluiting**: eerst een vrije VIM4 naast een LK die die lijnen niet gebruikt, dan losse VIM4's, dan spinnen.
+1. Elke LK met gegevens krijgt een **LK7-1-aansluiting**: eerst een losse LK-spin die aan een node hangt, dan de rekpanelen, dan andere losse spinnen.
+2. Veams die niet door een LK gevoed worden krijgen een **VIM4-aansluiting**: eerst een VIM4-spin die aan een node hangt, dan een vrije VIM4 naast een LK die die lijnen niet gebruikt, dan losse VIM4's, dan andere spinnen.
 3. Elke gebruikte lijn krijgt een **nodepoort**. Lijnen van één LK of Veam blijven waar mogelijk op één node — de legenda toont de node per LK / Veam, en elke node heeft een eigen kleur.
 4. Als er nodepoorten tekortkomen, gaan universes die vaker gebruikt worden via een **splitter** in het rek.
 

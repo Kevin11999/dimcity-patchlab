@@ -353,6 +353,14 @@ function applyStandard(data){
     }
   }
   if(res.version > (LIB.standard?.version || 0) || res.added.length || res.updated.length) LIB.standard = { version:Math.max(res.version, LIB.standard?.version || 0), checkedAt:new Date().toISOString() };
+  // in de open show: ongewijzigde kopieën (nog met `std`) van bijgewerkte types ook vervangen
+  const M = App.getMODEL();
+  if(M && res.updated.length){
+    for(const { key, item } of res.updated){
+      const pl = projectList(M, key); const i = pl.findIndex(x => x.id === item.id);
+      if(i >= 0 && pl[i].std && pl[i].std !== item.std){ pl[i] = clone(item); M.ui.dirty = true; }
+    }
+  }
   return res;
 }
 // Bij het opstarten: de meegeleverde standaardbibliotheek inlezen (nieuwe installatie of nieuwe app-versie)

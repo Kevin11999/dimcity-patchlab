@@ -116,11 +116,12 @@ export function computeRackPlan(M, dc){
   const noSocket = { lk:[], ve:[] };
   const prefNode = new Map();       // LK/Veam-id -> iid van de losse node waar de spin bij voorkeur op zit
 
-  // 1. LK's op LK-aansluitingen
+  // 1. LK's op LK-aansluitingen: eerst spinnen die aan een losse node hangen, dan de rekpanelen, dan losse spinnen
+  const groupsInOrder = [...R.groups.filter(g => g.nodeIid), ...R.groups.filter(g => !g.nodeIid)];
   let gi = 0;
   for(const need of D.lkNeeds){
     if(!need.lines.length && !need.slotUsed.some(Boolean)) continue;     // LK zonder data: niets aansluiten
-    const g = R.groups[gi++];
+    const g = groupsInOrder[gi++];
     if(g){
       g.lk = need;
       if(g.nodeIid) prefNode.set(need.id, g.nodeIid);
@@ -131,9 +132,9 @@ export function computeRackPlan(M, dc){
     }
   }
   // 2. Losse Veams: eerst vrije VIM4 naast een LK, dan losse VIM4, dan VIM4 van lege LK-groepen
-  const freeVims = [];
+  const freeVims = [...R.soloVims.filter(v => v.nodeIid)];               // VIM4-spin aan een losse node eerst
   for(const g of R.groups) if(g.lk) g.vims.forEach(v => { if(!g.lk.slotUsed[v.slot]) freeVims.push(v); });
-  freeVims.push(...R.soloVims);
+  freeVims.push(...R.soloVims.filter(v => !v.nodeIid));
   for(const g of R.groups) if(!g.lk) freeVims.push(...g.vims);
   let vi = 0;
   for(const need of D.veNeeds){

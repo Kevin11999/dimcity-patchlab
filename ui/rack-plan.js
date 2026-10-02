@@ -225,7 +225,7 @@ function bind(root, dc, rerender){
 }
 
 // Rack-patch omzetten naar de node- en splitter-instanties van de DimCity (voor PDF en netwerkplan)
-function applyToNetworkPlan(dc){
+function applyToNetworkPlan(dc, { quiet=false } = {}){
   const r = E().computeRackPlan(M(), dc);
   const plan = App.net.getDimPlan(dc);
   window.PatchHistory?.label?.(`${dc}: network plan from rack patch`);
@@ -245,7 +245,7 @@ function applyToNetworkPlan(dc){
   if(used[0]) plan.lastSplitterTypeId = used[0].type.id;
   App.net.refreshDimDeviceIdentity(dc);
   M().ui.dirty = true;
-  App.ui.toast(`${dc}: ${App.ui.plural(plan.nodes.length, 'node')}${plan.splitters.length ? ` and ${App.ui.plural(plan.splitters.length, 'splitter')}` : ''} taken from the rack`);
+  if(!quiet) App.ui.toast(`${dc}: ${App.ui.plural(plan.nodes.length, 'node')}${plan.splitters.length ? ` and ${App.ui.plural(plan.splitters.length, 'splitter')}` : ''} taken from the rack`);
 }
 
 window.RackPlan = { cardHtml, bind, rackFace, nodePortsStrip, applyToNetworkPlan };

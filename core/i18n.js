@@ -123,7 +123,7 @@ const NL = {
   'Add to Library':'Toevoegen aan bibliotheek', 'Use Library Version':'Bibliotheekversie gebruiken', 'Save This to Library':'Deze in bibliotheek opslaan', 'Save to Library':'Opslaan in bibliotheek',
   'Saved in this show and in your library':'Opgeslagen in deze show en in je bibliotheek', 'Share your devices with a colleague via Export Library.':'Deel je devices met een collega via Bibliotheek exporteren.',
   'Import Library…':'Bibliotheek importeren…', 'Export Library…':'Bibliotheek exporteren…', 'Import Library':'Bibliotheek importeren', 'Export Library':'Bibliotheek exporteren',
-  'Delete LK':'LK verwijderen', 'Delete Veam':'Veam verwijderen', 'You can undo this with Undo.':'Je kunt dit ongedaan maken met Ongedaan maken.',
+  'No locations patched yet':'Nog geen locaties gepatcht', 'Delete LK':'LK verwijderen', 'Delete Veam':'Veam verwijderen', 'You can undo this with Undo.':'Je kunt dit ongedaan maken met Ongedaan maken.',
   'Rack name':'Naam rek', 'Article key':'Artikelsleutel', 'Ethernet ports':'Ethernet-poorten', '1× RJ45':'1× RJ45', '2× RJ45 (link + redundant)':'2× RJ45 (link + redundant)', 'Height':'Hoogte', 'Height used':'Hoogte gebruikt', 'Delete Rack':'Rek verwijderen', 'Remove from rack':'Uit rek halen', 'Missing device':'Ontbrekend device',
   'Drag devices into the rack, or click + to add at the first free position.':'Sleep devices in het rek, of klik op + om ze op de eerste vrije plek te zetten.',
   'Drag into the rack':'In het rek slepen', 'Add at first free position':'Op eerste vrije plek zetten', 'No racks yet':'Nog geen racks', 'No racks yet.':'Nog geen racks.',
@@ -200,6 +200,12 @@ const RULES = [
   [/^Place a rack and PatchLab patches the LKs and Veams of (\S+) onto its sockets and node ports automatically\.( Build a rack in the Rack Builder first\.)?$/, (m, dc, b) => `Plaats een rek en PatchLab patcht de LK's en Veams van ${dc} automatisch op de aansluitingen en nodepoorten.${b ? ' Bouw eerst een rek in de Rack Builder.' : ''}`],
   [/^Delete (\S+)\?$/, (m, x) => `${x} verwijderen?`],
   [/^Deleted (\S+)$/, (m, x) => `${x} verwijderd`],
+  [/^LK ports (\d+)–(\d+)$/, (m, a, b) => `LK-poorten ${a}–${b}`],
+  [/^(\d+) racks? \+ (\d+) loose devices?$/, (m, a, b) => `${a} rack${a === '1' ? '' : 's'} + ${b} los${b === '1' ? ' apparaat' : 'se apparaten'}`],
+  [/^(\S+): (\d+) nodes?(?: and (\d+) splitters?)? taken from the rack$/, (m, dc, n, sp) => `${dc}: ${n} node${n === '1' ? '' : 's'}${sp ? ` en ${sp} splitter${sp === '1' ? '' : 's'}` : ''} uit het rek overgenomen`],
+  [/^(\d+) standard types in your library$/, (m, n) => `${n} standaardtypes in je bibliotheek`],
+  [/^Library version (\S+)$/, (m, v) => `Bibliotheekversie ${v}`],
+  [/^Last checked (.+)$/, (m, d) => `Laatst gecontroleerd ${d}`],
   [/^(\d+) standard types in your library · library version (\S+)(?: · last checked (.+))?$/, (m, n, v, d) => `${n} standaardtypes in je bibliotheek · bibliotheekversie ${v}${d ? ` · laatst gecontroleerd ${d}` : ''}`],
   [/^Your device library is up to date \(standard library (\d+)\)$/, (m, v) => `Je devicebibliotheek is up-to-date (standaardbibliotheek ${v})`],
   [/^Device library (\d+): (\d+) new, (\d+) updated(.*)$/, (m, v, a, b, rest) => `Devicebibliotheek ${v}: ${a} nieuw, ${b} bijgewerkt${rest.replace(' of your own kept', ' van jezelf behouden')}`],
@@ -241,6 +247,12 @@ const SKIP = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'CODE', 'KBD', 'IFRAME', 'S
 
 function translateCore(s){
   if(Object.prototype.hasOwnProperty.call(NL, s)) return NL[s];
+  // meerdere regels of zinnen (bevestigingen): regel voor regel vertalen
+  if(s.includes('\n')){
+    let changed = false;
+    const out = s.split('\n').map(line => { const t = line.trim() ? translateCore(line.trim()) : null; if(t != null){ changed = true; return line.replace(line.trim(), t); } return line; });
+    return changed ? out.join('\n') : null;
+  }
   for(const [rx, fn] of RULES){ const m = s.match(rx); if(m){ const r = fn(...m); if(r != null) return r; } }
   // samengestelde teksten "2 errors · 0 warnings"
   if(s.includes(' · ')){

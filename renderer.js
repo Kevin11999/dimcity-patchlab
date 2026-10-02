@@ -2385,6 +2385,8 @@ const sameId = (a, b) => normLK(String(a ?? '').trim().toUpperCase()) === normLK
 async function reprocessWithout(id){
   const rows = currentRows(MODEL).filter(r => !sameId(r[0], id));
   const custom = (MODEL.customRows || []).filter(r => !sameId(r.id, id));
+  // ook uit de bewaarde CSV-bestanden, anders komt het ID terug bij een volgende (her)import
+  for(const src of (MODEL.csvSources || [])){ src.rows = (src.rows || []).filter(r => !sameId(r[0], id)); src.rowCount = src.rows.length; }
   await processRows(rows);
   MODEL.customRows = custom;
   MODEL.ui.dirty = true;

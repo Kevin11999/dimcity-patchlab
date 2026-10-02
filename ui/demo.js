@@ -79,7 +79,7 @@ async function open({ silent=false } = {}){
   nd.prefs.nodeSparePorts = 0;
   // 4. network plan from the rack patch
   App.hydrateDimOrigins(); App.recomputeVeamUseAndIssues(); App.recomputeUniverseStats();
-  for(const dc of ['DB01', 'DB02', 'DB03']) window.RackPlan?.applyToNetworkPlan?.(dc);
+  for(const dc of ['DB01', 'DB02', 'DB03']) window.RackPlan?.applyToNetworkPlan?.(dc, { quiet:true });
   // 5. PDF layout
   const L = window.PdfExport.defaultLayout();
   L.style.accent = '#ff8a1f'; L.style.lineWeight = 'normal';

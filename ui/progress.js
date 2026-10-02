@@ -49,9 +49,17 @@ function compute(){
   return { steps, done, total:steps.length, pct:steps.length ? Math.round(done / steps.length * 100) : 0 };
 }
 
-let last = '';
-function refresh(){
+let last = '', lastModel = null, lastSig = '';
+// goedkope vingerafdruk: alleen doorrekenen als het model, de dirty-vlag, het bestand, de taal of een wijziging veranderd is
+function fingerprint(){
+  const m = M();
+  return `${m === lastModel ? 1 : 0}|${m?.ui?.dirty ? 1 : 0}|${m?.filePath || ''}|${lang()}|${window.PatchHistory?.changeCount ?? ''}|${m?.lines?.length}|${m?.issues?.length}|${!!m?.pdfSettings?.layout}`;
+}
+function refresh(force=false){
   const el = document.getElementById('statusProgress'); if(!el) return;
+  const sigNow = fingerprint();
+  if(!force && sigNow === lastSig) return;
+  lastSig = sigNow; lastModel = M();
   const p = compute();
   const sig = `${p.done}/${p.total}|${lang()}`;
   if(sig === last) return;
@@ -81,5 +89,6 @@ function openPopover(anchor){
 const bar = document.getElementById('statusProgress');
 if(bar) bar.onclick = () => openPopover(bar);
 window.Progress = { compute, refresh, openPopover };
-refresh();
-setInterval(refresh, 1000);
+refresh(true);
+window.PatchHistory?.onChange?.(() => refresh());
+setInterval(() => refresh(), 1500);

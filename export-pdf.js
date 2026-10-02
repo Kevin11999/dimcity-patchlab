@@ -625,7 +625,8 @@
     const L = layoutFromSettings(M.pdfSettings);
     if(Array.isArray(opts.dcs) && opts.dcs.length){ L.scope = 'SEL'; L.dims = opts.dcs.slice(); }
     if(opts.preset && PRESETS[opts.preset]) PRESETS[opts.preset].apply(L);
-    B = { L, tab:'content', expanded:null, zoom:'fit', selSec:null, timer:null };
+    // een preset via een knop (Print racks) is een tijdelijke indeling: de opgeslagen layout blijft staan
+    B = { L, tab:'content', expanded:null, zoom:'fit', selSec:null, timer:null, temp:!!opts.preset };
     mount();
   }
   function close(save = true){
@@ -636,7 +637,7 @@
     B = null;
   }
   function persist(){
-    const M = getM(); if(!M || !B) return;
+    const M = getM(); if(!M || !B || B.temp) return;
     const before = JSON.stringify(M.pdfSettings?.layout || null);
     M.pdfSettings = { ...(M.pdfSettings || {}), layout: clone(B.L), page: B.L.page.orientation, output: B.L.output };
     if(before !== JSON.stringify(B.L) && M.ui) M.ui.dirty = true;
@@ -1034,7 +1035,7 @@
   function updateSummary(){
     const dcs = selectedDims();
     const s = document.getElementById('rbSummary');
-    if(s) s.textContent = `${dcs.length} DimCit${dcs.length===1?'y':'ies'} · ${B.L.output==='PER_DIM' ? `${dcs.length} PDF file${dcs.length===1?'':'s'}` : 'one PDF'} · ${B.L.page.size} ${B.L.page.orientation}`;
+    if(s) s.textContent = `${dcs.length} DimCit${dcs.length===1?'y':'ies'} · ${B.L.output==='PER_DIM' ? `${dcs.length} PDF file${dcs.length===1?'':'s'}` : 'one PDF'} · ${B.L.page.size} ${B.L.page.orientation}${B.temp ? ' · temporary layout (your saved layout is kept)' : ''}`;
     const btn = document.querySelector('#rbExport span');
     if(btn) btn.textContent = B.L.output==='PER_DIM' && dcs.length > 1 ? `Export ${dcs.length} PDFs` : 'Export PDF';
     const ex = document.getElementById('rbExport'); if(ex) ex.disabled = !dcs.length;

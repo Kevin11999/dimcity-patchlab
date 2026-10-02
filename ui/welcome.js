@@ -357,7 +357,7 @@ function placeTour(){
   pop.querySelector('[data-t=next]').onclick = ()=> step(1);
 
   const target = s.target ? s.target.split(',').map(x => document.querySelector(x.trim())).find(Boolean) : null;
-  if(s.target && !target && s.go && !tourState.retried){ tourState.retried = i; return requestAnimationFrame(placeTour); }
+  if(s.target && !target && s.go && tourState.retried !== i){ tourState.retried = i; return requestAnimationFrame(placeTour); }
   const pw = pop.offsetWidth, ph = pop.offsetHeight, pad = 6, gap = 14;
   if(!target){
     spot.classList.add('center');

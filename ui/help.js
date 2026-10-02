@@ -108,7 +108,7 @@ function renderSearch(){
 // ---- Request dialog → pre-filled GitHub issue ----
 const TYPES = [['feature', 'Feature request', 'Wens / verbetering', 'enhancement'], ['bug', 'Bug report', 'Fout', 'bug'], ['question', 'Question', 'Vraag', 'question']];
 async function openRequest({ about='' } = {}){
-  const info = await window.app?.appInfo?.().catch(() => null) || { version:'', platform:navigator.platform };
+  const info = (await window.app?.appInfo?.().catch(() => null)) || { version:'', platform:navigator.platform };
   const repo = window.Settings?.get?.().updates?.repo || 'Kevin11999/dimcity-patchlab';
   const ctx = currentContext();
   const page = window.Manual?.chapterFor(ctx)?.title[lang()] || ctx;

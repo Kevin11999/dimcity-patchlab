@@ -113,7 +113,7 @@ function open(section = 'general'){
       </div>`,
     library: () => { const li = window.Library?.standardInfo?.() || { version:0, count:0, checkedAt:null }; return `
       <div class="rb-group"><div class="rb-label">Standard device library</div>
-        <div class="set-folder"><div><b>Luminex, ELC and standard panels</b><span>${li.count} standard types in your library · library version ${li.version || '—'}${li.checkedAt ? ` · last checked ${new Date(li.checkedAt).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}` : ''}</span></div>
+        <div class="set-folder"><div><b>Luminex, ELC and standard panels</b><span>${li.count} standard types in your library</span><span>Library version ${li.version || '—'}</span>${li.checkedAt ? `<span>Last checked ${new Date(li.checkedAt).toLocaleDateString(S.language === 'nl' ? 'nl-NL' : 'en-GB', { day:'numeric', month:'short', year:'numeric' })}</span>` : ''}</div>
         <button class="sm primary" data-a="libcheck">${I('refresh', 13)}Check now</button></div>
         ${sw('library.checkOnStart', S.library.checkOnStart, 'Check for library updates when the app starts', 'Separate from app updates: new or corrected device types are added to your library. Types you edited yourself are never overwritten.')}
         <div class="hint">The standard library is read from the same GitHub repository as the app updates (library/standard-library.json).</div>

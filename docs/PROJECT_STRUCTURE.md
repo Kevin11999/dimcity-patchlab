@@ -112,6 +112,9 @@ in `libraryDismissed`.
 Stored in `MODEL.pdfSettings`. The Report Builder layout lives in `MODEL.pdfSettings.layout`
 (version 2: scope, output, page, style, header, footer, cover, ordered sections with options).
 Saved report templates live in `MODEL.pdfTemplates` (`[{ id, name, layout }]`).
+Each section can carry `pos` (`null` = automatic flow, or `{ x, y, w }` in mm inside the margins) —
+set in the Content tab or by dragging the section's handle in the preview (5 mm grid). `style.lineWeight`
+(light / normal / bold) drives the `--bw` / `--ln*` CSS variables used for every printed line.
 `layout.brand` holds the company style: `logo`, `logoPos` (none / header-left|right / footer-left|right),
 `logoHeight` (mm) and `wm` (watermark: type none|logo|text, text, opacity %, size %, angle). The logo on
 every page is drawn by printToPDF's header/footer templates (main.js); the watermark is a fixed element

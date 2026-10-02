@@ -147,6 +147,9 @@ const NL = {
   'Company logo':'Bedrijfslogo', 'No company logo':'Geen bedrijfslogo', 'On every page':'Op elke pagina', 'Top left':'Linksboven', 'Top right':'Rechtsboven', 'Bottom left':'Linksonder',
   'Bottom right':'Rechtsonder', 'Logo height':'Logohoogte', 'Watermark':'Watermerk', 'None':'Geen', 'Text':'Tekst', 'Strength':'Sterkte', 'Size':'Grootte', 'Angle':'Hoek',
   'Use project logo':'Projectlogo gebruiken', 'Position on the cover':'Positie op het voorblad', 'Report preview':'Rapportvoorbeeld', 'Select at least one DimCity.':'Kies minstens één DimCity.',
+  'Line weight':'Lijndikte', 'Light':'Licht', 'Normal':'Normaal', 'Bold':'Dik', 'Normal and Bold give darker, thicker lines that stay readable on paper.':'Normaal en Dik geven donkerdere, dikkere lijnen die op papier goed leesbaar blijven.',
+  'Position on the sheet':'Positie op het blad', 'Auto':'Automatisch', 'Fixed':'Vast', 'Width':'Breedte', 'Fixed position':'Vaste positie', 'Drag to position this section on the sheet':'Sleep om deze sectie op het blad te plaatsen',
+  'Auto: sections follow each other from top to bottom. Choose Fixed, or drag the handle in the preview, to place this section yourself.':'Automatisch: secties volgen elkaar van boven naar beneden op. Kies Vast, of sleep de greep in het voorbeeld, om deze sectie zelf te plaatsen.',
   'Racks only':'Alleen racks', 'Rack drawing':'Rack-tekening', 'Node ports (which LK / Veam port is on which node port)':'Nodepoorten (welke LK-/Veam-poort op welke nodepoort zit)',
   'Loose devices (nodes and spiders without a rack)':'Losse apparaten (nodes en spinnen zonder rek)', 'Patch table (node port → LK / Veam)':'Patchtabel (nodepoort → LK / Veam)', 'Recommendations':'Adviezen',
   'Delete a template…':'Template verwijderen…', 'Choose…':'Kiezen…', 'Presets':'Voorinstellingen', 'My templates':'Mijn templates', 'Left':'Links', 'Center':'Midden',
@@ -195,6 +198,7 @@ const RULES = [
   [/^The link from (.+?) is removed\.$/, (m, x) => `De koppeling vanuit ${x} wordt verwijderd.`],
   [/^(.+) saved$/, (m, x) => `${x} opgeslagen`],
   [/^Page n of N$/, () => 'Pagina n van N'],
+  [/^Drag the orange handle in the preview to move it \(snaps to (\d+) mm\)\. Sheet is (\d+) × (\d+) mm inside the margins\.$/, (m, g, w, h) => `Sleep de oranje greep in het voorbeeld om te verplaatsen (springt naar ${g} mm). Het blad is ${w} × ${h} mm binnen de marges.`],
   [/^(\d+) total$/, (m, n) => `${n} totaal`],
   // validatiemeldingen
   [/^(\S+) port (.+?) does not exist — a (Veam|LK) has ports 1–(\d+)(.*)$/, (m, id, p, t, n, rest) => `${id} poort ${p} bestaat niet — een ${t} heeft poorten 1–${n}${rest}`],

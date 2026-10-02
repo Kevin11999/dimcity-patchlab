@@ -42,7 +42,7 @@
       version: 2,
       scope: 'ALL', dims: [], output: 'SINGLE',
       page: { size:'A4', orientation:'landscape', margin:10 },
-      style: { accent:'#ff8a1f', font:'helvetica', fontSize:9.5, density:'comfortable', colorUniverses:true, dimBand:true, grayscale:false },
+      style: { accent:'#ff8a1f', font:'helvetica', fontSize:9.5, density:'comfortable', colorUniverses:true, dimBand:true, grayscale:false, lineWeight:'normal' },
       header: { show:true, text:'{project} · {dimcity}' },
       footer: { show:true, left:'{project} · {area}', center:'Prepared by {prepared} · {date}', pageNumbers:true },
       brand: { logo:null, logoPos:'none', logoHeight:9, wm:{ type:'none', text:'CONFIDENTIAL', opacity:8, size:55, angle:-30 } },
@@ -89,10 +89,20 @@
     // oude S/M/L-logogrootte omzetten naar millimeters
     if(saved.cover && saved.cover.logoW == null && saved.cover.logoSize) out.cover.logoW = { S:35, M:60, L:90 }[saved.cover.logoSize] || 60;
     const known = Array.isArray(saved.sections) ? saved.sections.filter(s => SECTIONS[s.key]) : [];
-    out.sections = known.map(s => ({ ...L.sections.find(d=>d.key===s.key), ...s, opts:{ ...(L.sections.find(d=>d.key===s.key)?.opts||{}), ...(s.opts||{}) } }));
+    out.sections = known.map(s => ({ ...L.sections.find(d=>d.key===s.key), ...s, opts:{ ...(L.sections.find(d=>d.key===s.key)?.opts||{}), ...(s.opts||{}) }, pos: normPos(s.pos) }));
     for(const d of L.sections) if(!out.sections.some(s=>s.key===d.key)) out.sections.push(clone(d));
     return out;
   }
+  // Positie van een sectie op het blad: null = automatisch onder elkaar, anders { x, y, w } in mm
+  // (gemeten vanaf de linkerbovenhoek van het inhoudsvlak, binnen de marges)
+  function normPos(p){
+    if(!p || typeof p !== 'object' || p.mode === 'auto') return null;
+    const n = (v, d) => { const x = Number(v); return Number.isFinite(x) ? Math.round(x * 2) / 2 : d; };
+    return { x:Math.max(0, n(p.x, 0)), y:Math.max(0, n(p.y, 0)), w:Math.max(20, n(p.w, 120)) };
+  }
+  const GRID_MM = 5;
+  const snap = v => Math.round(v / GRID_MM) * GRID_MM;
+  const contentBox = L => { const [pw, ph] = pageDims(L); const { m, mt, mb } = pageMargins(L); return { w:pw - 2*m, h:ph - mt - mb }; };
 
   // ===================== Data helpers =====================
   function uniColor(u, L){ return L.style.colorUniverses ? `hsl(${(Number(u||0)*47)%360} 70% 40%)` : '#64748b'; }
@@ -199,6 +209,10 @@
     const font = L.style.font === 'system' ? '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif' : L.style.font === 'georgia' ? 'Georgia,"Times New Roman",serif' : 'Helvetica,Arial,sans-serif';
     const acc = hex(L.style.accent, '#ff8a1f');
     const gap = compact ? 1.6 : 2.6;
+    // lijndikte en -kleur: licht (zoals vroeger), normaal (duidelijk op papier), dik (zwaar, voor op de vloer)
+    const LW = { light:{ bw:.25, ln:'#e2e8f0', ln2:'#cbd5e1', ln3:'#94a3b8' }, normal:{ bw:.35, ln:'#94a3b8', ln2:'#64748b', ln3:'#334155' }, bold:{ bw:.55, ln:'#475569', ln2:'#1e293b', ln3:'#0f172a' } }[L.style.lineWeight] || { bw:.35, ln:'#94a3b8', ln2:'#64748b', ln3:'#334155' };
+    const hasFixed = L.sections.some(s => s.on && s.pos);
+    const cb = contentBox(L);
     const screen = preview ? `
       html{background:#2a2e35}
       body{padding:18px 0 40px;zoom:var(--zoom,1)}
@@ -211,17 +225,27 @@
       .pv-footer{position:absolute;left:${m}mm;right:${m}mm;bottom:${Math.max(4, mb/2 - 2)}mm;display:flex;justify-content:space-between;font-size:7px;color:#64748b}
       ${previewTile ? `.page::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:5;background:url("${previewTile}") top center/100% ${ph}mm repeat-y}` : ''}
       .cover .logo{cursor:move}
-      .cover .logo:hover{outline:1.5px dashed rgba(255,138,31,.8);outline-offset:1.5mm}` : `
+      .cover .logo:hover{outline:1.5px dashed rgba(255,138,31,.8);outline-offset:1.5mm}
+      .sec-grip{position:absolute;left:-1mm;top:-1mm;transform:translate(-100%,0);width:5mm;height:5mm;border-radius:1mm;background:#ff8a1f;color:#fff;display:none;align-items:center;justify-content:center;cursor:move;font-size:9px;z-index:6;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+      [data-sec]:hover > .sec-grip,[data-sec].sel > .sec-grip{display:flex}
+      [data-sec].fixed{outline:1px dashed rgba(255,138,31,.45)}
+      [data-sec].dragging{opacity:.75;outline:2px solid #ff8a1f}
+      .page.grid-bg{background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(${ph}mm - 1px),rgba(255,138,31,.55) calc(${ph}mm - 1px),rgba(255,138,31,.55) ${ph}mm),linear-gradient(to right,rgba(15,23,42,.06) 1px,transparent 1px),linear-gradient(to bottom,rgba(15,23,42,.06) 1px,transparent 1px);background-size:100% ${ph}mm,${GRID_MM}mm ${GRID_MM}mm,${GRID_MM}mm ${GRID_MM}mm;background-position:0 0,${m}mm ${mt}mm,${m}mm ${mt}mm}` : `
       @page{size:${L.page.size} ${land?'landscape':'portrait'};margin:${mt}mm ${m}mm ${mb}mm}
       .wm-print{position:fixed;inset:0;pointer-events:none;z-index:50}
       .wm-print img{width:100%;height:100%;display:block}
-      .page{page-break-after:always;break-after:page}
+      .page{page-break-after:always;break-after:page;position:relative${hasFixed ? `;min-height:${cb.h - 1}mm` : ''}}
       .page:last-child{page-break-after:auto;break-after:auto}
-      .pv-footer{display:none}`;
+      .pv-footer{display:none}
+      .sec-grip{display:none}`;
     return `
       *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      :root{--bw:${LW.bw}mm;--ln:${LW.ln};--ln2:${LW.ln2};--ln3:${LW.ln3}}
       body{margin:0;font:${fs}px/1.32 ${font};color:#0f172a;${L.style.grayscale?'filter:grayscale(1);':''}}
       ${screen}
+      [data-sec]{position:relative}
+      [data-sec].fixed{position:absolute;left:calc(${padS}mm + var(--x));top:calc(${padT}mm + var(--y));width:var(--w);z-index:3;margin:0}
+      [data-sec].fixed .section{margin-bottom:0}
       h1,h2,h3,h4{margin:0}
       .cover{display:flex;flex-direction:column;min-height:${ph - mt - mb - 2}mm;position:relative}
       .cover-bar{height:3mm;background:${acc};border-radius:1mm;margin-bottom:12mm;width:40mm}
@@ -230,7 +254,7 @@
       .cover .subtitle{font-size:${fs*1.6}px;color:#475569;margin-top:4mm}
       .cover .logo{position:absolute;z-index:2;left:calc(${padS}mm + (100% - ${2*padS}mm) * var(--x));top:calc(${padT}mm + (100% - ${padT+padB}mm) * var(--y));transform:translate(calc(var(--x) * -100%), calc(var(--y) * -100%))}
       .cover .logo img{object-fit:contain;display:block;width:var(--w);max-height:calc(var(--w) * .8);height:auto}
-      .cover-meta{margin-top:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4mm;border-top:.4mm solid #e2e8f0;padding-top:6mm}
+      .cover-meta{margin-top:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4mm;border-top:var(--bw) solid var(--ln);padding-top:6mm}
       .cover-meta dt{font-size:${fs*.82}px;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;font-weight:700}
       .cover-meta dd{margin:1mm 0 0;font-size:${fs*1.25}px;font-weight:600}
       .cover-totals{display:flex;gap:8mm;margin-top:10mm}
@@ -239,7 +263,7 @@
       .cover-note{margin-top:8mm;padding:4mm 5mm;border-left:1mm solid ${acc};background:#f8fafc;white-space:pre-line;font-size:${fs*1.05}px}
       .cover-gen{margin-top:6mm;font-size:${fs*.8}px;color:#94a3b8}
       .doc-h2{font-size:${fs*1.9}px;font-weight:800;margin-bottom:4mm}
-      .run-head{display:flex;justify-content:space-between;font-size:${fs*.8}px;color:#94a3b8;border-bottom:.3mm solid #e2e8f0;padding-bottom:1.5mm;margin-bottom:${compact?3:4}mm}
+      .run-head{display:flex;justify-content:space-between;font-size:${fs*.8}px;color:#94a3b8;border-bottom:var(--bw) solid var(--ln);padding-bottom:1.5mm;margin-bottom:${compact?3:4}mm}
       .db-head{display:flex;justify-content:space-between;align-items:flex-end;gap:6mm;margin-bottom:${compact?3:5}mm;padding-bottom:${compact?2:3}mm;border-bottom:.5mm solid #0f172a}
       .db-head.band{border-bottom:1.2mm solid var(--db)}
       .db-title{font-size:${fs*2.8}px;font-weight:800;letter-spacing:-.01em;line-height:1;display:flex;align-items:center;gap:3mm}
@@ -250,36 +274,36 @@
       .stat span{font-size:${fs*.78}px;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
       .stat.err b{color:#dc2626}.stat.warn b{color:#d97706}
       .section{margin:0 0 ${compact?3:5}mm}
-      .section > h3{font-size:${fs*1.15}px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin:0 0 ${gap}mm;padding-bottom:1.2mm;border-bottom:.3mm solid #cbd5e1;display:flex;justify-content:space-between;align-items:baseline}
+      .section > h3{font-size:${fs*1.15}px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin:0 0 ${gap}mm;padding-bottom:1.2mm;border-bottom:var(--bw) solid var(--ln2);display:flex;justify-content:space-between;align-items:baseline}
       .section > h3 small{font-weight:600;text-transform:none;letter-spacing:0;color:#94a3b8;font-size:${fs*.85}px}
       .section > h3 .n{color:${acc};margin-right:2mm}
       .grid{display:grid;gap:${gap}mm}.cols2{grid-template-columns:1fr 1fr}.cols3{grid-template-columns:repeat(3,1fr)}
-      .card{border:.3mm solid #cbd5e1;border-radius:1.6mm;break-inside:avoid;overflow:hidden;margin-bottom:${gap}mm;background:#fff}
+      .card{border:var(--bw) solid var(--ln2);border-radius:1.6mm;break-inside:avoid;overflow:hidden;margin-bottom:${gap}mm;background:#fff}
       .card-h{background:#f1f5f9;padding:${compact?1.2:1.8}mm 2.5mm;font-weight:800;display:flex;justify-content:space-between;align-items:center;gap:3mm}
       .card-h small{font-weight:600;color:#64748b}
       .card-b{padding:${compact?1.4:2.2}mm}
       table{width:100%;border-collapse:collapse}
-      th,td{border-bottom:.25mm solid #e2e8f0;padding:${compact?.7:1.1}mm 1.6mm;text-align:left;vertical-align:top}
-      th{font-size:${fs*.8}px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:700;border-bottom:.35mm solid #94a3b8}
+      th,td{border-bottom:calc(var(--bw) * .8) solid var(--ln);padding:${compact?.7:1.1}mm 1.6mm;text-align:left;vertical-align:top}
+      th{font-size:${fs*.8}px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:700;border-bottom:var(--bw) solid var(--ln2)}
       td.num,th.num{text-align:right}
       tr{break-inside:avoid}
       .ports{display:grid;gap:${compact?.8:1.1}mm}
       .p4{grid-template-columns:repeat(4,1fr)}.p8{grid-template-columns:repeat(8,1fr)}.p12{grid-template-columns:repeat(12,1fr)}
-      .port{border:.35mm solid #cbd5e1;border-top:1mm solid var(--uni,#cbd5e1);border-radius:1mm;padding:${compact?.7:1}mm ${compact?.9:1.2}mm;min-height:${compact?9:12}mm;overflow:hidden;background:#fff}
+      .port{border:var(--bw) solid var(--ln2);border-top:1mm solid var(--uni,#cbd5e1);border-radius:1mm;padding:${compact?.7:1}mm ${compact?.9:1.2}mm;min-height:${compact?9:12}mm;overflow:hidden;background:#fff}
       .port .nr{font-size:${fs*.75}px;color:#94a3b8;font-weight:700}
       .port .uni{font-size:${fs*1.08}px;font-weight:800;color:#0f172a}
       .port .dest,.port .src{font-size:${fs*.74}px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .port .src{color:#94a3b8}
-      .port.empty{border-top-color:#e2e8f0;background:#f8fafc}.port.empty .uni{color:#cbd5e1;font-weight:600}
+      .port.empty{border-top-color:var(--ln);border-color:var(--ln);background:#f8fafc}.port.empty .uni{color:#cbd5e1;font-weight:600}
       .port.conflict{background:#fee2e2;border-color:#dc2626}
       .lk-groups{display:grid;grid-template-columns:repeat(3,1fr);gap:${gap}mm}
-      .lk-group{border:.3mm solid #e2e8f0;border-radius:1.2mm;padding:${compact?1:1.6}mm}
+      .lk-group{border:var(--bw) solid var(--ln);border-radius:1.2mm;padding:${compact?1:1.6}mm}
       .tint .g1{background:#eff6ff}.tint .g2{background:#fff7ed}.tint .g3{background:#f0fdf4}
       .lk-group h4{font-size:${fs*.88}px;margin:0 0 1.2mm;display:flex;justify-content:space-between}
       .lk-group h4 small{color:#16a34a;font-weight:700}
       .lk-group h4 small.none{color:#94a3b8;font-weight:600}
       .node .port{border-radius:6mm;text-align:center;border-top-width:.35mm;border-color:var(--uni,#cbd5e1);border-width:.6mm}
-      .placeholder{border:.3mm dashed #cbd5e1;border-radius:1.6mm;padding:3mm;color:#94a3b8;text-align:center}
+      .placeholder{border:var(--bw) dashed var(--ln2);border-radius:1.6mm;padding:3mm;color:#94a3b8;text-align:center}
       .tag{display:inline-block;padding:.3mm 1.6mm;border-radius:1mm;font-size:${fs*.78}px;font-weight:700;background:#f1f5f9;color:#475569}
       .tag.red{background:#fee2e2;color:#b91c1c}.tag.yellow{background:#fef3c7;color:#b45309}.tag.green{background:#dcfce7;color:#15803d}
       .dot{display:inline-block;width:2mm;height:2mm;border-radius:50%;margin-right:1.2mm;vertical-align:middle}
@@ -288,7 +312,7 @@
       .rk-tbl td{vertical-align:middle}
       .rk-u{width:12mm;color:#64748b;font-weight:700}
       .rk-ports{line-height:1.9}
-      .rk-p{display:inline-block;min-width:6mm;text-align:center;padding:0 1.2mm;margin:0 .6mm .4mm 0;border-radius:3mm;border:.45mm solid var(--c,#94a3b8);font-size:${fs*.78}px;font-weight:700;color:#0f172a;background:color-mix(in srgb,var(--c,#94a3b8) 12%,#fff)}
+      .rk-p{display:inline-block;min-width:6mm;text-align:center;padding:0 1.2mm;margin:0 .6mm .4mm 0;border-radius:3mm;border:var(--bw) solid var(--c,#94a3b8);font-size:${fs*.78}px;font-weight:700;color:#0f172a;background:color-mix(in srgb,var(--c,#94a3b8) 12%,#fff)}
       .rk-p.free{border-style:dashed;color:#94a3b8;background:#fff;font-weight:500}
       .rk-tag{display:inline-block;padding:0 1.4mm;margin-right:1.5mm;border-radius:1mm;background:var(--c,#e2e8f0);color:#0f172a;font-size:${fs*.8}px}
       .rk-advice{display:flex;flex-direction:column;gap:1mm;margin-bottom:${gap}mm}
@@ -384,28 +408,38 @@
     return `<div class="pv-footer"><span>${esc(tokens(L.footer.left, meta, dc))}</span><span>${esc(tokens(L.footer.center, meta, dc))}</span><span>${L.footer.pageNumbers?'Page n of N':''}</span></div>`;
   }
 
-  function buildDimCity(M, meta, dc, L){
+  function buildDimCity(M, meta, dc, L, preview=false){
     let n = 0;
+    const wrap = (s, html) => secWrap(s, html, preview);
     const parts = L.sections.filter(s => s.on).map(s => {
       const o = s.opts || {};
       if(s.key === 'notes' && !o.text) return '';
-      if(s.key === 'summary') return wrap('summary', buildDbHeader(M, meta, dc, L));
+      if(s.key === 'summary') return wrap(s, buildDbHeader(M, meta, dc, L));
       n++;
       switch(s.key){
-        case 'network':   return wrap('network', buildNetwork(M, dc, L, n, o));
-        case 'splitters': return wrap('splitters', buildSplitters(M, dc, L, n));
-        case 'racks':     { const h = buildRacks(M, dc, L, n, o); if(!h) n--; return wrap('racks', h); }
-        case 'patch':     return wrap('patch', buildPatch(M, dc, L, n, o));
-        case 'universes': return wrap('universes', buildUniverses(M, dc, L, n));
-        case 'patchlist': return wrap('patchlist', buildPatchList(M, dc, L, n, o));
-        case 'warnings':  return wrap('warnings', buildWarnings(M, dc, L, n, o));
-        case 'notes':     return wrap('notes', `<div class="section">${h3(n, 'Notes')}<div class="notes">${esc(fillTokens(o.text, meta, dc))}</div></div>`);
+        case 'network':   return wrap(s, buildNetwork(M, dc, L, n, o));
+        case 'splitters': return wrap(s, buildSplitters(M, dc, L, n));
+        case 'racks':     { const h = buildRacks(M, dc, L, n, o); if(!h) n--; return wrap(s, h); }
+        case 'patch':     return wrap(s, buildPatch(M, dc, L, n, o));
+        case 'universes': return wrap(s, buildUniverses(M, dc, L, n));
+        case 'patchlist': return wrap(s, buildPatchList(M, dc, L, n, o));
+        case 'warnings':  return wrap(s, buildWarnings(M, dc, L, n, o));
+        case 'notes':     return wrap(s, `<div class="section">${h3(n, 'Notes')}<div class="notes">${esc(fillTokens(o.text, meta, dc))}</div></div>`);
       }
       return '';
     }).join('');
-    return `<section class="page" style="--db:${dcColor(M,dc)}" data-label="${esc(dc)}">${runHead(L, meta, dc)}${parts || '<div class="placeholder">No sections enabled. Turn sections on in the Content tab.</div>'}${footerPreview(L, meta, dc)}</section>`;
+    const grid = preview && L.sections.some(s => s.on && s.pos) ? ' grid-bg' : '';
+    return `<section class="page${grid}" style="--db:${dcColor(M,dc)}" data-label="${esc(dc)}">${runHead(L, meta, dc)}${parts || '<div class="placeholder">No sections enabled. Turn sections on in the Content tab.</div>'}${footerPreview(L, meta, dc)}</section>`;
   }
-  const wrap = (key, html) => html ? `<div data-sec="${key}">${html}</div>` : '';
+  // Sectie-wrapper: automatisch in de stroom, of vast op x/y (mm) met een breedte. In de preview
+  // krijgt elke sectie een greep om te slepen.
+  function secWrap(s, html, preview){
+    if(!html) return '';
+    const p = normPos(s.pos);
+    const style = p ? ` style="--x:${p.x}mm;--y:${p.y}mm;--w:${p.w}mm"` : '';
+    const grip = preview ? `<span class="sec-grip" data-grip="${s.key}" title="Drag to position this section on the sheet">${I('grip', 10)}</span>` : '';
+    return `<div data-sec="${s.key}" class="${p ? 'fixed' : ''}"${style}>${grip}${html}</div>`;
+  }
   const h3 = (n, title, small='') => `<h3><span><span class="n">${n}</span>${esc(title)}</span>${small?`<small>${small}</small>`:''}</h3>`;
 
   function buildDbHeader(M, meta, dc, L){
@@ -567,7 +601,7 @@
     const L = layout;
     const cover = L.cover.show ? buildCover(M, meta, dcs, L) : '';
     const summary = L.cover.summaryPage && dcs.length > 1 ? buildProjectSummary(M, meta, dcs, L) : '';
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.project || 'PatchLab report')}</title><style>${printCss(L, { preview, meta })}</style></head><body>${preview ? '' : printWatermark(L, meta)}${coverOnce ? cover + summary : ''}${dcs.map(dc => buildDimCity(M, meta, dc, L)).join('')}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.project || 'PatchLab report')}</title><style>${printCss(L, { preview, meta })}</style></head><body>${preview ? '' : printWatermark(L, meta)}${coverOnce ? cover + summary : ''}${dcs.map(dc => buildDimCity(M, meta, dc, L, preview)).join('')}</body></html>`;
   }
 
   // ===================== Builder UI =====================
@@ -753,15 +787,24 @@
       const optHtml = s.key === 'notes'
         ? `<label class="field" style="margin-top:4px">Text<textarea rows="5" data-notes placeholder="Crew instructions, contact numbers… Supports {project}, {dimcity}, {date}.">${esc(s.opts?.text || '')}</textarea></label>`
         : opts.map(([k, label, def])=>`<label class="rb-row sm"><span>${label}</span><span class="switch"><input type="checkbox" data-opt="${k}" data-sec="${s.key}" ${(s.opts?.[k] ?? def)?'checked':''}><span></span></span></label>`).join('');
-      return `<div class="rb-sec ${s.on?'':'off'} ${open?'open':''} ${B.selSec===s.key?'sel':''}" draggable="true" data-key="${s.key}">
+      const p = normPos(s.pos), cbx = contentBox(L);
+      const posHtml = `<div class="rb-pos-sec">
+          <div class="rb-pos-head"><span>Position on the sheet</span><div class="segmented" data-posmode="${s.key}"><button data-v="auto" class="${p?'':'active'}">Auto</button><button data-v="fixed" class="${p?'active':''}">Fixed</button></div></div>
+          ${p ? `<div class="rb-pos-fields">
+            <label>X <input type="number" data-pos="x" data-sec="${s.key}" min="0" max="${Math.floor(cbx.w)}" step="${GRID_MM}" value="${p.x}"><span>mm</span></label>
+            <label>Y <input type="number" data-pos="y" data-sec="${s.key}" min="0" max="${Math.floor(cbx.h)}" step="${GRID_MM}" value="${p.y}"><span>mm</span></label>
+            <label>Width <input type="number" data-pos="w" data-sec="${s.key}" min="20" max="${Math.floor(cbx.w)}" step="${GRID_MM}" value="${p.w}"><span>mm</span></label>
+          </div><div class="hint">Drag the orange handle in the preview to move it (snaps to ${GRID_MM} mm). Sheet is ${Math.round(cbx.w)} × ${Math.round(cbx.h)} mm inside the margins.</div>` : `<div class="hint">Auto: sections follow each other from top to bottom. Choose Fixed, or drag the handle in the preview, to place this section yourself.</div>`}
+        </div>`;
+      return `<div class="rb-sec ${s.on?'':'off'} ${open?'open':''} ${B.selSec===s.key?'sel':''} ${p?'has-pos':''}" draggable="true" data-key="${s.key}">
         <div class="rb-sec-head">
           <span class="grip" title="Drag to reorder">${I('grip',14)}</span>
           <label class="switch" title="${s.on?'Hide':'Show'} section"><input type="checkbox" data-on="${s.key}" ${s.on?'checked':''}><span></span></label>
-          <div class="rb-sec-title" data-toggle="${s.key}"><b>${I(meta.icon,14)} ${esc(meta.title)}</b><span>${esc(meta.desc)}</span></div>
+          <div class="rb-sec-title" data-toggle="${s.key}"><b>${I(meta.icon,14)} ${esc(meta.title)}${p?`<span class="tag" title="Fixed position">${p.x}, ${p.y} mm</span>`:''}</b><span>${esc(meta.desc)}</span></div>
           <div class="rb-sec-move"><button class="ghost sm icon-only" data-up="${i}" ${i===0?'disabled':''} title="Move up">${I('chevronDown',13).replace('<svg','<svg style="transform:rotate(180deg)"')}</button><button class="ghost sm icon-only" data-down="${i}" ${i===L.sections.length-1?'disabled':''} title="Move down">${I('chevronDown',13)}</button></div>
-          ${opts.length || s.key==='notes' ? `<button class="ghost sm icon-only" data-toggle="${s.key}" title="Options">${I(open?'chevronDown':'chevronRight',14)}</button>` : '<span style="width:26px"></span>'}
+          <button class="ghost sm icon-only" data-toggle="${s.key}" title="Options">${I(open?'chevronDown':'chevronRight',14)}</button>
         </div>
-        ${open ? `<div class="rb-sec-opts">${optHtml}</div>` : ''}
+        ${open ? `<div class="rb-sec-opts">${optHtml}${posHtml}</div>` : ''}
       </div>`;
     }).join('');
     return `${scope}<div class="rb-group"><div class="rb-label">Sections per DimCity <span class="subtle">· drag to reorder</span></div><div class="rb-secs" id="rbSecs">${secs}</div></div>`;
@@ -783,6 +826,8 @@
           <label class="field">Text size<select id="rbFs">${[8,8.5,9,9.5,10,11].map(v=>`<option value="${v}" ${Number(L.style.fontSize)===v?'selected':''}>${v} pt</option>`).join('')}</select></label>
           <label class="field span-2">Density<div class="segmented rb-full" id="rbDensity"><button data-v="compact" class="${L.style.density==='compact'?'active':''}">Compact</button><button data-v="comfortable" class="${L.style.density!=='compact'?'active':''}">Comfortable</button></div></label>
         </div>
+        <label class="field" style="margin-top:12px">Line weight<div class="segmented rb-full" id="rbLine">${[['light','Light'],['normal','Normal'],['bold','Bold']].map(([v,l])=>`<button data-v="${v}" class="${(L.style.lineWeight||'normal')===v?'active':''}">${l}</button>`).join('')}</div></label>
+        <div class="hint">Normal and Bold give darker, thicker lines that stay readable on paper.</div>
         ${sw('rbColorU', L.style.colorUniverses, 'Color-code universes')}
         ${sw('rbBand', L.style.dimBand, 'Use DimCity color in headers')}
         ${sw('rbGray', L.style.grayscale, 'Print-friendly grayscale')}
@@ -870,6 +915,17 @@
     on('[data-notes]', 'input', e => { const s = L.sections.find(x=>x.key==='notes'); s.opts = { ...(s.opts||{}), text:e.target.value }; if(e.target.value && !s.on){ s.on = true; P.querySelector('[data-on="notes"]').checked = true; P.querySelector('.rb-sec[data-key="notes"]').classList.remove('off'); } changed(); });
     on('[data-up]', 'click', e => { move(Number(e.currentTarget.dataset.up), -1); });
     on('[data-down]', 'click', e => { move(Number(e.currentTarget.dataset.down), 1); });
+    // positie op het blad
+    P.querySelectorAll('[data-posmode]').forEach(seg => seg.querySelectorAll('button').forEach(b => b.onclick = ()=>{
+      const s = L.sections.find(x=>x.key===seg.dataset.posmode); if(!s) return;
+      if(b.dataset.v === 'auto') s.pos = null;
+      else if(!normPos(s.pos)){ const cbx = contentBox(L); s.pos = { x:0, y:0, w:Math.min(120, snap(cbx.w)) }; }
+      changed(true);
+    }));
+    on('[data-pos]', 'change', e => {
+      const s = L.sections.find(x=>x.key===e.target.dataset.sec); const p = normPos(s?.pos); if(!p) return;
+      p[e.target.dataset.pos] = Number(e.target.value); s.pos = normPos(p); changed(true);
+    });
     // drag & drop volgorde
     let dragKey = null;
     on('.rb-sec', 'dragstart', e => { dragKey = e.currentTarget.dataset.key; e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
@@ -901,6 +957,7 @@
     val('rbFont', n => L.style.font = n.value);
     val('rbFs', n => L.style.fontSize = Number(n.value));
     seg('rbDensity', v => L.style.density = v);
+    seg('rbLine', v => L.style.lineWeight = v);
     val('rbColorU', n => L.style.colorUniverses = n.checked);
     val('rbBand', n => L.style.dimBand = n.checked);
     val('rbGray', n => L.style.grayscale = n.checked);
@@ -1001,6 +1058,7 @@
       const info = document.getElementById('rbPageInfo');
       if(info) info.textContent = `${pages} sheet${pages===1?'':'s'} in preview${B.L.output==='PER_DIM' && dcs.length>1 ? ` · showing ${previewDcs[0]} (each DimCity becomes its own file)` : ''}`;
       doc.addEventListener('click', e=>{
+        if(e.target.closest('.sec-grip')) return;
         const sec = e.target.closest('[data-sec]'); if(!sec) return;
         const key = sec.dataset.sec;
         if(key === 'cover'){ B.tab = 'cover'; B.selSec = null; }
@@ -1010,8 +1068,45 @@
       });
       highlightPreview();
       bindCoverLogoDrag(doc);
+      bindSectionDrag(doc);
     };
     frame.srcdoc = html;
+  }
+  // Secties verslepen in de preview: de greep pakken, op een raster van 5 mm neerzetten.
+  // Een automatische sectie wordt bij het slepen 'vast' op de plek waar hij nu staat.
+  function bindSectionDrag(doc){
+    doc.querySelectorAll('.sec-grip').forEach(grip => grip.addEventListener('mousedown', e => {
+      e.preventDefault(); e.stopPropagation();
+      const sec = grip.closest('[data-sec]'), page = sec.closest('.page'); if(!sec || !page) return;
+      const s = B.L.sections.find(x => x.key === sec.dataset.sec); if(!s) return;
+      const [pw] = pageDims(B.L), { m, mt } = pageMargins(B.L), cbx = contentBox(B.L);
+      const pr = page.getBoundingClientRect(), sr = sec.getBoundingClientRect();
+      const mmpp = pw / pr.width;                       // mm per pixel, ongeacht zoom
+      let p = normPos(s.pos);
+      if(!p){
+        p = { x:snap((sr.left - pr.left) * mmpp - m), y:snap((sr.top - pr.top) * mmpp - mt), w:Math.max(20, snap(sr.width * mmpp)) };
+        s.pos = p;
+        sec.classList.add('fixed');
+        sec.style.setProperty('--w', `${p.w}mm`);
+      }
+      const x0 = p.x, y0 = p.y, sx = e.clientX, sy = e.clientY;
+      const setVars = () => { sec.style.setProperty('--x', `${p.x}mm`); sec.style.setProperty('--y', `${p.y}mm`); };
+      setVars(); sec.classList.add('dragging'); page.classList.add('grid-bg');
+      const mv = ev => {
+        p.x = Math.max(0, Math.min(cbx.w - p.w, snap(x0 + (ev.clientX - sx) * mmpp)));
+        p.y = Math.max(0, Math.min(cbx.h - 10, snap(y0 + (ev.clientY - sy) * mmpp)));
+        setVars();
+      };
+      const up = () => {
+        doc.removeEventListener('mousemove', mv); doc.removeEventListener('mouseup', up);
+        sec.classList.remove('dragging');
+        s.pos = normPos(p);
+        B.tab = 'content'; B.selSec = s.key; B.expanded = s.key;
+        renderPanel(); schedulePreview();
+        document.querySelector(`.rb-sec[data-key="${s.key}"]`)?.scrollIntoView({ block:'nearest' });
+      };
+      doc.addEventListener('mousemove', mv); doc.addEventListener('mouseup', up);
+    }));
   }
   // Coverafbeelding vrij verslepen in de preview
   function bindCoverLogoDrag(doc){

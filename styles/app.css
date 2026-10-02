@@ -570,6 +570,14 @@ a[data-open-kind]:hover,a[data-nav-view]:hover,a[data-cmd]:hover{text-decoration
 .rb-row.sm{padding:5px 0;font-size:12px;color:var(--text-2)}
 .rb-secs{display:flex;flex-direction:column;gap:6px}
 .rb-sec{border:1px solid var(--border);border-radius:8px;background:var(--surface-2);transition:border-color .12s,opacity .12s}
+.rb-sec-title .tag{margin-left:6px;font-size:10px;height:16px;line-height:16px;padding:0 6px}
+.rb-pos-sec{margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)}
+.rb-pos-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--text-2)}
+.rb-pos-head .segmented button{padding:3px 10px;font-size:11.5px}
+.rb-pos-fields{display:flex;gap:8px;margin-top:8px}
+.rb-pos-fields label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-2)}
+.rb-pos-fields input{width:62px;height:26px;font-size:12px}
+.rb-pos-fields span{font-size:11px;color:var(--text-3)}
 .rb-sec.off{opacity:.55}
 .rb-sec.off:hover{opacity:.85}
 .rb-sec.sel{border-color:var(--accent)}

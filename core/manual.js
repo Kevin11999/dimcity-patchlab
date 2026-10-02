@@ -417,7 +417,10 @@ De snelste weg naar een compleet plan is het uit de rack-patch opbouwen: **Gebru
 
 ## Reading it
 - **Left bar**: all DimCities or one; the universes in view; the nodes with their colours; the direction (left → right, or bottom → top).
-- Lines have the colour of the node that feeds them. **Hover a universe** in the left bar and every line that carries it lights up, ports included.
+- Racks are drawn as dashed boxes with their nodes, splitters and the LK panel inside; the sockets on the panel show which LK comes out, in the colour of the node that feeds it.
+- Cables are told apart by thickness: one thick **LK multicore** from the socket to the LK block, a thinner **Veam cable** from the slot it is plugged into, and thin **DMX lines** in the colour of their universe from each XLR or Veam port to the object. Patches inside the rack are the thinnest lines.
+- An LK block shows only its own XLR ports; the universes that go on through a Veam are shown in that Veam's block.
+- **Hover a universe** in the left bar and every line that carries it lights up, ports included.
 - **Hover a block** (node, LK, Veam, object) and its whole flow lights up and moves: upstream to the node port and downstream through splitter, LK slot and Veam to every object. **Hover one port** inside a block for that single line only. **Hover a line** for that line's flow.
 - **Click** a universe, line or block to pin it: the path stays alive while you move the mouse, until you click something else, click the background or press Esc. Everything else keeps its colour.
 - Zoom with the mouse wheel, pan by dragging the background, **Fit** brings everything into view. The arrow at the top of the app sidebar collapses it to icons for more room.
@@ -433,7 +436,10 @@ The drawing is built from the rack patch, so place a rack or a loose node first 
 
 ## Lezen
 - **Linkerbalk**: alle DimCities of één; de universes in beeld; de nodes met hun kleuren; de richting (links → rechts, of onder → boven).
-- Lijnen hebben de kleur van de node die ze voedt. **Beweeg over een universe** in de linkerbalk en elke lijn die hem draagt licht op, inclusief de poorten.
+- Rekken staan als gestippelde kaders met hun nodes, splitters en het LK-paneel erin; de aansluitingen op het paneel laten zien welke LK eruit komt, in de kleur van de node die hem voedt.
+- Kabels herken je aan de dikte: één dikke **LK-multicore** van de aansluiting naar het LK-blok, een dunnere **Veam-kabel** vanuit het slot waar hij op zit, en dunne **DMX-lijnen** in de kleur van hun universe van elke XLR- of Veam-poort naar het object. Patches in het rek zijn de dunste lijnen.
+- Een LK-blok toont alleen zijn eigen XLR-poorten; de universes die via een Veam doorgaan staan in het blok van die Veam.
+- **Beweeg over een universe** in de linkerbalk en elke lijn die hem draagt licht op, inclusief de poorten.
 - **Beweeg over een blok** (node, LK, Veam, object) en zijn hele flow licht op en beweegt: stroomopwaarts naar de nodepoort en stroomafwaarts door splitter, LK-slot en Veam naar elk object. **Beweeg over één poort** in een blok voor alleen die ene lijn. **Beweeg over een lijn** voor de flow van die lijn.
 - **Klik** op een universe, lijn of blok om het vast te zetten: het pad blijft leven terwijl je de muis beweegt, tot je ergens anders op klikt, op de achtergrond klikt of Esc drukt. Al het andere houdt zijn kleur.
 - Zoomen met het muiswiel, verschuiven door de achtergrond te slepen, **Passend** brengt alles in beeld. Het pijltje bovenaan de zijbalk van de app klapt hem in tot iconen voor meer ruimte.
@@ -595,10 +601,12 @@ export const CHANGES = [
   {
     version:'0.3.1', date:'unreleased',
     en:[
-      'Signal Flow page: a drawing of how the data runs from the node in the rack, via splitter and socket, through the LK block and Veams to every object. Hover a universe or a line to follow it with the data moving along; drag blocks; give LK blocks your own name (issue #3).'
+      'Signal Flow page: a drawing of how the data runs from the node in the rack, via splitter and socket, through the LK block and Veams to every object. Hover a universe or a line to follow it with the data moving along; drag blocks; give LK blocks your own name (issue #3).',
+      'Signal Flow draws the racks with their nodes and LK panel, tells LK, Veam and DMX cables apart by thickness, colours DMX lines by universe and leaves Veam-fed universes out of the LK block.'
     ],
     nl:[
-      'Pagina Signaalstroom: een tekening van hoe de data loopt van de node in het rek, via splitter en aansluiting, door het LK-blok en de Veams naar elk object. Beweeg over een universe of een lijn om hem te volgen met bewegende data; sleep blokken; geef LK-blokken een eigen naam (issue #3).'
+      'Pagina Signaalstroom: een tekening van hoe de data loopt van de node in het rek, via splitter en aansluiting, door het LK-blok en de Veams naar elk object. Beweeg over een universe of een lijn om hem te volgen met bewegende data; sleep blokken; geef LK-blokken een eigen naam (issue #3).',
+      'Signaalstroom tekent de rekken met hun nodes en LK-paneel, onderscheidt LK-, Veam- en DMX-kabels op dikte, kleurt DMX-lijnen per universe en laat universes via een Veam uit het LK-blok weg.'
     ]
   },
   {

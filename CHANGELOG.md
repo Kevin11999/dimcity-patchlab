@@ -7,10 +7,12 @@ All notable changes to DimCity PatchLab. The entry of a version is also the text
 ## 0.3.1 (unreleased)
 
 - Signal Flow page: a drawing of how the data runs from the node in the rack, via splitter and socket, through the LK block and Veams to every object. Hover a universe or a line to follow it with the data moving along; drag blocks; give LK blocks your own name (issue #3).
+- Signal Flow draws the racks with their nodes and LK panel, tells LK, Veam and DMX cables apart by thickness, colours DMX lines by universe and leaves Veam-fed universes out of the LK block.
 
 <details><summary>Nederlands</summary>
 
 - Pagina Signaalstroom: een tekening van hoe de data loopt van de node in het rek, via splitter en aansluiting, door het LK-blok en de Veams naar elk object. Beweeg over een universe of een lijn om hem te volgen met bewegende data; sleep blokken; geef LK-blokken een eigen naam (issue #3).
+- Signaalstroom tekent de rekken met hun nodes en LK-paneel, onderscheidt LK-, Veam- en DMX-kabels op dikte, kleurt DMX-lijnen per universe en laat universes via een Veam uit het LK-blok weg.
 
 </details>
 

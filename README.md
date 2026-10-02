@@ -67,10 +67,9 @@ Edit `library/standard-library.json`, raise its `version`, commit and push to `m
 
 Releases are built by GitHub Actions (`.github/workflows/release.yml`) for macOS, Windows and Linux — nothing has to be built on a laptop.
 
-1. Set the version in `package.json` and give the `unreleased` entry in `core/manual.js` → `CHANGES` that version and today's date; run `npm run manual`; commit to `main`.
-2. Tag and push: `git tag v0.3.1 && git push origin v0.3.1`.
-3. The workflow builds the installers, publishes the GitHub release and puts the CHANGELOG entry in it as release notes (about 10–15 minutes).
-4. Every app shows the release notes in its update dialog and offers the download.
+1. Set the new version in `package.json` and give the `unreleased` entry in `core/manual.js` → `CHANGES` that version and today's date; run `npm run manual`.
+2. Commit and push to `main`. That is all: the workflow sees the new version, builds the installers, publishes release `v<version>` and puts the CHANGELOG entry in it as release notes (about 10–15 minutes). It can also be started by hand under Actions → Release → Run workflow.
+3. Every app shows the release notes in its update dialog and offers the download.
 
 Building locally is still possible: `npm run dist:mac` / `dist:win` / `dist:linux`, or `GH_TOKEN=… npm run release` to publish by hand.
 

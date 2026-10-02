@@ -1,18 +1,39 @@
-# Builds the installers for macOS, Windows and Linux and publishes them as a GitHub release
-# whenever a version tag (v0.3.0) is pushed. The app's update check reads these releases.
+# Builds the installers for macOS, Windows and Linux and publishes them as GitHub release
+# v<version> whenever the version in package.json changes on main (or on manual dispatch).
+# The app's update check reads these releases. No tag has to be pushed by hand: electron-builder
+# creates the release (and its tag) from the version in package.json.
 name: Release
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths: ['package.json', '.github/workflows/release.yml']
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      exists: ${{ steps.v.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          V=$(node -p "require('./package.json').version")
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if gh release view "v$V" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "exists=true" >> "$GITHUB_OUTPUT"; echo "Release v$V already exists — nothing to do"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+
   build:
     name: Build ${{ matrix.os }}
+    needs: version
+    if: needs.version.outputs.exists == 'false'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -26,9 +47,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      # Release notes come from CHANGELOG (core/manual.js) so the app shows them in its update dialog
-      - run: npm run release-notes ${GITHUB_REF_NAME#v}
-        shell: bash
       - name: Build and publish installers
         run: npx electron-builder --publish always
         env:
@@ -37,16 +55,17 @@ jobs:
 
   notes:
     name: Release notes
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: mkdir -p dist && node scripts/build-manual.mjs ${GITHUB_REF_NAME#v}
+      - run: mkdir -p dist && node scripts/build-manual.mjs ${{ needs.version.outputs.version }}
       - name: Put the changelog entry in the release
         uses: softprops/action-gh-release@v2
         with:
-          body_path: dist/release-notes-${{ github.ref_name }}.md
-          name: DimCity PatchLab ${{ github.ref_name }}
+          tag_name: v${{ needs.version.outputs.version }}
+          name: DimCity PatchLab v${{ needs.version.outputs.version }}
+          body_path: dist/release-notes-${{ needs.version.outputs.version }}.md

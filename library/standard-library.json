@@ -1,0 +1,72 @@
+{
+  "fileType": "patchlab-standard-library",
+  "version": 1,
+  "updatedAt": "2026-10-02",
+  "notes": "Standard device types for Luminex and ELC Lighting. Port counts come from the manufacturers' product pages; check heights and port counts against the unit in your rack. Edit a type in the Device Builder to make it your own — it is then no longer overwritten by a library update.",
+  "nodeTypes": [
+    { "id": "NODE:LMX-LN1",    "brand": "Luminex", "name": "LumiNode 1",       "portCount": 1,  "ethernetCount": "1", "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#4ea8ff", "usageType": "truss / stand-alone, PoE" },
+    { "id": "NODE:LMX-LN2",    "brand": "Luminex", "name": "LumiNode 2",       "portCount": 2,  "ethernetCount": "2", "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#4ea8ff", "usageType": "truss / stand-alone" },
+    { "id": "NODE:LMX-LN4",    "brand": "Luminex", "name": "LumiNode 4",       "portCount": 4,  "ethernetCount": "2", "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#4ea8ff", "usageType": "half 19\", 1U" },
+    { "id": "NODE:LMX-LN8IP",  "brand": "Luminex", "name": "LumiNode 8-IP",    "portCount": 8,  "ethernetCount": "2", "defaultIp": "", "subnet": "255.0.0.0", "heightU": 2, "color": "#4ea8ff", "usageType": "IP65 outdoor" },
+    { "id": "NODE:LMX-LN12",   "brand": "Luminex", "name": "LumiNode 12",      "portCount": 12, "ethernetCount": "2", "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#4ea8ff", "usageType": "19\", 1U, 5-pin XLR" },
+    { "id": "NODE:LMX-LN12RJ", "brand": "Luminex", "name": "LumiNode 12 RJ45", "portCount": 12, "ethernetCount": "2", "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#4ea8ff", "usageType": "19\", 1U, RJ45 DMX outputs" },
+    { "id": "NODE:ELC-BUDDY",  "brand": "ELC",     "name": "dmXLAN Buddy",     "portCount": 2,  "ethernetCount": "1", "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#f2b33d", "usageType": "truss / stand-alone" },
+    { "id": "NODE:ELC-N1S",    "brand": "ELC",     "name": "dmXLAN Node 1S",   "portCount": 1,  "ethernetCount": "1", "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#f2b33d", "usageType": "stand-alone" },
+    { "id": "NODE:ELC-N3W",    "brand": "ELC",     "name": "dmXLAN Node 3 Wall","portCount": 3, "ethernetCount": "2", "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#f2b33d", "usageType": "wall mount" },
+    { "id": "NODE:ELC-N4",     "brand": "ELC",     "name": "dmXLAN Node 4",    "portCount": 4,  "ethernetCount": "2", "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#f2b33d", "usageType": "half 19\", 1U" },
+    { "id": "NODE:ELC-N8",     "brand": "ELC",     "name": "dmXLAN Node 8",    "portCount": 8,  "ethernetCount": "2", "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#f2b33d", "usageType": "19\", 1U, 8 bi-directional + 2 input ports" },
+    { "id": "NODE:ELC-NGBX8",  "brand": "ELC",     "name": "dmXLAN NodeGBx 8", "portCount": 8,  "ethernetCount": "2", "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#f2b33d", "usageType": "19\", 1U, dual Gigabit switch" },
+    { "id": "NODE:ELC-NGBX8SL","brand": "ELC",     "name": "dmXLAN NodeGBx 8 Slave", "portCount": 8, "ethernetCount": "2", "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#f2b33d", "usageType": "slave of switchGBx 10 / 18" }
+  ],
+  "switchTypes": [
+    { "id": "SWITCH:LMX-GC10T", "brand": "Luminex", "name": "GigaCore 10t",  "portCount": 8,  "sfpCount": 2, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "touring, 8× 1G etherCON + 2× 10G fiber, PoE++ option" },
+    { "id": "SWITCH:LMX-GC10I", "brand": "Luminex", "name": "GigaCore 10i",  "portCount": 8,  "sfpCount": 2, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "install, half 19\"" },
+    { "id": "SWITCH:LMX-GC12",  "brand": "Luminex", "name": "GigaCore 12",   "portCount": 10, "sfpCount": 2, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "previous generation" },
+    { "id": "SWITCH:LMX-GC14R", "brand": "Luminex", "name": "GigaCore 14R",  "portCount": 12, "sfpCount": 2, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "previous generation, 12× etherCON + 2× SFP" },
+    { "id": "SWITCH:LMX-GC16T", "brand": "Luminex", "name": "GigaCore 16t",  "portCount": 12, "sfpCount": 4, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "touring, 12× 1G + 4× 10G SFP+" },
+    { "id": "SWITCH:LMX-GC16XT","brand": "Luminex", "name": "GigaCore 16Xt", "portCount": 12, "sfpCount": 4, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "touring, 12× etherCON + 4× rugged fiber" },
+    { "id": "SWITCH:LMX-GC16TF","brand": "Luminex", "name": "GigaCore 16tf", "portCount": 12, "sfpCount": 4, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "touring, front-side ports, PoE++" },
+    { "id": "SWITCH:LMX-GC16I", "brand": "Luminex", "name": "GigaCore 16i",  "portCount": 12, "sfpCount": 4, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "install, 12× 1G PoE++ + 4× 10G SFP+" },
+    { "id": "SWITCH:LMX-GC18T", "brand": "Luminex", "name": "GigaCore 18t",  "portCount": 16, "sfpCount": 2, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "touring, 16× etherCON + 2× SFP" },
+    { "id": "SWITCH:LMX-GC20T", "brand": "Luminex", "name": "GigaCore 20t",  "portCount": 16, "sfpCount": 4, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "touring, 16× 1G + 4× 10G" },
+    { "id": "SWITCH:LMX-GC26I", "brand": "Luminex", "name": "GigaCore 26i",  "portCount": 24, "sfpCount": 2, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "install, 24× 1G + 2× SFP+" },
+    { "id": "SWITCH:LMX-GC30I", "brand": "Luminex", "name": "GigaCore 30i",  "portCount": 24, "sfpCount": 6, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "install / touring, 10G" },
+    { "id": "SWITCH:ELC-SGBX10","brand": "ELC",     "name": "dmXLAN switchGBx 10", "portCount": 8,  "sfpCount": 2, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "8× 1G + 2× 2.5G fiber" },
+    { "id": "SWITCH:ELC-SGBX18","brand": "ELC",     "name": "dmXLAN switchGBx 18", "portCount": 16, "sfpCount": 2, "defaultIp": "", "subnet": "255.0.0.0", "heightU": 1, "color": "#35c47c", "usageType": "16× 1G + 2× SFP" }
+  ],
+  "splitterTypes": [
+    { "id": "SPLIT:LMX-LS16",   "brand": "Luminex", "name": "LumiSplit 1.6",       "mode": "A",  "inputs": 1, "outputCount": 6,  "switching": "independent", "pairSize": 2, "defaultIp": "", "subnet": "", "heightU": 1, "color": "#FFC107", "usageType": "1 in, 6 out, 5-pin XLR, RDM" },
+    { "id": "SPLIT:LMX-LS210",  "brand": "Luminex", "name": "LumiSplit 2.10",      "mode": "AB", "inputs": 2, "outputCount": 10, "switching": "independent", "pairSize": 2, "defaultIp": "", "subnet": "", "heightU": 1, "color": "#FFC107", "usageType": "2 in (A/B), 10 out, 5-pin XLR, RDM" },
+    { "id": "SPLIT:LMX-LS210RJ","brand": "Luminex", "name": "LumiSplit 2.10 RJ45", "mode": "AB", "inputs": 2, "outputCount": 10, "switching": "independent", "pairSize": 2, "defaultIp": "", "subnet": "", "heightU": 1, "color": "#FFC107", "usageType": "2 in (A/B), 10 out, etherCON" },
+    { "id": "SPLIT:ELC-DT125",  "brand": "ELC",     "name": "DT125",               "mode": "A",  "inputs": 1, "outputCount": 5,  "switching": "independent", "pairSize": 2, "defaultIp": "", "subnet": "", "heightU": 1, "color": "#FFC107", "usageType": "1 in, 5 out, isolated (DT125 FI: 5-pin fully isolated)" },
+    { "id": "SPLIT:ELC-DT2210", "brand": "ELC",     "name": "DT2210",              "mode": "AB", "inputs": 2, "outputCount": 10, "switching": "independent", "pairSize": 2, "defaultIp": "", "subnet": "", "heightU": 1, "color": "#FFC107", "usageType": "2 in (A/B), 10 out, galvanically isolated" }
+  ],
+  "panelTypes": [
+    { "id": "PANEL:STD-LK3",     "brand": "", "name": "LK panel 3× LK7-1",            "lkCount": 3, "vimCount": 0, "xlrCount": 0, "etherconCount": 0, "heightU": 2, "color": "#b18cff" },
+    { "id": "PANEL:STD-LK3VIM9", "brand": "", "name": "LK panel 3× LK7-1 + 9× VIM4",  "lkCount": 3, "vimCount": 9, "xlrCount": 0, "etherconCount": 0, "heightU": 3, "color": "#b18cff" },
+    { "id": "PANEL:STD-LK2VIM6", "brand": "", "name": "LK panel 2× LK7-1 + 6× VIM4",  "lkCount": 2, "vimCount": 6, "xlrCount": 0, "etherconCount": 0, "heightU": 2, "color": "#b18cff" },
+    { "id": "PANEL:STD-VIM12",   "brand": "", "name": "VIM4 panel 12×",               "lkCount": 0, "vimCount": 12, "xlrCount": 0, "etherconCount": 0, "heightU": 2, "color": "#b18cff" },
+    { "id": "PANEL:STD-XLR12",   "brand": "", "name": "XLR panel 12× 5-pin",          "lkCount": 0, "vimCount": 0, "xlrCount": 12, "etherconCount": 0, "heightU": 1, "color": "#b18cff" },
+    { "id": "PANEL:STD-EC8",     "brand": "", "name": "etherCON panel 8×",            "lkCount": 0, "vimCount": 0, "xlrCount": 0, "etherconCount": 8, "heightU": 1, "color": "#b18cff" }
+  ],
+  "rackTypes": [
+    { "id": "RACK:STD-DIM-LMX", "name": "Dimmer rack Luminex (12 DMX)", "articleKey": "", "heightU": 8, "items": [
+      { "iid": "std1", "kind": "switch",   "typeId": "SWITCH:LMX-GC10T", "u": 1 },
+      { "iid": "std2", "kind": "node",     "typeId": "NODE:LMX-LN12",    "u": 2 },
+      { "iid": "std3", "kind": "splitter", "typeId": "SPLIT:LMX-LS210",  "u": 3 },
+      { "iid": "std4", "kind": "panel",    "typeId": "PANEL:STD-LK3VIM9","u": 5 }
+    ] },
+    { "id": "RACK:STD-DIM-ELC", "name": "Dimmer rack ELC (8 DMX)", "articleKey": "", "heightU": 8, "items": [
+      { "iid": "std1", "kind": "switch",   "typeId": "SWITCH:ELC-SGBX10", "u": 1 },
+      { "iid": "std2", "kind": "node",     "typeId": "NODE:ELC-NGBX8",    "u": 2 },
+      { "iid": "std3", "kind": "splitter", "typeId": "SPLIT:ELC-DT2210",  "u": 3 },
+      { "iid": "std4", "kind": "panel",    "typeId": "PANEL:STD-LK3VIM9", "u": 5 }
+    ] },
+    { "id": "RACK:STD-NODE-LMX", "name": "Node rack Luminex (24 DMX)", "articleKey": "", "heightU": 4, "items": [
+      { "iid": "std1", "kind": "switch", "typeId": "SWITCH:LMX-GC10T", "u": 1 },
+      { "iid": "std2", "kind": "node",   "typeId": "NODE:LMX-LN12",    "u": 2 },
+      { "iid": "std3", "kind": "node",   "typeId": "NODE:LMX-LN12",    "u": 3 }
+    ] }
+  ],
+  "pdfTemplates": []
+}

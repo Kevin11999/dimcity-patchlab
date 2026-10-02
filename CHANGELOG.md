@@ -6,6 +6,10 @@ All notable changes to DimCity PatchLab. The entry of a version is also the text
 
 ## 0.3.0 (unreleased)
 
+- Demo show on the welcome screen: a complete festival show with racks, loose devices, network plan and PDF layout to explore.
+- Tours to choose from: the full tour, or one about LK blocks, nodes & network, racks, or the PDF layout.
+- Progress bar bottom-left with a checklist of what is still missing in the show; every item jumps to the right place.
+- Standard device library with Luminex (LumiNode, GigaCore, LumiSplit) and ELC (dmXLAN nodes, switchGBx, DT splitters) types, standard panels and ready-made racks; Settings → Device library checks GitHub for a newer library, separately from app updates.
 - Help: a manual inside the app (Help button, ? or F1) that opens on the chapter of the page you are on; also on GitHub as docs/USER_MANUAL.md.
 - Request button: send a feature request, bug or question as a GitHub issue, with app version and page added automatically.
 - Longer tour that also covers the DimCity page, racks, search, help and requests — in English and Dutch.
@@ -18,6 +22,10 @@ All notable changes to DimCity PatchLab. The entry of a version is also the text
 
 <details><summary>Nederlands</summary>
 
+- Demo-show op het welkomstscherm: een complete festivalshow met racks, losse apparaten, netwerkplan en PDF-indeling om te verkennen.
+- Rondleidingen om uit te kiezen: de volledige, of één over LK-blokken, nodes & netwerk, racks, of de PDF-opmaak.
+- Voortgangsbalk linksonder met een checklist van wat er nog ontbreekt in de show; elk punt springt naar de juiste plek.
+- Standaard devicebibliotheek met Luminex- (LumiNode, GigaCore, LumiSplit) en ELC-types (dmXLAN-nodes, switchGBx, DT-splitters), standaardpanelen en kant-en-klare racks; Instellingen → Devicebibliotheek controleert GitHub op een nieuwere bibliotheek, los van app-updates.
 - Help: een handleiding in de app (Help-knop, ? of F1) die opent op het hoofdstuk van de pagina waar je bent; ook op GitHub als docs/USER_MANUAL.md.
 - Request-knop: stuur een wens, fout of vraag als GitHub-issue, met app-versie en pagina automatisch erbij.
 - Langere rondleiding die ook de DimCity-pagina, racks, zoeken, help en requests behandelt — in het Engels en Nederlands.

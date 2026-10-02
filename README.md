@@ -7,7 +7,8 @@ Desktop app (macOS, Windows, Linux) that prepares, validates and documents the *
 - **Patch** LKs and Veams onto racks and loose devices automatically (LK7-1 / VIM4 sockets, node ports, splitters).
 - **Plan the network**: nodes, IP addresses, universes per port, splitters.
 - **Document** everything in the Report Builder: live preview, rack drawings, sections you can place on the sheet, templates, company branding.
-- English and Dutch interface, light and dark theme, undo / redo, autosave and backups, in-app manual, self-update from GitHub Releases.
+- Standard device library with Luminex and ELC nodes, switches and splitters, updatable from GitHub separately from the app.
+- Demo show, guided tours per subject, progress checklist, English and Dutch interface, light and dark theme, undo / redo, autosave and backups, in-app manual, self-update from GitHub Releases.
 
 ## Manual
 
@@ -50,6 +51,10 @@ The manual lives in **`core/manual.js`** — one file, English and Dutch, used b
 
 1. Change its chapter in `core/manual.js` (and add a line to `CHANGES` for the next version).
 2. Run `npm run manual` and commit the generated files together with the code.
+
+### Updating the standard device library
+
+Edit `library/standard-library.json`, raise its `version`, commit and push to `main`. Every app checks that file on GitHub (Settings → Device library) and merges new or corrected types into the user's library without touching types they edited themselves.
 
 ### Releasing a new version
 

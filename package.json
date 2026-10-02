@@ -46,7 +46,8 @@
       "ui/**",
       "core/**",
       "assets/**",
-      "package.json"
+      "package.json",
+      "library/**"
     ],
     "mac": {
       "target": [

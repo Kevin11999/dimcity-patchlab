@@ -2263,6 +2263,8 @@ async function runCommand(cmd, arg){
     case 'search':        return window.Search?.open?.();
     case 'checkUpdates':  return window.Updater?.check?.({ manual:true });
     case 'help':          return window.Help?.open?.(arg);
+    case 'demo':          return window.Demo?.open?.();
+    case 'tourMenu':      return UI?.chooseTour?.();
     case 'request':       return window.Help?.openRequest?.();
   }
 }

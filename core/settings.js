@@ -18,7 +18,8 @@ const DEFAULTS = {
     keep: 20                     // aantal back-ups per project
   },
   recovery: true,                // herstelbestand bijhouden voor na een crash
-  updates: { repo:'Kevin11999/dimcity-patchlab', token:'', checkOnStart:true }
+  updates: { repo:'Kevin11999/dimcity-patchlab', token:'', checkOnStart:true },
+  library: { checkOnStart:true }     // standaardbibliotheek (Luminex / ELC …) van GitHub bijwerken
 };
 
 let S = structuredClone(DEFAULTS);
@@ -109,13 +110,20 @@ function open(section = 'general'){
         <label class="field">GitHub repository<input type="text" data-text="updates.repo" value="${esc(S.updates.repo)}" placeholder="owner/name"></label>
         <label class="field" style="margin-top:10px">Access token <span class="subtle">(only for a private repository)</span><input type="password" data-text="updates.token" value="${esc(S.updates.token)}" placeholder="github_pat_…" autocomplete="off"></label>
         <div class="hint">Tip: publish releases in a public repository, so colleagues don't need a token.</div>
-      </div>`
+      </div>`,
+    library: () => { const li = window.Library?.standardInfo?.() || { version:0, count:0, checkedAt:null }; return `
+      <div class="rb-group"><div class="rb-label">Standard device library</div>
+        <div class="set-folder"><div><b>Luminex, ELC and standard panels</b><span>${li.count} standard types in your library · library version ${li.version || '—'}${li.checkedAt ? ` · last checked ${new Date(li.checkedAt).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}` : ''}</span></div>
+        <button class="sm primary" data-a="libcheck">${I('refresh', 13)}Check now</button></div>
+        ${sw('library.checkOnStart', S.library.checkOnStart, 'Check for library updates when the app starts', 'Separate from app updates: new or corrected device types are added to your library. Types you edited yourself are never overwritten.')}
+        <div class="hint">The standard library is read from the same GitHub repository as the app updates (library/standard-library.json).</div>
+      </div>`; }
   };
   const setPath = (p, v) => { const k = p.split('.'); let o = S; while(k.length > 1) o = o[k.shift()]; o[k[0]] = v; };
   const getPath = p => p.split('.').reduce((o, k) => o?.[k], S);
   function render(){
     d.body.innerHTML = `<div class="settings-layout">
-      <nav class="settings-nav">${[['general', 'sliders', 'General'], ['autosave', 'save', 'Autosave & backup'], ['updates', 'download', 'Updates']].map(([k, ic, l]) => `<button data-tab="${k}" class="${tab === k ? 'active' : ''}">${I(ic, 15)}${l}</button>`).join('')}</nav>
+      <nav class="settings-nav">${[['general', 'sliders', 'General'], ['autosave', 'save', 'Autosave & backup'], ['updates', 'download', 'Updates'], ['library', 'network', 'Device library']].map(([k, ic, l]) => `<button data-tab="${k}" class="${tab === k ? 'active' : ''}">${I(ic, 15)}${l}</button>`).join('')}</nav>
       <div class="settings-body">${sections[tab]()}</div></div>`;
     d.body.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); });
     d.body.querySelectorAll('[data-seg]').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = async () => { setPath(g.dataset.seg, b.dataset.v); await save(); render(); }));
@@ -133,6 +141,7 @@ function open(section = 'general'){
     act('resetdir', async () => { S.autosave.backupDir = ''; await save(); render(); });
     act('opendir', () => window.app?.openPath?.(backupDir()));
     act('check', () => window.Updater?.check?.({ manual:true }));
+    act('libcheck', async () => { const b = d.body.querySelector('[data-a=libcheck]'); b.disabled = true; await window.Library?.checkStandardUpdate?.({ manual:true }); render(); });
     window.app?.appInfo?.().then(info => { const v = d.body.querySelector('#setVersion'); if(v && info) v.textContent = `${info.name} ${info.version}`; });
   }
   render();

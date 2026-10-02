@@ -52,6 +52,12 @@ A project is one **.lkproj** file with everything inside: the imported CSVs, you
 
 Autosave, backups and crash recovery are set in [Settings](#settings).
 
+### Demo show and tours
+**Open Demo Show** on the welcome screen (or Help → Open Demo Show) loads a complete festival show: three DimCities, LKs with Veam links, racks and loose devices from the standard library, a network plan and a finished PDF layout. Nothing is saved until you choose Save, so change whatever you like. **Take the Tour** lets you choose the full tour or one about LK blocks, nodes, racks or the PDF layout.
+
+### Progress bar
+Bottom-left, a small bar shows how complete the show is: project info, patch imported, no errors, rows complete, Veams linked, racks patched, network plan, PDF layout, saved. Click it for the checklist; every open item jumps to the place where you fix it.
+
 ### Where things are
 - **Sidebar**: project overview, validation, patch list, network planner, and every DimCity with its LKs and Veams.
 - **Toolbar**: Import CSV, Edit Rows, Recalculate, Save, Export PDF, Help and Request.
@@ -287,6 +293,11 @@ Device types, racks and report templates live in two places: in the show, and in
 - Opening a show adds the library items it lacks, and asks what to do with items the show has but the library does not, or that differ: **Replace my version**, **Add as copy** or **Keep both** (the show's item gets a new key).
 - **Export Library…** writes an .lklib file you can send to a colleague; **Import Library…** reads one (or the devices from another .lkproj).
 
+### Standard library (Luminex, ELC)
+PatchLab ships with a standard library: Luminex LumiNode nodes, GigaCore switches and LumiSplit splitters, ELC dmXLAN nodes, switchGBx switches and DT splitters, plus standard LK / VIM4 / XLR panels and three ready-made racks. They are added to your library on first start.
+
+**Settings → Device library → Check now** fetches the newest standard library from GitHub, separately from app updates: new types are added and unchanged standard types are corrected. A type you edited in the Device Builder is yours and is never overwritten. Port counts come from the manufacturers' product pages — check them against the unit in your rack.
+
 <a id="search"></a>
 ## Search (Cmd/Ctrl+K)
 
@@ -307,6 +318,7 @@ Every change to the project can be undone with **Cmd/Ctrl+Z** and redone with **
 - **Autosave**: off, after every N changes, or every N minutes. Optionally keep **backup copies** in a folder of your choice, with a maximum per project.
 - **Recovery**: keep a recovery file so an unsaved show can be restored after a crash.
 - **Updates**: the GitHub repository that releases are read from, an optional token for a private repository, and whether to check at startup. See [Updates](#updates).
+- **Device library**: check GitHub for a newer standard library (Luminex / ELC types), now or at startup. See [Personal library](#library).
 
 <a id="updates"></a>
 ## Updates
@@ -338,6 +350,10 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 ## What's new
 
 ### Version 0.3.0 (unreleased)
+- Demo show on the welcome screen: a complete festival show with racks, loose devices, network plan and PDF layout to explore.
+- Tours to choose from: the full tour, or one about LK blocks, nodes & network, racks, or the PDF layout.
+- Progress bar bottom-left with a checklist of what is still missing in the show; every item jumps to the right place.
+- Standard device library with Luminex (LumiNode, GigaCore, LumiSplit) and ELC (dmXLAN nodes, switchGBx, DT splitters) types, standard panels and ready-made racks; Settings → Device library checks GitHub for a newer library, separately from app updates.
 - Help: a manual inside the app (Help button, ? or F1) that opens on the chapter of the page you are on; also on GitHub as docs/USER_MANUAL.md.
 - Request button: send a feature request, bug or question as a GitHub issue, with app version and page added automatically.
 - Longer tour that also covers the DimCity page, racks, search, help and requests — in English and Dutch.
@@ -402,6 +418,12 @@ PatchLab bereidt de LK-, Veam- en DMX-patch van een show voor, controleert hem e
 Een project is één **.lkproj**-bestand met alles erin: de geïmporteerde CSV's, je bewerkingen, Veam-koppelingen, devicetypes, racks, netwerkplannen en rapportindelingen. Opslaan doe je met **Cmd/Ctrl+S**. Recente projecten staan op het welkomstscherm.
 
 Automatisch opslaan, back-ups en crashherstel stel je in bij [Instellingen](#settings-nl).
+
+### Demo-show en rondleidingen
+**Demo-show openen** op het welkomstscherm (of Help → Demo-show openen) laadt een complete festivalshow: drie DimCities, LK's met Veam-koppelingen, racks en losse apparaten uit de standaardbibliotheek, een netwerkplan en een afgemaakte PDF-indeling. Er wordt niets opgeslagen tot je op Opslaan klikt, dus verander wat je wilt. **Rondleiding** laat je kiezen tussen de volledige rondleiding of één over LK-blokken, nodes, racks of de PDF-opmaak.
+
+### Voortgangsbalk
+Linksonder toont een kleine balk hoe compleet de show is: projectinfo, patch geïmporteerd, geen fouten, regels compleet, Veams gekoppeld, racks gepatcht, netwerkplan, PDF-indeling, opgeslagen. Klik erop voor de checklist; elk open punt springt naar de plek waar je het oplost.
 
 ### Waar vind je wat
 - **Zijbalk**: projectoverzicht, validatie, patchlijst, netwerkplanner en elke DimCity met zijn LK's en Veams.
@@ -638,6 +660,11 @@ Devicetypes, racks en rapporttemplates staan op twee plekken: in de show, en in 
 - Bij het openen van een show worden ontbrekende bibliotheekitems toegevoegd, en wordt gevraagd wat er moet gebeuren met items die de show wél heeft maar de bibliotheek niet, of die afwijken: **Mijn versie vervangen**, **Als kopie toevoegen** of **Allebei houden** (het item van de show krijgt een nieuwe sleutel).
 - **Bibliotheek exporteren…** schrijft een .lklib-bestand dat je naar een collega kunt sturen; **Bibliotheek importeren…** leest er een (of de devices uit een andere .lkproj).
 
+### Standaardbibliotheek (Luminex, ELC)
+PatchLab komt met een standaardbibliotheek: Luminex LumiNode-nodes, GigaCore-switches en LumiSplit-splitters, ELC dmXLAN-nodes, switchGBx-switches en DT-splitters, plus standaard LK- / VIM4- / XLR-panelen en drie kant-en-klare racks. Ze worden bij de eerste start aan je bibliotheek toegevoegd.
+
+**Instellingen → Devicebibliotheek → Nu controleren** haalt de nieuwste standaardbibliotheek van GitHub, los van app-updates: nieuwe types worden toegevoegd en ongewijzigde standaardtypes gecorrigeerd. Een type dat je in de Device Builder hebt bewerkt is van jou en wordt nooit overschreven. Poortaantallen komen van de productpagina's van de fabrikanten — controleer ze tegen het apparaat in je rek.
+
 <a id="search-nl"></a>
 ## Zoeken (Cmd/Ctrl+K)
 
@@ -658,6 +685,7 @@ Elke wijziging in het project kun je ongedaan maken met **Cmd/Ctrl+Z** en opnieu
 - **Automatisch opslaan**: uit, na elke N wijzigingen, of elke N minuten. Optioneel **back-upkopieën** bewaren in een map naar keuze, met een maximum per project.
 - **Herstel**: een herstelbestand bijhouden zodat een niet-opgeslagen show na een crash teruggehaald kan worden.
 - **Updates**: de GitHub-repository waaruit releases gelezen worden, een optioneel token voor een privérepository, en of er bij het opstarten gecontroleerd wordt. Zie [Updates](#updates-nl).
+- **Devicebibliotheek**: GitHub controleren op een nieuwere standaardbibliotheek (Luminex- / ELC-types), nu of bij het opstarten. Zie [Persoonlijke bibliotheek](#library-nl).
 
 <a id="updates-nl"></a>
 ## Updates
@@ -689,6 +717,10 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 ## Wat is er nieuw
 
 ### Versie 0.3.0 (nog niet uitgebracht)
+- Demo-show op het welkomstscherm: een complete festivalshow met racks, losse apparaten, netwerkplan en PDF-indeling om te verkennen.
+- Rondleidingen om uit te kiezen: de volledige, of één over LK-blokken, nodes & netwerk, racks, of de PDF-opmaak.
+- Voortgangsbalk linksonder met een checklist van wat er nog ontbreekt in de show; elk punt springt naar de juiste plek.
+- Standaard devicebibliotheek met Luminex- (LumiNode, GigaCore, LumiSplit) en ELC-types (dmXLAN-nodes, switchGBx, DT-splitters), standaardpanelen en kant-en-klare racks; Instellingen → Devicebibliotheek controleert GitHub op een nieuwere bibliotheek, los van app-updates.
 - Help: een handleiding in de app (Help-knop, ? of F1) die opent op het hoofdstuk van de pagina waar je bent; ook op GitHub als docs/USER_MANUAL.md.
 - Request-knop: stuur een wens, fout of vraag als GitHub-issue, met app-versie en pagina automatisch erbij.
 - Langere rondleiding die ook de DimCity-pagina, racks, zoeken, help en requests behandelt — in het Engels en Nederlands.

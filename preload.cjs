@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('app', {
   updateCheck: (args) => ipcRenderer.invoke('updateCheck', args),
   updateDownload: (args) => ipcRenderer.invoke('updateDownload', args),
   openExternal: (url) => ipcRenderer.invoke('openExternal', url),
+  standardLibraryRead: () => ipcRenderer.invoke('standardLibraryRead'),
+  standardLibraryFetch: (args) => ipcRenderer.invoke('standardLibraryFetch', args),
 
   // Recent projects
   recentList: () => ipcRenderer.invoke('recentList'),

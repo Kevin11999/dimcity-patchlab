@@ -85,7 +85,7 @@ const MENU_NL = {
   'Project Overview':'Projectoverzicht', 'Validation':'Validatie', 'Patch List':'Patchlijst', 'Recalculate':'Herberekenen',
   'Network':'Netwerk', 'Network Planner…':'Netwerkplanner…', 'Device Builder…':'Device Builder…', 'Rack Builder…':'Rack Builder…',
   'Export Library…':'Bibliotheek exporteren…', 'Import Library…':'Bibliotheek importeren…', 'Show Library File':'Bibliotheekbestand tonen',
-  'Help':'Help', 'Take the Tour':'Rondleiding', 'Keyboard Shortcuts':'Sneltoetsen', 'User Manual':'Handleiding', 'Send a Request…':'Een verzoek sturen…', "What's New":'Wat is er nieuw'
+  'Help':'Help', 'Take the Tour':'Rondleiding', 'Keyboard Shortcuts':'Sneltoetsen', 'User Manual':'Handleiding', 'Take the Tour…':'Rondleiding…', 'Open Demo Show':'Demo-show openen', 'Send a Request…':'Een verzoek sturen…', "What's New":'Wat is er nieuw'
 };
 const T = s => (menuLang === 'nl' && MENU_NL[s]) || s;
 
@@ -187,7 +187,8 @@ function buildMenu(recent = lastRecent){
         { label: T('Send a Request…'), click: () => send('request') },
         { label: T("What's New"), click: () => send('help', 'whats-new') },
         { type: 'separator' },
-        { label: T('Take the Tour'), click: () => send('tour') },
+        { label: T('Take the Tour…'), click: () => send('tourMenu') },
+        { label: T('Open Demo Show'), click: () => send('demo') },
         { label: T('Keyboard Shortcuts'), click: () => send('shortcuts') },
         ...(isMac ? [] : [{ type: 'separator' }, { label: T('Check for Updates…'), click: () => send('checkUpdates') }, { label: `${T('About')} ${APP_NAME}`, click: () => send('about') }])
       ]
@@ -387,6 +388,19 @@ ipcMain.handle('recoveryRead', async () => {
 ipcMain.handle('recoveryClear', async () => {
   await fs.unlink(recoveryFile()).catch(() => {}); await fs.unlink(recoveryMeta()).catch(() => {});
   return true;
+});
+
+// ===== Standard device library (bundled, and the newest one on GitHub) =====
+ipcMain.handle('standardLibraryRead', async () => {
+  try { return JSON.parse(await fs.readFile(path.join(__dirname, 'library', 'standard-library.json'), 'utf8')); }
+  catch { return null; }
+});
+ipcMain.handle('standardLibraryFetch', async (_evt, { repo, token, branch = 'main' }) => {
+  if (!/^[\w.-]+\/[\w.-]+$/.test(String(repo || ''))) return { error: 'No valid GitHub repository set (owner/name).' };
+  const res = await fetch(`https://raw.githubusercontent.com/${repo}/${branch}/library/standard-library.json`, { headers: ghHeaders(token) });
+  if (res.status === 404) return { error: 'No standard library found in the repository.' };
+  if (!res.ok) return { error: `GitHub answered ${res.status}` };
+  try { return { data: await res.json() }; } catch { return { error: 'The library file on GitHub is not valid JSON.' }; }
 });
 
 // ===== Updates via GitHub Releases =====

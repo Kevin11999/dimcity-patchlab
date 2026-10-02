@@ -34,6 +34,10 @@ core/manual.js     The user manual (EN + NL) and release notes: one source for t
 ui/help.js         Help panel (opens on the chapter of the current page) and the Request dialog
                    (pre-filled GitHub issue)
 scripts/build-manual.mjs  `npm run manual`: generates docs/USER_MANUAL.md and CHANGELOG.md
+ui/progress.js     Progress bar (status bar, bottom-left) with the show checklist
+ui/demo.js         The demo show (complete sample project)
+library/standard-library.json  Standard device types (Luminex, ELC, panels, racks); synced into the
+                   personal library at start and updatable from GitHub (Settings → Device library)
 ```
 
 Commands from the native menu, toolbar buttons and `data-cmd` attributes all go through

@@ -276,6 +276,7 @@ function saveType(kind){
   // velden die deze builder niet kent (bijv. usageType) behouden
   const prev = S.origId ? list.find(x => x.id === S.origId) : null;
   const saved = { ...(prev || {}), ...item };
+  delete saved.std;   // door de gebruiker aangepast: niet meer overschrijven bij een bibliotheek-update
   setList(K.key, prev ? list.map(x => x.id === S.origId ? saved : x) : list.concat(saved));
   Lib()?.put(K.key, saved);
   afterChange();
@@ -321,6 +322,7 @@ function firstFree(rack, hu){
   return 0;
 }
 function saveRack(rack){
+  delete rack.std;
   setList('rackTypes', plist('rackTypes').map(r => r.id === rack.id ? rack : r));
   Lib()?.put('rackTypes', rack);
   afterChange();
@@ -466,6 +468,7 @@ function bindRackTab(){
   body.querySelector('[data-rkdup]').onclick = () => {
     const list = plist('rackTypes');
     const copy = { ...clone(rack), id:nextTypedId(KINDS.rack.prefix, list), name:`${rack.name || rack.id} copy` };
+  delete copy.std;
     setList('rackTypes', list.concat(copy)); Lib()?.put('rackTypes', copy);
     S.rackId = copy.id; afterChange(); render();
   };
@@ -588,4 +591,4 @@ function open(tab){
 }
 function refresh(){ if(S.d){ if(!isDirty()) S.draft = null; render(); } }
 
-window.DeviceBuilder = { open, refresh, unitFace, tab:() => (S.d ? S.tab : null) };
+window.DeviceBuilder = { open, refresh, unitFace, tab:() => (S.d ? S.tab : null), close:() => { if(S.d){ S.base = JSON.stringify(S.draft); S.d.close(); } } };

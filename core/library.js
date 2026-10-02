@@ -27,6 +27,8 @@ function normalizeLib(data){
   const out = emptyLib();
   if(!data || typeof data !== 'object') return out;
   for(const { key } of KINDS) if(Array.isArray(data[key])) out[key] = data[key].filter(x => x && typeof x === 'object' && x.id);
+  // welke versie van de standaardbibliotheek (Luminex / ELC …) er al in zit
+  out.standard = data.standard && typeof data.standard === 'object' ? { version:Number(data.standard.version) || 0, checkedAt:data.standard.checkedAt || null } : { version:0, checkedAt:null };
   return out;
 }
 // Lijst in het project voor een soort (maakt hem aan als hij ontbreekt)
@@ -61,7 +63,7 @@ async function load(){
   return LIB;
 }
 function serialize(){
-  return JSON.stringify({ fileType:'patchlab-library', version:1, savedAt:new Date().toISOString(), ...LIB }, null, 2);
+  return JSON.stringify({ fileType:'patchlab-library', version:1, savedAt:new Date().toISOString(), ...LIB }, null, 2);   // LIB.standard gaat mee
 }
 async function save(){
   try {
@@ -329,7 +331,77 @@ async function importFile(){
   }
 }
 
-window.Library = { KINDS, RACK_ITEM_KIND, load, save, put, del, get, list, status, fillProject, reviewProject, exportFile, importFile, itemName };
+// ---- Standaardbibliotheek (library/standard-library.json, en de nieuwste op GitHub) ----
+// Elk standaarditem draagt `std` = hash van zijn inhoud. Een item dat de gebruiker in de Device Builder
+// bewerkt verliest `std` en wordt daarna nooit meer overschreven; alleen ongewijzigde standaarditems
+// worden bij een update vervangen. Nieuwe items worden toegevoegd, nooit iets verwijderd.
+const STD_KEYS = ['nodeTypes', 'splitterTypes', 'switchTypes', 'panelTypes', 'rackTypes', 'pdfTemplates'];
+const stdHash = item => { const { std, ...rest } = item; return hash(stable(rest)); };
+function applyStandard(data){
+  const res = { added:[], updated:[], kept:[], version:Number(data?.version) || 0 };
+  if(!data || data.fileType !== 'patchlab-standard-library') return res;
+  for(const key of STD_KEYS){
+    for(const raw of (data[key] || [])){
+      if(!raw?.id) continue;
+      const item = { ...clone(raw), std:stdHash(raw) };
+      const i = LIB[key].findIndex(x => x.id === item.id);
+      if(i < 0){ LIB[key].push(item); res.added.push({ key, item }); continue; }
+      const cur = LIB[key][i];
+      if(!cur.std){ res.kept.push({ key, item:cur }); continue; }          // eigen aanpassing: laten staan
+      if(cur.std === item.std) continue;                                     // ongewijzigd
+      LIB[key][i] = item; res.updated.push({ key, item });
+    }
+  }
+  if(res.version > (LIB.standard?.version || 0) || res.added.length || res.updated.length) LIB.standard = { version:Math.max(res.version, LIB.standard?.version || 0), checkedAt:new Date().toISOString() };
+  return res;
+}
+// Bij het opstarten: de meegeleverde standaardbibliotheek inlezen (nieuwe installatie of nieuwe app-versie)
+async function syncBundledStandard(){
+  if(!loaded) await load();
+  const data = window.app?.standardLibraryRead ? await window.app.standardLibraryRead().catch(() => null)
+    : await fetch('./library/standard-library.json').then(r => r.ok ? r.json() : null).catch(() => null);
+  if(!data) return null;
+  if((Number(data.version) || 0) <= (LIB.standard?.version || 0)) return null;
+  const res = applyStandard(data);
+  if(res.added.length || res.updated.length){
+    await save();
+    const M = App.getMODEL(); if(M){ fillProject(M); App.renderAll?.(); window.DeviceBuilder?.refresh?.(); }
+  }
+  return res;
+}
+// Handmatig of bij het opstarten: de nieuwste standaardbibliotheek van GitHub halen
+async function checkStandardUpdate({ manual=false } = {}){
+  if(!loaded) await load();
+  const cfg = window.Settings?.get?.().updates || {};
+  const repo = cfg.repo || 'Kevin11999/dimcity-patchlab';
+  if(!window.app?.standardLibraryFetch){ if(manual) App.ui.toast('Library updates are only available in the desktop app', 'info'); return null; }
+  let out;
+  try { out = await window.app.standardLibraryFetch({ repo, token:cfg.token }); }
+  catch(err){ out = { error:err.message || String(err) }; }
+  if(out?.error){ if(manual) App.ui.toast(`Library check failed: ${out.error}`, 'err', { ms:7000 }); return null; }
+  const data = out.data;
+  const have = LIB.standard?.version || 0, got = Number(data?.version) || 0;
+  if(got <= have){
+    LIB.standard = { ...(LIB.standard || {}), version:have, checkedAt:new Date().toISOString() }; await save();
+    if(manual) App.ui.toast(`Your device library is up to date (standard library ${have})`, 'ok');
+    return { upToDate:true, version:have };
+  }
+  const res = applyStandard(data);
+  await save();
+  const M = App.getMODEL(); if(M){ fillProject(M); App.renderAll?.(); window.DeviceBuilder?.refresh?.(); }
+  const n = res.added.length + res.updated.length;
+  const names = res.added.concat(res.updated).slice(0, 6).map(x => itemName(x.item)).join(', ');
+  App.ui.toast(`Device library ${got}: ${res.added.length} new, ${res.updated.length} updated${res.kept.length ? `, ${res.kept.length} of your own kept` : ''}${names ? ` — ${names}${n > 6 ? '…' : ''}` : ''}`, 'ok', { ms:9000, action:{ label:'Open Device Builder', run:() => window.DeviceBuilder?.open?.('node') } });
+  return res;
+}
+const standardInfo = () => ({ version:LIB.standard?.version || 0, checkedAt:LIB.standard?.checkedAt || null, count:STD_KEYS.reduce((n, k) => n + LIB[k].filter(x => x.std).length, 0) });
+
+window.Library = { KINDS, RACK_ITEM_KIND, load, save, put, del, get, list, status, fillProject, reviewProject, exportFile, importFile, itemName, syncBundledStandard, checkStandardUpdate, standardInfo };
 
 // Bij het opstarten: bibliotheek laden en beschikbaar maken in het (lege) startproject
-load().then(() => { if(fillProject(App.getMODEL())) App.renderAll?.(); });
+load().then(async () => {
+  if(fillProject(App.getMODEL())) App.renderAll?.();
+  await syncBundledStandard();
+  await (window.Settings?.ready || Promise.resolve());
+  if(window.Settings?.get?.().library?.checkOnStart) setTimeout(() => checkStandardUpdate({ manual:false }), 9000);
+});

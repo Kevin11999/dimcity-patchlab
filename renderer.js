@@ -634,6 +634,7 @@ async function processRows(rows){
     projectMeta: MODEL.projectMeta,
     networkDevices: normalizeNetworkDevices(MODEL.networkDevices),
     pdfSettings: MODEL.pdfSettings,
+    flow: MODEL.flow || null,           // signaalstroom: eigen namen en posities van blokken
     pdfTemplates: Array.isArray(MODEL.pdfTemplates) ? MODEL.pdfTemplates : [],
     libraryDismissed: Array.isArray(MODEL.libraryDismissed) ? MODEL.libraryDismissed : [],
     dimColors: MODEL.dimColors && typeof MODEL.dimColors === 'object' ? {...MODEL.dimColors} : {},
@@ -1038,6 +1039,7 @@ function renderRight(){
   else if(view === 'ISSUES') renderIssuesView();
   else if(view === 'TABLE') renderTableView();
   else if(view === 'NETWORK') renderNetworkView();
+  else if(view === 'FLOW') window.Flow?.render?.();
   else renderRightHome();
   updateChrome();
 }
@@ -2211,6 +2213,7 @@ window.LKApp = {
 
   // UI helpers
   ui: { toast, openDialog, confirmDialog, showMenu, icon: I, card, plural },
+  pageHead,
 
   applyBlockType,
   currentRows,
@@ -2246,6 +2249,7 @@ async function runCommand(cmd, arg){
     case 'libraryExport':   return window.Library?.exportFile?.();
     case 'libraryImport':   return window.Library?.importFile?.();
     case 'networkPlanner':  return navigate('NETWORK');
+    case 'signalFlow':      return navigate('FLOW');
     case 'projectInfo':   return UI?.editProjectInfo?.();
     case 'rebuild':
       fullRebuildAndRender();

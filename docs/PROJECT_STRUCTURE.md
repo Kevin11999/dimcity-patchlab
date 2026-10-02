@@ -36,6 +36,8 @@ ui/help.js         Help panel (opens on the chapter of the current page) and the
 scripts/build-manual.mjs  `npm run manual`: generates docs/USER_MANUAL.md and CHANGELOG.md
 ui/progress.js     Progress bar (status bar, bottom-left) with the show checklist
 ui/demo.js         The demo show (complete sample project)
+ui/flow.js         Signal Flow page: graph from the rack patch (node → splitter → socket → LK → Veam → object),
+                   hover tracing, draggable blocks, own LK names; saved in MODEL.flow
 library/standard-library.json  Standard device types (Luminex, ELC, panels, racks); synced into the
                    personal library at start and updatable from GitHub (Settings → Device library)
 ```

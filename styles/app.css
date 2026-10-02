@@ -925,3 +925,49 @@ kbd{font:500 10.5px var(--font);color:var(--text-3);border:1px solid var(--borde
 .pp-foot{padding:8px;font-size:12px;color:var(--green);display:flex;align-items:center;gap:6px}
 .tour-choice{display:grid;grid-template-columns:1fr;gap:8px}
 .tour-choice .np-option em{display:inline;font-style:normal}
+
+/* ===== Signal Flow page ===== */
+.fl-wrap{display:grid;grid-template-columns:236px minmax(0,1fr);gap:14px;height:calc(100vh - 170px);min-height:480px}
+.fl-side{display:flex;flex-direction:column;gap:12px;overflow:auto;padding-right:4px}
+.fl-sec{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);padding:8px}
+.fl-sec .rb-label{margin:2px 6px 6px}
+.fl-item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:6px 8px;border:0;background:transparent;border-radius:var(--radius);color:var(--text-2);font-size:12.5px}
+.fl-item:hover{background:var(--hover);color:var(--text)}
+.fl-item.on{background:var(--accent-soft);color:var(--text);font-weight:600}
+.fl-item em{margin-left:auto;font-style:normal;font-size:11px;color:var(--text-3)}
+.fl-item .dot{width:9px;height:9px;border-radius:3px;flex:none}
+.fl-unis{display:flex;flex-wrap:wrap;gap:4px}
+.fl-uni{display:inline-flex;align-items:center;gap:5px;padding:3px 7px;border:1px solid var(--border);border-left:3px solid var(--u);border-radius:6px;background:var(--surface-2);font-size:11.5px;color:var(--text)}
+.fl-uni:hover{border-color:var(--u);background:var(--hover)}
+.fl-uni span{display:inline-flex;gap:2px}.fl-uni i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.fl-node{display:flex;align-items:center;gap:7px;padding:4px 8px;font-size:12px}
+.fl-node i{width:9px;height:9px;border-radius:50%;flex:none}.fl-node em{font-style:normal;color:var(--text-3);font-size:11px;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px}
+.fl-canvas{position:relative;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-sunken);overflow:hidden;cursor:grab}
+.fl-canvas:active{cursor:grabbing}
+.fl-canvas svg{width:100%;height:100%;display:block}
+.fl-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.fe{fill:none;stroke:var(--c);stroke-width:2;opacity:.85;transition:opacity .15s,stroke-width .15s;marker-end:url(#flArrow);pointer-events:none}
+.fe-hit{fill:none;stroke:transparent;stroke-width:14;cursor:pointer}
+.fe.slot{stroke-dasharray:4 4;stroke-width:1.6}
+.fe:hover,.fe.lit{opacity:1;stroke-width:3.2}
+.fe.dim{opacity:.12}
+.fe.flow{stroke-dasharray:9 7;animation:flDash .55s linear infinite}
+@keyframes flDash{to{stroke-dashoffset:-16}}
+.fb{cursor:grab;transition:opacity .15s}
+.fb.dim{opacity:.28}
+.fb-bg{fill:var(--surface);stroke:var(--border-strong);stroke-width:1}
+.fb-head{fill:color-mix(in srgb,var(--c) 22%,var(--surface))}
+.fb-bar{fill:var(--c)}
+.fb.lit .fb-bg{stroke:var(--c);stroke-width:2}
+.fb-t{font:600 12px/1 var(--font,system-ui);fill:var(--text)}
+.fb-edit{cursor:text;text-decoration:underline dotted;text-underline-offset:3px}
+.fb-id{font-weight:400;fill:var(--text-3)}
+.fb-s{font:10.5px/1 var(--font,system-ui);fill:var(--text-3)}
+.fp rect{fill:var(--surface-2);stroke:transparent}
+.fp.in rect{fill:color-mix(in srgb,var(--blue) 18%,var(--surface-2))}
+.fp.lit rect{fill:color-mix(in srgb,var(--c) 30%,var(--surface-2));stroke:var(--c);stroke-width:1.2}
+.fp-n{font:10px/1 var(--mono,monospace);fill:var(--text-3)}
+.fp-u{font:600 10.5px/1 var(--font,system-ui);fill:var(--text)}
+.fp-d{font:9.5px/1 var(--font,system-ui);fill:var(--text-2)}
+.fp-g{font:600 9.5px/1 var(--font,system-ui);fill:var(--text-3);letter-spacing:.04em;text-transform:uppercase}
+.fb.lit .fb-head{fill:color-mix(in srgb,var(--c) 40%,var(--surface))}

@@ -409,6 +409,36 @@ The quickest way to a complete plan is to build it from the rack patch: **Use as
 De snelste weg naar een compleet plan is het uit de rack-patch opbouwen: **Gebruik als netwerkplan** op de [[racks|Racks-kaart]].`
   },
   {
+    id:'flow', icon:'cable', context:['FLOW'],
+    title:{ en:'Signal flow', nl:'Signaalstroom' },
+    en:`The **Signal Flow** page (sidebar, or Cmd/Ctrl+4) draws how the data runs: from the node in the rack, through a splitter if one is used, to the LK7-1 or Veam4 socket, into the LK block, on to a Veam in slot A, B or C, and finally to the **object** — the location from your patch list, with the universes that arrive there. Loose DMX lines get their own branch, "Direct (XLR)".
+
+## Reading it
+- **Left bar**: all DimCities or one; the universes in view; the nodes with their colours; the direction (left → right, or bottom → top).
+- Lines have the colour of the node that feeds them. **Hover a universe** in the left bar and its whole path lights up, ports included. **Hover a line** and the data runs visibly along the path from the node port to the objects.
+- **Hover a block** to see everything connected to it. The rest dims.
+- Zoom with the mouse wheel, pan by dragging the background, **Fit** brings everything into view.
+
+## Changing it
+- **Drag a block** to put it where you want; the lines follow. **Reset layout** puts every block of the DimCities in view back in its automatic place. Positions are saved in the project.
+- **Click the name of an LK block** to give it your own name (for example "Front truss"). This changes only the drawing; the LK number, its ports and the CSV stay as they are. The LK number is shown next to the name.
+
+The drawing is built from the rack patch, so place a rack or a loose node first (see [[racks|Racks per DimCity]]).`,
+    nl:`De pagina **Signaalstroom** (zijbalk, of Cmd/Ctrl+4) tekent hoe de data loopt: van de node in het rek, via een splitter als die gebruikt wordt, naar de LK7-1- of Veam4-aansluiting, het LK-blok in, door naar een Veam in slot A, B of C, en ten slotte naar het **object** — de locatie uit je patchlijst, met de universes die daar aankomen. Losse DMX-lijnen krijgen een eigen tak, "Direct (XLR)".
+
+## Lezen
+- **Linkerbalk**: alle DimCities of één; de universes in beeld; de nodes met hun kleuren; de richting (links → rechts, of onder → boven).
+- Lijnen hebben de kleur van de node die ze voedt. **Beweeg over een universe** in de linkerbalk en het hele pad licht op, inclusief de poorten. **Beweeg over een lijn** en de data loopt zichtbaar door het pad van de nodepoort naar de objecten.
+- **Beweeg over een blok** om alles te zien wat eraan hangt. De rest dimt.
+- Zoomen met het muiswiel, verschuiven door de achtergrond te slepen, **Passend** brengt alles in beeld.
+
+## Aanpassen
+- **Sleep een blok** om het neer te zetten waar je wilt; de lijnen volgen. **Indeling herstellen** zet elk blok van de DimCities in beeld terug op zijn automatische plek. Posities worden in het project opgeslagen.
+- **Klik op de naam van een LK-blok** om het een eigen naam te geven (bijvoorbeeld "Front truss"). Dat verandert alleen de tekening; het LK-nummer, de poorten en de CSV blijven zoals ze zijn. Het LK-nummer staat naast de naam.
+
+De tekening wordt uit de rack-patch opgebouwd, dus plaats eerst een rek of een losse node (zie [[racks|Racks per DimCity]]).`
+  },
+  {
     id:'report', icon:'file', context:['reportBuilder'],
     title:{ en:'Report Builder (PDF)', nl:'Rapportbouwer (PDF)' },
     en:`**Export PDF** (Cmd/Ctrl+P) opens the Report Builder: a live preview on the right, settings on the left. Click a part of the preview to jump to its settings. The layout is saved in the project.
@@ -554,6 +584,15 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // Release notes per version, newest first. `npm run manual` turns this into CHANGELOG.md and the
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
+  {
+    version:'0.3.1', date:'unreleased',
+    en:[
+      'Signal Flow page: a drawing of how the data runs from the node in the rack, via splitter and socket, through the LK block and Veams to every object. Hover a universe or a line to follow it with the data moving along; drag blocks; give LK blocks your own name (issue #3).'
+    ],
+    nl:[
+      'Pagina Signaalstroom: een tekening van hoe de data loopt van de node in het rek, via splitter en aansluiting, door het LK-blok en de Veams naar elk object. Beweeg over een universe of een lijn om hem te volgen met bewegende data; sleep blokken; geef LK-blokken een eigen naam (issue #3).'
+    ]
+  },
   {
     version:'0.3.0', date:'2026-10-02',
     en:[

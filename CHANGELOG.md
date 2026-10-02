@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.3.1 (unreleased)
+
+- Signal Flow page: a drawing of how the data runs from the node in the rack, via splitter and socket, through the LK block and Veams to every object. Hover a universe or a line to follow it with the data moving along; drag blocks; give LK blocks your own name (issue #3).
+
+<details><summary>Nederlands</summary>
+
+- Pagina Signaalstroom: een tekening van hoe de data loopt van de node in het rek, via splitter en aansluiting, door het LK-blok en de Veams naar elk object. Beweeg over een universe of een lijn om hem te volgen met bewegende data; sleep blokken; geef LK-blokken een eigen naam (issue #3).
+
+</details>
+
 ## 0.3.0 — 2026-10-02
 
 - Demo show on the welcome screen: a complete festival show with racks, loose devices, network plan and PDF layout to explore.

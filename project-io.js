@@ -151,7 +151,8 @@
       networkDevices: normalizeNetworkDevices(M.networkDevices),
       pdfSettings: defaultPdfSettings(M.pdfSettings || {}),
       pdfTemplates: Array.isArray(M.pdfTemplates) ? M.pdfTemplates : [],
-      libraryDismissed: Array.isArray(M.libraryDismissed) ? M.libraryDismissed : []
+      libraryDismissed: Array.isArray(M.libraryDismissed) ? M.libraryDismissed : [],
+      flow: M.flow && typeof M.flow === 'object' ? M.flow : null
     };
   }
 
@@ -220,6 +221,7 @@
     M.pdfSettings = defaultPdfSettings(snap.pdfSettings || M.pdfSettings || {});
     M.pdfTemplates = Array.isArray(snap.pdfTemplates) ? snap.pdfTemplates : [];
     M.libraryDismissed = Array.isArray(snap.libraryDismissed) ? snap.libraryDismissed : [];
+    M.flow = snap.flow && typeof snap.flow === 'object' ? snap.flow : null;
 
     if (snap.lkBlockType){
       for (const [id, bt] of Object.entries(snap.lkBlockType)){
@@ -408,6 +410,7 @@
       pdfSettings: defaultPdfSettings(),
       pdfTemplates: [],
       libraryDismissed: [],
+      flow: null,
       issues: [],
       byDim: new Map(),
       byLK: new Map(),

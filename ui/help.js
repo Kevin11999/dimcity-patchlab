@@ -39,7 +39,7 @@ function currentContext(){
   }
   const view = m.ui?.view || 'HOME';
   if(view === 'HOME' && !(m.byDim?.size)) return 'HOME:empty';
-  return view;               // HOME | ISSUES | TABLE | NETWORK
+  return view;               // HOME | ISSUES | TABLE | NETWORK | FLOW
 }
 
 // ---- Panel ----

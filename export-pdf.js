@@ -388,7 +388,9 @@
     const p = plan(M, dc), nodes = p.nodes || [], switches = p.switches || [];
     const nodeHtml = nodes.length ? nodes.map(nd=>{
       const ports = (Array.isArray(nd.universes) ? nd.universes : []).map((u,i)=>`<div class="port ${u?'':'empty'}" style="--uni:${u?uniColor(u,L):'#cbd5e1'}"><div class="nr">${i+1}</div><div class="uni">${u?'U'+esc(u):'—'}</div></div>`).join('');
-      return `<div class="card node"><div class="card-h"><span>${esc(nd.id || 'Node')}</span><small>${esc(nd.ip || '')}${nd.subnet?' / '+esc(nd.subnet):''}</small></div><div class="card-b"><div class="small" style="margin-bottom:1.2mm">${esc(nd.name || '')}</div><div class="ports p8">${ports || '<span class="small">No ports</span>'}</div></div></div>`;
+      const nt = (M.networkDevices?.nodeTypes || []).find(t => t.id === nd.typeId) || {};
+      const eth = Math.min(2, Math.max(1, Number(nt.ethernetCount) || 1));
+      return `<div class="card node"><div class="card-h"><span>${esc(nd.id || 'Node')}</span><small>${esc(nd.ip || '')}${nd.subnet?' / '+esc(nd.subnet):''}${eth > 1 ? ' · 2× RJ45' : ''}</small></div><div class="card-b"><div class="small" style="margin-bottom:1.2mm">${esc(nd.name || '')}</div><div class="ports p8">${ports || '<span class="small">No ports</span>'}</div></div></div>`;
     }).join('') : '<div class="placeholder">No nodes planned for this DimCity.</div>';
     const sw = o.switches ? (switches.length ? switches.map(s=>`<div class="card"><div class="card-h"><span>${esc(s.id||'Switch')}</span><small>${esc(s.ip||'')}</small></div></div>`).join('') : '<div class="placeholder">Network switches will appear here.</div>') : '';
     const right = (o.universeTable !== false ? `<div class="card"><div class="card-h"><span>Universe overview</span><small>physical patch points</small></div><div class="card-b">${buildUniverseTable(M, dc, L)}</div></div>` : '') + sw;
@@ -431,7 +433,7 @@
         const hu = Math.max(1, Number(t.heightU) || 1);
         return `<tr><td class="num rk-u">${R.rack.heightU - it.u + 1}${hu > 1 ? `–${R.rack.heightU - it.u - hu + 2}` : ''}</td><td>${tag}${esc([t.brand, t.name].filter(Boolean).join(' ') || t.id)}</td><td class="rk-ports">${ports}</td></tr>`;
       }).join('');
-      return `<div class="card"><div class="card-h"><span>${esc(R.placement.name || R.rack.name || R.rack.id)}</span><small>${R.rack.heightU}U</small></div><table class="rk-tbl"><thead><tr><th class="num">U</th><th>Device</th><th>Patch</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      return `<div class="card"><div class="card-h"><span>${esc(R.placement.name || R.rack.name || R.rack.id)}</span><small>${R.rack.heightU}U${R.rack.articleKey ? ` · ${esc(R.rack.articleKey)}` : ''}</small></div><table class="rk-tbl"><thead><tr><th class="num">U</th><th>Device</th><th>Patch</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     }).join('');
     const advice = o.advice === false ? '' : `<div class="rk-advice">${P.recs.map(r => `<div class="${r.level}">${esc(r.text)}</div>`).join('')}</div>`;
     const lines = P.lines.slice().sort((a, b) => String(a.feed?.node || '~').localeCompare(String(b.feed?.node || '~'), undefined, { numeric:true }) || (a.feed?.port || 0) - (b.feed?.port || 0));

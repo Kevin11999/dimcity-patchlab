@@ -1381,6 +1381,7 @@ function bindLkControls(root, rerender){
     sel.onclick = e=>e.stopPropagation();
     sel.onchange = ()=>{ const lk = MODEL.byLK.get(sel.dataset.lk); if(!lk) return; applyVeamSlot(lk, Number(sel.dataset.slot), sel.value); renderSummary(); renderIssues(); rerender(); };
   });
+  bindDeleteButtons(root);
 }
 function mergedPortsTable(lk){
   const rows = [1,2,3,4,5,6,7,8,9,10,11,12].map(p=>{
@@ -1396,7 +1397,7 @@ function renderInlineLkDetails(lk){
     <div class="inline-controls"><label>Block type${blockTypeSelectHtml(lk, 'lkBlockType')}</label>${slots}</div>
     ${eff==='XLR12' ? '<div class="hint" style="margin:-4px 0 10px">12× XLR mode: Veam links are not used.</div>' : ''}
     <div class="inline-table-wrap">${mergedPortsTable(lk)}</div>
-    <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="sm" data-open-kind="LK" data-open-id="${esc(lk.id)}">Open LK page ${I('arrowRight',13)}</button></div>
+    <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:10px"><button class="sm ghost danger" data-del-lk="${esc(lk.id)}">${I('trash',13)}Delete</button><button class="sm" data-open-kind="LK" data-open-id="${esc(lk.id)}">Open LK page ${I('arrowRight',13)}</button></div>
   </div>`;
 }
 
@@ -1526,7 +1527,7 @@ function renderLKDetail(id){
     crumbs:`<a data-nav-view="HOME">Overview</a>${I('chevronRight',12)}<a data-open-kind="DIM" data-open-id="${esc(lk.dimcity)}">${esc(lk.dimcity)}</a>${I('chevronRight',12)}<span>LK</span>`,
     title:`${esc(lk.id)} <span class="tag accent" style="font-size:12px;height:22px">${esc(blockTypeLabel(eff))}</span>`,
     sub: loc ? `Main location: ${esc(loc)}` : 'No locations patched yet',
-    actions:`<button data-open-kind="DIM" data-open-id="${esc(lk.dimcity)}">${I('chevronLeft',15)}Back to ${esc(lk.dimcity)}</button>`
+    actions:`<button data-open-kind="DIM" data-open-id="${esc(lk.dimcity)}">${I('chevronLeft',15)}Back to ${esc(lk.dimcity)}</button><button class="danger" data-del-lk="${esc(lk.id)}">${I('trash',15)}Delete LK</button>`
   });
   const slotRows = [1,2,3].map(s=>{
     const st = slotState(lk, s);
@@ -1549,6 +1550,7 @@ function renderLKDetail(id){
     ${card({ key:'lk-ports', title:'Ports', icon:'table', collapsible:false, body:mergedPortsTable(lk), flush:true })}
   </div>`;
   bindLkControls(root, ()=>renderLKDetail(id));
+  bindDeleteButtons($('#lkHeader'));
 }
 
 // ---- Veam pagina ----
@@ -1562,7 +1564,7 @@ function renderVeamDetail(vid){
     crumbs:`<a data-nav-view="HOME">Overview</a>${I('chevronRight',12)}<a data-open-kind="DIM" data-open-id="${esc(ve.dimcity)}">${esc(ve.dimcity)}</a>${I('chevronRight',12)}<span>Veam</span>`,
     title:`${esc(ve.id)} ${veamLinkBadge(ve.id)}`,
     sub: loc ? `Main location: ${esc(loc)}` : 'No locations patched yet',
-    actions:`<button data-open-kind="DIM" data-open-id="${esc(ve.dimcity)}">${I('chevronLeft',15)}Back to ${esc(ve.dimcity)}</button>`
+    actions:`<button data-open-kind="DIM" data-open-id="${esc(ve.dimcity)}">${I('chevronLeft',15)}Back to ${esc(ve.dimcity)}</button><button class="danger" data-del-veam="${esc(ve.id)}">${I('trash',15)}Delete Veam</button>`
   });
   const link = uses.length===0
     ? `<div class="empty" style="padding:20px"><p>This Veam is not linked to an LK yet. Open an LK in ${esc(ve.dimcity)} and pick ${esc(ve.id)} in one of its Veam slots.</p></div>`
@@ -1577,6 +1579,13 @@ function renderVeamDetail(vid){
     ${card({ key:'ve-link', title:'Linked LK', icon:'box', collapsible:false, body:link, flush:true })}
     ${card({ key:'ve-ports', title:'Ports', icon:'grid', collapsible:false, body:`<div class="lk-mini-card" style="--dim-color:${dimColor(ve.dimcity)}"><div class="lk-visual">${veamPortsHtml(ve)}</div></div><div class="table-wrap" style="margin-top:12px"><table class="data-table"><thead><tr><th class="num">Port</th><th class="num">Universe</th><th>Location</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>` })}
   </div>`;
+  bindDeleteButtons($('#lkHeader'));
+}
+// Verwijderknoppen (LK-/Veam-pagina en inline LK-paneel)
+function bindDeleteButtons(root){
+  if(!root) return;
+  root.querySelectorAll('[data-del-lk]').forEach(b => b.onclick = e => { e.stopPropagation(); deleteLK(b.dataset.delLk); });
+  root.querySelectorAll('[data-del-veam]').forEach(b => b.onclick = e => { e.stopPropagation(); deleteVeam(b.dataset.delVeam); });
 }
 
 // ---- Gedelegeerde klikken binnen de view en de zijbalk ----
@@ -1769,6 +1778,11 @@ function calculateNodeNeedForDim(dc, nodePorts){
 function devicePortHtml(label, title='', bus='', cls=''){
   return `<span class="device-port ${cls}" ${bus?`data-bus="${bus}"`:''} title="${esc(title || label)}">${esc(label)}</span>`;
 }
+// Aantal RJ45-poorten op een nodetype (1 of 2); oudere types hebben het veld niet
+function nodeEthernetPorts(nt){
+  const n = Number(nt?.ethernetCount);
+  return Number.isFinite(n) ? Math.min(2, Math.max(1, n)) : 1;
+}
 function dimNumber(dc){
   const m = String(dc || '').match(/(\d+)/);
   return m ? Number(m[1]) : 0;
@@ -1941,7 +1955,10 @@ function renderNodeInstanceFace(nodeType, inst, nodeIndex, dc){
     const empty = (u == null || u === '');
     html += `<span class="device-port assignable ${empty?'empty':''}" draggable="false" data-node-index="${nodeIndex}" data-port-index="${i-1}" data-dc="${esc(dc||'')}" title="${empty ? `Port ${i} empty` : `Port ${i} • Universe ${u}`}">${esc(empty?'—':`UNI ${u}`)}</span>`;
   }
-  return `<div class="device-face node-instance-face" style="--device-color:${color}"><div class="device-face-title"><b>${esc(nodeType.brand || 'DMX Node')} ${esc(nodeType.name || nodeType.id || '')}</b><span>${ports} universe ports</span></div><div class="device-ports node-port-row">${html}</div></div>`;
+  // netwerkaansluitingen: 1 of 2 RJ45 (link + redundant / daisy chain)
+  const eth = nodeEthernetPorts(nodeType);
+  const ethHtml = Array.from({ length:eth }, (_, i) => devicePortHtml(eth > 1 ? `LAN ${i+1}` : 'LAN', eth > 1 ? `Network port ${i+1}${i ? ' (redundant / daisy chain)' : ''}` : 'Network port', '', 'small rj'));
+  return `<div class="device-face node-instance-face" style="--device-color:${color}"><div class="device-face-title"><b>${esc(nodeType.brand || 'DMX Node')} ${esc(nodeType.name || nodeType.id || '')}</b><span>${ports} universe ports · ${eth}× RJ45</span></div><div class="device-ports node-port-row">${html}<span class="device-port-sep"></span>${ethHtml.join('')}</div></div>`;
 }
 function renderSplitterTypeFace(sp){
   const count = Number(sp.outputCount || 0);
@@ -2356,6 +2373,62 @@ $('#veamAddConfirm').onclick = async ()=>{
   openEntity('VEAM', id);
   toast(`${id} added to ${dim}`);
 };
+
+// ===== LK / Veam verwijderen (handmatig of uit CSV) =====
+// De effectieve rijen (CSV + bewerkingen + custom) zonder dit ID opnieuw verwerken. Vooraf uit het
+// model halen, anders zet carryOverManualState een handmatige LK/Veam weer terug.
+const sameId = (a, b) => normLK(String(a ?? '').trim().toUpperCase()) === normLK(String(b ?? '').trim().toUpperCase());
+async function reprocessWithout(id){
+  const rows = currentRows(MODEL).filter(r => !sameId(r[0], id));
+  const custom = (MODEL.customRows || []).filter(r => !sameId(r.id, id));
+  await processRows(rows);
+  MODEL.customRows = custom;
+  MODEL.ui.dirty = true;
+}
+function afterDelete(dc, msg){
+  if(MODEL.byDim.has(dc)) openEntity('DIM', dc); else navigate('HOME');
+  toast(msg);
+}
+async function deleteLK(id){
+  const lk = MODEL.byLK.get(id); if(!lk) return false;
+  const rows = lk.lines.filter(L => L.universe != null || L.dest).length;
+  const linked = [1,2,3].map(s => lk.veam?.[s]).filter(Boolean);
+  const ok = await confirmDialog({
+    title:`Delete ${id}?`,
+    message:`${id} is removed from ${lk.dimcity}${rows ? ` together with its ${plural(rows, 'patch row')}` : ''}.${linked.length ? `\n\nThe link${linked.length > 1 ? 's' : ''} to ${linked.join(', ')} ${linked.length > 1 ? 'are' : 'is'} removed; the Veam${linked.length > 1 ? 's' : ''} stay in the show.` : ''}\n\nYou can undo this with Undo.`,
+    okLabel:'Delete LK', danger:true
+  });
+  if(!ok) return false;
+  window.PatchHistory?.label?.(`Deleted ${id}`);
+  const dc = lk.dimcity;
+  MODEL.byLK.delete(id);
+  MODEL.byDim.get(dc)?.lks.delete(id);
+  await reprocessWithout(id);
+  afterDelete(dc, `${id} deleted`);
+  return true;
+}
+async function deleteVeam(id){
+  const ve = MODEL.byVeam.get(id); if(!ve) return false;
+  const rows = ve.lines.filter(L => L.universe != null || L.dest).length;
+  const uses = MODEL.veamUse.get(id) || [];
+  const ok = await confirmDialog({
+    title:`Delete ${id}?`,
+    message:`${id} is removed from ${ve.dimcity}${rows ? ` together with its ${plural(rows, 'patch row')}` : ''}.${uses.length ? `\n\nThe link from ${uses.map(u => `${u.lkId} (Veam ${'ABC'[u.slot - 1]})`).join(', ')} is removed.` : ''}\n\nYou can undo this with Undo.`,
+    okLabel:'Delete Veam', danger:true
+  });
+  if(!ok) return false;
+  window.PatchHistory?.label?.(`Deleted ${id}`);
+  const dc = ve.dimcity;
+  for(const u of uses){ const lk = MODEL.byLK.get(u.lkId); if(lk?.veam) lk.veam[u.slot] = null; }
+  MODEL.byVeam.delete(id);
+  MODEL.byDim.get(dc)?.veams.delete(id);
+  MODEL.veamPool.get(dc)?.delete(id);
+  await reprocessWithout(id);
+  afterDelete(dc, `${id} deleted`);
+  return true;
+}
+window.LKApp.deleteLK = deleteLK;
+window.LKApp.deleteVeam = deleteVeam;
 
 // ===== Init =====
 hydrateIcons();

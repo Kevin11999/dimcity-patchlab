@@ -91,8 +91,9 @@ dimCityPlans
 ```
 
 `switchTypes` (RJ45 + SFP ports), `panelTypes` (LK7-1 / VIM4 / XLR / etherCON sockets) and
-`rackTypes` (`{ id, name, heightU, items:[{ iid, kind, typeId, u }] }`, `u` = top row counted from
-the top) are edited in the Device Builder. Every type has `heightU`. Type keys are fixed once saved.
+`rackTypes` (`{ id, name, articleKey, heightU, items:[{ iid, kind, typeId, u }] }`, `u` = top row counted
+from the top, `heightU` from 1U) are edited in the Device Builder. Every type has `heightU`. Node types
+have `ethernetCount` (1 or 2 RJ45 ports). Type keys are fixed once saved.
 
 ### Library vs. show
 The personal library (`core/library.js`) and each show both hold device types, racks and PDF templates.

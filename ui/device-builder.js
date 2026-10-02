@@ -15,7 +15,7 @@ const KINDS = {
   rack:     { key:'rackTypes',     label:'Racks',     one:'Rack',     prefix:'RACK:',   icon:'rack' }
 };
 const DEVICE_KINDS = ['node', 'splitter', 'switch', 'panel'];
-const RACK_HEIGHTS = [2, 3, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 42, 44, 48];
+const RACK_HEIGHTS = [1, 2, 3, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 42, 44, 48];
 
 const F_ID     = { k:'id', label:'Type key', type:'id' };
 const F_BRAND  = { k:'brand', label:'Brand', type:'text', ph:'Luminex / ELC / …' };
@@ -26,6 +26,7 @@ const F_COLOR  = kind => ({ k:'color', label:'Color', type:'color', def:KINDS[ki
 const FIELDS = {
   node: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'LumiNode 12' },
     { k:'portCount', label:'DMX ports', type:'number', min:1, max:64, def:8 },
+    { k:'ethernetCount', label:'Ethernet ports', type:'select', def:'1', options:[['1', '1× RJ45'], ['2', '2× RJ45 (link + redundant)']] },
     F_IP, F_SUBNET, F_HEIGHT, F_COLOR('node')],
   splitter: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'10 output splitter' },
     { k:'mode', label:'Input', type:'select', def:'A', options:[['A', 'Single input'], ['AB', 'A/B input']] },
@@ -50,6 +51,8 @@ const clone = x => JSON.parse(JSON.stringify(x));
 const num = (v, d=0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
 const range = (n, fn) => Array.from({ length:Math.max(0, n) }, (_, i) => fn(i + 1)).join('');
 const typeName = t => [t?.brand, t?.name].filter(Boolean).join(' ') || t?.id || '';
+// Aantal RJ45-poorten op een node (1 of 2); oudere types hebben het veld niet
+const ethernetPorts = t => Math.min(2, Math.max(1, num(t?.ethernetCount, 1)));
 
 function plist(key){
   const m = M();
@@ -71,7 +74,7 @@ function afterChange(){
 // ===== Device faces: 19" front panel, ports always in one row from left to right =====
 function metaLine(kind, t){
   switch(kind){
-    case 'node': return `${num(t.portCount, 8)} DMX ports`;
+    case 'node': return `${num(t.portCount, 8)} DMX ports${ethernetPorts(t) > 1 ? ` · ${ethernetPorts(t)}× RJ45` : ''}`;
     case 'splitter': return `${t.mode === 'AB' ? 'A/B' : '1'} in · ${num(t.outputCount, 10)} out${t.switching === 'paired' ? ' · paired' : ''}`;
     case 'switch': return `${num(t.portCount, 16)} RJ45${num(t.sfpCount) ? ` + ${num(t.sfpCount)} SFP` : ''}`;
     case 'panel': return [[t.lkCount, 'LK7-1'], [t.vimCount, 'VIM4'], [t.xlrCount, 'XLR'], [t.etherconCount, 'etherCON']]
@@ -84,7 +87,7 @@ function portsHtml(kind, t){
   const grp = (inner, cls='') => `<span class="ru-grp ${cls}">${inner}</span>`;
   switch(kind){
     case 'node':
-      return grp(range(num(t.portCount, 8), i => port('dmx', i, `DMX port ${i}`))) + grp(port('rj', '', 'Network'));
+      return grp(range(num(t.portCount, 8), i => port('dmx', i, `DMX port ${i}`))) + grp(range(ethernetPorts(t), i => port('rj', ethernetPorts(t) > 1 ? i : '', ethernetPorts(t) > 1 ? `Network ${i}` : 'Network')));
     case 'splitter': {
       const count = num(t.outputCount, 10);
       const ins = grp(port('dmx in', 'A', 'Input A') + (t.mode === 'AB' ? port('dmx in b', 'B', 'Input B') : ''));
@@ -393,13 +396,14 @@ function renderRackTab(){
   const cards = racks.map(r => `
     <div class="db-card ${r.id === S.rackId ? 'sel' : ''}" data-rack="${esc(r.id)}" tabindex="0">
       <div class="db-card-head"><b>${esc(r.name || r.id)}</b>${libBadge('rackTypes', r)}</div>
-      <div class="subtle db-card-meta">${esc(r.id)} · ${r.heightU}U · ${(r.items || []).length} device${(r.items || []).length === 1 ? '' : 's'}</div>
+      <div class="subtle db-card-meta">${esc(r.id)}${r.articleKey ? ` · ${esc(r.articleKey)}` : ''} · ${r.heightU}U · ${(r.items || []).length} device${(r.items || []).length === 1 ? '' : 's'}</div>
     </div>`).join('');
   const minH = rack ? Math.max(1, ...(rack.items || []).map(it => it.u + itemHU(it) - 1)) : 1;
   const heights = rack ? [...new Set(RACK_HEIGHTS.concat(rack.heightU))].sort((a, b) => a - b) : [];
   const main = rack ? `
     <div class="rk-head">
       <label class="field">Rack name<input type="text" data-rk="name" value="${esc(rack.name || '')}"></label>
+      <label class="field">Article key<input type="text" data-rk="articleKey" value="${esc(rack.articleKey || '')}" placeholder="e.g. RK-0123"></label>
       <label class="field">Height<select data-rk="heightU">${heights.map(h => `<option value="${h}" ${h === rack.heightU ? 'selected' : ''} ${h < minH ? 'disabled' : ''}>${h}U</option>`).join('')}</select></label>
       <div class="rk-head-actions">${libBadge('rackTypes', rack)}
         ${Lib()?.status('rackTypes', rack) !== 'ok' ? `<button class="sm" data-rklib>${I('download', 13)}Save to Library</button>` : ''}
@@ -447,6 +451,7 @@ function bindRackTab(){
   const rack = currentRack();
   if(!rack) return;
   body.querySelector('[data-rk="name"]').onchange = e => { rack.name = e.target.value.trim() || rack.id; saveRack(rack); };
+  body.querySelector('[data-rk="articleKey"]').onchange = e => { rack.articleKey = e.target.value.trim(); saveRack(rack); };
   body.querySelector('[data-rk="heightU"]').onchange = e => { rack.heightU = num(e.target.value, rack.heightU); saveRack(rack); };
   const lib = body.querySelector('[data-rklib]');
   if(lib) lib.onclick = async () => {

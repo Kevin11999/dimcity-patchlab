@@ -377,6 +377,8 @@ table td.num,table th.num{text-align:right}
 .device-ports{display:flex;flex-wrap:nowrap;gap:6px;align-items:center;overflow-x:auto;scrollbar-width:thin}
 .device-port{flex:0 1 44px;min-width:30px;aspect-ratio:1;width:44px;height:auto;border:2px solid var(--device-color,#3a414d);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;text-align:center;background:var(--surface);color:var(--text);line-height:1.1;padding:2px}
 .device-port.small{flex-basis:32px;min-width:24px;width:32px}
+.device-port.rj{border-radius:5px;border-color:#5a6372;font-size:9px;aspect-ratio:1.25}
+.device-port-sep{flex:none;width:1px;height:28px;background:var(--border);margin:0 4px}
 .device-port[data-bus="A"]{border-color:var(--blue)}
 .device-port[data-bus="B"]{border-color:var(--yellow)}
 .device-port.assignable{cursor:pointer}
@@ -664,7 +666,7 @@ a[data-open-kind]:hover,a[data-nav-view]:hover,a[data-cmd]:hover{text-decoration
 .ru-missing{--c:var(--red);border-color:var(--red)}
 
 /* rack */
-.rk-head{display:grid;grid-template-columns:minmax(0,1fr) 110px auto;gap:12px;align-items:end}
+.rk-head{display:grid;grid-template-columns:minmax(0,1fr) 150px 110px auto;gap:12px;align-items:end}
 .rk-head-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .rk-canvas{flex:none;display:flex;justify-content:center;padding:18px 0;background:var(--bg-sunken);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:auto}
 .rack{--rack-uh:42px;--uh:var(--rack-uh);display:grid;grid-template-columns:28px minmax(0,680px) 28px;width:min(100%,736px);background:#111317;border:6px solid #2a2f38;border-radius:6px;box-shadow:0 8px 30px rgba(0,0,0,.4)}

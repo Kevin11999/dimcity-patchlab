@@ -34,7 +34,9 @@ function rackFace(plan, ri){
     if(it.kind === 'node'){
       const n = nodeBy.get(it.iid);
       badge = n ? `<span class="rk-badge" style="--c:${n.color}">${n.label}</span>` : '';
-      ports = `<span class="ru-grp">${(n?.ports || []).map((p, i) => port('dmx', p ? `U${p.universe}` : i + 1, p ? `${n.label} port ${i + 1} · U${p.universe} → ${p.to}` : `${n.label} port ${i + 1} · free`, n.color, !p)).join('')}</span>`;
+      const eth = Math.min(2, Math.max(1, Number(t.ethernetCount) || 1));
+      ports = `<span class="ru-grp">${(n?.ports || []).map((p, i) => port('dmx', p ? `U${p.universe}` : i + 1, p ? `${n.label} port ${i + 1} · U${p.universe} → ${p.to}` : `${n.label} port ${i + 1} · free`, n.color, !p)).join('')}</span>`
+        + `<span class="ru-grp">${Array.from({ length:eth }, (_, i) => port('rj', eth > 1 ? i + 1 : '', eth > 1 ? `Network ${i + 1}` : 'Network')).join('')}</span>`;
     } else if(it.kind === 'splitter'){
       const s = splitBy.get(it.iid);
       badge = s ? `<span class="rk-badge">${s.label}</span>` : '';
@@ -83,7 +85,7 @@ function cardHtml(dc){
   const legend = [...owners.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric:true }))
     .map(([id, c]) => { const nodes = [...new Set(plan.lines.filter(l => l.owner === id && l.feed?.node).map(l => l.feed.node))]; return `<span class="rp-owner" style="--c:${c}"><i></i>${esc(id)}<em>${nodes.join(' + ')}</em></span>`; }).join('');
   const racks = plan.racks.map((R, ri) => `<div class="rp-rack">
-      <div class="rp-rack-head"><b>${esc(R.placement.name || R.rack?.name || R.placement.rackId)}</b><span class="subtle">${R.rack ? `${R.rack.heightU}U` : ''}</span>
+      <div class="rp-rack-head"><b>${esc(R.placement.name || R.rack?.name || R.placement.rackId)}</b><span class="subtle">${R.rack ? `${R.rack.heightU}U${R.rack.articleKey ? ` · ${esc(R.rack.articleKey)}` : ''}` : ''}</span>
         <input type="text" class="rp-name" data-rp="${esc(R.placement.iid)}" value="${esc(R.placement.name || '')}" placeholder="Name in this DimCity">
         <button class="sm ghost" data-rp-remove="${esc(R.placement.iid)}" title="Remove from ${esc(dc)}">${I('trash', 13)}</button></div>
       <div class="rk-canvas compact">${rackFace(plan, ri)}</div></div>`).join('');

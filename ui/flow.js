@@ -13,10 +13,9 @@ const lang = () => (window.I18n?.language === 'nl' ? 'nl' : 'en');
 const t = (en, nl) => (lang() === 'nl' ? nl : en);
 const uniHue = u => `hsl(${(Number(u || 0) * 47) % 360} 72% 58%)`;
 
-const S = { dc:'ALL', zoom:1, tx:40, ty:30, layout:null, drag:null, pan:null, pin:null, navCollapsed:false, sideCollapsed:false };
+const S = { dc:'ALL', zoom:1, tx:40, ty:30, layout:null, drag:null, pan:null, pin:null };
 const PORT_H = 15, HEAD_H = 26;
 const GAP = () => Math.round(22 * (flowState().spacing || 1)), COL_GAP = () => Math.round(120 * (flowState().spacing || 1));
-try { S.navCollapsed = localStorage.getItem('patchlab.flow.nav') === '1'; S.sideCollapsed = localStorage.getItem('patchlab.flow.side') === '1'; } catch {}
 const W = { node:180, splitter:150, lk:210, veam:170, dmx:170, obj:210, mini:160 };
 
 function flowState(){
@@ -243,8 +242,7 @@ function render(){
   if(S.dc !== 'ALL' && !dims.includes(S.dc)) S.dc = 'ALL';
   const dcs = selectedDims();
   App.pageHead?.({ eyebrow:'Project', title:t('Signal Flow', 'Signaalstroom'), sub:t('How the data runs from the rack to every object. Hover a universe or a line to follow it.', 'Hoe de data van het rek naar elk object loopt. Beweeg over een universe of een lijn om hem te volgen.'),
-    actions:`<button id="flNav" title="${esc(t('Hide or show the app sidebar for more room', 'Verberg of toon de zijbalk van de app voor meer ruimte'))}">${I(S.navCollapsed ? 'chevronRight' : 'chevronLeft', 15)}${S.navCollapsed ? t('Show sidebar', 'Zijbalk tonen') : t('Hide sidebar', 'Zijbalk verbergen')}</button><button id="flFit">${I('zoomOut', 15)}${t('Fit', 'Passend')}</button><button id="flReset" title="${esc(t('Put every block back in its automatic place', 'Zet elk blok terug op zijn automatische plek'))}">${I('refresh', 15)}${t('Reset layout', 'Indeling herstellen')}</button><button id="flSvg" title="${esc(t('Save the drawing as an SVG image', 'Sla de tekening op als SVG-afbeelding'))}">${I('download', 15)}${t('Save image', 'Afbeelding opslaan')}</button>` });
-  document.body.classList.toggle('nav-collapsed', S.navCollapsed);
+    actions:`<button id="flFit">${I('zoomOut', 15)}${t('Fit', 'Passend')}</button><button id="flReset" title="${esc(t('Put every block back in its automatic place', 'Zet elk blok terug op zijn automatische plek'))}">${I('refresh', 15)}${t('Reset layout', 'Indeling herstellen')}</button><button id="flSvg" title="${esc(t('Save the drawing as an SVG image', 'Sla de tekening op als SVG-afbeelding'))}">${I('download', 15)}${t('Save image', 'Afbeelding opslaan')}</button>` });
   const graph = layout(buildGraph(dcs), dcs);
   S.layout = graph;
   const byId = new Map(graph.blocks.map(b => [b.id, b]));
@@ -254,7 +252,7 @@ function render(){
   const uniList = [...unis.keys()].sort((a, b) => Number(a) - Number(b));
   const nodes = graph.blocks.filter(b => b.kind === 'node');
   const dir = flowState().dir;
-  const side = `<aside class="fl-side ${S.sideCollapsed ? 'collapsed' : ''}"><button class="fl-collapse" id="flSide" title="${esc(t('Collapse or expand this panel', 'Klap dit paneel in of uit'))}">${I(S.sideCollapsed ? 'chevronRight' : 'chevronLeft', 14)}</button>
+  const side = `<aside class="fl-side">
     <div class="fl-sec"><div class="rb-label">DimCities</div>
       <button class="fl-item ${S.dc === 'ALL' ? 'on' : ''}" data-dc="ALL">${I('layers', 14)}<span>${t('All DimCities', 'Alle DimCities')}</span><em>${dims.length}</em></button>
       ${dims.map(dc => `<button class="fl-item ${S.dc === dc ? 'on' : ''}" data-dc="${esc(dc)}"><i class="dot" style="background:${App.dimColor(dc)}"></i><span>${esc(dc)}</span><em>${m.byDim.get(dc)?.lks?.size || 0} LK</em></button>`).join('')}</div>
@@ -342,8 +340,6 @@ function bind(root, graph, byId){
     b.querySelectorAll('.fp').forEach(p => { p.onmouseenter = ev => { ev.stopPropagation(); if(!S.drag) highlight(root, { block:b.dataset.block, port:p.dataset.port }); }; p.onmouseleave = ev => { ev.stopPropagation(); if(!S.drag) highlight(root, { block:b.dataset.block }); }; });
   });
   const sp = root.querySelector('#flSpacing'); if(sp){ sp.oninput = () => { root.querySelector('#flSpVal').textContent = `${sp.value}%`; }; sp.onchange = () => { flowState().spacing = Number(sp.value) / 100; M().ui.dirty = true; S.fitNext = true; render(); }; }
-  App.$('#flNav')?.addEventListener('click', () => { S.navCollapsed = !S.navCollapsed; try { localStorage.setItem('patchlab.flow.nav', S.navCollapsed ? '1' : '0'); } catch {} S.fitNext = true; render(); });
-  root.querySelector('#flSide')?.addEventListener('click', () => { S.sideCollapsed = !S.sideCollapsed; try { localStorage.setItem('patchlab.flow.side', S.sideCollapsed ? '1' : '0'); } catch {} S.fitNext = true; render(); });
   App.$('#flSvg')?.addEventListener('click', () => exportSvg(root));
   const onKey = e => { if(e.key === 'Escape' && S.pin){ S.pin = null; highlight(root); root.querySelectorAll('.fl-uni.pinned').forEach(x => x.classList.remove('pinned')); } };
   document.addEventListener('keydown', onKey);
@@ -408,4 +404,4 @@ function exportSvg(root){
   App.ui.toast(t('Drawing saved as SVG', 'Tekening opgeslagen als SVG'));
 }
 
-window.Flow = { render, fit, buildGraph, navCollapsed:() => S.navCollapsed };
+window.Flow = { render, fit, buildGraph };

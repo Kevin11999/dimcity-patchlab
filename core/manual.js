@@ -33,6 +33,7 @@ Bottom-left, a small bar shows how complete the show is: project info, patch imp
 ## Where things are
 - **Sidebar**: project overview, validation, patch list, network planner, and every DimCity with its LKs and Veams.
 - **Toolbar**: Import CSV, Edit Rows, Recalculate, Save, Export PDF, Help and Request.
+- The arrow at the top of the sidebar collapses it to icons only (and back); PatchLab remembers that.
 - **Cmd/Ctrl+K** searches everything: LKs, Veams, universes, locations, devices and commands.
 - **?** or the Help button opens this manual on the chapter that matches the page you are on.`,
     nl:`PatchLab bereidt de LK-, Veam- en DMX-patch van een show voor, controleert hem en documenteert hem, gegroepeerd per DimCity. De gebruikelijke volgorde:
@@ -57,6 +58,7 @@ Linksonder toont een kleine balk hoe compleet de show is: projectinfo, patch ge�
 ## Waar vind je wat
 - **Zijbalk**: projectoverzicht, validatie, patchlijst, netwerkplanner en elke DimCity met zijn LK's en Veams.
 - **Werkbalk**: CSV importeren, Rijen bewerken, Herberekenen, Opslaan, PDF exporteren, Help en Request.
+- Het pijltje bovenaan de zijbalk klapt hem in tot alleen iconen (en weer uit); PatchLab onthoudt dat.
 - **Cmd/Ctrl+K** zoekt in alles: LK's, Veams, universes, locaties, devices en opdrachten.
 - **?** of de Help-knop opent deze handleiding op het hoofdstuk dat bij je huidige pagina hoort.`
   },
@@ -418,7 +420,7 @@ De snelste weg naar een compleet plan is het uit de rack-patch opbouwen: **Gebru
 - Lines have the colour of the node that feeds them. **Hover a universe** in the left bar and every line that carries it lights up, ports included.
 - **Hover a block** (node, LK, Veam, object) and its whole flow lights up and moves: upstream to the node port and downstream through splitter, LK slot and Veam to every object. **Hover one port** inside a block for that single line only. **Hover a line** for that line's flow.
 - **Click** a universe, line or block to pin the highlight while you move the mouse; click the background or press Esc to release.
-- Zoom with the mouse wheel, pan by dragging the background, **Fit** brings everything into view. **Hide sidebar** and the arrow on the left panel give the drawing more room.
+- Zoom with the mouse wheel, pan by dragging the background, **Fit** brings everything into view. The arrow at the top of the app sidebar collapses it to icons for more room.
 - **Save image** writes the drawing as an SVG file you can open or print anywhere.
 
 ## Changing it
@@ -434,7 +436,7 @@ The drawing is built from the rack patch, so place a rack or a loose node first 
 - Lijnen hebben de kleur van de node die ze voedt. **Beweeg over een universe** in de linkerbalk en elke lijn die hem draagt licht op, inclusief de poorten.
 - **Beweeg over een blok** (node, LK, Veam, object) en zijn hele flow licht op en beweegt: stroomopwaarts naar de nodepoort en stroomafwaarts door splitter, LK-slot en Veam naar elk object. **Beweeg over één poort** in een blok voor alleen die ene lijn. **Beweeg over een lijn** voor de flow van die lijn.
 - **Klik** op een universe, lijn of blok om de markering vast te zetten terwijl je de muis beweegt; klik op de achtergrond of druk op Esc om los te laten.
-- Zoomen met het muiswiel, verschuiven door de achtergrond te slepen, **Passend** brengt alles in beeld. **Zijbalk verbergen** en het pijltje op het linkerpaneel geven de tekening meer ruimte.
+- Zoomen met het muiswiel, verschuiven door de achtergrond te slepen, **Passend** brengt alles in beeld. Het pijltje bovenaan de zijbalk van de app klapt hem in tot iconen voor meer ruimte.
 - **Afbeelding opslaan** schrijft de tekening als SVG-bestand dat je overal kunt openen of printen.
 
 ## Aanpassen

@@ -147,7 +147,7 @@ const NL = {
   'Company logo':'Bedrijfslogo', 'No company logo':'Geen bedrijfslogo', 'On every page':'Op elke pagina', 'Top left':'Linksboven', 'Top right':'Rechtsboven', 'Bottom left':'Linksonder',
   'Bottom right':'Rechtsonder', 'Logo height':'Logohoogte', 'Watermark':'Watermerk', 'None':'Geen', 'Text':'Tekst', 'Strength':'Sterkte', 'Size':'Grootte', 'Angle':'Hoek',
   'Use project logo':'Projectlogo gebruiken', 'Position on the cover':'Positie op het voorblad', 'Report preview':'Rapportvoorbeeld', 'Select at least one DimCity.':'Kies minstens één DimCity.',
-  'Help':'Help', 'Request':'Request', 'User manual for this page (? or F1)':'Handleiding voor deze pagina (? of F1)', 'Send a feature request, bug report or question':'Stuur een wens, foutmelding of vraag',
+  'Collapse sidebar':'Zijbalk inklappen', 'Expand sidebar':'Zijbalk uitklappen', 'Help':'Help', 'Request':'Request', 'User manual for this page (? or F1)':'Handleiding voor deze pagina (? of F1)', 'Send a feature request, bug report or question':'Stuur een wens, foutmelding of vraag',
   'Open Demo Show':'Demo-show openen', 'A complete festival show to explore: racks, nodes, PDF':'Een complete festivalshow om te verkennen: racks, nodes, PDF',
   'Full tour, or one about LKs, nodes, racks or the PDF':'Volledige rondleiding, of één over LK’s, nodes, racks of de PDF', 'Show progress':'Voortgang van de show',
   'Device library':'Devicebibliotheek', 'Standard device library':'Standaard devicebibliotheek', 'Luminex, ELC and standard panels':'Luminex, ELC en standaardpanelen',

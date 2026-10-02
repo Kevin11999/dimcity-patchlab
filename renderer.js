@@ -986,7 +986,7 @@ setInterval(()=>{ try { updateChrome(); } catch {} }, 400);
 
 // ---- Zijbalk ----
 function navEntity(kind, id, icon, active, extra=''){
-  return `<button class="nav-item ${active?'active':''}" data-open-kind="${kind}" data-open-id="${esc(id)}">${I(icon,14)}<span class="label">${esc(id)}</span>${extra}</button>`;
+  return `<button class="nav-item ${active?'active':''}" data-open-kind="${kind}" data-open-id="${esc(id)}" title="${esc(id)}">${I(icon,14)}<span class="label">${esc(id)}</span>${extra}</button>`;
 }
 function renderSummary(){
   const c = $('#summary'); if(!c) return;
@@ -1019,7 +1019,7 @@ function renderSummary(){
           return navEntity('VEAM', v.id, 'plug', detail && sel.kind==='VEAM' && sel.id===v.id, mark);
         }).join('')}${!lks.length && !ves.length ? '<div class="nav-empty">No LK or Veam yet</div>' : ''}</div>`;
       }
-      return `<button class="nav-item ${detail && sel.kind==='DIM' && sel.id===dc ? 'active' : ''}" data-open-kind="DIM" data-open-id="${esc(dc)}"><span class="dim-dot" style="background:${dimColor(dc)}"></span><span class="label">${esc(dc)}</span>${count}</button>${sub}`;
+      return `<button class="nav-item ${detail && sel.kind==='DIM' && sel.id===dc ? 'active' : ''}" data-open-kind="DIM" data-open-id="${esc(dc)}" title="${esc(dc)}"><span class="dim-dot" style="background:${dimColor(dc)}"></span><span class="label">${esc(dc)}</span>${count}</button>${sub}`;
     }).join('');
   }
 
@@ -1035,7 +1035,6 @@ function renderRight(){
   const table = $('#rightCsvSection'); if(table) table.hidden = view !== 'TABLE';
   const detailEl = $('#lkDetail'); if(detailEl){ detailEl.hidden = view === 'TABLE'; detailEl.style.removeProperty('--dim-color'); }
 
-  document.body.classList.toggle('nav-collapsed', view === 'FLOW' && !!window.Flow?.navCollapsed?.());
   if(view === 'DETAIL') renderRightDetail();
   else if(view === 'ISSUES') renderIssuesView();
   else if(view === 'TABLE') renderTableView();
@@ -2275,6 +2274,16 @@ async function runCommand(cmd, arg){
 }
 window.LKApp.runCommand = runCommand;
 window.app?.onMenuCommand?.((cmd, arg)=> runCommand(cmd, arg));
+
+// Zijbalk in- en uitklappen (alleen iconen), onthouden op deze computer
+function setNavMini(on){
+  document.body.classList.toggle('nav-mini', on);
+  const b = document.getElementById('navToggle');
+  if(b){ b.innerHTML = I(on ? 'chevronRight' : 'chevronLeft', 16); b.title = on ? 'Expand sidebar' : 'Collapse sidebar'; }
+  try { localStorage.setItem('patchlab.navMini', on ? '1' : '0'); } catch {}
+}
+try { setNavMini(localStorage.getItem('patchlab.navMini') === '1'); } catch {}
+document.getElementById('navToggle')?.addEventListener('click', () => setNavMini(!document.body.classList.contains('nav-mini')));
 
 // Werkbalk
 const bindClick = (id, fn) => { const n = document.getElementById(id); if(n) n.addEventListener('click', e=>{ e.preventDefault(); fn(e); }); };

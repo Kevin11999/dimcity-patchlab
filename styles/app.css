@@ -972,11 +972,19 @@ kbd{font:500 10.5px var(--font);color:var(--text-3);border:1px solid var(--borde
 .fp-g{font:600 9.5px/1 var(--font,system-ui);fill:var(--text-3);letter-spacing:.04em;text-transform:uppercase}
 .fb.lit .fb-head{fill:color-mix(in srgb,var(--c) 40%,var(--surface))}
 
-body.nav-collapsed .workspace{grid-template-columns:0 minmax(0,1fr)}
-body.nav-collapsed .sidebar{display:none}
-.fl-side{position:relative}
-.fl-side.collapsed{width:22px;overflow:hidden}
-.fl-side.collapsed .fl-sec{display:none}
-.fl-wrap:has(.fl-side.collapsed){grid-template-columns:22px minmax(0,1fr)}
-.fl-collapse{position:absolute;top:0;right:0;width:22px;height:22px;padding:0;border:1px solid var(--border);background:var(--surface);border-radius:6px;z-index:2}
+/* sidebar collapsed to icons */
+.nav-toggle{align-self:flex-end;width:26px;height:26px;padding:0;border:1px solid var(--border);background:var(--surface-2);color:var(--text-3);border-radius:6px;margin:0 2px 4px 0;flex:none}
+.nav-toggle:hover{color:var(--text);background:var(--hover)}
+body.nav-mini .workspace{grid-template-columns:56px minmax(0,1fr)}
+body.nav-mini .sidebar{padding:10px 6px 16px;overflow-x:hidden}
+body.nav-mini .nav-toggle{align-self:center;margin-right:0}
+body.nav-mini .nav-label{justify-content:center;padding:12px 0 4px;font-size:0;border-top:1px solid var(--border);margin-top:6px}
+body.nav-mini .nav-label button{display:none}
+body.nav-mini .nav-item{justify-content:center;padding:0;gap:0;height:34px}
+body.nav-mini .nav-item .label,body.nav-mini .nav-item .count{display:none}
+body.nav-mini .nav-item .count.err,body.nav-mini .nav-item .count.warn{display:inline-block;position:absolute;right:4px;top:3px;font-size:9px;line-height:13px;padding:0 4px}
+body.nav-mini .nav-item{position:relative}
+body.nav-mini .dim-dot{width:14px;height:14px;border-radius:4px}
+body.nav-mini .nav-sub{display:none}
+body.nav-mini .nav-empty{display:none}
 .fl-uni.pinned{box-shadow:0 0 0 2px var(--u);background:var(--hover)}

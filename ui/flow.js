@@ -289,7 +289,8 @@ function fit(){
 //  - a line or a port: that one flow, from the node port to the objects (through splitter and Veam)
 //  - a block: its whole flow, upstream to the node and downstream to every object
 function highlight(root, sel){
-  sel = sel || S.pin || null;
+  if(S.pin) sel = S.pin;          // vastgezet: de muis verandert niets tot er opnieuw geklikt wordt
+  sel = sel || null;
   root.querySelectorAll('.fe, .fb, .fp').forEach(el => el.classList.remove('lit', 'dim', 'flow'));
   if(!sel) return;
   const { uni=null, trace=null, block=null, port=null } = sel;
@@ -317,9 +318,8 @@ function highlight(root, sel){
     let again = true; while(again){ again = false; for(const e of edges){ if(down.has(e.dataset.from) && !litEdges.has(e)){ addE(e); down.add(e.dataset.to); again = true; } if(up.has(e.dataset.to) && !litEdges.has(e)){ addE(e); up.add(e.dataset.from); again = true; } } }
     litBlocks.add(block);
   }
-  for(const e of edges) e.classList.add(litEdges.has(e) ? 'lit' : 'dim');
-  if(trace != null || block != null) litEdges.forEach(e => e.classList.add('flow'));
-  root.querySelectorAll('.fb').forEach(b => b.classList.add(litBlocks.has(b.dataset.block) ? 'lit' : 'dim'));
+  litEdges.forEach(e => { e.classList.add('lit', 'flow'); });
+  root.querySelectorAll('.fb').forEach(b => { if(litBlocks.has(b.dataset.block)) b.classList.add('lit'); });
   // ports: those on a lit edge (by universe) light up
   const litUnis = new Set([...litEdges].map(e => e.dataset.uni).filter(Boolean));
   root.querySelectorAll('.fb.lit .fp').forEach(p => { if(p.dataset.uni && litUnis.has(p.dataset.uni)) p.classList.add('lit'); });

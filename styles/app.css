@@ -950,15 +950,14 @@ kbd{font:500 10.5px var(--font);color:var(--text-3);border:1px solid var(--borde
 .fe-hit{fill:none;stroke:transparent;stroke-width:14;cursor:pointer}
 .fe.slot{stroke-dasharray:4 4;stroke-width:1.6}
 .fe:hover,.fe.lit{opacity:1;stroke-width:3.2}
-.fe.dim{opacity:.12}
+.fe.lit{filter:drop-shadow(0 0 3px var(--c))}
 .fe.flow{stroke-dasharray:9 7;animation:flDash .55s linear infinite}
 @keyframes flDash{to{stroke-dashoffset:-16}}
 .fb{cursor:grab;transition:opacity .15s}
-.fb.dim{opacity:.28}
 .fb-bg{fill:var(--surface);stroke:var(--border-strong);stroke-width:1}
 .fb-head{fill:color-mix(in srgb,var(--c) 22%,var(--surface))}
 .fb-bar{fill:var(--c)}
-.fb.lit .fb-bg{stroke:var(--c);stroke-width:2}
+.fb.lit .fb-bg{stroke:var(--c);stroke-width:2.5;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--c) 60%,transparent))}
 .fb-t{font:600 12px/1 var(--font,system-ui);fill:var(--text)}
 .fb-edit{cursor:text;text-decoration:underline dotted;text-underline-offset:3px}
 .fb-id{font-weight:400;fill:var(--text-3)}

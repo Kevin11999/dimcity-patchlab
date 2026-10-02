@@ -17,7 +17,7 @@ const S = { dc:'ALL', zoom:1, tx:40, ty:30, layout:null, drag:null, pan:null, pi
 const PORT_H = 15, HEAD_H = 26;
 const GAP = () => Math.round(22 * (flowState().spacing || 1)), COL_GAP = () => Math.round(120 * (flowState().spacing || 1));
 try { S.navCollapsed = localStorage.getItem('patchlab.flow.nav') === '1'; S.sideCollapsed = localStorage.getItem('patchlab.flow.side') === '1'; } catch {}
-const W = { node:180, splitter:150, lk:210, veam:170, dmx:170, obj:200 };
+const W = { node:180, splitter:150, lk:210, veam:170, dmx:170, obj:210, mini:160 };
 
 function flowState(){
   const m = M();
@@ -78,10 +78,12 @@ function buildGraph(dcs){
     const dmx = (m.dmxLoose || []).filter(D => D.dimcity === dc && D.universe != null);
     if(dmx.length) add({ id:`${dc}|dmx`, kind:'dmx', dc, col:2, title:t('Direct (XLR)', 'Direct (XLR)'), sub:t('Loose DMX lines', 'Losse DMX-lijnen'), color:owners.get('DMX') || '#94a3b8',
       ports:dmx.map((D, i) => ({ key:`d${i}`, label:`${i + 1}`, universe:D.universe, dest:D.dest || '' })) });
-    // objects (column 4 / 3): one block per location, with the universes that arrive there
-    const objs = new Map();
-    const obj = (dest, col) => { const key = `${dc}|obj|${dest}`; if(!B.has(key)) add({ id:key, kind:'obj', dc, col, title:dest, sub:'', color:'#94a3b8', ports:[] }); const b = B.get(key); b.col = Math.max(b.col, col); return b; };
-    const objPort = (b, universe, from, color) => { let p = b.ports.find(x => x.universe === universe); if(!p){ p = { key:`u${universe}`, label:`U${universe}`, universe, from:[], color }; b.ports.push(p); } p.from.push(from); return p; };
+    // objects: the end of an LK / Veam / DMX branch stays one group (a block with one row per port, aligned
+    // with the ports of the block before it); XLR lines on the LK itself get a small block each, in line
+    // with their port. Both are "anchored" to their source block so the layout keeps them aligned.
+    const groupOf = (src, col) => { const key = `${src.id}|objs`; if(!B.has(key)) add({ id:key, kind:'obj', dc, col, title:t('Objects', 'Objecten'), sub:src.kind === 'lk' ? label(dc, src.lkId) : src.title, color:src.color, ports:[], anchor:{ block:src.id } }); return B.get(key); };
+    const groupRow = (gb, src, portKey, universe, dest, color) => { let r = gb.ports.find(x => x.key === `r${portKey}`); if(!r){ r = { key:`r${portKey}`, label:src.ports.find(p => p.key === portKey)?.label || '', universe, dest, color }; gb.ports.push(r); } return r; };
+    const miniOf = (src, portKey, universe, dest, col) => { const key = `${src.id}|obj|${portKey}`; if(!B.has(key)) add({ id:key, kind:'obj', mini:true, dc, col, title:dest, sub:'', color:src.color, ports:[{ key:'r', label:'', universe, dest }], anchor:{ block:src.id, port:portKey } }); return B.get(key); };
 
     // ---- edges ----
     const traceOf = l => l.feed ? `${dc}|${l.feed.node}|${l.feed.port}` : `${dc}|unfed|${l.label}`;
@@ -104,7 +106,7 @@ function buildGraph(dcs){
       } else if(nb){
         edges.push({ id:`e${edges.length}`, from:{ block:nb.id, port:`p${l.feed.port}` }, to:{ block:target.b.id, port:target.p }, universe:l.universe, color, trace });
       }
-      // onward: LK port fed via a Veam → LK slot → Veam → Veam port → object; otherwise straight to the object
+      // onward: LK port fed via a Veam → LK slot → Veam (one line) → Veam port → row in the Veam's object group
       if(l.ownerKind === 'LK' && l.via){
         const [vid, vp] = l.via.split(' · ');
         const vb = B.get(`${dc}|veam|${vid}`);
@@ -112,27 +114,36 @@ function buildGraph(dcs){
           const slot = Math.ceil(l.port / 4);
           const k2 = `${target.b.id}|slot${slot}|${vb.id}`;
           if(!seenSplitIn.has(k2)){ seenSplitIn.add(k2); edges.push({ id:`e${edges.length}`, from:{ block:target.b.id, port:`g${slot}` }, to:{ block:vb.id, port:'in' }, universe:null, color, trace:`${target.b.id}|g${slot}`, slot:true }); }
-          if(l.dest){ const ob = obj(l.dest, 4); objPort(ob, l.universe, `${vid} · ${vp}`, color); edges.push({ id:`e${edges.length}`, from:{ block:vb.id, port:`p${vp}` }, to:{ block:ob.id, port:`u${l.universe}` }, universe:l.universe, color, trace }); }
+          if(l.dest){ const gb = groupOf(vb, vb.col + 1); groupRow(gb, vb, `p${vp}`, l.universe, l.dest, color); edges.push({ id:`e${edges.length}`, from:{ block:vb.id, port:`p${vp}` }, to:{ block:gb.id, port:`rp${vp}` }, universe:l.universe, color, trace }); }
           continue;
         }
       }
-      if(l.dest){ const ob = obj(l.dest, l.ownerKind === 'LK' ? 3 : 3); objPort(ob, l.universe, l.label, color); edges.push({ id:`e${edges.length}`, from:{ block:target.b.id, port:target.p }, to:{ block:ob.id, port:`u${l.universe}` }, universe:l.universe, color, trace }); }
+      if(!l.dest) continue;
+      if(l.ownerKind === 'LK'){
+        // XLR on the LK itself: its own small block, in line with the port
+        const mb = miniOf(target.b, target.p, l.universe, l.dest, target.b.col + 1);
+        edges.push({ id:`e${edges.length}`, from:{ block:target.b.id, port:target.p }, to:{ block:mb.id, port:'r' }, universe:l.universe, color, trace });
+      } else {
+        const gb = groupOf(target.b, target.b.col + 1); groupRow(gb, target.b, target.p, l.universe, l.dest, color);
+        edges.push({ id:`e${edges.length}`, from:{ block:target.b.id, port:target.p }, to:{ block:gb.id, port:`r${target.p}` }, universe:l.universe, color, trace });
+      }
     }
     // Veams linked to an LK but with no line of their own on that LK port range still get the slot edge
     for(const [vid, link] of linkedVeams){
       const lb = B.get(`${dc}|lk|${link.lk}`), vb = B.get(`${dc}|veam|${vid}`);
       if(lb && vb && !edges.some(e => e.from.block === lb.id && e.from.port === `g${link.slot}` && e.to.block === vb.id)) edges.push({ id:`e${edges.length}`, from:{ block:lb.id, port:`g${link.slot}` }, to:{ block:vb.id, port:'in' }, universe:null, color:lb.color, trace:`${lb.id}|g${link.slot}`, slot:true });
     }
-    // objects fed from a Veam port that was not in P.lines (Veam not patched on a node yet)
-    for(const ve of veams){ const vb = B.get(`${dc}|veam|${ve.id}`); if(!vb) continue; for(const p of vb.ports){ if(p.universe == null || !p.dest) continue; if(edges.some(e => e.from.block === vb.id && e.from.port === p.key)) continue; const ob = obj(p.dest, vb.col + 1); objPort(ob, p.universe, `${ve.id} · ${p.label}`, vb.color); edges.push({ id:`e${edges.length}`, from:{ block:vb.id, port:p.key }, to:{ block:ob.id, port:`u${p.universe}` }, universe:p.universe, color:vb.color, trace:`${vb.id}|${p.key}` }); } }
+    // Veam ports with a destination that are not in P.lines yet (Veam not patched on a node) still show their objects
+    for(const ve of veams){ const vb = B.get(`${dc}|veam|${ve.id}`); if(!vb) continue; for(const p of vb.ports){ if(p.universe == null || !p.dest) continue; if(edges.some(e => e.from.block === vb.id && e.from.port === p.key)) continue; const gb = groupOf(vb, vb.col + 1); groupRow(gb, vb, p.key, p.universe, p.dest, vb.color); edges.push({ id:`e${edges.length}`, from:{ block:vb.id, port:p.key }, to:{ block:gb.id, port:`r${p.key}` }, universe:p.universe, color:vb.color, trace:`${vb.id}|${p.key}` }); } }
   }
-  // object port colours: majority of feeding node colours is already set; sort object universes
-  for(const b of blocks) if(b.kind === 'obj') b.ports.sort((a, c) => a.universe - c.universe);
+  // rows of an object group in the order of the source ports
+  for(const b of blocks) if(b.kind === 'obj' && !b.mini){ const src = B.get(b.anchor.block); b.ports.sort((a, c) => src.ports.findIndex(p => `r${p.key}` === a.key) - src.ports.findIndex(p => `r${p.key}` === c.key)); }
   return { blocks, edges };
 }
 
 // ---------- Layout ----------
 function blockSize(b){
+  if(b.mini) return { w:W.mini, h:PORT_H + 6 };
   let h = HEAD_H + 8;
   if(b.kind === 'lk') h += b.xlr12 ? 12 * PORT_H : 3 * (14 + 4 * PORT_H);
   else h += Math.max(1, b.ports.length) * PORT_H;
@@ -146,12 +157,14 @@ function portOffset(b, key){
     const p = Number(key.slice(1)); const g = Math.ceil(p / 4);
     return HEAD_H + 8 + (b.xlr12 ? (p - 1) * PORT_H : (g - 1) * (14 + 4 * PORT_H) + 14 + ((p - 1) % 4) * PORT_H) + PORT_H / 2;
   }
+  if(b.mini) return (PORT_H + 6) / 2;
   if(key === 'in') return HEAD_H / 2;
   const i = Math.max(0, b.ports.findIndex(p => p.key === key));
   return HEAD_H + 8 + i * PORT_H + PORT_H / 2;
 }
 function layout(graph, dcs){
   const dir = flowState().dir, posSaved = flowState().pos;
+  const byId = new Map(graph.blocks.map(b => [b.id, b]));
   const cols = new Map();
   for(const b of graph.blocks){ b.size = blockSize(b); if(!cols.has(b.col)) cols.set(b.col, []); cols.get(b.col).push(b); }
   // order inside a column: by DimCity, then by the colour / name of what feeds it (keeps related blocks together)
@@ -162,12 +175,27 @@ function layout(graph, dcs){
   for(const c of colIdx){
     const list = cols.get(c).sort((a, b) => dcs.indexOf(a.dc) - dcs.indexOf(b.dc) || (feedOrder.get(a.id) ?? 1e9) - (feedOrder.get(b.id) ?? 1e9) || a.title.localeCompare(b.title, undefined, { numeric:true }));
     const widest = Math.max(...list.map(b => b.size.w));
+    // where would each block like to be along the column? anchored blocks exactly at their source port,
+    // other blocks at the height of the first block that feeds them; then stack without overlap
+    const want = b => {
+      const feed = b.anchor ? null : graph.edges.find(e => e.to.block === b.id);
+      const src = b.anchor ? byId.get(b.anchor.block) : byId.get(feed?.from.block);
+      if(!src?.pos) return null;
+      // a mini block sits in line with its port; a group block in line with its source block;
+      // any other block at the height of the port that feeds it (so a Veam sits next to its LK slot)
+      const off = b.anchor?.port ? portOffset(src, b.anchor.port) - b.size.h / 2 : b.anchor ? 0 : Math.max(0, portOffset(src, feed.from.port) - HEAD_H);
+      return dir === 'ltr' ? src.pos.y + off : src.pos.x;
+    };
+    const wants = new Map(list.map(b => [b.id, want(b)]));
+    list.sort((a, b) => (wants.get(a.id) ?? 1e9) - (wants.get(b.id) ?? 1e9) || list.indexOf(a) - list.indexOf(b));
     let cross = 0;
     for(const b of list){
       const saved = posSaved?.[b.dc]?.[dir]?.[b.id];
-      b.auto = dir === 'ltr' ? { x:main, y:cross } : { x:cross, y:-(main + b.size.h) };
+      const w = wants.get(b.id);
+      const at = w == null ? cross : Math.max(cross, w);
+      b.auto = dir === 'ltr' ? { x:main, y:at } : { x:at, y:-(main + b.size.h) };
       b.pos = saved ? { x:saved.x, y:saved.y } : b.auto;
-      cross += (dir === 'ltr' ? b.size.h : b.size.w) + GAP();
+      cross = at + (dir === 'ltr' ? b.size.h : b.size.w) + (b.mini || b.anchor ? Math.round(GAP() / 3) : GAP());
     }
     main += (dir === 'ltr' ? widest : Math.max(...list.map(b => b.size.h))) + COL_GAP();
   }
@@ -193,7 +221,7 @@ function selectedDims(){ const all = App.sortedDims(); return S.dc === 'ALL' ? a
 function blockSvg(b){
   const { w, h } = b.size;
   const rows = [];
-  const portRow = (p, y, cls='') => `<g class="fp ${cls}" data-port="${esc(p.key)}" data-uni="${p.universe ?? ''}" transform="translate(0,${y})"><title>${esc(p.label)}${p.universe != null ? ` · U${p.universe}` : ''}${p.dest ? ` · ${esc(p.dest)}` : ''}${p.to ? ` → ${esc(p.to)}` : ''}${p.from ? ` ← ${esc(p.from.join(', '))}` : ''}</title><rect x="6" y="1" width="${w - 12}" height="${PORT_H - 2}" rx="3"/><text x="12" y="${PORT_H / 2 + 3.5}" class="fp-n">${esc(p.label)}</text>${p.universe != null ? `<text x="${w / 2}" y="${PORT_H / 2 + 3.5}" class="fp-u" text-anchor="middle">U${esc(p.universe)}</text>` : ''}<text x="${w - 12}" y="${PORT_H / 2 + 3.5}" class="fp-d" text-anchor="end">${esc(trim(p.dest || (p.from ? p.from.join(', ') : p.to || ''), b.kind === 'obj' ? 22 : 14))}</text></g>`;
+  const portRow = (p, y, cls='') => `<g class="fp ${cls}" data-port="${esc(p.key)}" data-uni="${p.universe ?? ''}" transform="translate(0,${y})"><title>${esc(p.label)}${p.universe != null ? ` · U${p.universe}` : ''}${p.dest ? ` · ${esc(p.dest)}` : ''}${p.to ? ` → ${esc(p.to)}` : ''}${p.from ? ` ← ${esc(p.from.join(', '))}` : ''}</title><rect x="6" y="1" width="${w - 12}" height="${PORT_H - 2}" rx="3"/><text x="12" y="${PORT_H / 2 + 3.5}" class="fp-n">${esc(p.label)}</text>${p.universe != null ? `<text x="${w / 2}" y="${PORT_H / 2 + 3.5}" class="fp-u" text-anchor="middle">U${esc(p.universe)}</text>` : ''}<text x="${w - 12}" y="${PORT_H / 2 + 3.5}" class="fp-d" text-anchor="end">${esc(trim(p.dest || p.to || '', b.kind === 'obj' ? 24 : 14))}</text></g>`;
   if(b.kind === 'lk' && !b.xlr12){
     for(let g = 1; g <= 3; g++){
       const y0 = HEAD_H + 8 + (g - 1) * (14 + 4 * PORT_H);
@@ -201,6 +229,7 @@ function blockSvg(b){
       for(let i = 0; i < 4; i++) rows.push(portRow(b.ports[(g - 1) * 4 + i], y0 + 14 + i * PORT_H));
     }
   } else b.ports.forEach((p, i) => rows.push(portRow(p, HEAD_H + 8 + i * PORT_H, p.isIn ? 'in' : '')));
+  if(b.mini){ const p = b.ports[0]; return `<g class="fb fb-obj fb-mini" data-block="${esc(b.id)}" data-dc="${esc(b.dc)}" transform="translate(${b.pos.x},${b.pos.y})" style="--c:${b.color}"><title>${esc(p.dest)} · U${esc(p.universe)}</title><rect class="fb-bg" width="${w}" height="${h}" rx="5"/><rect class="fb-bar" x="0" y="0" width="4" height="${h}" rx="2"/><g class="fp" data-port="r" data-uni="${p.universe ?? ''}"><text x="10" y="${h / 2 + 3.5}" class="fb-t" style="font-size:11px">${esc(trim(p.dest, 18))}</text><text x="${w - 8}" y="${h / 2 + 3.5}" class="fp-u" text-anchor="end">U${esc(p.universe)}</text></g></g>`; }
   const name = b.kind === 'lk' ? `<text x="10" y="17" class="fb-t fb-edit" data-rename="${esc(b.lkId)}">${esc(b.title)}${b.title !== b.lkId ? ` <tspan class="fb-id">(${esc(b.lkId)})</tspan>` : ''}</text>` : `<text x="10" y="17" class="fb-t">${esc(trim(b.title, 30))}</text>`;
   return `<g class="fb fb-${b.kind}" data-block="${esc(b.id)}" data-dc="${esc(b.dc)}" transform="translate(${b.pos.x},${b.pos.y})" style="--c:${b.color}">
     <rect class="fb-bg" width="${w}" height="${h}" rx="6"/><rect class="fb-head" width="${w}" height="${HEAD_H}" rx="6"/><rect class="fb-bar" x="0" y="0" width="4" height="${h}" rx="2"/>

@@ -42,7 +42,7 @@ function demand(M, dc){
       if(m.ve?.veamId) linked.add(m.ve.veamId);
       if(m.universe == null || m.universe === '') continue;
       slotUsed[Math.floor((p - 1) / 4)] = true;
-      lines.push({ universe:num(m.universe), port:p, dest:m.dest || '', label:`${lk.id} · ${p}`, owner:lk.id, ownerKind:'LK', via:m.ve?.veamId ? `${m.ve.veamId} · ${m.ve.veamPort}` : '' });
+      lines.push({ universe:num(m.universe), port:p, dest:m.dest || '', label:`${lk.id} · ${p}`, owner:lk.id, ownerKind:'LK', via:m.source === 'Veam' && m.ve?.veamId ? `${m.ve.veamId} · ${m.ve.veamPort}` : '' });
     }
     // gekoppelde Veams worden via de LK gevoed en hebben geen eigen aansluiting nodig
     for(const s of [1, 2, 3]) if(lk.veam?.[s] && App.effectiveBlockType(lk) !== 'XLR12') { linked.add(lk.veam[s]); slotUsed[s - 1] = true; }

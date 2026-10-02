@@ -18,9 +18,11 @@ function compute(){
   const errs = issues.filter(i => i.severity === 'RED').length, warns = issues.length - errs;
   const incomplete = [...(m.lines || []), ...(m.veamLines || []), ...(m.dmxLoose || [])].filter(L => L.status === 'YELLOW' || L.universe == null || L.universe === '').length;
   const veams = [...(m.byVeam?.values?.() || [])];
-  const unlinked = veams.filter(v => !(m.veamUse?.get(v.id) || []).length);
   const E = window.RackEngine;
   const rackDims = dims.map(dc => ({ dc, has:E?.hasRackPlan?.(m, dc), plan:E?.hasRackPlan?.(m, dc) ? E.computeRackPlan(m, dc) : null }));
+  // een Veam is in orde als hij aan een LK gekoppeld is, óf als losse Veam op een Veam4-aansluiting zit
+  const onSocket = new Set(rackDims.flatMap(r => r.plan ? [...r.plan.groups.flatMap(g => g.vims), ...r.plan.soloVims].filter(v => v.used).map(v => v.used.id) : []));
+  const unlinked = veams.filter(v => !(m.veamUse?.get(v.id) || []).length && !onSocket.has(v.id));
   const rackMissing = rackDims.filter(r => !r.has).map(r => r.dc);
   const rackWarn = rackDims.filter(r => r.plan?.recs.some(x => x.level === 'warn')).map(r => r.dc);
   const netMissing = dims.filter(dc => !(m.networkDevices?.dimCityPlans?.[dc]?.nodes || []).length);
@@ -37,7 +39,7 @@ function compute(){
     { id:'complete', label:t('Rows complete', 'Regels compleet'), done:lines > 0 && incomplete === 0,
       detail:incomplete ? `${incomplete} ${t('rows without universe or location', 'regels zonder universe of locatie')}${warns ? ` · ${warns} ${t('warnings', 'waarschuwingen')}` : ''}` : (warns ? `${warns} ${t('warnings', 'waarschuwingen')}` : ''), go:() => App.navigate('TABLE') },
     { id:'veams', label:t('Veams linked', 'Veams gekoppeld'), done:veams.length > 0 && unlinked.length === 0, skip:!veams.length,
-      detail:unlinked.length ? `${unlinked.slice(0, 5).map(v => v.id).join(', ')}${unlinked.length > 5 ? '…' : ''} ${t('not linked to an LK', 'niet aan een LK gekoppeld')}` : '', go:unlinked[0] ? open('VEAM', unlinked[0].id) : null },
+      detail:unlinked.length ? `${unlinked.slice(0, 5).map(v => v.id).join(', ')}${unlinked.length > 5 ? '…' : ''} ${t('not linked to an LK and not on a Veam4 socket', 'niet aan een LK gekoppeld en niet op een Veam4-aansluiting')}` : '', go:unlinked[0] ? open('VEAM', unlinked[0].id) : null },
     { id:'racks', label:t('Racks patched', 'Racks gepatcht'), done:dims.length > 0 && !rackMissing.length && !rackWarn.length, skip:!dims.length,
       detail:rackMissing.length ? `${t('No rack or loose node in', 'Geen rek of losse node in')} ${rackMissing.join(', ')}` : rackWarn.length ? `${t('Check the recommendations in', 'Bekijk de adviezen in')} ${rackWarn.join(', ')}` : '', go:(rackMissing[0] || rackWarn[0]) ? open('DIM', rackMissing[0] || rackWarn[0]) : null },
     { id:'network', label:t('Network plan', 'Netwerkplan'), done:dims.length > 0 && !netMissing.length, skip:!dims.length,

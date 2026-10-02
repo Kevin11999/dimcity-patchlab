@@ -13,7 +13,7 @@ const ROWS = [
   ['LK101', 1, 1, 'Truss 1 SL'], ['LK101', 2, 1, 'Truss 1 SL-C'], ['LK101', 3, 1, 'Truss 1 C'], ['LK101', 4, 1, 'Truss 1 SR-C'],
   ['LK101', 5, 2, 'Truss 1 SR'], ['LK101', 6, 2, 'Truss 1 blinders'], ['LK101', 7, 3, 'Truss 2 SL'], ['LK101', 8, 3, 'Truss 2 SR'],
   ['LK101', 9, 4, 'Truss 2 strobes'], ['LK101', 10, 4, 'Truss 2 C'],
-  // LK102: 4× XLR + Veams A/B/C (V101, V102, V103)
+  // LK102: XLR on ports 1–3, Veams in slot B (V101) and C (V102); V103 is a stand-alone Veam on a Veam4 socket
   ['LK102', 1, 5, 'Floor SL'], ['LK102', 2, 5, 'Floor SR'], ['LK102', 3, 6, 'Floor C'],
   ['V101', 1, 7, 'Set piece 1'], ['V101', 2, 7, 'Set piece 2'], ['V101', 3, 7, 'Set piece 3'], ['V101', 4, 8, 'Set piece 4'],
   ['V102', 1, 9, 'Upstage truss SL'], ['V102', 2, 9, 'Upstage truss C'], ['V102', 3, 9, 'Upstage truss SR'],
@@ -34,7 +34,7 @@ const ROWS = [
   ['V301', 1, 33, 'FOH truss L'], ['V301', 2, 33, 'FOH truss R'], ['V301', 3, 34, 'FOH house lights'],
   ['', '', 35, 'FOH roof wash', 'DB03']
 ];
-const LINKS = { LK102:{ 1:'V101', 2:'V102', 3:'V103' }, LK103:{ 1:'V104', 2:'V105', 3:'V106' }, LK201:{ 2:'V201' }, LK202:{ 3:'V202' }, LK301:{ 2:'V301' } };
+const LINKS = { LK102:{ 2:'V101', 3:'V102' }, LK103:{ 1:'V104', 2:'V105', 3:'V106' }, LK201:{ 2:'V201' }, LK202:{ 3:'V202' }, LK301:{ 2:'V301' } };
 const BLOCKS = { LK101:'XLR12', LK103:'VEAM_ONLY' };
 
 async function standardLibrary(){

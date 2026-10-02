@@ -266,7 +266,7 @@ The quickest way to a complete plan is to build it from the rack patch: **Use as
 <a id="flow"></a>
 ## Signal flow
 
-The **Signal Flow** page (sidebar, or Cmd/Ctrl+4) draws how the data runs: from the node in the rack, through a splitter if one is used, to the LK7-1 or Veam4 socket, into the LK block, on to a Veam in slot A, B or C, and finally to the **object** — the location from your patch list, with the universes that arrive there. Loose DMX lines get their own branch, "Direct (XLR)".
+The **Signal Flow** page (sidebar, or Cmd/Ctrl+4) draws how the data runs: from the node in the rack, through a splitter if one is used, to the LK7-1 or Veam4 socket, into the LK block, on to a Veam in slot A, B or C, and finally to the **objects** — the locations from your patch list, with the universe that arrives there. XLR lines on the LK itself get a small block each, in line with their port; the end of a Veam (or a 12× XLR block, or the loose DMX lines) stays one group with a row per port. Loose DMX lines get their own branch, "Direct (XLR)".
 
 ### Reading it
 - **Left bar**: all DimCities or one; the universes in view; the nodes with their colours; the direction (left → right, or bottom → top).
@@ -657,7 +657,7 @@ De snelste weg naar een compleet plan is het uit de rack-patch opbouwen: **Gebru
 <a id="flow-nl"></a>
 ## Signaalstroom
 
-De pagina **Signaalstroom** (zijbalk, of Cmd/Ctrl+4) tekent hoe de data loopt: van de node in het rek, via een splitter als die gebruikt wordt, naar de LK7-1- of Veam4-aansluiting, het LK-blok in, door naar een Veam in slot A, B of C, en ten slotte naar het **object** — de locatie uit je patchlijst, met de universes die daar aankomen. Losse DMX-lijnen krijgen een eigen tak, "Direct (XLR)".
+De pagina **Signaalstroom** (zijbalk, of Cmd/Ctrl+4) tekent hoe de data loopt: van de node in het rek, via een splitter als die gebruikt wordt, naar de LK7-1- of Veam4-aansluiting, het LK-blok in, door naar een Veam in slot A, B of C, en ten slotte naar de **objecten** — de locaties uit je patchlijst, met de universe die daar aankomt. XLR-lijnen op de LK zelf krijgen elk een klein blokje, op lijn met hun poort; het einde van een Veam (of een 12× XLR-blok, of de losse DMX-lijnen) blijft één groep met een regel per poort. Losse DMX-lijnen krijgen een eigen tak, "Direct (XLR)".
 
 ### Lezen
 - **Linkerbalk**: alle DimCities of één; de universes in beeld; de nodes met hun kleuren; de richting (links → rechts, of onder → boven).

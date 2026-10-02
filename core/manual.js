@@ -555,7 +555,7 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
-    version:'0.3.0', date:'unreleased',
+    version:'0.3.0', date:'2026-10-02',
     en:[
       'Demo show on the welcome screen: a complete festival show with racks, loose devices, network plan and PDF layout to explore.',
       'Tours to choose from: the full tour, or one about LK blocks, nodes & network, racks, or the PDF layout.',

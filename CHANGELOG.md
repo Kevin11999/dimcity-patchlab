@@ -4,7 +4,7 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
-## 0.3.0 (unreleased)
+## 0.3.0 — 2026-10-02
 
 - Demo show on the welcome screen: a complete festival show with racks, loose devices, network plan and PDF layout to explore.
 - Tours to choose from: the full tour, or one about LK blocks, nodes & network, racks, or the PDF layout.

@@ -24,7 +24,14 @@ Download the installer for your computer from the [latest release](https://githu
 - Windows: the `.exe`
 - Linux: the `.AppImage`
 
-The app checks for a newer version at startup (Settings → Updates) and can download and install it itself.
+The app checks for a newer version at startup (Settings → Updates) and can download and install it itself: it shows the release notes, downloads the right installer for your computer and opens it — quit PatchLab and follow the installer.
+
+The installers are not code-signed (no Apple / Microsoft certificate yet), so the first start needs one extra click:
+
+- **Windows**: SmartScreen shows "Windows protected your PC" → *More info* → *Run anyway*.
+- **macOS**: right-click (or Ctrl-click) the app → *Open* → *Open*. Or System Settings → Privacy & Security → *Open Anyway*.
+
+PatchLab is a desktop app (macOS, Windows, Linux); there is no iPhone / iPad version.
 
 ## Requests and bug reports
 
@@ -58,10 +65,14 @@ Edit `library/standard-library.json`, raise its `version`, commit and push to `m
 
 ### Releasing a new version
 
-1. Set the version in `package.json` and move the `unreleased` entry in `core/manual.js` → `CHANGES` to that version with today's date; run `npm run manual`.
-2. Commit and tag: `git tag v0.3.0 && git push --tags`.
-3. Build and publish: `GH_TOKEN=… npm run release` (electron-builder uploads the installers to a GitHub release). Use the CHANGELOG entry as the release text — `npm run release-notes 0.3.0` writes it to `dist/release-notes-0.3.0.md`.
-4. The app shows the release notes in its update dialog.
+Releases are built by GitHub Actions (`.github/workflows/release.yml`) for macOS, Windows and Linux — nothing has to be built on a laptop.
+
+1. Set the version in `package.json` and give the `unreleased` entry in `core/manual.js` → `CHANGES` that version and today's date; run `npm run manual`; commit to `main`.
+2. Tag and push: `git tag v0.3.1 && git push origin v0.3.1`.
+3. The workflow builds the installers, publishes the GitHub release and puts the CHANGELOG entry in it as release notes (about 10–15 minutes).
+4. Every app shows the release notes in its update dialog and offers the download.
+
+Building locally is still possible: `npm run dist:mac` / `dist:win` / `dist:linux`, or `GH_TOKEN=… npm run release` to publish by hand.
 
 For a private repository the app needs a token (Settings → Updates) to see releases; publishing releases in a public repository avoids that for colleagues.
 

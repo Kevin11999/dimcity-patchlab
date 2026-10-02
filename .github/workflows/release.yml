@@ -1,0 +1,52 @@
+# Builds the installers for macOS, Windows and Linux and publishes them as a GitHub release
+# whenever a version tag (v0.3.0) is pushed. The app's update check reads these releases.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      # Release notes come from CHANGELOG (core/manual.js) so the app shows them in its update dialog
+      - run: npm run release-notes ${GITHUB_REF_NAME#v}
+        shell: bash
+      - name: Build and publish installers
+        run: npx electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"   # unsigned builds (no Apple / Windows certificate)
+
+  notes:
+    name: Release notes
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: mkdir -p dist && node scripts/build-manual.mjs ${GITHUB_REF_NAME#v}
+      - name: Put the changelog entry in the release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: dist/release-notes-${{ github.ref_name }}.md
+          name: DimCity PatchLab ${{ github.ref_name }}

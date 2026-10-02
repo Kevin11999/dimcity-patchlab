@@ -349,7 +349,7 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
-### Version 0.3.0 (unreleased)
+### Version 0.3.0 — 2026-10-02
 - Demo show on the welcome screen: a complete festival show with racks, loose devices, network plan and PDF layout to explore.
 - Tours to choose from: the full tour, or one about LK blocks, nodes & network, racks, or the PDF layout.
 - Progress bar bottom-left with a checklist of what is still missing in the show; every item jumps to the right place.
@@ -716,7 +716,7 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
 
-### Versie 0.3.0 (nog niet uitgebracht)
+### Versie 0.3.0 — 2026-10-02
 - Demo-show op het welkomstscherm: een complete festivalshow met racks, losse apparaten, netwerkplan en PDF-indeling om te verkennen.
 - Rondleidingen om uit te kiezen: de volledige, of één over LK-blokken, nodes & netwerk, racks, of de PDF-opmaak.
 - Voortgangsbalk linksonder met een checklist van wat er nog ontbreekt in de show; elk punt springt naar de juiste plek.

@@ -23,6 +23,7 @@
     network:   { title:'Network / DMX nodes',          icon:'network',  desc:'Planned nodes with IP and universe per port.' },
     splitters: { title:'Splitters',                    icon:'cable',    desc:'Splitters with input feed and output map.' },
     racks:     { title:'Racks',                        icon:'rack',     desc:'Racks with sockets, node colours and patch table.' },
+    flow:      { title:'Signal flow drawing',          icon:'cable',    desc:'The cabling from rack to objects, as arranged on the Signal Flow page.' },
     patch:     { title:'LK / Veam patch',              icon:'box',      desc:'Every LK block as a port grid, grouped per Veam.' },
     universes: { title:'Universe overview',            icon:'universe', desc:'Patch points per universe (LK / Veam / DMX).' },
     patchlist: { title:'Patch list table',             icon:'table',    desc:'All rows of this DimCity sorted by universe.' },
@@ -34,6 +35,7 @@
     patch:     [['standaloneVeams','Include Veams that are not linked to an LK', true], ['location','Show location per port', true], ['source','Show source (LK / Veam) per port', false], ['groupColors','Tint Veam groups A / B / C', true]],
     patchlist: [['dmx','Include loose DMX', true]],
     racks:     [['drawing','Rack drawing', true], ['nodes','Node ports (which LK / Veam port is on which node port)', true], ['loose','Loose devices (nodes and spiders without a rack)', true], ['table','Patch table (node port → LK / Veam)', true], ['advice','Recommendations', true]],
+    flow:      [['legend','Cable legend', true], ['ownPage','Start on a new sheet', true]],
     warnings:  [['projectWide','Include project-wide issues', true]]
   };
 
@@ -49,7 +51,7 @@
       cover: { show:true, title:'', subtitle:'{area} · {location}', showLogo:true, logoX:1, logoY:0, logoW:60, fields:{ area:true, location:true, date:true, prepared:true, dimcities:true, totals:true }, note:'', summaryPage:true },
       sections: [
         { key:'summary', on:true }, { key:'network', on:true, opts:{ universeTable:true, switches:false } },
-        { key:'splitters', on:true }, { key:'racks', on:true, opts:{ drawing:true, nodes:true, loose:true, table:true, advice:true } }, { key:'patch', on:true, opts:{ standaloneVeams:true, location:true, source:false, groupColors:true } },
+        { key:'splitters', on:true }, { key:'racks', on:true, opts:{ drawing:true, nodes:true, loose:true, table:true, advice:true } }, { key:'flow', on:true, opts:{ legend:true, ownPage:true } }, { key:'patch', on:true, opts:{ standaloneVeams:true, location:true, source:false, groupColors:true } },
         { key:'universes', on:false }, { key:'patchlist', on:false, opts:{ dmx:true } },
         { key:'warnings', on:true, opts:{ projectWide:true } }, { key:'notes', on:false, opts:{ text:'' } }
       ]
@@ -343,6 +345,13 @@
       .pp.rj,.pp.sfp{border-radius:.5mm;border-width:.3mm;border-color:#475569;background:#f1f5f9;--ps:calc(var(--uh) * .55)}
       .pp.sfp{width:calc(var(--ps) * 1.4);flex-basis:calc(var(--ps) * 1.4)}
       .prk-tag{display:inline-block;font-size:${fs*.68}px;font-weight:800;padding:0 .9mm;border-radius:.6mm;background:var(--c,#475569);color:#fff;line-height:1.5}
+      /* signaalstroom-tekening */
+      .pflow-page{break-before:page;page-break-before:always}
+      .pflow{border:var(--bw) solid var(--ln2);border-radius:1.6mm;padding:2mm;background:#fff;break-inside:avoid}
+      .pflow svg{display:block;width:100%;height:auto;max-height:${Math.max(60, ph - mt - mb - 40)}mm}
+      .pflow-legend{display:flex;flex-wrap:wrap;gap:5mm;margin-top:1.5mm;font-size:${fs*.8}px;color:#475569}
+      .pflow-legend span{display:inline-flex;align-items:center;gap:1.2mm}
+      .pflow-legend i{display:inline-block;width:8mm;background:#334155;border-radius:.4mm}
       /* nodepoorten: welke LK-/Veam-poort op welke nodepoort */
       .pnp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:${gap}mm;margin-top:${gap}mm}
       .pnp-node{border:.4mm solid #0f172a;border-left:1.8mm solid var(--c);border-radius:1mm;padding:1.4mm 2mm;break-inside:avoid;background:#fff}
@@ -420,6 +429,7 @@
         case 'network':   return wrap(s, buildNetwork(M, dc, L, n, o));
         case 'splitters': return wrap(s, buildSplitters(M, dc, L, n));
         case 'racks':     { const h = buildRacks(M, dc, L, n, o); if(!h) n--; return wrap(s, h); }
+        case 'flow':      { const h = buildFlow(M, dc, L, n, o); if(!h) n--; return wrap(s, h); }
         case 'patch':     return wrap(s, buildPatch(M, dc, L, n, o));
         case 'universes': return wrap(s, buildUniverses(M, dc, L, n));
         case 'patchlist': return wrap(s, buildPatchList(M, dc, L, n, o));
@@ -524,6 +534,14 @@
       ? `<span class="pnp" style="--c:${n.color}"><b>${i + 1}</b><em>U${p.universe}</em><span>${p.ownerPort === 'in' ? `${esc(p.owner)} in` : `${esc(p.owner)} · ${esc(p.ownerPort)}`}</span>${p.dest ? `<i>${esc(p.dest)}</i>` : ''}</span>`
       : `<span class="pnp free"><b>${i + 1}</b><em>—</em><span>free</span></span>`).join('');
     return `<div class="pnp-node" style="--c:${n.color}"><div class="pnp-head"><b class="prk-tag" style="--c:${n.color}">${n.label}</b><b>${esc(typeNameOf(n.type))}</b><small>${esc(where)}</small></div><div class="pnp-strip">${cells}</div></div>`;
+  }
+  // De signaalstroom-tekening van de pagina Signaalstroom (met de indeling zoals de gebruiker hem heeft neergezet)
+  function buildFlow(M, dc, L, n, o={}){
+    const r = window.Flow?.printSvg?.(dc);
+    if(!r) return '';
+    const legend = o.legend === false ? '' : `<div class="pflow-legend"><span><i style="height:1.6mm"></i>LK multicore</span><span><i style="height:1.1mm"></i>Veam cable</span><span><i style="height:.6mm;background:linear-gradient(90deg,#f87171,#60a5fa,#4ade80)"></i>DMX line (universe colour)</span><span>LK and Veam cables have the colour of the node that feeds them</span></div>`;
+    const sub = [r.racks ? `${r.racks} rack${r.racks===1?'':'s'}` : '', `${r.lk} LK`, `${r.veams} Veam`, `${r.lines} lines`].filter(Boolean).join(' · ');
+    return `<div class="section ${o.ownPage === false ? '' : 'pflow-page'}">${h3(n, 'Signal flow', sub)}<div class="pflow">${r.svg}</div>${legend}</div>`;
   }
   function buildRacks(M, dc, L, n, o={}){
     const E = window.RackEngine;

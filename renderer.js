@@ -1034,6 +1034,7 @@ function renderRight(){
   const view = detail ? 'DETAIL' : (MODEL.ui.view || 'HOME');
   const table = $('#rightCsvSection'); if(table) table.hidden = view !== 'TABLE';
   const detailEl = $('#lkDetail'); if(detailEl){ detailEl.hidden = view === 'TABLE'; detailEl.style.removeProperty('--dim-color'); }
+  document.body.classList.toggle('view-flow', view === 'FLOW');   // the Signal Flow page fills the window, no scrolling
 
   if(view === 'DETAIL') renderRightDetail();
   else if(view === 'ISSUES') renderIssuesView();

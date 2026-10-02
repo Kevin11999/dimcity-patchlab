@@ -6,13 +6,19 @@ All notable changes to DimCity PatchLab. The entry of a version is also the text
 
 ## 0.3.1 (unreleased)
 
-- Signal Flow page: a drawing of how the data runs from the node in the rack, via splitter and socket, through the LK block and Veams to every object. Hover a universe or a line to follow it with the data moving along; drag blocks; give LK blocks your own name (issue #3).
-- Signal Flow draws the racks with their nodes and LK panel, tells LK, Veam and DMX cables apart by thickness, colours DMX lines by universe and leaves Veam-fed universes out of the LK block.
+- Signal Flow page (sidebar, Cmd/Ctrl+4): a drawing of how the data runs from the rack to every object. Hover a universe, a port, a line or a block to follow it with the data moving along; click to pin; give LK blocks your own name (issue #3).
+- Racks in the Signal Flow are drawn like in the Rack Builder (rails, U numbers, the faces of nodes, splitters and panels with their sockets); the patch inside a rack lights up when you hover it. LK, Veam and DMX cables differ in thickness, DMX lines have the colour of their universe and every line leaves a block straight from its side.
+- Signal Flow toolbar: arrow (select, move, rubber-band selection), hand (pan), zoom bar, Fit and Auto layout. Blocks never overlap and a rack moves as one. The arrangement and zoom are saved per DimCity with the project.
+- Export PDF: new section "Signal flow drawing" that prints the drawing of every DimCity as arranged on the page.
+- The app sidebar collapses to icons with the arrow at its top.
 
 <details><summary>Nederlands</summary>
 
-- Pagina Signaalstroom: een tekening van hoe de data loopt van de node in het rek, via splitter en aansluiting, door het LK-blok en de Veams naar elk object. Beweeg over een universe of een lijn om hem te volgen met bewegende data; sleep blokken; geef LK-blokken een eigen naam (issue #3).
-- Signaalstroom tekent de rekken met hun nodes en LK-paneel, onderscheidt LK-, Veam- en DMX-kabels op dikte, kleurt DMX-lijnen per universe en laat universes via een Veam uit het LK-blok weg.
+- Pagina Signaalstroom (zijbalk, Cmd/Ctrl+4): een tekening van hoe de data van het rek naar elk object loopt. Beweeg over een universe, een poort, een lijn of een blok om hem te volgen met bewegende data; klik om vast te zetten; geef LK-blokken een eigen naam (issue #3).
+- Rekken in de Signaalstroom zijn getekend zoals in de Rack Builder (rails, U-nummers, de fronten van nodes, splitters en panelen met hun aansluitingen); de patch in het rek licht op als je eroverheen beweegt. LK-, Veam- en DMX-kabels verschillen in dikte, DMX-lijnen hebben de kleur van hun universe en elke lijn vertrekt recht uit de zijkant van een blok.
+- Werkbalk Signaalstroom: pijl (selecteren, verplaatsen, selectie met kader), handje (verschuiven), zoombalk, Passend en Auto-indeling. Blokken komen nooit op elkaar en een rek verplaatst als geheel. De indeling en zoom worden per DimCity met het project opgeslagen.
+- Export PDF: nieuwe sectie "Signaalstroom-tekening" die de tekening van elke DimCity print zoals hij op de pagina staat.
+- De zijbalk van de app klapt in tot iconen met het pijltje bovenaan.
 
 </details>
 

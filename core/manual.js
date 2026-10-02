@@ -413,44 +413,44 @@ De snelste weg naar een compleet plan is het uit de rack-patch opbouwen: **Gebru
   {
     id:'flow', icon:'cable', context:['FLOW'],
     title:{ en:'Signal flow', nl:'Signaalstroom' },
-    en:`The **Signal Flow** page (sidebar, or Cmd/Ctrl+4) draws how the data runs: from the node in the rack, through a splitter if one is used, to the LK7-1 or Veam4 socket, into the LK block, on to a Veam in slot A, B or C, and finally to the **objects** — the locations from your patch list, with the universe that arrives there. XLR lines on the LK itself get a small block each, in line with their port; the end of a Veam (or a 12× XLR block, or the loose DMX lines) stays one group with a row per port. Loose DMX lines get their own branch, "Direct (XLR)".
+    en:`The **Signal Flow** page (sidebar, or Cmd/Ctrl+4) draws the cabling of a DimCity the way it is on the floor: the rack with its nodes, splitters and LK panel → one thick LK multicore per LK block → a Veam cable per linked Veam → thin DMX lines to the **objects** (the locations from your patch list, with the universe that arrives there). XLR lines on the LK itself get a small block each, exactly in line with their port; the four ports of a Veam share one objects block.
 
 ## Reading it
-- **Left bar**: all DimCities or one; the universes in view; the nodes with their colours; the direction (left → right, or bottom → top).
-- Racks are drawn as dashed boxes with their nodes, splitters and the LK panel inside; the sockets on the panel show which LK comes out, in the colour of the node that feeds it.
-- Cables are told apart by thickness: one thick **LK multicore** from the socket to the LK block, a thinner **Veam cable** from the slot it is plugged into, and thin **DMX lines** in the colour of their universe from each XLR or Veam port to the object. Patches inside the rack are the thinnest lines.
+- **Racks** are drawn like in the Rack Builder: rails with U numbers, the faces of nodes, splitters, switches and panels, and their sockets. A node port shows the universe on it in the node's colour; an LK7-1 or Veam4 socket shows the number of the LK or Veam that comes out of it, in the colour of the node that feeds it. A rack whose nodes only feed the panel of another rack stands to the left of it. Loose devices (a node with the spiders on it) are drawn as a stack without a frame.
+- **Cables** are told apart by thickness: the thick **LK multicore** from the socket to the LK block, a thinner **Veam cable** from the slot it is plugged into, and thin **DMX lines** in the colour of their universe from every XLR or Veam port to the object. Every line leaves a block straight out of its side, at the row or socket it belongs to, and never runs through a block.
+- The **patch inside a rack** (node port → splitter → socket) is not drawn until you hover it: then it lights up as a thin line along the side of the rack.
 - An LK block shows only its own XLR ports; the universes that go on through a Veam are shown in that Veam's block.
-- **Hover a universe** in the left bar and every line that carries it lights up, ports included.
-- **Hover a block** (node, LK, Veam, object) and its whole flow lights up and moves: upstream to the node port and downstream through splitter, LK slot and Veam to every object. **Hover one port** inside a block for that single line only. **Hover a line** for that line's flow.
-- **Click** a universe, line or block to pin it: the path stays alive while you move the mouse, until you click something else, click the background or press Esc. Everything else keeps its colour.
-- Zoom with the mouse wheel, pan by dragging the background, **Fit** brings everything into view. The arrow at the top of the app sidebar collapses it to icons for more room.
+- **Hover a universe** in the left bar and every line that carries it lights up, ports included. **Hover a block, a unit in a rack, a port or a line** and that flow lights up and moves: upstream to the node port and downstream to every object. Nothing else is greyed out.
+- **Click** a universe, line, port or block to pin it: the path stays alive while you move the mouse, until you click something else, click the background or press Esc.
+
+## The toolbar
+- **Arrow** (V): select and move. Drag a block to move it; drag over the background to select several blocks with a rubber band and move them together; Shift+click adds to the selection; Ctrl/Cmd+A selects everything. A rack always moves as one. Blocks never overlap: a block dropped on another one is put in the nearest free spot.
+- **Hand** (H, or hold Space): grab the drawing and move it. The mouse wheel zooms around the pointer.
+- **Zoom bar** with − and +; **Fit** (0) brings the whole drawing into view.
+- **Auto layout** puts every block of the DimCities in view back in its automatic place: columns from the rack to the objects, each block level with the port that feeds it, as few crossings as possible. **Spacing** in the left bar sets how far apart that puts them.
 - **Save image** writes the drawing as an SVG file you can open or print anywhere.
+- **Click the name of an LK block** to give it your own name (for example "Front truss"). This changes only the drawing; the LK number, its ports and the CSV stay as they are.
 
-## Changing it
-- **Spacing** sets how far apart the automatic layout puts blocks and columns.
-- **Drag a block** to put it where you want; the lines follow. **Reset layout** puts every block of the DimCities in view back in its automatic place. Positions are saved in the project, per direction.
-- **Click the name of an LK block** to give it your own name (for example "Front truss"). This changes only the drawing; the LK number, its ports and the CSV stay as they are. The LK number is shown next to the name.
-
-The drawing is built from the rack patch, so place a rack or a loose node first (see [[racks|Racks per DimCity]]).`,
-    nl:`De pagina **Signaalstroom** (zijbalk, of Cmd/Ctrl+4) tekent hoe de data loopt: van de node in het rek, via een splitter als die gebruikt wordt, naar de LK7-1- of Veam4-aansluiting, het LK-blok in, door naar een Veam in slot A, B of C, en ten slotte naar de **objecten** — de locaties uit je patchlijst, met de universe die daar aankomt. XLR-lijnen op de LK zelf krijgen elk een klein blokje, op lijn met hun poort; het einde van een Veam (of een 12× XLR-blok, of de losse DMX-lijnen) blijft één groep met een regel per poort. Losse DMX-lijnen krijgen een eigen tak, "Direct (XLR)".
+The arrangement, the zoom and the LK names are saved with the project, per DimCity, and **Export PDF** prints the drawing of every DimCity exactly as arranged here (section "Signal flow drawing"). The drawing is built from the rack patch, so place a rack or a loose node first (see [[racks|Racks per DimCity]]).`,
+    nl:`De pagina **Signaalstroom** (zijbalk, of Cmd/Ctrl+4) tekent de bekabeling van een DimCity zoals die op de vloer ligt: het rek met zijn nodes, splitters en LK-paneel → één dikke LK-multicore per LK-blok → een Veam-kabel per gekoppelde Veam → dunne DMX-lijnen naar de **objecten** (de locaties uit je patchlijst, met de universe die daar aankomt). XLR-lijnen op de LK zelf krijgen elk een klein blokje, precies in lijn met hun poort; de vier poorten van een Veam delen één objectenblok.
 
 ## Lezen
-- **Linkerbalk**: alle DimCities of één; de universes in beeld; de nodes met hun kleuren; de richting (links → rechts, of onder → boven).
-- Rekken staan als gestippelde kaders met hun nodes, splitters en het LK-paneel erin; de aansluitingen op het paneel laten zien welke LK eruit komt, in de kleur van de node die hem voedt.
-- Kabels herken je aan de dikte: één dikke **LK-multicore** van de aansluiting naar het LK-blok, een dunnere **Veam-kabel** vanuit het slot waar hij op zit, en dunne **DMX-lijnen** in de kleur van hun universe van elke XLR- of Veam-poort naar het object. Patches in het rek zijn de dunste lijnen.
+- **Rekken** zijn getekend zoals in de Rack Builder: rails met U-nummers, de fronten van nodes, splitters, switches en panelen, en hun aansluitingen. Een nodepoort toont de universe die erop staat in de kleur van de node; een LK7-1- of Veam4-aansluiting toont het nummer van de LK of Veam die eruit komt, in de kleur van de node die hem voedt. Een rek waarvan de nodes alleen het paneel van een ander rek voeden staat links daarvan. Losse apparaten (een node met de spinnen eraan) staan als een stapel zonder kader.
+- **Kabels** herken je aan de dikte: de dikke **LK-multicore** van de aansluiting naar het LK-blok, een dunnere **Veam-kabel** vanuit het slot waar hij op zit, en dunne **DMX-lijnen** in de kleur van hun universe van elke XLR- of Veam-poort naar het object. Elke lijn vertrekt recht uit de zijkant van een blok, bij de regel of aansluiting waar hij bij hoort, en loopt nooit door een blok heen.
+- De **patch in het rek** (nodepoort → splitter → aansluiting) wordt pas getekend als je eroverheen beweegt: dan licht hij op als een dunne lijn langs de zijkant van het rek.
 - Een LK-blok toont alleen zijn eigen XLR-poorten; de universes die via een Veam doorgaan staan in het blok van die Veam.
-- **Beweeg over een universe** in de linkerbalk en elke lijn die hem draagt licht op, inclusief de poorten.
-- **Beweeg over een blok** (node, LK, Veam, object) en zijn hele flow licht op en beweegt: stroomopwaarts naar de nodepoort en stroomafwaarts door splitter, LK-slot en Veam naar elk object. **Beweeg over één poort** in een blok voor alleen die ene lijn. **Beweeg over een lijn** voor de flow van die lijn.
-- **Klik** op een universe, lijn of blok om het vast te zetten: het pad blijft leven terwijl je de muis beweegt, tot je ergens anders op klikt, op de achtergrond klikt of Esc drukt. Al het andere houdt zijn kleur.
-- Zoomen met het muiswiel, verschuiven door de achtergrond te slepen, **Passend** brengt alles in beeld. Het pijltje bovenaan de zijbalk van de app klapt hem in tot iconen voor meer ruimte.
+- **Beweeg over een universe** in de linkerbalk en elke lijn die hem draagt licht op, inclusief de poorten. **Beweeg over een blok, een unit in een rek, een poort of een lijn** en die flow licht op en beweegt: stroomopwaarts naar de nodepoort en stroomafwaarts naar elk object. Al het andere houdt zijn kleur.
+- **Klik** op een universe, lijn, poort of blok om het vast te zetten: het pad blijft leven terwijl je de muis beweegt, tot je ergens anders op klikt, op de achtergrond klikt of Esc drukt.
+
+## De werkbalk
+- **Pijl** (V): selecteren en verplaatsen. Sleep een blok om het te verplaatsen; sleep over de achtergrond om meerdere blokken met een kader te kiezen en samen te verplaatsen; Shift+klik voegt toe aan de selectie; Ctrl/Cmd+A kiest alles. Een rek verplaatst altijd als geheel. Blokken komen nooit op elkaar: een blok dat je op een ander blok neerzet gaat naar de dichtstbijzijnde vrije plek.
+- **Handje** (H, of houd Spatie ingedrukt): pak de tekening en verschuif hem. Het muiswiel zoomt rond de muisaanwijzer.
+- **Zoombalk** met − en +; **Passend** (0) brengt de hele tekening in beeld.
+- **Auto-indeling** zet elk blok van de DimCities in beeld terug op zijn automatische plek: kolommen van het rek naar de objecten, elk blok op de hoogte van de poort die het voedt, zo min mogelijk kruisingen. **Afstand** in de linkerbalk bepaalt hoe ver dat uit elkaar staat.
 - **Afbeelding opslaan** schrijft de tekening als SVG-bestand dat je overal kunt openen of printen.
+- **Klik op de naam van een LK-blok** om het een eigen naam te geven (bijvoorbeeld "Front truss"). Dit verandert alleen de tekening; het LK-nummer, de poorten en de CSV blijven zoals ze zijn.
 
-## Aanpassen
-- **Afstand** bepaalt hoe ver de automatische indeling blokken en kolommen uit elkaar zet.
-- **Sleep een blok** om het neer te zetten waar je wilt; de lijnen volgen. **Indeling herstellen** zet elk blok van de DimCities in beeld terug op zijn automatische plek. Posities worden per richting in het project opgeslagen.
-- **Klik op de naam van een LK-blok** om het een eigen naam te geven (bijvoorbeeld "Front truss"). Dat verandert alleen de tekening; het LK-nummer, de poorten en de CSV blijven zoals ze zijn. Het LK-nummer staat naast de naam.
-
-De tekening wordt uit de rack-patch opgebouwd, dus plaats eerst een rek of een losse node (zie [[racks|Racks per DimCity]]).`
+De indeling, de zoom en de LK-namen worden per DimCity met het project opgeslagen, en **Export PDF** print de tekening van elke DimCity precies zoals je hem hier hebt neergezet (sectie "Signaalstroom-tekening"). De tekening wordt uit de rekpatch opgebouwd, dus plaats eerst een rek of een losse node (zie [[racks|Rekken per DimCity]]).`
   },
   {
     id:'report', icon:'file', context:['reportBuilder'],
@@ -601,12 +601,18 @@ export const CHANGES = [
   {
     version:'0.3.1', date:'unreleased',
     en:[
-      'Signal Flow page: a drawing of how the data runs from the node in the rack, via splitter and socket, through the LK block and Veams to every object. Hover a universe or a line to follow it with the data moving along; drag blocks; give LK blocks your own name (issue #3).',
-      'Signal Flow draws the racks with their nodes and LK panel, tells LK, Veam and DMX cables apart by thickness, colours DMX lines by universe and leaves Veam-fed universes out of the LK block.'
+      'Signal Flow page (sidebar, Cmd/Ctrl+4): a drawing of how the data runs from the rack to every object. Hover a universe, a port, a line or a block to follow it with the data moving along; click to pin; give LK blocks your own name (issue #3).',
+      'Racks in the Signal Flow are drawn like in the Rack Builder (rails, U numbers, the faces of nodes, splitters and panels with their sockets); the patch inside a rack lights up when you hover it. LK, Veam and DMX cables differ in thickness, DMX lines have the colour of their universe and every line leaves a block straight from its side.',
+      'Signal Flow toolbar: arrow (select, move, rubber-band selection), hand (pan), zoom bar, Fit and Auto layout. Blocks never overlap and a rack moves as one. The arrangement and zoom are saved per DimCity with the project.',
+      'Export PDF: new section "Signal flow drawing" that prints the drawing of every DimCity as arranged on the page.',
+      'The app sidebar collapses to icons with the arrow at its top.'
     ],
     nl:[
-      'Pagina Signaalstroom: een tekening van hoe de data loopt van de node in het rek, via splitter en aansluiting, door het LK-blok en de Veams naar elk object. Beweeg over een universe of een lijn om hem te volgen met bewegende data; sleep blokken; geef LK-blokken een eigen naam (issue #3).',
-      'Signaalstroom tekent de rekken met hun nodes en LK-paneel, onderscheidt LK-, Veam- en DMX-kabels op dikte, kleurt DMX-lijnen per universe en laat universes via een Veam uit het LK-blok weg.'
+      'Pagina Signaalstroom (zijbalk, Cmd/Ctrl+4): een tekening van hoe de data van het rek naar elk object loopt. Beweeg over een universe, een poort, een lijn of een blok om hem te volgen met bewegende data; klik om vast te zetten; geef LK-blokken een eigen naam (issue #3).',
+      'Rekken in de Signaalstroom zijn getekend zoals in de Rack Builder (rails, U-nummers, de fronten van nodes, splitters en panelen met hun aansluitingen); de patch in het rek licht op als je eroverheen beweegt. LK-, Veam- en DMX-kabels verschillen in dikte, DMX-lijnen hebben de kleur van hun universe en elke lijn vertrekt recht uit de zijkant van een blok.',
+      'Werkbalk Signaalstroom: pijl (selecteren, verplaatsen, selectie met kader), handje (verschuiven), zoombalk, Passend en Auto-indeling. Blokken komen nooit op elkaar en een rek verplaatst als geheel. De indeling en zoom worden per DimCity met het project opgeslagen.',
+      'Export PDF: nieuwe sectie "Signaalstroom-tekening" die de tekening van elke DimCity print zoals hij op de pagina staat.',
+      'De zijbalk van de app klapt in tot iconen met het pijltje bovenaan.'
     ]
   },
   {

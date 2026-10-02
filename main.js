@@ -85,7 +85,7 @@ const MENU_NL = {
   'Project Overview':'Projectoverzicht', 'Validation':'Validatie', 'Patch List':'Patchlijst', 'Recalculate':'Herberekenen',
   'Network':'Netwerk', 'Network Planner…':'Netwerkplanner…', 'Device Builder…':'Device Builder…', 'Rack Builder…':'Rack Builder…',
   'Export Library…':'Bibliotheek exporteren…', 'Import Library…':'Bibliotheek importeren…', 'Show Library File':'Bibliotheekbestand tonen',
-  'Help':'Help', 'Take the Tour':'Rondleiding', 'Keyboard Shortcuts':'Sneltoetsen'
+  'Help':'Help', 'Take the Tour':'Rondleiding', 'Keyboard Shortcuts':'Sneltoetsen', 'User Manual':'Handleiding', 'Send a Request…':'Een verzoek sturen…', "What's New":'Wat is er nieuw'
 };
 const T = s => (menuLang === 'nl' && MENU_NL[s]) || s;
 
@@ -183,6 +183,10 @@ function buildMenu(recent = lastRecent){
       role: 'help',
       label: T('Help'),
       submenu: [
+        { label: T('User Manual'), accelerator: 'F1', click: () => send('help') },
+        { label: T('Send a Request…'), click: () => send('request') },
+        { label: T("What's New"), click: () => send('help', 'whats-new') },
+        { type: 'separator' },
         { label: T('Take the Tour'), click: () => send('tour') },
         { label: T('Keyboard Shortcuts'), click: () => send('shortcuts') },
         ...(isMac ? [] : [{ type: 'separator' }, { label: T('Check for Updates…'), click: () => send('checkUpdates') }, { label: `${T('About')} ${APP_NAME}`, click: () => send('about') }])

@@ -6,6 +6,8 @@ const I = (n, s) => App.ui.icon(n, s);
 const { esc } = App.net;
 
 const COMMANDS = [
+  ['User manual (help for this page)', 'help', 'help'],
+  ['Send a request or bug report', 'request', 'message'],
   ['Save', 'save', 'save'], ['Save As…', 'saveAs', 'save'], ['Open Project…', 'openProject', 'folder'], ['New Project…', 'newProject', 'filePlus'],
   ['Import CSV…', 'importCsv', 'upload'], ['Imported Files…', 'csvSources', 'file'], ['Edit Patch Rows…', 'editCsv', 'edit'],
   ['Export PDF / Report Builder…', 'exportPdf', 'file'], ['Device Builder…', 'deviceBuilder', 'network'], ['Rack Builder…', 'deviceBuilder', 'rack', 'rack'],

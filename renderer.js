@@ -2253,7 +2253,7 @@ async function runCommand(cmd, arg){
     case 'view':          return navigate(arg || 'HOME');
     case 'tour':          return UI?.startTour?.();
     case 'welcome':       return UI?.showWelcome?.();
-    case 'shortcuts':     return UI?.showShortcuts?.();
+    case 'shortcuts':     return window.Help?.open?.('shortcuts');
     case 'about':         return UI?.showAbout?.();
     case 'recentChanged': return;
     case 'undo':          return window.PatchHistory?.undo?.();
@@ -2262,6 +2262,8 @@ async function runCommand(cmd, arg){
     case 'settings':      return window.Settings?.open?.(arg);
     case 'search':        return window.Search?.open?.();
     case 'checkUpdates':  return window.Updater?.check?.({ manual:true });
+    case 'help':          return window.Help?.open?.(arg);
+    case 'request':       return window.Help?.openRequest?.();
   }
 }
 window.LKApp.runCommand = runCommand;

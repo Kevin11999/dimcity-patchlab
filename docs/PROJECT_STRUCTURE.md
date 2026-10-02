@@ -29,6 +29,11 @@ core/rack-engine.js  Rack auto-patch: LK/VIM4 sockets, node ports, splitters, re
 ui/rack-plan.js    Racks card on the DimCity page (+ "Use as network plan")
 ui/issue-fix.js    Validation: jump to the problem, Fix… dialogs
 ui/search.js       Cmd+K search
+core/manual.js     The user manual (EN + NL) and release notes: one source for the Help panel,
+                   docs/USER_MANUAL.md, CHANGELOG.md and the "What's new" chapter
+ui/help.js         Help panel (opens on the chapter of the current page) and the Request dialog
+                   (pre-filled GitHub issue)
+scripts/build-manual.mjs  `npm run manual`: generates docs/USER_MANUAL.md and CHANGELOG.md
 ```
 
 Commands from the native menu, toolbar buttons and `data-cmd` attributes all go through

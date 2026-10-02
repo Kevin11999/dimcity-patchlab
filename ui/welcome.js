@@ -105,7 +105,7 @@ async function newProject({ fromWelcome=false, skipDirtyCheck=false } = {}){
   d.modal.querySelector('[data-c=tour]').onclick = ()=>{
     d.close(); closeWelcome();
     window.ProjectIO.newProject({});
-    startTour({ onDone: ()=> projectInfoDialog({ mode:'new', fromWelcome }), finishLabel:'Create Project' });
+    startTour({ onDone: ()=> projectInfoDialog({ mode:'new', fromWelcome }), finishLabel: L() === 'nl' ? 'Project aanmaken' : 'Create Project' });
   };
 }
 
@@ -162,27 +162,71 @@ function projectInfoDialog({ mode='edit', fromWelcome=false } = {}){
 }
 
 // ===================== Tour =====================
+// Every step has an English and a Dutch text. `go` navigates before the step is shown,
+// `when` skips the step when it does not apply (for example no DimCity yet).
+const L = () => (window.I18n?.language === 'nl' ? 'nl' : 'en');
+const firstDim = () => App.sortedDims?.()[0] || null;
+const goDim = () => { const dc = firstDim(); if(dc) App.openEntity('DIM', dc); };
+const scrollCard = key => { const dc = firstDim(); const c = document.querySelector(`[data-card="${dc}:${key}"]`); if(c){ c.classList.remove('collapsed'); c.scrollIntoView({ block:'start' }); } };
 const TOUR_STEPS = [
-  { title:'Welcome to PatchLab', body:'PatchLab turns your LK, Veam and DMX patch lists into a validated, well-organised project — and into clean PDF paperwork for the crew. This tour takes about a minute.' },
-  { target:'#tbImport', place:'bottom', title:'1 · Import your patch data', body:'Start by importing a CSV with LK/Veam IDs, port numbers, universes and locations. Header and footer rows are detected automatically, and you can map the columns yourself.' },
-  { target:'#summary', place:'right', title:'2 · DimCities', body:'Everything is grouped per DimCity. The DimCity is derived from the ID: LK101 and V105 belong to DB01, LK215 to DB02. Select a DimCity to see its universes, LK blocks and Veams.' },
-  { target:'.nav-item[data-view="HOME"]', place:'right', title:'3 · Project overview', body:'The overview shows totals per DimCity, how many Veams are linked, and the status of every check at a glance.' },
-  { target:'.nav-item[data-view="ISSUES"]', place:'right', title:'4 · Validation', body:'PatchLab checks your patch continuously: Veams linked twice, universe conflicts, links to Veams that no longer exist, and block-type conflicts. The red badge shows open errors.' },
-  { target:'#tbEditRows', place:'bottom', title:'5 · Edit rows', body:'Fix or add patch rows without touching the original CSV. Manual rows and edits are saved inside the project file.' },
-  { target:'.nav-item[data-view="NETWORK"]', place:'right', title:'6 · Network planner', body:'Plan DMX nodes and splitters per DimCity. Build reusable node and splitter types once, then let PatchLab auto-assign universes and outputs.' },
-  { target:'#fileExportPdf', place:'bottom', title:'7 · Report builder', body:'Design your PDF in a live preview: choose sections and their order, colours, page size and cover. Export one PDF or one per DimCity, and save layouts as templates.' },
-  { target:'#tbSave', place:'bottom', title:'8 · Save your work', body:'Projects are saved as .lkproj files with everything inside — CSV sources, Veam links, network plans and report settings. Recent projects appear on the welcome screen.' },
-  { title:"You're all set", body:'You can replay this tour any time from Help → Take the Tour. Next, give your project a name.' }
+  { title:{ en:'Welcome to PatchLab', nl:'Welkom bij PatchLab' },
+    body:{ en:'PatchLab turns your LK, Veam and DMX patch lists into a validated, well-organised project — and into clean PDF paperwork for the crew. This tour takes about two minutes; use the arrow keys or the buttons.',
+           nl:'PatchLab maakt van je LK-, Veam- en DMX-patchlijsten een gecontroleerd, overzichtelijk project — en nette PDF-paperwork voor de crew. Deze rondleiding duurt ongeveer twee minuten; gebruik de pijltjestoetsen of de knoppen.' } },
+  { target:'#tbImport', place:'bottom', title:{ en:'1 · Import your patch data', nl:'1 · Importeer je patchgegevens' },
+    body:{ en:'Start by importing a CSV with LK/Veam IDs, port numbers, universes and locations. Header and footer rows are detected automatically, and you map the columns yourself.',
+           nl:'Begin met het importeren van een CSV met LK-/Veam-ID’s, poortnummers, universes en locaties. Kop- en voetregels worden automatisch herkend, en je koppelt de kolommen zelf.' } },
+  { target:'#summary', place:'right', title:{ en:'2 · DimCities', nl:'2 · DimCities' },
+    body:{ en:'Everything is grouped per DimCity. The DimCity is derived from the ID: LK101 and V105 belong to DB01, LK215 to DB02. Select a DimCity to see its universes, LK blocks, Veams, racks and nodes.',
+           nl:'Alles is gegroepeerd per DimCity. De DimCity volgt uit het ID: LK101 en V105 horen bij DB01, LK215 bij DB02. Kies een DimCity om zijn universes, LK-blokken, Veams, racks en nodes te zien.' } },
+  { target:'.nav-item[data-view="HOME"]', place:'right', title:{ en:'3 · Project overview', nl:'3 · Projectoverzicht' },
+    body:{ en:'The overview shows totals per DimCity, how many Veams are linked, and the status of every check at a glance.',
+           nl:'Het overzicht toont totalen per DimCity, hoeveel Veams gekoppeld zijn en in één oogopslag de status van elke controle.' } },
+  { target:'.nav-item[data-view="ISSUES"]', place:'right', title:{ en:'4 · Validation', nl:'4 · Validatie' },
+    body:{ en:'PatchLab checks your patch continuously: Veams linked twice, universe conflicts, links to Veams that no longer exist, block-type conflicts. The red badge counts open errors; most issues have a Fix button.',
+           nl:'PatchLab controleert je patch voortdurend: dubbel gekoppelde Veams, universe-conflicten, koppelingen naar Veams die niet meer bestaan, bloktype-conflicten. Het rode badge telt open fouten; de meeste meldingen hebben een knop Oplossen.' } },
+  { target:'#tbEditRows', place:'bottom', title:{ en:'5 · Edit rows', nl:'5 · Regels bewerken' },
+    body:{ en:'Fix or add patch rows without touching the original CSV. Manual rows and edits are saved inside the project file.',
+           nl:'Herstel of voeg patchregels toe zonder de originele CSV aan te raken. Handmatige regels en bewerkingen worden in het projectbestand opgeslagen.' } },
+  { when:() => !!firstDim(), go:() => { goDim(); scrollCard('lk'); }, target:'.lk-card-grid', place:'bottom', title:{ en:'6 · LK blocks and Veams', nl:'6 · LK-blokken en Veams' },
+    body:{ en:'On a DimCity page every LK is drawn with its 12 ports. Click a block to set its block type (4× XLR + 3× Veam, 3× Veam or 12× XLR) and to link a Veam to slot A, B or C. Delete buttons remove an LK or Veam together with its rows.',
+           nl:'Op een DimCity-pagina staat elke LK getekend met zijn 12 poorten. Klik op een blok om het bloktype te kiezen (4× XLR + 3× Veam, 3× Veam of 12× XLR) en een Veam aan slot A, B of C te koppelen. Met Verwijderen haal je een LK of Veam met zijn regels weg.' } },
+  { when:() => !!firstDim(), go:() => { goDim(); scrollCard('racks'); }, target:'[data-card$=":racks"]', place:'bottom', title:{ en:'7 · Racks and loose devices', nl:'7 · Racks en losse apparaten' },
+    body:{ en:'Place a rack from the Rack Builder, or add a loose node, LK spider or VIM4 spider. PatchLab patches every LK and Veam onto a socket and a node port, colours each node, and tells you what is still missing. Every node shows which LK/Veam port is on which node port.',
+           nl:'Plaats een rek uit de Rack Builder, of voeg een losse node, LK-spin of VIM4-spin toe. PatchLab patcht elke LK en Veam op een aansluiting en een nodepoort, geeft elke node een kleur en vertelt wat er nog ontbreekt. Elke node laat zien welke LK-/Veam-poort op welke nodepoort zit.' } },
+  { go:() => App.navigate('HOME'), target:'.nav-item[data-view="NETWORK"]', place:'right', title:{ en:'8 · Network planner and Device Builder', nl:'8 · Netwerkplanner en Device Builder' },
+    body:{ en:'Plan DMX nodes and splitters per DimCity, with IP addresses and universes per port. Device types and racks are built once in the Device Builder (Network menu) and kept in your personal library for every show.',
+           nl:'Plan DMX-nodes en splitters per DimCity, met IP-adressen en universes per poort. Devicetypes en racks bouw je één keer in de Device Builder (menu Netwerk); ze blijven in je persoonlijke bibliotheek voor elke show.' } },
+  { target:'#fileExportPdf', place:'bottom', title:{ en:'9 · Report Builder', nl:'9 · Rapportbouwer' },
+    body:{ en:'Design your PDF in a live preview: sections and their order, rack drawings, colours, line weight, page size and cover. Place sections anywhere on the sheet by dragging. Export one PDF or one per DimCity, and save layouts as templates.',
+           nl:'Ontwerp je PDF in een live voorbeeld: secties en hun volgorde, rektekeningen, kleuren, lijndikte, papierformaat en voorblad. Plaats secties waar je wilt door te slepen. Exporteer één PDF of één per DimCity, en bewaar indelingen als template.' } },
+  { target:'#tbSearch', place:'bottom', title:{ en:'10 · Search everything', nl:'10 · Alles zoeken' },
+    body:{ en:'Cmd/Ctrl+K finds LKs, Veams, universes, locations, nodes, devices and commands. Undo with Cmd/Ctrl+Z; the history (Edit menu) describes every change.',
+           nl:'Cmd/Ctrl+K vindt LK’s, Veams, universes, locaties, nodes, devices en opdrachten. Ongedaan maken met Cmd/Ctrl+Z; de geschiedenis (menu Bewerken) beschrijft elke wijziging.' } },
+  { target:'#tbHelp', place:'bottom', title:{ en:'11 · Help, right where you are', nl:'11 · Help, precies waar je bent' },
+    body:{ en:'Help (or ? / F1) opens the manual on the chapter that matches the page or dialog you are looking at — racks, nodes, the Report Builder, settings. It is searchable and available in English and Dutch.',
+           nl:'Help (of ? / F1) opent de handleiding op het hoofdstuk dat hoort bij de pagina of het venster waar je naar kijkt — racks, nodes, de Rapportbouwer, instellingen. Je kunt erin zoeken, in het Engels en Nederlands.' } },
+  { target:'#tbRequest', place:'bottom', title:{ en:'12 · Wishes and bugs', nl:'12 · Wensen en fouten' },
+    body:{ en:'Missing something? Request opens a short form; it becomes a GitHub issue with the app version and page added, so you can follow what happens with it.',
+           nl:'Mis je iets? Request opent een kort formulier; het wordt een GitHub-issue met de app-versie en pagina erbij, zodat je kunt volgen wat ermee gebeurt.' } },
+  { target:'#tbSave', place:'bottom', title:{ en:'13 · Save your work', nl:'13 · Sla je werk op' },
+    body:{ en:'Projects are saved as .lkproj files with everything inside — CSV sources, Veam links, racks, network plans and report settings. Autosave, backups and the language are set under Settings (Cmd/Ctrl+,).',
+           nl:'Projecten worden opgeslagen als .lkproj-bestanden met alles erin — CSV-bronnen, Veam-koppelingen, racks, netwerkplannen en rapportinstellingen. Automatisch opslaan, back-ups en de taal stel je in onder Instellingen (Cmd/Ctrl+,).' } },
+  { title:{ en:"You're all set", nl:'Je bent klaar om te beginnen' },
+    body:{ en:'You can replay this tour any time from Help → Take the Tour, and open the manual with ?. Next, give your project a name.',
+           nl:'Je kunt deze rondleiding altijd opnieuw starten via Help → Rondleiding, en de handleiding openen met ?. Geef nu je project een naam.' } }
 ];
+const tourSteps = () => TOUR_STEPS.filter(s => !s.when || s.when());
 
 let tourState = null;
-function startTour({ onDone, finishLabel='Finish' } = {}){
+function startTour({ onDone, finishLabel } = {}){
+  finishLabel = finishLabel || (L() === 'nl' ? 'Klaar' : 'Finish');
   endTour(false);
   const layer = document.createElement('div');
   layer.className = 'tour-layer';
+  layer.setAttribute('data-no-i18n', '');   // de stappen zijn al in de gekozen taal
   layer.innerHTML = '<div class="tour-spot center"></div><div class="tour-pop" role="dialog" aria-live="polite"></div>';
   document.body.appendChild(layer);
-  tourState = { i:0, layer, onDone, finishLabel };
+  tourState = { i:0, layer, onDone, finishLabel, went:-1 };
   const onKey = e=>{
     if(!tourState) return;
     if(e.key === 'ArrowRight' || e.key === 'Enter'){ e.preventDefault(); step(1); }
@@ -199,7 +243,7 @@ function step(delta){
   if(!tourState) return;
   const next = tourState.i + delta;
   if(next < 0) return;
-  if(next >= TOUR_STEPS.length) return endTour(true);
+  if(next >= tourSteps().length) return endTour(true);
   tourState.i = next;
   placeTour();
 }
@@ -213,19 +257,22 @@ function endTour(callDone){
 }
 function placeTour(){
   const { i, layer, finishLabel } = tourState;
-  const s = TOUR_STEPS[i];
+  const steps = tourSteps(), s = steps[i], lg = L();
+  if(s.go && tourState.went !== i){ tourState.went = i; try { s.go(); } catch {} }
   const spot = layer.querySelector('.tour-spot');
   const pop = layer.querySelector('.tour-pop');
-  const last = i === TOUR_STEPS.length - 1;
-  pop.innerHTML = `<div class="step">Step ${i+1} of ${TOUR_STEPS.length}</div><h3>${esc(s.title)}</h3><p>${esc(s.body)}</p>
-    <div class="dots">${TOUR_STEPS.map((_,k)=>`<i class="${k===i?'on':''}"></i>`).join('')}</div>
-    <div class="nav"><button class="ghost sm skip" data-t="skip">${last ? '' : 'Skip tour'}</button>${i>0?`<button class="sm" data-t="back">Back</button>`:''}<button class="primary sm" data-t="next">${last ? esc(finishLabel) : 'Next'} ${I('arrowRight',13)}</button></div>`;
+  const last = i === steps.length - 1;
+  const T = (en, nl) => lg === 'nl' ? nl : en;
+  pop.innerHTML = `<div class="step">${T('Step', 'Stap')} ${i+1} ${T('of', 'van')} ${steps.length}</div><h3>${esc(s.title[lg])}</h3><p>${esc(s.body[lg])}</p>
+    <div class="dots">${steps.map((_,k)=>`<i class="${k===i?'on':''}"></i>`).join('')}</div>
+    <div class="nav"><button class="ghost sm skip" data-t="skip">${last ? '' : T('Skip tour', 'Rondleiding overslaan')}</button>${i>0?`<button class="sm" data-t="back">${T('Back', 'Terug')}</button>`:''}<button class="primary sm" data-t="next">${last ? esc(finishLabel) : T('Next', 'Volgende')} ${I('arrowRight',13)}</button></div>`;
   if(last) pop.querySelector('[data-t=skip]').style.visibility = 'hidden';
   pop.querySelector('[data-t=skip]').onclick = ()=> endTour(true);
   pop.querySelector('[data-t=back]')?.addEventListener('click', ()=> step(-1));
   pop.querySelector('[data-t=next]').onclick = ()=> step(1);
 
   const target = s.target ? s.target.split(',').map(x => document.querySelector(x.trim())).find(Boolean) : null;
+  if(s.target && !target && s.go && !tourState.retried){ tourState.retried = i; return requestAnimationFrame(placeTour); }
   const pw = pop.offsetWidth, ph = pop.offsetHeight, pad = 6, gap = 14;
   if(!target){
     spot.classList.add('center');

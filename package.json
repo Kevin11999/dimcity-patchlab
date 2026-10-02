@@ -12,7 +12,9 @@
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux",
-    "release": "electron-builder --publish always"
+    "release": "electron-builder --publish always",
+    "manual": "node scripts/build-manual.mjs",
+    "release-notes": "mkdir -p dist && node scripts/build-manual.mjs"
   },
   "dependencies": {
     "papaparse": "^5.4.1"

@@ -588,4 +588,4 @@ function open(tab){
 }
 function refresh(){ if(S.d){ if(!isDirty()) S.draft = null; render(); } }
 
-window.DeviceBuilder = { open, refresh, unitFace };
+window.DeviceBuilder = { open, refresh, unitFace, tab:() => (S.d ? S.tab : null) };

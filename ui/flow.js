@@ -13,14 +13,16 @@ const lang = () => (window.I18n?.language === 'nl' ? 'nl' : 'en');
 const t = (en, nl) => (lang() === 'nl' ? nl : en);
 const uniHue = u => `hsl(${(Number(u || 0) * 47) % 360} 72% 58%)`;
 
-const S = { dc:'ALL', zoom:1, tx:40, ty:30, hoverUni:null, hoverTrace:null, layout:null, drag:null, pan:null };
-const PORT_H = 15, HEAD_H = 26, GAP = 22, COL_GAP = 120;
+const S = { dc:'ALL', zoom:1, tx:40, ty:30, layout:null, drag:null, pan:null, pin:null, navCollapsed:false, sideCollapsed:false };
+const PORT_H = 15, HEAD_H = 26;
+const GAP = () => Math.round(22 * (flowState().spacing || 1)), COL_GAP = () => Math.round(120 * (flowState().spacing || 1));
+try { S.navCollapsed = localStorage.getItem('patchlab.flow.nav') === '1'; S.sideCollapsed = localStorage.getItem('patchlab.flow.side') === '1'; } catch {}
 const W = { node:180, splitter:150, lk:210, veam:170, dmx:170, obj:200 };
 
 function flowState(){
   const m = M();
   if(!m.flow || typeof m.flow !== 'object') m.flow = { dir:'ltr', labels:{}, pos:{} };
-  m.flow.labels ||= {}; m.flow.pos ||= {}; m.flow.dir ||= 'ltr';
+  m.flow.labels ||= {}; m.flow.pos ||= {}; m.flow.dir ||= 'ltr'; m.flow.spacing ||= 1;
   return m.flow;
 }
 const label = (dc, lkId) => flowState().labels?.[dc]?.[lkId] || lkId;
@@ -165,9 +167,9 @@ function layout(graph, dcs){
       const saved = posSaved?.[b.dc]?.[dir]?.[b.id];
       b.auto = dir === 'ltr' ? { x:main, y:cross } : { x:cross, y:-(main + b.size.h) };
       b.pos = saved ? { x:saved.x, y:saved.y } : b.auto;
-      cross += (dir === 'ltr' ? b.size.h : b.size.w) + GAP;
+      cross += (dir === 'ltr' ? b.size.h : b.size.w) + GAP();
     }
-    main += (dir === 'ltr' ? widest : Math.max(...list.map(b => b.size.h))) + COL_GAP;
+    main += (dir === 'ltr' ? widest : Math.max(...list.map(b => b.size.h))) + COL_GAP();
   }
   // bottom→top: columns stack upwards; shift so everything is positive
   if(dir === 'btt'){ const minY = Math.min(0, ...graph.blocks.map(b => b.pos.y)); for(const b of graph.blocks){ b.pos.y -= minY; b.auto.y -= minY; } }
@@ -191,7 +193,7 @@ function selectedDims(){ const all = App.sortedDims(); return S.dc === 'ALL' ? a
 function blockSvg(b){
   const { w, h } = b.size;
   const rows = [];
-  const portRow = (p, y, cls='') => `<g class="fp ${cls}" data-port="${esc(p.key)}" data-uni="${p.universe ?? ''}" transform="translate(0,${y})"><rect x="6" y="1" width="${w - 12}" height="${PORT_H - 2}" rx="3"/><text x="12" y="${PORT_H / 2 + 3.5}" class="fp-n">${esc(p.label)}</text>${p.universe != null ? `<text x="${w / 2}" y="${PORT_H / 2 + 3.5}" class="fp-u" text-anchor="middle">U${esc(p.universe)}</text>` : ''}<text x="${w - 12}" y="${PORT_H / 2 + 3.5}" class="fp-d" text-anchor="end">${esc(trim(p.dest || (p.from ? p.from.join(', ') : p.to || ''), b.kind === 'obj' ? 22 : 14))}</text></g>`;
+  const portRow = (p, y, cls='') => `<g class="fp ${cls}" data-port="${esc(p.key)}" data-uni="${p.universe ?? ''}" transform="translate(0,${y})"><title>${esc(p.label)}${p.universe != null ? ` · U${p.universe}` : ''}${p.dest ? ` · ${esc(p.dest)}` : ''}${p.to ? ` → ${esc(p.to)}` : ''}${p.from ? ` ← ${esc(p.from.join(', '))}` : ''}</title><rect x="6" y="1" width="${w - 12}" height="${PORT_H - 2}" rx="3"/><text x="12" y="${PORT_H / 2 + 3.5}" class="fp-n">${esc(p.label)}</text>${p.universe != null ? `<text x="${w / 2}" y="${PORT_H / 2 + 3.5}" class="fp-u" text-anchor="middle">U${esc(p.universe)}</text>` : ''}<text x="${w - 12}" y="${PORT_H / 2 + 3.5}" class="fp-d" text-anchor="end">${esc(trim(p.dest || (p.from ? p.from.join(', ') : p.to || ''), b.kind === 'obj' ? 22 : 14))}</text></g>`;
   if(b.kind === 'lk' && !b.xlr12){
     for(let g = 1; g <= 3; g++){
       const y0 = HEAD_H + 8 + (g - 1) * (14 + 4 * PORT_H);
@@ -212,7 +214,8 @@ function render(){
   if(S.dc !== 'ALL' && !dims.includes(S.dc)) S.dc = 'ALL';
   const dcs = selectedDims();
   App.pageHead?.({ eyebrow:'Project', title:t('Signal Flow', 'Signaalstroom'), sub:t('How the data runs from the rack to every object. Hover a universe or a line to follow it.', 'Hoe de data van het rek naar elk object loopt. Beweeg over een universe of een lijn om hem te volgen.'),
-    actions:`<button id="flFit">${I('zoomOut', 15)}${t('Fit', 'Passend')}</button><button id="flReset" title="${esc(t('Put every block back in its automatic place', 'Zet elk blok terug op zijn automatische plek'))}">${I('refresh', 15)}${t('Reset layout', 'Indeling herstellen')}</button>` });
+    actions:`<button id="flNav" title="${esc(t('Hide or show the app sidebar for more room', 'Verberg of toon de zijbalk van de app voor meer ruimte'))}">${I(S.navCollapsed ? 'chevronRight' : 'chevronLeft', 15)}${S.navCollapsed ? t('Show sidebar', 'Zijbalk tonen') : t('Hide sidebar', 'Zijbalk verbergen')}</button><button id="flFit">${I('zoomOut', 15)}${t('Fit', 'Passend')}</button><button id="flReset" title="${esc(t('Put every block back in its automatic place', 'Zet elk blok terug op zijn automatische plek'))}">${I('refresh', 15)}${t('Reset layout', 'Indeling herstellen')}</button><button id="flSvg" title="${esc(t('Save the drawing as an SVG image', 'Sla de tekening op als SVG-afbeelding'))}">${I('download', 15)}${t('Save image', 'Afbeelding opslaan')}</button>` });
+  document.body.classList.toggle('nav-collapsed', S.navCollapsed);
   const graph = layout(buildGraph(dcs), dcs);
   S.layout = graph;
   const byId = new Map(graph.blocks.map(b => [b.id, b]));
@@ -222,7 +225,7 @@ function render(){
   const uniList = [...unis.keys()].sort((a, b) => Number(a) - Number(b));
   const nodes = graph.blocks.filter(b => b.kind === 'node');
   const dir = flowState().dir;
-  const side = `<aside class="fl-side">
+  const side = `<aside class="fl-side ${S.sideCollapsed ? 'collapsed' : ''}"><button class="fl-collapse" id="flSide" title="${esc(t('Collapse or expand this panel', 'Klap dit paneel in of uit'))}">${I(S.sideCollapsed ? 'chevronRight' : 'chevronLeft', 14)}</button>
     <div class="fl-sec"><div class="rb-label">DimCities</div>
       <button class="fl-item ${S.dc === 'ALL' ? 'on' : ''}" data-dc="ALL">${I('layers', 14)}<span>${t('All DimCities', 'Alle DimCities')}</span><em>${dims.length}</em></button>
       ${dims.map(dc => `<button class="fl-item ${S.dc === dc ? 'on' : ''}" data-dc="${esc(dc)}"><i class="dot" style="background:${App.dimColor(dc)}"></i><span>${esc(dc)}</span><em>${m.byDim.get(dc)?.lks?.size || 0} LK</em></button>`).join('')}</div>
@@ -231,10 +234,11 @@ function render(){
     <div class="fl-sec"><div class="rb-label">${t('Nodes', 'Nodes')}</div>${nodes.map(n => `<div class="fl-node"><i style="background:${n.color}"></i><span>${esc(n.title)}</span><em>${esc(n.sub)}</em></div>`).join('') || `<div class="subtle" style="padding:4px 8px">${t('Place a rack or loose node first', 'Plaats eerst een rek of losse node')}</div>`}</div>
     <div class="fl-sec"><div class="rb-label">${t('Direction', 'Richting')}</div>
       <div class="segmented rb-full" id="flDir"><button data-v="ltr" class="${dir === 'ltr' ? 'active' : ''}">${t('Left → right', 'Links → rechts')}</button><button data-v="btt" class="${dir === 'btt' ? 'active' : ''}">${t('Bottom → top', 'Onder → boven')}</button></div>
-      <div class="hint" style="margin-top:8px">${t('Drag a block to move it. Click an LK name to rename the block.', 'Sleep een blok om het te verplaatsen. Klik op een LK-naam om het blok te hernoemen.')}</div></div>
+      <label class="field" style="margin-top:10px">${t('Spacing', 'Afstand')} <span class="subtle" id="flSpVal">${Math.round((flowState().spacing || 1) * 100)}%</span><input type="range" id="flSpacing" min="50" max="250" step="10" value="${Math.round((flowState().spacing || 1) * 100)}"></label>
+      <div class="hint" style="margin-top:8px">${t('Hover a block for its whole flow, a port for that line only. Click to pin, Esc to release. Drag a block to move it; click an LK name to rename it.', 'Beweeg over een blok voor zijn hele flow, over een poort voor alleen die lijn. Klik om vast te zetten, Esc om los te laten. Sleep een blok om het te verplaatsen; klik op een LK-naam om te hernoemen.')}</div></div>
   </aside>`;
   const defs = `<defs><marker id="flArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker></defs>`;
-  const edgesSvg = graph.edges.map(e => { const d = edgePath(e, byId); return `<path class="fe ${e.slot ? 'slot' : ''}" data-edge="${e.id}" data-uni="${e.universe ?? ''}" data-trace="${esc(e.trace)}" data-from="${esc(e.from.block)}" data-to="${esc(e.to.block)}" d="${d}" style="--c:${e.color}"/><path class="fe-hit" data-hit="${e.id}" data-trace="${esc(e.trace)}" d="${d}"><title>U${e.universe ?? '—'} · ${esc(byId.get(e.from.block)?.title || '')} → ${esc(byId.get(e.to.block)?.title || '')}</title></path>`; }).join('');
+  const edgesSvg = graph.edges.map(e => { const d = edgePath(e, byId); return `<path class="fe ${e.slot ? 'slot' : ''}" data-edge="${e.id}" data-uni="${e.universe ?? ''}" data-trace="${esc(e.trace)}" data-from="${esc(e.from.block)}" data-to="${esc(e.to.block)}" data-fromport="${esc(e.from.port)}" data-toport="${esc(e.to.port)}" d="${d}" style="--c:${e.color}"/><path class="fe-hit" data-hit="${e.id}" data-trace="${esc(e.trace)}" d="${d}"><title>U${e.universe ?? '—'} · ${esc(byId.get(e.from.block)?.title || '')} → ${esc(byId.get(e.to.block)?.title || '')}</title></path>`; }).join('');
   const canvas = `<div class="fl-canvas" id="flCanvas"><svg id="flSvg" xmlns="http://www.w3.org/2000/svg">${defs}<g id="flView" transform="translate(${S.tx},${S.ty}) scale(${S.zoom})"><g id="flEdges">${edgesSvg}</g><g id="flBlocks">${graph.blocks.map(blockSvg).join('')}</g></g></svg>
     ${graph.blocks.length ? '' : `<div class="empty fl-empty">${I('cable', 30)}<h3>${t('Nothing to draw yet', 'Nog niets te tekenen')}</h3><p>${t('Import a patch and place a rack or loose node in a DimCity; the flow appears here.', 'Importeer een patch en plaats een rek of losse node in een DimCity; de stroom verschijnt hier.')}</p></div>`}</div>`;
   root.innerHTML = `<div class="fl-wrap">${side}${canvas}</div>`;
@@ -253,17 +257,39 @@ function fit(){
   S.tx = 30 - minX * S.zoom + ((r.width - 60) - (maxX - minX) * S.zoom) / 2; S.ty = 30 - minY * S.zoom;
   setView();
 }
-function highlight(root, { uni=null, trace=null, block=null } = {}){
+// What lights up:
+//  - a universe: every line that carries it (plus the LK-slot → Veam lines between lit blocks)
+//  - a line or a port: that one flow, from the node port to the objects (through splitter and Veam)
+//  - a block: its whole flow, upstream to the node and downstream to every object
+function highlight(root, sel){
+  sel = sel || S.pin || null;
   root.querySelectorAll('.fe, .fb, .fp').forEach(el => el.classList.remove('lit', 'dim', 'flow'));
-  if(uni == null && trace == null && block == null) return;
+  if(!sel) return;
+  const { uni=null, trace=null, block=null, port=null } = sel;
   const edges = [...root.querySelectorAll('.fe')];
   const litEdges = new Set(), litBlocks = new Set();
-  // from a trace, follow downstream through LK slot edges too; from a block, both directions one hop
-  const grow = ids => { let again = true; while(again){ again = false; for(const e of edges){ const tr = e.dataset.trace; if(ids.has(tr) && !litEdges.has(e)){ litEdges.add(e); litBlocks.add(e.dataset.from); litBlocks.add(e.dataset.to); again = true; } } for(const e of edges){ if(litBlocks.has(e.dataset.from) && e.classList.contains('slot') && !litEdges.has(e)){ litEdges.add(e); litBlocks.add(e.dataset.to); again = true; ids.add(e.dataset.trace); } } } };
-  if(uni != null){ for(const e of edges) if(e.dataset.uni === String(uni)){ litEdges.add(e); litBlocks.add(e.dataset.from); litBlocks.add(e.dataset.to); }
-    for(const e of edges) if(e.classList.contains('slot') && litBlocks.has(e.dataset.from) && litBlocks.has(e.dataset.to)) litEdges.add(e); }   // LK-slot → Veam tussen twee opgelichte blokken
+  const addE = e => { litEdges.add(e); litBlocks.add(e.dataset.from); litBlocks.add(e.dataset.to); };
+  // follow a set of trace ids and the LK-slot links they pass through
+  const grow = ids => { let again = true; while(again){ again = false;
+    for(const e of edges) if(ids.has(e.dataset.trace) && !litEdges.has(e)){ addE(e); again = true; }
+    for(const e of edges) if(e.classList.contains('slot') && !litEdges.has(e) && litBlocks.has(e.dataset.from) && [...litEdges].some(x => x.dataset.to === e.dataset.from && x.dataset.toport?.startsWith('p') && Math.ceil(Number(x.dataset.toport.slice(1)) / 4) === Number(e.dataset.fromport.slice(1)))){ addE(e); again = true; }
+    // after a slot link: continue with the Veam's outgoing lines that belong to the same node traces
+    for(const e of edges) if(!litEdges.has(e) && !e.classList.contains('slot') && ids.has(e.dataset.trace) ){ addE(e); again = true; }
+  } };
+  if(uni != null){
+    for(const e of edges) if(e.dataset.uni === String(uni)) addE(e);
+    for(const e of edges) if(e.classList.contains('slot') && litBlocks.has(e.dataset.from) && litBlocks.has(e.dataset.to)) litEdges.add(e);
+  }
   if(trace != null) grow(new Set([trace]));
-  if(block != null){ for(const e of edges) if(e.dataset.from === block || e.dataset.to === block){ litEdges.add(e); litBlocks.add(e.dataset.from); litBlocks.add(e.dataset.to); } litBlocks.add(block); }
+  if(block != null && port != null){
+    const ids = new Set(edges.filter(e => (e.dataset.from === block && e.dataset.fromport === port) || (e.dataset.to === block && e.dataset.toport === port)).map(e => e.dataset.trace));
+    grow(ids);
+  } else if(block != null){
+    // whole flow: everything downstream of the block and everything upstream of it
+    const down = new Set([block]), up = new Set([block]);
+    let again = true; while(again){ again = false; for(const e of edges){ if(down.has(e.dataset.from) && !litEdges.has(e)){ addE(e); down.add(e.dataset.to); again = true; } if(up.has(e.dataset.to) && !litEdges.has(e)){ addE(e); up.add(e.dataset.from); again = true; } } }
+    litBlocks.add(block);
+  }
   for(const e of edges) e.classList.add(litEdges.has(e) ? 'lit' : 'dim');
   if(trace != null || block != null) litEdges.forEach(e => e.classList.add('flow'));
   root.querySelectorAll('.fb').forEach(b => b.classList.add(litBlocks.has(b.dataset.block) ? 'lit' : 'dim'));
@@ -277,9 +303,22 @@ function bind(root, graph, byId){
   root.querySelectorAll('#flDir button').forEach(b => b.onclick = () => { flowState().dir = b.dataset.v; M().ui.dirty = true; S.fitNext = true; render(); });
   App.$('#flFit')?.addEventListener('click', fit);
   App.$('#flReset')?.addEventListener('click', () => { const f = flowState(); for(const dc of selectedDims()) delete f.pos[dc]; M().ui.dirty = true; S.fitNext = true; render(); });
-  root.querySelectorAll('.fl-uni').forEach(b => { b.onmouseenter = () => highlight(root, { uni:b.dataset.uni }); b.onmouseleave = () => highlight(root); });
-  root.querySelectorAll('.fe-hit').forEach(e => { e.onmouseenter = () => highlight(root, { trace:e.dataset.trace }); e.onmouseleave = () => highlight(root); });
-  root.querySelectorAll('.fb').forEach(b => { b.onmouseenter = () => { if(!S.drag) highlight(root, { block:b.dataset.block }); }; b.onmouseleave = () => { if(!S.drag) highlight(root); }; });
+  const pinToggle = sel => { S.pin = S.pin && JSON.stringify(S.pin) === JSON.stringify(sel) ? null : sel; root.querySelectorAll('.fl-uni.pinned').forEach(x => x.classList.remove('pinned')); if(S.pin?.uni != null) root.querySelector(`.fl-uni[data-uni="${S.pin.uni}"]`)?.classList.add('pinned'); highlight(root); };
+  root.querySelectorAll('.fl-uni').forEach(b => { b.onmouseenter = () => highlight(root, { uni:b.dataset.uni }); b.onmouseleave = () => highlight(root); b.onclick = () => pinToggle({ uni:b.dataset.uni }); if(S.pin?.uni === b.dataset.uni) b.classList.add('pinned'); });
+  root.querySelectorAll('.fe-hit').forEach(e => { e.onmouseenter = () => highlight(root, { trace:e.dataset.trace }); e.onmouseleave = () => highlight(root); e.onclick = ev => { ev.stopPropagation(); pinToggle({ trace:e.dataset.trace }); }; });
+  root.querySelectorAll('.fb').forEach(b => {
+    b.onmouseenter = () => { if(!S.drag) highlight(root, { block:b.dataset.block }); };
+    b.onmouseleave = () => { if(!S.drag) highlight(root); };
+    // a port inside the block: only that line
+    b.querySelectorAll('.fp').forEach(p => { p.onmouseenter = ev => { ev.stopPropagation(); if(!S.drag) highlight(root, { block:b.dataset.block, port:p.dataset.port }); }; p.onmouseleave = ev => { ev.stopPropagation(); if(!S.drag) highlight(root, { block:b.dataset.block }); }; });
+  });
+  const sp = root.querySelector('#flSpacing'); if(sp){ sp.oninput = () => { root.querySelector('#flSpVal').textContent = `${sp.value}%`; }; sp.onchange = () => { flowState().spacing = Number(sp.value) / 100; M().ui.dirty = true; S.fitNext = true; render(); }; }
+  App.$('#flNav')?.addEventListener('click', () => { S.navCollapsed = !S.navCollapsed; try { localStorage.setItem('patchlab.flow.nav', S.navCollapsed ? '1' : '0'); } catch {} S.fitNext = true; render(); });
+  root.querySelector('#flSide')?.addEventListener('click', () => { S.sideCollapsed = !S.sideCollapsed; try { localStorage.setItem('patchlab.flow.side', S.sideCollapsed ? '1' : '0'); } catch {} S.fitNext = true; render(); });
+  App.$('#flSvg')?.addEventListener('click', () => exportSvg(root));
+  const onKey = e => { if(e.key === 'Escape' && S.pin){ S.pin = null; highlight(root); root.querySelectorAll('.fl-uni.pinned').forEach(x => x.classList.remove('pinned')); } };
+  document.addEventListener('keydown', onKey);
+  highlight(root);
   // zoom with the wheel around the cursor, pan by dragging the background
   canvas.addEventListener('wheel', e => { e.preventDefault(); const r = canvas.getBoundingClientRect(); const px = e.clientX - r.left, py = e.clientY - r.top; const k = Math.exp(-e.deltaY * 0.0015); const z = Math.max(.2, Math.min(3, S.zoom * k)); S.tx = px - (px - S.tx) * (z / S.zoom); S.ty = py - (py - S.ty) * (z / S.zoom); S.zoom = z; setView(); }, { passive:false });
   svg.addEventListener('mousedown', e => {
@@ -297,18 +336,19 @@ function bind(root, graph, byId){
       d.moved = true; d.b.pos = { x:Math.round(d.x0 + dx), y:Math.round(d.y0 + dy) };
       d.el.setAttribute('transform', `translate(${d.b.pos.x},${d.b.pos.y})`);
       root.querySelectorAll(`.fe[data-from="${CSS.escape(d.b.id)}"], .fe[data-to="${CSS.escape(d.b.id)}"]`).forEach(p => { const ed = graph.edges.find(x => x.id === p.dataset.edge); const dd = edgePath(ed, byId); p.setAttribute('d', dd); root.querySelector(`.fe-hit[data-hit="${p.dataset.edge}"]`)?.setAttribute('d', dd); });
-    } else if(S.pan){ S.tx = S.pan.tx + (e.clientX - S.pan.sx); S.ty = S.pan.ty + (e.clientY - S.pan.sy); setView(); }
+    } else if(S.pan){ if(Math.hypot(e.clientX - S.pan.sx, e.clientY - S.pan.sy) > 3) S.panMoved = true; S.tx = S.pan.tx + (e.clientX - S.pan.sx); S.ty = S.pan.ty + (e.clientY - S.pan.sy); setView(); }
   };
   const up = () => {
     if(S.drag){
       const d = S.drag; S.drag = null;
       if(d.moved){ const f = flowState(); ((f.pos[d.b.dc] ||= {})[f.dir] ||= {})[d.b.id] = { ...d.b.pos }; M().ui.dirty = true; window.PatchHistory?.label?.(t('Moved a block in the signal flow', 'Blok verplaatst in de signaalstroom')); }
       else if(d.rename) renameLk(d.b.dc, d.rename);
-    }
-    S.pan = null;
+      else pinToggle({ block:d.b.id });
+    } else if(S.pan && Math.hypot(0, 0) === 0 && S.pin && !S.panMoved){ /* click on the background releases a pin */ S.pin = null; highlight(root); root.querySelectorAll('.fl-uni.pinned').forEach(x => x.classList.remove('pinned')); }
+    S.pan = null; S.panMoved = false;
   };
   window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up);
-  S.cleanup?.(); S.cleanup = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); };
+  S.cleanup?.(); S.cleanup = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); document.removeEventListener('keydown', onKey); };
 }
 function renameLk(dc, lkId){
   const cur = label(dc, lkId);
@@ -321,4 +361,22 @@ function renameLk(dc, lkId){
   inp.onkeydown = e => { if(e.key === 'Enter') save(); };
 }
 
-window.Flow = { render, fit, buildGraph };
+// The drawing as a stand-alone SVG file (styles inlined so it looks the same outside the app)
+function exportSvg(root){
+  const svg = root.querySelector('#flSvg'); if(!svg || !S.layout?.blocks.length) return;
+  const g = S.layout;
+  const minX = Math.min(...g.blocks.map(b => b.pos.x)) - 20, minY = Math.min(...g.blocks.map(b => b.pos.y)) - 20;
+  const maxX = Math.max(...g.blocks.map(b => b.pos.x + b.size.w)) + 20, maxY = Math.max(...g.blocks.map(b => b.pos.y + b.size.h)) + 20;
+  const inner = svg.querySelector('#flView').innerHTML;
+  const css = `.fe{fill:none;stroke-width:2;opacity:.9}.fe.slot{stroke-dasharray:4 4}.fe-hit{display:none}.fb-bg{fill:#fff;stroke:#334155}.fb-head{fill:#e2e8f0}.fb-t{font:600 12px sans-serif;fill:#0f172a}.fb-id{font-weight:400;fill:#64748b}.fb-s{font:10.5px sans-serif;fill:#64748b}.fp rect{fill:#f1f5f9}.fp-n{font:10px monospace;fill:#64748b}.fp-u{font:600 10.5px sans-serif;fill:#0f172a}.fp-d{font:9.5px sans-serif;fill:#334155}.fp-g{font:600 9.5px sans-serif;fill:#64748b;text-transform:uppercase}`;
+  // colours are CSS variables on the elements; resolve them to plain attributes
+  const tmp = document.createElement('div'); tmp.innerHTML = inner;
+  tmp.querySelectorAll('[style]').forEach(el => { const c = el.style.getPropertyValue('--c'); if(c){ if(el.classList.contains('fe')) el.setAttribute('stroke', c); if(el.classList.contains('fb')){ el.querySelector('.fb-bar')?.setAttribute('fill', c); } } });
+  const out = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${maxX - minX} ${maxY - minY}" width="${maxX - minX}" height="${maxY - minY}"><style>${css}</style><rect x="${minX}" y="${minY}" width="${maxX - minX}" height="${maxY - minY}" fill="#fff"/>${svg.querySelector('defs').outerHTML.replace('context-stroke', '#334155')}${tmp.innerHTML}</svg>`;
+  const name = `${(M().projectMeta?.project || 'PatchLab').replace(/[^a-z0-9_-]+/gi, '_')}-signal-flow-${S.dc}.svg`;
+  const a = Object.assign(document.createElement('a'), { href:URL.createObjectURL(new Blob([out], { type:'image/svg+xml' })), download:name });
+  document.body.appendChild(a); a.click(); a.remove();
+  App.ui.toast(t('Drawing saved as SVG', 'Tekening opgeslagen als SVG'));
+}
+
+window.Flow = { render, fit, buildGraph, navCollapsed:() => S.navCollapsed };

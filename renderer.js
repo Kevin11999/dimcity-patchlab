@@ -1035,6 +1035,7 @@ function renderRight(){
   const table = $('#rightCsvSection'); if(table) table.hidden = view !== 'TABLE';
   const detailEl = $('#lkDetail'); if(detailEl){ detailEl.hidden = view === 'TABLE'; detailEl.style.removeProperty('--dim-color'); }
 
+  document.body.classList.toggle('nav-collapsed', view === 'FLOW' && !!window.Flow?.navCollapsed?.());
   if(view === 'DETAIL') renderRightDetail();
   else if(view === 'ISSUES') renderIssuesView();
   else if(view === 'TABLE') renderTableView();

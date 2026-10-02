@@ -971,3 +971,12 @@ kbd{font:500 10.5px var(--font);color:var(--text-3);border:1px solid var(--borde
 .fp-d{font:9.5px/1 var(--font,system-ui);fill:var(--text-2)}
 .fp-g{font:600 9.5px/1 var(--font,system-ui);fill:var(--text-3);letter-spacing:.04em;text-transform:uppercase}
 .fb.lit .fb-head{fill:color-mix(in srgb,var(--c) 40%,var(--surface))}
+
+body.nav-collapsed .workspace{grid-template-columns:0 minmax(0,1fr)}
+body.nav-collapsed .sidebar{display:none}
+.fl-side{position:relative}
+.fl-side.collapsed{width:22px;overflow:hidden}
+.fl-side.collapsed .fl-sec{display:none}
+.fl-wrap:has(.fl-side.collapsed){grid-template-columns:22px minmax(0,1fr)}
+.fl-collapse{position:absolute;top:0;right:0;width:22px;height:22px;padding:0;border:1px solid var(--border);background:var(--surface);border-radius:6px;z-index:2}
+.fl-uni.pinned{box-shadow:0 0 0 2px var(--u);background:var(--hover)}

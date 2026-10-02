@@ -415,12 +415,15 @@ De snelste weg naar een compleet plan is het uit de rack-patch opbouwen: **Gebru
 
 ## Reading it
 - **Left bar**: all DimCities or one; the universes in view; the nodes with their colours; the direction (left → right, or bottom → top).
-- Lines have the colour of the node that feeds them. **Hover a universe** in the left bar and its whole path lights up, ports included. **Hover a line** and the data runs visibly along the path from the node port to the objects.
-- **Hover a block** to see everything connected to it. The rest dims.
-- Zoom with the mouse wheel, pan by dragging the background, **Fit** brings everything into view.
+- Lines have the colour of the node that feeds them. **Hover a universe** in the left bar and every line that carries it lights up, ports included.
+- **Hover a block** (node, LK, Veam, object) and its whole flow lights up and moves: upstream to the node port and downstream through splitter, LK slot and Veam to every object. **Hover one port** inside a block for that single line only. **Hover a line** for that line's flow.
+- **Click** a universe, line or block to pin the highlight while you move the mouse; click the background or press Esc to release.
+- Zoom with the mouse wheel, pan by dragging the background, **Fit** brings everything into view. **Hide sidebar** and the arrow on the left panel give the drawing more room.
+- **Save image** writes the drawing as an SVG file you can open or print anywhere.
 
 ## Changing it
-- **Drag a block** to put it where you want; the lines follow. **Reset layout** puts every block of the DimCities in view back in its automatic place. Positions are saved in the project.
+- **Spacing** sets how far apart the automatic layout puts blocks and columns.
+- **Drag a block** to put it where you want; the lines follow. **Reset layout** puts every block of the DimCities in view back in its automatic place. Positions are saved in the project, per direction.
 - **Click the name of an LK block** to give it your own name (for example "Front truss"). This changes only the drawing; the LK number, its ports and the CSV stay as they are. The LK number is shown next to the name.
 
 The drawing is built from the rack patch, so place a rack or a loose node first (see [[racks|Racks per DimCity]]).`,
@@ -428,12 +431,15 @@ The drawing is built from the rack patch, so place a rack or a loose node first 
 
 ## Lezen
 - **Linkerbalk**: alle DimCities of één; de universes in beeld; de nodes met hun kleuren; de richting (links → rechts, of onder → boven).
-- Lijnen hebben de kleur van de node die ze voedt. **Beweeg over een universe** in de linkerbalk en het hele pad licht op, inclusief de poorten. **Beweeg over een lijn** en de data loopt zichtbaar door het pad van de nodepoort naar de objecten.
-- **Beweeg over een blok** om alles te zien wat eraan hangt. De rest dimt.
-- Zoomen met het muiswiel, verschuiven door de achtergrond te slepen, **Passend** brengt alles in beeld.
+- Lijnen hebben de kleur van de node die ze voedt. **Beweeg over een universe** in de linkerbalk en elke lijn die hem draagt licht op, inclusief de poorten.
+- **Beweeg over een blok** (node, LK, Veam, object) en zijn hele flow licht op en beweegt: stroomopwaarts naar de nodepoort en stroomafwaarts door splitter, LK-slot en Veam naar elk object. **Beweeg over één poort** in een blok voor alleen die ene lijn. **Beweeg over een lijn** voor de flow van die lijn.
+- **Klik** op een universe, lijn of blok om de markering vast te zetten terwijl je de muis beweegt; klik op de achtergrond of druk op Esc om los te laten.
+- Zoomen met het muiswiel, verschuiven door de achtergrond te slepen, **Passend** brengt alles in beeld. **Zijbalk verbergen** en het pijltje op het linkerpaneel geven de tekening meer ruimte.
+- **Afbeelding opslaan** schrijft de tekening als SVG-bestand dat je overal kunt openen of printen.
 
 ## Aanpassen
-- **Sleep een blok** om het neer te zetten waar je wilt; de lijnen volgen. **Indeling herstellen** zet elk blok van de DimCities in beeld terug op zijn automatische plek. Posities worden in het project opgeslagen.
+- **Afstand** bepaalt hoe ver de automatische indeling blokken en kolommen uit elkaar zet.
+- **Sleep een blok** om het neer te zetten waar je wilt; de lijnen volgen. **Indeling herstellen** zet elk blok van de DimCities in beeld terug op zijn automatische plek. Posities worden per richting in het project opgeslagen.
 - **Klik op de naam van een LK-blok** om het een eigen naam te geven (bijvoorbeeld "Front truss"). Dat verandert alleen de tekening; het LK-nummer, de poorten en de CSV blijven zoals ze zijn. Het LK-nummer staat naast de naam.
 
 De tekening wordt uit de rack-patch opgebouwd, dus plaats eerst een rek of een losse node (zie [[racks|Racks per DimCity]]).`

@@ -33,7 +33,7 @@
     network:   [['universeTable','Include universe overview table', true], ['switches','Show switches placeholder', false]],
     patch:     [['standaloneVeams','Include Veams that are not linked to an LK', true], ['location','Show location per port', true], ['source','Show source (LK / Veam) per port', false], ['groupColors','Tint Veam groups A / B / C', true]],
     patchlist: [['dmx','Include loose DMX', true]],
-    racks:     [['drawing','Rack drawing', true], ['table','Patch table (node port → LK / Veam)', true], ['advice','Recommendations', true]],
+    racks:     [['drawing','Rack drawing', true], ['nodes','Node ports (which LK / Veam port is on which node port)', true], ['loose','Loose devices (nodes and spiders without a rack)', true], ['table','Patch table (node port → LK / Veam)', true], ['advice','Recommendations', true]],
     warnings:  [['projectWide','Include project-wide issues', true]]
   };
 
@@ -49,7 +49,7 @@
       cover: { show:true, title:'', subtitle:'{area} · {location}', showLogo:true, logoX:1, logoY:0, logoW:60, fields:{ area:true, location:true, date:true, prepared:true, dimcities:true, totals:true }, note:'', summaryPage:true },
       sections: [
         { key:'summary', on:true }, { key:'network', on:true, opts:{ universeTable:true, switches:false } },
-        { key:'splitters', on:true }, { key:'racks', on:true, opts:{ drawing:true, table:true, advice:true } }, { key:'patch', on:true, opts:{ standaloneVeams:true, location:true, source:false, groupColors:true } },
+        { key:'splitters', on:true }, { key:'racks', on:true, opts:{ drawing:true, nodes:true, loose:true, table:true, advice:true } }, { key:'patch', on:true, opts:{ standaloneVeams:true, location:true, source:false, groupColors:true } },
         { key:'universes', on:false }, { key:'patchlist', on:false, opts:{ dmx:true } },
         { key:'warnings', on:true, opts:{ projectWide:true } }, { key:'notes', on:false, opts:{ text:'' } }
       ]
@@ -59,7 +59,8 @@
     DB_DETAILED: { name:'DB detailed paperwork', apply:L=>{ setOn(L, ['summary','network','splitters','patch','warnings']); L.style.density='comfortable'; L.cover.show=true; } },
     NETWORK_FIRST: { name:'Network crew', apply:L=>{ setOn(L, ['summary','network','splitters','universes']); L.cover.show=true; } },
     PATCH_CREW: { name:'Patch crew', apply:L=>{ setOn(L, ['summary','patch','patchlist']); L.style.density='comfortable'; } },
-    COMPACT: { name:'Compact patch sheets', apply:L=>{ setOn(L, ['patch']); L.style.density='compact'; L.cover.show=false; L.cover.summaryPage=false; } }
+    COMPACT: { name:'Compact patch sheets', apply:L=>{ setOn(L, ['patch']); L.style.density='compact'; L.cover.show=false; L.cover.summaryPage=false; } },
+    RACKS_ONLY: { name:'Racks only', apply:L=>{ setOn(L, ['summary','racks']); L.cover.show=false; L.cover.summaryPage=false; const r = L.sections.find(s=>s.key==='racks'); r.opts = { ...(r.opts||{}), drawing:true, nodes:true, loose:true, table:true, advice:false }; } }
   };
   function setOn(L, keys){
     L.sections.forEach(s => s.on = keys.includes(s.key));
@@ -292,7 +293,44 @@
       .rk-tag{display:inline-block;padding:0 1.4mm;margin-right:1.5mm;border-radius:1mm;background:var(--c,#e2e8f0);color:#0f172a;font-size:${fs*.8}px}
       .rk-advice{display:flex;flex-direction:column;gap:1mm;margin-bottom:${gap}mm}
       .rk-advice div{padding:1.2mm 2.5mm;border-radius:1mm;background:#f1f5f9;font-size:${fs*.9}px}
-      .rk-advice .warn{background:#fef3c7;color:#92400e}.rk-advice .ok{background:#dcfce7;color:#166534}`;
+      .rk-advice .warn{background:#fef3c7;color:#92400e}.rk-advice .ok{background:#dcfce7;color:#166534}
+      /* rack-tekening: zoals in de app, met dikke contouren voor op papier */
+      .prk-row{display:flex;flex-wrap:wrap;gap:${gap}mm;align-items:flex-start}
+      .prk-card{flex:1 1 120mm;max-width:100%;margin-bottom:0}
+      .prk{display:grid;grid-template-columns:6mm minmax(0,1fr) 6mm;border:.9mm solid #0f172a;border-radius:1mm;background:#fff}
+      .prk-rail{display:grid;grid-template-rows:repeat(var(--h),var(--uh));background:#e2e8f0}
+      .prk-rail:first-child{border-right:.35mm solid #475569}.prk-rail:last-child{border-left:.35mm solid #475569}
+      .prk-rail span{display:flex;align-items:center;justify-content:center;font-size:${fs*.68}px;font-weight:700;color:#1e293b;border-bottom:.2mm solid #cbd5e1}
+      .prk-bay{display:grid;grid-template-rows:repeat(var(--h),var(--uh));grid-template-columns:minmax(0,1fr);position:relative}
+      .prk-slot{grid-column:1;border-bottom:.25mm dashed #94a3b8}
+      .prk-it{grid-column:1;position:relative;z-index:1;padding:.35mm .6mm;min-width:0}
+      .pru{height:100%;display:flex;align-items:center;gap:1.5mm;border:.5mm solid #0f172a;border-left:1.8mm solid var(--c,#475569);border-radius:.8mm;background:#fff;padding:0 1.5mm;overflow:hidden}
+      .pru-label{width:30mm;flex:none;line-height:1.12;overflow:hidden}
+      .pru-label b{display:flex;align-items:center;gap:.6mm;font-size:${fs*.84}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pru-label span{display:block;font-size:${fs*.66}px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pru-ports{flex:1;display:flex;gap:1mm;align-items:center;min-width:0;overflow:hidden;flex-wrap:nowrap}
+      .pp-grp{display:flex;gap:.6mm;align-items:center;flex:0 1 auto;min-width:0}
+      .pp-grp+.pp-grp{margin-left:.4mm;padding-left:1mm;border-left:.3mm solid #94a3b8}
+      .pp{--ps:calc(var(--uh) * .64);width:var(--ps);height:var(--ps);flex:0 1 var(--ps);min-width:1.6mm;border-radius:50%;border:.45mm solid var(--c,#475569);display:flex;align-items:center;justify-content:center;font-size:${fs*.6}px;font-weight:700;color:#0f172a;background:color-mix(in srgb,var(--c,#94a3b8) 18%,#fff);overflow:hidden;white-space:nowrap}
+      .pp.free{border-style:dashed;border-color:#94a3b8;color:#94a3b8;background:#fff;font-weight:500}
+      .pp.lk{--ps:calc(var(--uh) * .82);border-width:.75mm}
+      .pp.vim{--ps:calc(var(--uh) * .72);border-style:double;border-width:.95mm}
+      .pp.in{border-color:#2563eb}
+      .pp.rj,.pp.sfp{border-radius:.5mm;border-width:.3mm;border-color:#475569;background:#f1f5f9;--ps:calc(var(--uh) * .55)}
+      .pp.sfp{width:calc(var(--ps) * 1.4);flex-basis:calc(var(--ps) * 1.4)}
+      .prk-tag{display:inline-block;font-size:${fs*.68}px;font-weight:800;padding:0 .9mm;border-radius:.6mm;background:var(--c,#475569);color:#fff;line-height:1.5}
+      /* nodepoorten: welke LK-/Veam-poort op welke nodepoort */
+      .pnp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:${gap}mm;margin-top:${gap}mm}
+      .pnp-node{border:.4mm solid #0f172a;border-left:1.8mm solid var(--c);border-radius:1mm;padding:1.4mm 2mm;break-inside:avoid;background:#fff}
+      .pnp-head{display:flex;align-items:center;gap:1.5mm;margin-bottom:1.2mm;font-size:${fs*.9}px}
+      .pnp-head small{color:#64748b;margin-left:auto}
+      .pnp-strip{display:flex;flex-wrap:wrap;gap:.9mm}
+      .pnp{display:flex;flex-direction:column;align-items:center;min-width:13mm;padding:.6mm 1mm;border:.4mm solid var(--c,#94a3b8);border-radius:1mm;line-height:1.15;background:color-mix(in srgb,var(--c,#94a3b8) 10%,#fff)}
+      .pnp b{font-size:${fs*.62}px;color:#64748b}
+      .pnp em{font-style:normal;font-weight:800;font-size:${fs*.95}px}
+      .pnp span{font-size:${fs*.7}px;color:#1e293b;white-space:nowrap}
+      .pnp i{font-style:normal;font-size:${fs*.62}px;color:#64748b;white-space:nowrap;max-width:22mm;overflow:hidden;text-overflow:ellipsis}
+      .pnp.free{border-style:dashed;background:#fff;color:#94a3b8}.pnp.free span,.pnp.free em{color:#94a3b8}`;
   }
 
 
@@ -408,38 +446,78 @@
     }).join('')}</div>` : '<div class="placeholder">No splitters planned for this DimCity.</div>';
     return `<div class="section">${h3(n, 'Splitters', `${sps.length} splitter${sps.length===1?'':'s'}`)}${body}</div>`;
   }
-  // Racks: lichte, printbare weergave van de rack-patch (core/rack-engine.js)
+  // Racks: de rack-tekening zoals in de app (rail met U-nummers, device-faces, poorten per node),
+  // de nodepoorten met de LK-/Veam-poort die erop zit, losse apparaten en de patchtabel.
+  const typeNameOf = t => [t?.brand, t?.name].filter(Boolean).join(' ') || t?.id || '';
+  function rackDrawing(M, P, R, ri, L, owners){
+    const find = (key, id) => (M.networkDevices?.[key] || []).find(x => x.id === id);
+    const pp = (cls, label, color, free) => `<span class="pp ${cls} ${free ? 'free' : ''}" style="${color ? `--c:${color}` : ''}">${esc(label)}</span>`;
+    const grp = inner => inner ? `<span class="pp-grp">${inner}</span>` : '';
+    const H = R.rack.heightU;
+    const [, ph] = pageDims(L); const { mt, mb } = pageMargins(L);
+    const uh = Math.max(3.2, Math.min(6.5, (ph - mt - mb - 45) / H));   // mm per U, zodat het rek op één pagina past
+    const nodes = new Map(P.nodes.filter(x => x.rack === ri).map(x => [x.iid, x]));
+    const splits = new Map(P.splitters.filter(x => x.rack === ri).map(x => [x.iid, x]));
+    const items = (R.rack.items || []).slice().sort((a, b) => a.u - b.u).map(it => {
+      const key = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes', panel:'panelTypes' }[it.kind];
+      const t = find(key, it.typeId); if(!t) return '';
+      let ports = '', tag = '';
+      if(it.kind === 'node'){
+        const x = nodes.get(it.iid);
+        tag = x ? `<b class="prk-tag" style="--c:${x.color}">${x.label}</b>` : '';
+        const eth = Math.min(2, Math.max(1, Number(t.ethernetCount) || 1));
+        ports = grp((x?.ports || []).map((p, i) => pp('dmx', p ? `U${p.universe}` : String(i + 1), x.color, !p)).join('')) + grp(Array.from({ length:eth }, (_, i) => pp('rj', eth > 1 ? String(i + 1) : '', null)).join(''));
+      } else if(it.kind === 'splitter'){
+        const x = splits.get(it.iid);
+        tag = x ? `<b class="prk-tag" style="--c:#475569">${x.label}</b>` : '';
+        ports = grp(x?.inputs.length ? x.inputs.map(u => pp('dmx in', `U${u}`, x.feedColor)).join('') : pp('dmx in', 'A', null, true)) + grp((x?.outputs || []).map((l, i) => pp('dmx', l ? l.owner.replace(/^(LK|V)/, '') : String(i + 1), l?.feed?.color, !l)).join(''));
+      } else if(it.kind === 'panel'){
+        ports = P.groups.filter(g => g.iid === it.iid && g.rack === ri).map(g => grp(pp('lk', g.lk ? g.lk.id.replace(/^LK/, '') : '', g.lk ? owners.get(g.lk.id) : null, !g.lk) + g.vims.map(v => pp('vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? owners.get(v.used.id) : null, !v.used)).join(''))).join('')
+          + grp(P.soloVims.filter(v => v.iid === it.iid && v.rack === ri).map(v => pp('vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? owners.get(v.used.id) : null, !v.used)).join(''));
+      } else {
+        ports = grp(Array.from({ length:Number(t.portCount) || 0 }, (_, i) => pp('rj', String(i + 1), null)).join('')) + grp(Array.from({ length:Number(t.sfpCount) || 0 }, (_, i) => pp('sfp', `S${i + 1}`, null)).join(''));
+      }
+      const hu = Math.max(1, Number(t.heightU) || 1);
+      return `<div class="prk-it" style="grid-row:${it.u} / span ${hu}"><div class="pru" style="--c:${hex(t.color, '#475569')}"><div class="pru-label"><b>${tag}${esc(typeNameOf(t))}</b><span>${esc(it.kind)} · ${hu}U</span></div><div class="pru-ports">${ports}</div></div></div>`;
+    }).join('');
+    const rail = `<div class="prk-rail">${Array.from({ length:H }, (_, i) => `<span>${H - i}</span>`).join('')}</div>`;
+    const slots = Array.from({ length:H }, (_, i) => `<div class="prk-slot" style="grid-row:${i + 1}"></div>`).join('');
+    return `<div class="card prk-card"><div class="card-h"><span>${esc(R.placement.name || R.rack.name || R.rack.id)}</span><small>${H}U${R.rack.articleKey ? ` · ${esc(R.rack.articleKey)}` : ''}</small></div>
+      <div class="card-b"><div class="prk" style="--h:${H};--uh:${uh}mm">${rail}<div class="prk-bay">${slots}${items}</div>${rail}</div></div></div>`;
+  }
+  function nodePortsPrint(P, n, where){
+    const cells = n.ports.map((p, i) => p
+      ? `<span class="pnp" style="--c:${n.color}"><b>${i + 1}</b><em>U${p.universe}</em><span>${p.ownerPort === 'in' ? `${esc(p.owner)} in` : `${esc(p.owner)} · ${esc(p.ownerPort)}`}</span>${p.dest ? `<i>${esc(p.dest)}</i>` : ''}</span>`
+      : `<span class="pnp free"><b>${i + 1}</b><em>—</em><span>free</span></span>`).join('');
+    return `<div class="pnp-node" style="--c:${n.color}"><div class="pnp-head"><b class="prk-tag" style="--c:${n.color}">${n.label}</b><b>${esc(typeNameOf(n.type))}</b><small>${esc(where)}</small></div><div class="pnp-strip">${cells}</div></div>`;
+  }
   function buildRacks(M, dc, L, n, o={}){
     const E = window.RackEngine;
-    if(!E || !E.placedRacks(M, dc).length) return '';
+    if(!E || !(E.hasRackPlan ? E.hasRackPlan(M, dc) : E.placedRacks(M, dc).length)) return '';
     const P = E.computeRackPlan(M, dc);
     const owners = E.ownerColors(P);
-    const find = (key, id) => (M.networkDevices?.[key] || []).find(x => x.id === id);
-    const chip = (label, color, free) => `<span class="rk-p ${free?'free':''}" style="${color?`--c:${color}`:''}">${esc(label)}</span>`;
-    const drawing = o.drawing === false ? '' : P.racks.map((R, ri) => {
-      if(!R.rack) return '';
-      const nodes = new Map(P.nodes.filter(x => x.rack === ri).map(x => [x.iid, x]));
-      const splits = new Map(P.splitters.filter(x => x.rack === ri).map(x => [x.iid, x]));
-      const rows = (R.rack.items || []).slice().sort((a, b) => a.u - b.u).map(it => {
-        const key = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes', panel:'panelTypes' }[it.kind];
-        const t = find(key, it.typeId); if(!t) return '';
-        let ports = '', tag = '';
-        if(it.kind === 'node'){ const x = nodes.get(it.iid); tag = x ? `<b class="rk-tag" style="--c:${x.color}">${x.label}</b>` : ''; ports = (x?.ports || []).map((p, i) => chip(p ? `U${p.universe}` : String(i + 1), x.color, !p)).join(''); }
-        else if(it.kind === 'splitter'){ const x = splits.get(it.iid); tag = x ? `<b class="rk-tag">${x.label}</b>` : ''; ports = (x?.inputs.length ? x.inputs.map(u => chip(`in U${u}`, x.feedColor)).join('') : chip('not used', null, true)) + ' ' + (x?.outputs || []).map((l, i) => chip(l ? l.label.replace(' · ', ':') : String(i + 1), l?.feed?.color, !l)).join(''); }
-        else if(it.kind === 'panel'){
-          ports = P.groups.filter(g => g.iid === it.iid && g.rack === ri).map(g => chip(g.lk ? g.lk.id : `${g.label} free`, g.lk ? owners.get(g.lk.id) : null, !g.lk) + g.vims.map(v => chip(v.used ? v.used.id : v.label, v.used ? owners.get(v.used.id) : null, !v.used)).join('')).join(' ')
-            + P.soloVims.filter(v => v.iid === it.iid && v.rack === ri).map(v => chip(v.used ? v.used.id : v.label, v.used ? owners.get(v.used.id) : null, !v.used)).join('');
-        }
-        const hu = Math.max(1, Number(t.heightU) || 1);
-        return `<tr><td class="num rk-u">${R.rack.heightU - it.u + 1}${hu > 1 ? `–${R.rack.heightU - it.u - hu + 2}` : ''}</td><td>${tag}${esc([t.brand, t.name].filter(Boolean).join(' ') || t.id)}</td><td class="rk-ports">${ports}</td></tr>`;
+    const drawing = o.drawing === false ? '' : `<div class="prk-row">${P.racks.map((R, ri) => R.rack ? rackDrawing(M, P, R, ri, L, owners) : '').join('')}</div>`;
+    const whereOf = x => x.loose ? (x.name ? `Loose · ${x.name}` : 'Loose node') : (P.racks[x.rack]?.placement.name || P.racks[x.rack]?.rack?.name || '');
+    const nodeList = o.nodes === false || !P.nodes.length ? '' : `<div class="pnp-grid">${P.nodes.map(x => nodePortsPrint(P, x, whereOf(x))).join('')}</div>`;
+    const loose = P.loose || [];
+    let looseHtml = '';
+    if(o.loose !== false && loose.length){
+      const rows = loose.map(d => {
+        if(d.kind === 'node'){ const x = P.nodes.find(y => y.iid === d.iid); return `<tr><td><b>${x ? x.label : '—'}</b></td><td>Node${x ? ` · ${esc(typeNameOf(x.type))}` : ` · <span class="tag red">${esc(d.typeId)} missing</span>`}</td><td>${esc(d.name || '')}</td><td>${x ? `${x.ports.filter(Boolean).length}/${x.ports.length} ports used` : ''}</td></tr>`; }
+        const isLk = d.kind === 'lkSpider';
+        const s = isLk ? P.groups.find(g => g.iid === d.iid) : P.soloVims.find(v => v.iid === d.iid);
+        const used = isLk ? s?.lk : s?.used;
+        const onNode = d.nodeIid ? P.nodes.find(y => y.iid === d.nodeIid)?.label : '';
+        const fed = used ? [...new Set(P.lines.filter(l => l.owner === used.id && l.feed?.node).map(l => l.feed.node))].join(' + ') : '';
+        return `<tr><td><b>${s?.label || ''}</b></td><td>${isLk ? 'LK spider' : 'VIM4 spider'}</td><td>${used ? `<span class="dot" style="background:${owners.get(used.id) || '#94a3b8'}"></span><b>${esc(used.id)}</b>` : '<span class="small">free</span>'}</td><td>${fed ? `on ${esc(fed)}` : onNode ? `on ${esc(onNode)}` : ''}</td></tr>`;
       }).join('');
-      return `<div class="card"><div class="card-h"><span>${esc(R.placement.name || R.rack.name || R.rack.id)}</span><small>${R.rack.heightU}U${R.rack.articleKey ? ` · ${esc(R.rack.articleKey)}` : ''}</small></div><table class="rk-tbl"><thead><tr><th class="num">U</th><th>Device</th><th>Patch</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-    }).join('');
+      looseHtml = `<div class="card"><div class="card-h"><span>Loose devices</span><small>${loose.length} without a rack</small></div><table><thead><tr><th style="width:14mm">Label</th><th style="width:34mm">Device</th><th>Name / LK / Veam</th><th style="width:34mm">Node</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    }
     const advice = o.advice === false ? '' : `<div class="rk-advice">${P.recs.map(r => `<div class="${r.level}">${esc(r.text)}</div>`).join('')}</div>`;
     const lines = P.lines.slice().sort((a, b) => String(a.feed?.node || '~').localeCompare(String(b.feed?.node || '~'), undefined, { numeric:true }) || (a.feed?.port || 0) - (b.feed?.port || 0));
     const table = o.table === false ? '' : `<table><thead><tr><th>Node port</th><th class="num">Universe</th><th>Via</th><th>Socket</th><th>LK / Veam port</th><th>Location</th></tr></thead><tbody>${lines.map(l => `<tr><td>${l.feed ? `<span class="dot" style="background:${l.feed.color}"></span><b>${esc(l.feed.node)}</b> · ${l.feed.port}` : '<span class="tag red">no port</span>'}</td><td class="num">U${l.universe}</td><td>${l.feed?.splitter ? `${esc(l.feed.splitter)} · out ${l.feed.out}` : 'direct'}</td><td>${esc(l.socket)}</td><td>${esc(l.label)}</td><td>${esc(l.dest)}</td></tr>`).join('')}</tbody></table>`;
     const st = P.stats;
-    return `<div class="section">${h3(n, 'Racks', `${st.lkUsed}/${st.lkSockets} LK7-1 · ${st.vimUsed}/${st.vimSockets} VIM4 · ${st.nodePortsUsed}/${st.nodePorts} node ports`)}${advice}${drawing}${table}</div>`;
+    return `<div class="section">${h3(n, 'Racks', `${st.lkUsed}/${st.lkSockets} LK7-1 · ${st.vimUsed}/${st.vimSockets} VIM4 · ${st.nodePortsUsed}/${st.nodePorts} node ports`)}${advice}${drawing}${nodeList}${looseHtml}${table}</div>`;
   }
   function portHtml(m, nr, L, o){
     const u = m.universe;
@@ -512,6 +590,7 @@
     if(!keysFromMap(M.byDim).length){ App()?.ui?.toast?.('Nothing to export yet — import a CSV or add an LK first.', 'info'); return; }
     const L = layoutFromSettings(M.pdfSettings);
     if(Array.isArray(opts.dcs) && opts.dcs.length){ L.scope = 'SEL'; L.dims = opts.dcs.slice(); }
+    if(opts.preset && PRESETS[opts.preset]) PRESETS[opts.preset].apply(L);
     B = { L, tab:'content', expanded:null, zoom:'fit', selSec:null, timer:null };
     mount();
   }

@@ -147,6 +147,8 @@ const NL = {
   'Company logo':'Bedrijfslogo', 'No company logo':'Geen bedrijfslogo', 'On every page':'Op elke pagina', 'Top left':'Linksboven', 'Top right':'Rechtsboven', 'Bottom left':'Linksonder',
   'Bottom right':'Rechtsonder', 'Logo height':'Logohoogte', 'Watermark':'Watermerk', 'None':'Geen', 'Text':'Tekst', 'Strength':'Sterkte', 'Size':'Grootte', 'Angle':'Hoek',
   'Use project logo':'Projectlogo gebruiken', 'Position on the cover':'Positie op het voorblad', 'Report preview':'Rapportvoorbeeld', 'Select at least one DimCity.':'Kies minstens één DimCity.',
+  'Racks only':'Alleen racks', 'Rack drawing':'Rack-tekening', 'Node ports (which LK / Veam port is on which node port)':'Nodepoorten (welke LK-/Veam-poort op welke nodepoort zit)',
+  'Loose devices (nodes and spiders without a rack)':'Losse apparaten (nodes en spinnen zonder rek)', 'Patch table (node port → LK / Veam)':'Patchtabel (nodepoort → LK / Veam)', 'Recommendations':'Adviezen',
   'Delete a template…':'Template verwijderen…', 'Choose…':'Kiezen…', 'Presets':'Voorinstellingen', 'My templates':'Mijn templates', 'Left':'Links', 'Center':'Midden',
   'No sections enabled. Turn sections on in the Content tab.':'Geen secties aan. Zet secties aan in het tabblad Inhoud.', 'No templates left.':'Geen templates meer.',
 

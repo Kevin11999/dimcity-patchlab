@@ -4,7 +4,7 @@ Desktop app (macOS, Windows, Linux) that prepares, validates and documents the *
 
 - **Import** a CSV with LK / Veam IDs, ports, universes and locations. The DimCity follows from the ID (LK101 → DB01).
 - **Validate** continuously: duplicate Veam links, universe conflicts, impossible ports, missing data — with Fix buttons.
-- **Patch** LKs and Veams onto racks and loose devices automatically (LK7-1 / VIM4 sockets, node ports, splitters).
+- **Patch** LKs and Veams onto racks and loose devices automatically (LK7-1 / Veam4 sockets, node ports, splitters).
 - **Plan the network**: nodes, IP addresses, universes per port, splitters.
 - **Document** everything in the Report Builder: live preview, rack drawings, sections you can place on the sheet, templates, company branding.
 - Standard device library with Luminex and ELC nodes, switches and splitters, updatable from GitHub separately from the app.

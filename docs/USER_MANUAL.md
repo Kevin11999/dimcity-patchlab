@@ -140,7 +140,7 @@ The table merges the LK's own rows with the linked Veam's rows: universe, locati
 
 A Veam has four ports. It is fed by an LK: open the LK and choose the Veam in slot A, B or C. The Veam page shows which LK and slot it is linked to and its four ports with universe, location and status.
 
-- **Not linked** (orange) — the Veam is in the show but no LK feeds it yet. In the rack patch it then gets its own VIM4 socket.
+- **Not linked** (orange) — the Veam is in the show but no LK feeds it yet. In the rack patch it then gets its own Veam4 socket.
 - **Linked** (green) — fed through the LK; it needs no socket of its own.
 - **Linked twice** (red) — remove one of the links.
 
@@ -200,7 +200,7 @@ Single or **A/B input**, number of outputs, and whether outputs switch **indepen
 RJ45 and SFP port counts.
 
 ### Panel
-A patch panel with **LK7-1**, **VIM4**, **XLR** and **etherCON** sockets. In a rack, every LK7-1 socket shares its lines with up to three VIM4 sockets next to it; the remaining VIM4 sockets are separate.
+A patch panel with **LK7-1**, **Veam4**, **XLR** and **etherCON** sockets. In a rack, every LK7-1 socket shares its lines with up to three Veam4 sockets next to it; the remaining Veam4 sockets are separate.
 
 ### Type key
 Every type has a fixed key (NODE:01, PANEL:02…). Shows refer to it, so it cannot change after saving. Use **Duplicate** to make a variant.
@@ -215,7 +215,7 @@ The **Racks** tab of the Device Builder builds 19" racks from your device types.
 - **New rack**, give it a name, an **article key** (your inventory number) and a height — from **1U** up to 48U.
 - Drag devices from the palette on the right into the rack, or click **+** to add one at the first free position. Green rows mean it fits, red means it does not.
 - Move devices with the arrows or by dragging; remove them with the ×.
-- The summary below counts DMX ports, splitter outputs, RJ45 and the LK7-1 / VIM4 / XLR sockets of the rack.
+- The summary below counts DMX ports, splitter outputs, RJ45 and the LK7-1 / Veam4 / XLR sockets of the rack.
 
 A rack is a template: you place it in a DimCity on the [Racks card](#racks), as often as you need. The article key is printed in the Racks card and on the PDF.
 
@@ -226,16 +226,16 @@ The **Racks** card on a DimCity page patches the LKs and Veams of that DimCity a
 
 ### Placing
 - **Place rack** adds a rack from the Rack Builder; give it a name for this DimCity (e.g. "Rack SL"). Remove it with the bin.
-- **Loose devices**: a **loose node** without a rack, a **loose LK spider** (one LK7-1 socket on a breakout) or a **loose VIM4 spider** (one VIM4 socket). A spider can be pinned to a loose node with **On node**; its lines are then patched on that node first.
+- **Loose devices**: a **loose node** without a rack, a **loose LK spider** (one LK7-1 socket on a breakout) or a **loose Veam4 spider** (one Veam4 socket). A spider can be pinned to a loose node with **On node**; its lines are then patched on that node first.
 
 ### How the patch is made
 1. Every LK with data gets an **LK7-1 socket**: first a loose LK spider that is pinned to a node, then the rack panels, then other loose spiders.
-2. Veams that are not fed by an LK get a **VIM4 socket**: first a VIM4 spider pinned to a node, then a free VIM4 next to an LK that does not use those lines, then separate VIM4s, then other spiders.
+2. Veams that are not fed by an LK get a **Veam4 socket**: first a Veam4 spider pinned to a node, then a free Veam4 next to an LK that does not use those lines, then separate Veam4s, then other spiders.
 3. Every used line gets a **node port**. Lines of one LK or Veam stay on one node where possible — the legend shows the node per LK / Veam, and every node has its own colour.
 4. When node ports run short, universes that are used more than once go through a **splitter** in the rack.
 
 ### Reading the result
-- The counters show used / available LK7-1 sockets, VIM4 sockets, node ports and lines.
+- The counters show used / available LK7-1 sockets, Veam4 sockets, node ports and lines.
 - **Recommendations** tell you what is missing: loose spiders to add, extra nodes, unused splitters.
 - The rack drawing shows the universe on every node port and the LK / Veam number on every socket; hover for details.
 - **Node ports** lists per node which LK or Veam port (and location) sits on which node port.
@@ -294,7 +294,7 @@ Device types, racks and report templates live in two places: in the show, and in
 - **Export Library…** writes an .lklib file you can send to a colleague; **Import Library…** reads one (or the devices from another .lkproj).
 
 ### Standard library (Luminex, ELC)
-PatchLab ships with a standard library: Luminex LumiNode nodes, GigaCore switches and LumiSplit splitters, ELC dmXLAN nodes, switchGBx switches and DT splitters, plus standard LK / VIM4 / XLR panels and three ready-made racks. They are added to your library on first start.
+PatchLab ships with a standard library: Luminex LumiNode nodes, GigaCore switches and LumiSplit splitters, ELC dmXLAN nodes, switchGBx switches and DT splitters, plus standard LK / Veam4 / XLR panels and three ready-made racks. They are added to your library on first start.
 
 **Settings → Device library → Check now** fetches the newest standard library from GitHub, separately from app updates: new types are added and unchanged standard types are corrected. A type you edited in the Device Builder is yours and is never overwritten. Port counts come from the manufacturers' product pages — check them against the unit in your rack.
 
@@ -357,7 +357,7 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 - Help: a manual inside the app (Help button, ? or F1) that opens on the chapter of the page you are on; also on GitHub as docs/USER_MANUAL.md.
 - Request button: send a feature request, bug or question as a GitHub issue, with app version and page added automatically.
 - Longer tour that also covers the DimCity page, racks, search, help and requests — in English and Dutch.
-- Loose devices per DimCity: nodes and LK / VIM4 spiders without a rack; a spider can be pinned to a loose node.
+- Loose devices per DimCity: nodes and LK / Veam4 spiders without a rack; a spider can be pinned to a loose node.
 - Every node shows which LK / Veam port (and location) is on each node port, in the app and on the PDF.
 - PDF: racks are drawn as in the app (rails, U numbers, device faces, patched ports) with print-safe lines; node port list and loose devices; preset "Racks only" and a Print racks button.
 - Report Builder: sections can be placed at a fixed X / Y position and width, or dragged in the preview on a 5 mm grid; line weight setting (light / normal / bold), default darker than before.
@@ -367,7 +367,7 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 ### Version 0.2.0 — 2026-10-02
 - Update check via GitHub Releases, with download and install from the app.
 - Light theme and a Dutch interface (Settings → Language).
-- Racks per DimCity with automatic LK7-1 / VIM4 patching, node colours, recommendations and "Use as network plan".
+- Racks per DimCity with automatic LK7-1 / Veam4 patching, node colours, recommendations and "Use as network plan".
 - Search everything with Cmd/Ctrl+K.
 - Undo / redo with a readable history, fixable validation issues, autosave, backups and crash recovery.
 - Report Builder: company brand tab with logo and watermark, movable cover image.
@@ -507,7 +507,7 @@ De tabel voegt de eigen regels van de LK samen met die van de gekoppelde Veam: u
 
 Een Veam heeft vier poorten. Hij wordt gevoed door een LK: open de LK en kies de Veam in slot A, B of C. De Veam-pagina laat zien aan welke LK en welk slot hij gekoppeld is, en zijn vier poorten met universe, locatie en status.
 
-- **Niet gekoppeld** (oranje) — de Veam zit in de show, maar nog geen LK voedt hem. In de rack-patch krijgt hij dan een eigen VIM4-aansluiting.
+- **Niet gekoppeld** (oranje) — de Veam zit in de show, maar nog geen LK voedt hem. In de rack-patch krijgt hij dan een eigen Veam4-aansluiting.
 - **Gekoppeld** (groen) — gevoed via de LK; hij heeft geen eigen aansluiting nodig.
 - **Twee keer gekoppeld** (rood) — haal één van de koppelingen weg.
 
@@ -567,7 +567,7 @@ Enkele of **A/B-ingang**, aantal uitgangen, en of uitgangen **los of per twee** 
 Aantal RJ45- en SFP-poorten.
 
 ### Paneel
-Een patchpaneel met **LK7-1**-, **VIM4**-, **XLR**- en **etherCON**-aansluitingen. In een rek deelt elke LK7-1-aansluiting zijn lijnen met maximaal drie VIM4-aansluitingen ernaast; de overige VIM4's staan los.
+Een patchpaneel met **LK7-1**-, **Veam4**-, **XLR**- en **etherCON**-aansluitingen. In een rek deelt elke LK7-1-aansluiting zijn lijnen met maximaal drie Veam4-aansluitingen ernaast; de overige Veam4's staan los.
 
 ### Typesleutel
 Elk type heeft een vaste sleutel (NODE:01, PANEL:02…). Shows verwijzen ernaar, dus hij kan na opslaan niet meer veranderen. Gebruik **Dupliceren** voor een variant.
@@ -582,7 +582,7 @@ Het tabblad **Racks** van de Device Builder bouwt 19"-racks uit je devicetypes.
 - **Nieuw rek**, geef het een naam, een **artikelsleutel** (je voorraadnummer) en een hoogte — van **1U** tot 48U.
 - Sleep devices uit het palet rechts in het rek, of klik op **+** om er een op de eerste vrije plek te zetten. Groene rijen betekenen dat het past, rood dat het niet past.
 - Verplaats devices met de pijltjes of door te slepen; haal ze weg met het ×.
-- De samenvatting eronder telt DMX-poorten, splitteruitgangen, RJ45 en de LK7-1- / VIM4- / XLR-aansluitingen van het rek.
+- De samenvatting eronder telt DMX-poorten, splitteruitgangen, RJ45 en de LK7-1- / Veam4- / XLR-aansluitingen van het rek.
 
 Een rek is een sjabloon: je plaatst het in een DimCity op de [Racks-kaart](#racks-nl), zo vaak als je wilt. De artikelsleutel staat in de Racks-kaart en op de PDF.
 
@@ -593,16 +593,16 @@ De kaart **Racks** op een DimCity-pagina patcht de LK's en Veams van die DimCity
 
 ### Plaatsen
 - **Rek plaatsen** voegt een rek uit de Rack Builder toe; geef het een naam voor deze DimCity (bijv. "Rack SL"). Verwijderen doe je met het prullenbakje.
-- **Losse apparaten**: een **losse node** zonder rek, een **losse LK-spin** (één LK7-1-aansluiting op een breakout) of een **losse VIM4-spin** (één VIM4-aansluiting). Een spin kun je met **Op node** aan een losse node hangen; zijn lijnen worden dan eerst op die node gepatcht.
+- **Losse apparaten**: een **losse node** zonder rek, een **losse LK-spin** (één LK7-1-aansluiting op een breakout) of een **losse Veam4-spin** (één Veam4-aansluiting). Een spin kun je met **Op node** aan een losse node hangen; zijn lijnen worden dan eerst op die node gepatcht.
 
 ### Hoe de patch tot stand komt
 1. Elke LK met gegevens krijgt een **LK7-1-aansluiting**: eerst een losse LK-spin die aan een node hangt, dan de rekpanelen, dan andere losse spinnen.
-2. Veams die niet door een LK gevoed worden krijgen een **VIM4-aansluiting**: eerst een VIM4-spin die aan een node hangt, dan een vrije VIM4 naast een LK die die lijnen niet gebruikt, dan losse VIM4's, dan andere spinnen.
+2. Veams die niet door een LK gevoed worden krijgen een **Veam4-aansluiting**: eerst een Veam4-spin die aan een node hangt, dan een vrije Veam4 naast een LK die die lijnen niet gebruikt, dan losse Veam4's, dan andere spinnen.
 3. Elke gebruikte lijn krijgt een **nodepoort**. Lijnen van één LK of Veam blijven waar mogelijk op één node — de legenda toont de node per LK / Veam, en elke node heeft een eigen kleur.
 4. Als er nodepoorten tekortkomen, gaan universes die vaker gebruikt worden via een **splitter** in het rek.
 
 ### Het resultaat lezen
-- De tellers tonen gebruikt / beschikbaar voor LK7-1-aansluitingen, VIM4-aansluitingen, nodepoorten en lijnen.
+- De tellers tonen gebruikt / beschikbaar voor LK7-1-aansluitingen, Veam4-aansluitingen, nodepoorten en lijnen.
 - **Adviezen** vertellen wat er ontbreekt: losse spinnen om toe te voegen, extra nodes, overbodige splitters.
 - De rektekening toont de universe op elke nodepoort en het LK- / Veam-nummer op elke aansluiting; beweeg eroverheen voor details.
 - **Nodepoorten** laat per node zien welke LK- of Veam-poort (en locatie) op welke nodepoort zit.
@@ -661,7 +661,7 @@ Devicetypes, racks en rapporttemplates staan op twee plekken: in de show, en in 
 - **Bibliotheek exporteren…** schrijft een .lklib-bestand dat je naar een collega kunt sturen; **Bibliotheek importeren…** leest er een (of de devices uit een andere .lkproj).
 
 ### Standaardbibliotheek (Luminex, ELC)
-PatchLab komt met een standaardbibliotheek: Luminex LumiNode-nodes, GigaCore-switches en LumiSplit-splitters, ELC dmXLAN-nodes, switchGBx-switches en DT-splitters, plus standaard LK- / VIM4- / XLR-panelen en drie kant-en-klare racks. Ze worden bij de eerste start aan je bibliotheek toegevoegd.
+PatchLab komt met een standaardbibliotheek: Luminex LumiNode-nodes, GigaCore-switches en LumiSplit-splitters, ELC dmXLAN-nodes, switchGBx-switches en DT-splitters, plus standaard LK- / Veam4- / XLR-panelen en drie kant-en-klare racks. Ze worden bij de eerste start aan je bibliotheek toegevoegd.
 
 **Instellingen → Devicebibliotheek → Nu controleren** haalt de nieuwste standaardbibliotheek van GitHub, los van app-updates: nieuwe types worden toegevoegd en ongewijzigde standaardtypes gecorrigeerd. Een type dat je in de Device Builder hebt bewerkt is van jou en wordt nooit overschreven. Poortaantallen komen van de productpagina's van de fabrikanten — controleer ze tegen het apparaat in je rek.
 
@@ -724,7 +724,7 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 - Help: een handleiding in de app (Help-knop, ? of F1) die opent op het hoofdstuk van de pagina waar je bent; ook op GitHub als docs/USER_MANUAL.md.
 - Request-knop: stuur een wens, fout of vraag als GitHub-issue, met app-versie en pagina automatisch erbij.
 - Langere rondleiding die ook de DimCity-pagina, racks, zoeken, help en requests behandelt — in het Engels en Nederlands.
-- Losse apparaten per DimCity: nodes en LK- / VIM4-spinnen zonder rek; een spin kan aan een losse node gehangen worden.
+- Losse apparaten per DimCity: nodes en LK- / Veam4-spinnen zonder rek; een spin kan aan een losse node gehangen worden.
 - Elke node toont welke LK- / Veam-poort (en locatie) op welke nodepoort zit, in de app en op de PDF.
 - PDF: racks worden getekend zoals in de app (rails, U-nummers, device-faces, gepatchte poorten) met printvaste lijnen; nodepoortenlijst en losse apparaten; voorinstelling "Alleen racks" en een knop Racks printen.
 - Rapportbouwer: secties kunnen op een vaste X- / Y-positie en breedte gezet worden, of in het voorbeeld gesleept op een raster van 5 mm; instelling lijndikte (licht / normaal / dik), standaard donkerder dan voorheen.
@@ -734,7 +734,7 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 ### Versie 0.2.0 — 2026-10-02
 - Updatecontrole via GitHub Releases, met downloaden en installeren vanuit de app.
 - Licht thema en een Nederlandse interface (Instellingen → Taal).
-- Racks per DimCity met automatische LK7-1- / VIM4-patching, nodekleuren, adviezen en "Gebruik als netwerkplan".
+- Racks per DimCity met automatische LK7-1- / Veam4-patching, nodekleuren, adviezen en "Gebruik als netwerkplan".
 - Overal zoeken met Cmd/Ctrl+K.
 - Ongedaan maken / opnieuw met leesbare geschiedenis, oplosbare validatiemeldingen, automatisch opslaan, back-ups en crashherstel.
 - Rapportbouwer: tabblad huisstijl met logo en watermerk, verplaatsbare voorbladafbeelding.

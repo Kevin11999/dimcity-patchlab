@@ -543,7 +543,7 @@
         const used = isLk ? s?.lk : s?.used;
         const onNode = d.nodeIid ? P.nodes.find(y => y.iid === d.nodeIid)?.label : '';
         const fed = used ? [...new Set(P.lines.filter(l => l.owner === used.id && l.feed?.node).map(l => l.feed.node))].join(' + ') : '';
-        return `<tr><td><b>${s?.label || ''}</b></td><td>${isLk ? 'LK spider' : 'VIM4 spider'}</td><td>${used ? `<span class="dot" style="background:${owners.get(used.id) || '#94a3b8'}"></span><b>${esc(used.id)}</b>` : '<span class="small">free</span>'}</td><td>${fed ? `on ${esc(fed)}` : onNode ? `on ${esc(onNode)}` : ''}</td></tr>`;
+        return `<tr><td><b>${s?.label || ''}</b></td><td>${isLk ? 'LK spider' : 'Veam4 spider'}</td><td>${used ? `<span class="dot" style="background:${owners.get(used.id) || '#94a3b8'}"></span><b>${esc(used.id)}</b>` : '<span class="small">free</span>'}</td><td>${fed ? `on ${esc(fed)}` : onNode ? `on ${esc(onNode)}` : ''}</td></tr>`;
       }).join('');
       looseHtml = `<div class="card"><div class="card-h"><span>Loose devices</span><small>${loose.length} without a rack</small></div><table><thead><tr><th style="width:14mm">Label</th><th style="width:34mm">Device</th><th>Name / LK / Veam</th><th style="width:34mm">Node</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     }
@@ -551,7 +551,7 @@
     const lines = P.lines.slice().sort((a, b) => String(a.feed?.node || '~').localeCompare(String(b.feed?.node || '~'), undefined, { numeric:true }) || (a.feed?.port || 0) - (b.feed?.port || 0));
     const table = o.table === false ? '' : `<table><thead><tr><th>Node port</th><th class="num">Universe</th><th>Via</th><th>Socket</th><th>LK / Veam port</th><th>Location</th></tr></thead><tbody>${lines.map(l => `<tr><td>${l.feed ? `<span class="dot" style="background:${l.feed.color}"></span><b>${esc(l.feed.node)}</b> · ${l.feed.port}` : '<span class="tag red">no port</span>'}</td><td class="num">U${l.universe}</td><td>${l.feed?.splitter ? `${esc(l.feed.splitter)} · out ${l.feed.out}` : 'direct'}</td><td>${esc(l.socket)}</td><td>${esc(l.label)}</td><td>${esc(l.dest)}</td></tr>`).join('')}</tbody></table>`;
     const st = P.stats;
-    return `<div class="section">${h3(n, 'Racks', `${st.lkUsed}/${st.lkSockets} LK7-1 · ${st.vimUsed}/${st.vimSockets} VIM4 · ${st.nodePortsUsed}/${st.nodePorts} node ports`)}${advice}${drawing}${nodeList}${looseHtml}${table}</div>`;
+    return `<div class="section">${h3(n, 'Racks', `${st.lkUsed}/${st.lkSockets} LK7-1 · ${st.vimUsed}/${st.vimSockets} Veam4 · ${st.nodePortsUsed}/${st.nodePorts} node ports`)}${advice}${drawing}${nodeList}${looseHtml}${table}</div>`;
   }
   function portHtml(m, nr, L, o){
     const u = m.universe;

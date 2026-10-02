@@ -72,7 +72,7 @@ function rackFace(plan, ri){
   return `<div class="rack" style="--h:${H}">${rail}<div class="rack-bay" style="grid-template-rows:repeat(${H}, var(--uh))">${Array.from({ length:H }, (_, i) => `<div class="rk-slot" style="grid-row:${i + 1}"></div>`).join('')}${rows}</div>${rail}</div>`;
 }
 
-// Losse apparaten (zonder rek): node, LK-spin, VIM4-spin
+// Losse apparaten (zonder rek): node, LK-spin, Veam4-spin
 function looseHtml(plan, dc){
   const loose = looseOf(dc);
   const nodeTypes = M().networkDevices?.nodeTypes || [];
@@ -83,7 +83,7 @@ function looseHtml(plan, dc){
       <label>Node<select id="rpLooseType" ${nodeTypes.length ? '' : 'disabled'}>${nodeOpts || '<option>No node types yet</option>'}</select></label>
       <button data-loose-add="node" ${nodeTypes.length ? '' : 'disabled'}>${I('plus', 14)}Add loose node</button>
       <button data-loose-add="lkSpider">${I('plus', 14)}Add LK spider</button>
-      <button data-loose-add="vimSpider">${I('plus', 14)}Add VIM4 spider</button>
+      <button data-loose-add="vimSpider">${I('plus', 14)}Add Veam4 spider</button>
     </div>`;
   const onNode = d => `<select class="rp-onnode" data-loose="${esc(d.iid)}" title="Patch this spider on a loose node first"><option value="">Any node</option>${looseNodes.map(n => `<option value="${esc(n.iid)}" ${d.nodeIid === n.iid ? 'selected' : ''}>${n.label} · ${esc(n.name || typeName(n.type))}</option>`).join('')}</select>`;
   const rows = loose.map(d => {
@@ -98,7 +98,7 @@ function looseHtml(plan, dc){
     const sock = isLk ? plan.groups.find(g => g.iid === d.iid) : plan.soloVims.find(v => v.iid === d.iid);
     const used = isLk ? sock?.lk : sock?.used;
     const chip = used ? `<span class="rp-owner" style="--c:${owners.get(used.id) || '#7d8594'}"><i></i>${esc(used.id)}<em>${[...new Set(plan.lines.filter(l => l.owner === used.id && l.feed?.node).map(l => l.feed.node))].join(' + ') || 'no port'}</em></span>` : '<span class="tag">free</span>';
-    return `<div class="rp-loose spider"><div class="rp-loose-head">${I(isLk ? 'box' : 'plug', 14)}<b>${sock?.label || ''} · ${isLk ? 'LK spider' : 'VIM4 spider'}</b>${chip}<label class="rp-inline">On node${onNode(d)}</label>${rm}</div></div>`;
+    return `<div class="rp-loose spider"><div class="rp-loose-head">${I(isLk ? 'box' : 'plug', 14)}<b>${sock?.label || ''} · ${isLk ? 'LK spider' : 'Veam4 spider'}</b>${chip}<label class="rp-inline">On node${onNode(d)}</label>${rm}</div></div>`;
   }).join('');
   return `<div class="rp-section-title">${I('cable', 14)} Loose devices <span class="subtle">${loose.length ? App.ui.plural(loose.length, 'device') : 'none'}</span></div>${controls}${rows ? `<div class="rp-loose-list">${rows}</div>` : ''}`;
 }
@@ -127,7 +127,7 @@ function cardHtml(dc){
   const chip = (label, used, total, warn) => `<div class="rp-stat ${warn ? 'warn' : ''}"><span>${label}</span><b>${used}<em>/${total}</em></b></div>`;
   const stats = `<div class="rp-stats">
       ${chip('LK7-1 sockets', s.lkUsed, s.lkSockets, s.spiders.lk)}
-      ${chip('VIM4 sockets', s.vimUsed, s.vimSockets, s.spiders.vim)}
+      ${chip('Veam4 sockets', s.vimUsed, s.vimSockets, s.spiders.vim)}
       ${chip('Node ports', s.nodePortsUsed, s.nodePorts, s.unfed)}
       ${chip('Lines', s.lines - s.unfed, s.lines, s.unfed)}
     </div>`;
@@ -187,7 +187,7 @@ function bind(root, dc, rerender){
       // een nieuwe spin hangt standaard aan de laatst toegevoegde losse node
       const lastNode = looseOf(dc).filter(d => d.kind === 'node').pop();
       if(lastNode) item.nodeIid = lastNode.iid;
-      window.PatchHistory?.label?.(`Added loose ${kind === 'lkSpider' ? 'LK' : 'VIM4'} spider in ${dc}`);
+      window.PatchHistory?.label?.(`Added loose ${kind === 'lkSpider' ? 'LK' : 'Veam4'} spider in ${dc}`);
     }
     looseOf(dc).push(item);
     if(!M().ui.cardCollapsed) M().ui.cardCollapsed = {};

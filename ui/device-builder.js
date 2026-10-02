@@ -39,7 +39,7 @@ const FIELDS = {
     F_IP, F_SUBNET, F_HEIGHT, F_COLOR('switch')],
   panel: [F_ID, F_BRAND, { k:'name', label:'Name', type:'text', ph:'LK panel 3×' },
     { k:'lkCount', label:'LK7-1 sockets', type:'number', min:0, max:12, def:3 },
-    { k:'vimCount', label:'VIM4 sockets', type:'number', min:0, max:12, def:0 },
+    { k:'vimCount', label:'Veam4 sockets', type:'number', min:0, max:12, def:0 },
     { k:'xlrCount', label:'XLR 5-pin', type:'number', min:0, max:48, def:0 },
     { k:'etherconCount', label:'etherCON', type:'number', min:0, max:24, def:0 },
     F_HEIGHT, F_COLOR('panel')]
@@ -77,7 +77,7 @@ function metaLine(kind, t){
     case 'node': return `${num(t.portCount, 8)} DMX ports${ethernetPorts(t) > 1 ? ` · ${ethernetPorts(t)}× RJ45` : ''}`;
     case 'splitter': return `${t.mode === 'AB' ? 'A/B' : '1'} in · ${num(t.outputCount, 10)} out${t.switching === 'paired' ? ' · paired' : ''}`;
     case 'switch': return `${num(t.portCount, 16)} RJ45${num(t.sfpCount) ? ` + ${num(t.sfpCount)} SFP` : ''}`;
-    case 'panel': return [[t.lkCount, 'LK7-1'], [t.vimCount, 'VIM4'], [t.xlrCount, 'XLR'], [t.etherconCount, 'etherCON']]
+    case 'panel': return [[t.lkCount, 'LK7-1'], [t.vimCount, 'Veam4'], [t.xlrCount, 'XLR'], [t.etherconCount, 'etherCON']]
       .filter(([n]) => num(n) > 0).map(([n, l]) => `${num(n)}× ${l}`).join(' · ') || 'No sockets';
   }
   return '';
@@ -101,7 +101,7 @@ function portsHtml(kind, t){
       return grp(range(num(t.portCount, 16), i => port('rj', i, `Port ${i}`))) +
         (num(t.sfpCount) ? grp(range(num(t.sfpCount), i => port('sfp', `S${i}`, `SFP ${i}`))) : '');
     case 'panel':
-      return [[t.lkCount, 'lk', 'LK7-1'], [t.vimCount, 'vim', 'VIM4'], [t.xlrCount, 'dmx', 'XLR 5-pin'], [t.etherconCount, 'rj', 'etherCON']]
+      return [[t.lkCount, 'lk', 'LK7-1'], [t.vimCount, 'vim', 'Veam4'], [t.xlrCount, 'dmx', 'XLR 5-pin'], [t.etherconCount, 'rj', 'etherCON']]
         .filter(([n]) => num(n) > 0)
         .map(([n, cls, title]) => grp(range(num(n), i => port(cls, i, `${title} ${i}`)))).join('') || '<span class="subtle">No sockets</span>';
   }
@@ -355,7 +355,7 @@ function rackSummary(rack){
     ${stat('Nodes', t.node, `${p.dmx} DMX ports`)}
     ${stat('Splitters', t.splitter, `${p.out} outputs`)}
     ${stat('Switches', t.switch, `${p.rj} RJ45${p.sfp ? ` · ${p.sfp} SFP` : ''}`)}
-    ${stat('Panels', t.panel, [p.lk && `${p.lk}× LK7-1`, p.vim && `${p.vim}× VIM4`, p.xlr && `${p.xlr}× XLR`, p.ec && `${p.ec}× etherCON`].filter(Boolean).join(' · ') || '—')}
+    ${stat('Panels', t.panel, [p.lk && `${p.lk}× LK7-1`, p.vim && `${p.vim}× Veam4`, p.xlr && `${p.xlr}× XLR`, p.ec && `${p.ec}× etherCON`].filter(Boolean).join(' · ') || '—')}
   </div>`;
 }
 function rackHtml(rack){

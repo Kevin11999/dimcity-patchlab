@@ -1,10 +1,10 @@
 // core/rack-engine.js
 // Auto-patch for the racks placed in a DimCity:
-//  1. LKs go on LK7-1 sockets; Veams that are not linked to an LK go on a free VIM4 socket
-//     (first the VIM4 sockets next to an LK that doesn't use those lines, then separate ones).
+//  1. LKs go on LK7-1 sockets; Veams that are not linked to an LK go on a free Veam4 socket
+//     (first the Veam4 sockets next to an LK that doesn't use those lines, then separate ones).
 //  2. Every used line gets a DMX feed from a node port; when node ports run short, universes
 //     with several lines go through the rack's splitters.
-//  3. Recommendations: free ports, missing sockets (loose LK / VIM4 spider), missing node ports.
+//  3. Recommendations: free ports, missing sockets (loose LK / Veam4 spider), missing node ports.
 // The result is computed from the current show every time — nothing goes stale.
 const App = window.LKApp;
 
@@ -80,17 +80,17 @@ function resources(M, dc){
         splitters.push({ rack:ri, iid:it.iid, type:t, label:`S${splitters.length + 1}`, inputs:[], maxInputs:inputs, outputs:Array.from({ length:Math.max(1, num(t.outputCount, 10)) }, () => null) });
       } else if(it.kind === 'panel'){
         const lk = num(t.lkCount), vim = num(t.vimCount);
-        // VIM4-aansluitingen delen de lijnen van een LK-aansluiting (3 per LK); de rest is los
+        // Veam4-aansluitingen delen de lijnen van een LK-aansluiting (3 per LK); de rest is los
         const shared = Math.min(vim, lk * 3);
         for(let g = 0; g < lk; g++){
           lkNo++;
-          groups.push({ rack:ri, panel:typeName(t), iid:it.iid, label:`LK${lkNo}`, vims:[0, 1, 2].filter(k => g * 3 + k < shared).map(k => ({ label:`VIM${++vimNo}`, slot:k, used:null })), lk:null });
+          groups.push({ rack:ri, panel:typeName(t), iid:it.iid, label:`LK${lkNo}`, vims:[0, 1, 2].filter(k => g * 3 + k < shared).map(k => ({ label:`Veam${++vimNo}`, slot:k, used:null })), lk:null });
         }
-        for(let k = shared; k < vim; k++) soloVims.push({ rack:ri, panel:typeName(t), iid:it.iid, label:`VIM${++vimNo}`, used:null });
+        for(let k = shared; k < vim; k++) soloVims.push({ rack:ri, panel:typeName(t), iid:it.iid, label:`Veam${++vimNo}`, used:null });
       }
     }
   });
-  // Losse apparaten komen na de rekken (rack:-1): een node zonder rek, een losse LK- of VIM4-spin
+  // Losse apparaten komen na de rekken (rack:-1): een node zonder rek, een losse LK- of Veam4-spin
   const loose = [];
   for(const d of looseDevices(M, dc)){
     if(d.kind === 'node'){
@@ -101,7 +101,7 @@ function resources(M, dc){
     } else if(d.kind === 'lkSpider'){
       groups.push({ rack:-1, loose:true, panel:'Loose LK spider', iid:d.iid, nodeIid:d.nodeIid || null, label:`LK${++lkNo}`, vims:[], lk:null });
     } else if(d.kind === 'vimSpider'){
-      soloVims.push({ rack:-1, loose:true, panel:'Loose VIM4 spider', iid:d.iid, nodeIid:d.nodeIid || null, label:`VIM${++vimNo}`, used:null });
+      soloVims.push({ rack:-1, loose:true, panel:'Loose Veam4 spider', iid:d.iid, nodeIid:d.nodeIid || null, label:`Veam${++vimNo}`, used:null });
     }
     loose.push(d);
   }
@@ -131,8 +131,8 @@ export function computeRackPlan(M, dc){
       need.lines.forEach(l => lines.push({ ...l, socket:'Loose LK spider' }));
     }
   }
-  // 2. Losse Veams: eerst vrije VIM4 naast een LK, dan losse VIM4, dan VIM4 van lege LK-groepen
-  const freeVims = [...R.soloVims.filter(v => v.nodeIid)];               // VIM4-spin aan een losse node eerst
+  // 2. Losse Veams: eerst vrije Veam4 naast een LK, dan losse Veam4, dan Veam4 van lege LK-groepen
+  const freeVims = [...R.soloVims.filter(v => v.nodeIid)];               // Veam4-spin aan een losse node eerst
   for(const g of R.groups) if(g.lk) g.vims.forEach(v => { if(!g.lk.slotUsed[v.slot]) freeVims.push(v); });
   freeVims.push(...R.soloVims.filter(v => !v.nodeIid));
   for(const g of R.groups) if(!g.lk) freeVims.push(...g.vims);
@@ -141,7 +141,7 @@ export function computeRackPlan(M, dc){
     if(!need.lines.length) continue;
     const v = freeVims[vi++];
     if(v){ v.used = need; if(v.nodeIid) prefNode.set(need.id, v.nodeIid); need.lines.forEach(l => lines.push({ ...l, socket:v.label })); }
-    else { noSocket.ve.push(need.id); need.lines.forEach(l => lines.push({ ...l, socket:'Loose VIM4 spider' })); }
+    else { noSocket.ve.push(need.id); need.lines.forEach(l => lines.push({ ...l, socket:'Loose Veam4 spider' })); }
   }
   D.loose.forEach(l => lines.push({ ...l, socket:'Direct (XLR)' }));
 
@@ -214,7 +214,7 @@ export function computeRackPlan(M, dc){
     const missing = R.loose.filter(d => d.missing);
     if(missing.length) recs.push({ level:'warn', text:`${missing.length} loose node${missing.length > 1 ? 's use' : ' uses'} a node type that is no longer in this show.` });
     if(noSocket.lk.length) recs.push({ level:'warn', text:`${noSocket.lk.length} LK${noSocket.lk.length > 1 ? 's have' : ' has'} no LK7-1 socket (${noSocket.lk.join(', ')}) → add ${noSocket.lk.length > 1 ? `${noSocket.lk.length} loose LK spiders` : 'a loose LK spider'}, or a panel with more LK sockets.` });
-    if(noSocket.ve.length) recs.push({ level:'warn', text:`${noSocket.ve.length} Veam${noSocket.ve.length > 1 ? 's have' : ' has'} no VIM4 socket (${noSocket.ve.join(', ')}) → add ${noSocket.ve.length > 1 ? `${noSocket.ve.length} loose VIM4 spiders` : 'a loose VIM4 spider'}.` });
+    if(noSocket.ve.length) recs.push({ level:'warn', text:`${noSocket.ve.length} Veam${noSocket.ve.length > 1 ? 's have' : ' has'} no Veam4 socket (${noSocket.ve.join(', ')}) → add ${noSocket.ve.length > 1 ? `${noSocket.ve.length} loose Veam4 spiders` : 'a loose Veam4 spider'}.` });
     if(unfed){
       const per = num(nodeTypes[0]?.portCount, 8);
       recs.push({ level:'warn', text:`${unfed} line${unfed > 1 ? 's have' : ' has'} no node port → add ${Math.ceil(unfed / per)}× ${nodeTypes[0] ? typeName(nodeTypes[0]) : 'node'}${R.splitters.length ? '' : ', or a splitter for universes that are used more than once'}.` });

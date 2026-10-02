@@ -25,7 +25,7 @@ core/i18n.js       Dutch UI: dictionary + rules, applied to text nodes by a Muta
 core/history.js    Undo/redo + readable change history (hooks MODEL.ui.dirty, snapshots the project)
 core/autosave.js   Autosave every N changes / N minutes, backup copies, crash recovery
 core/updater.js    Update check against GitHub Releases, guided installer download
-core/rack-engine.js  Rack auto-patch: LK/VIM4 sockets, node ports, splitters, recommendations
+core/rack-engine.js  Rack auto-patch: LK/Veam4 sockets, node ports, splitters, recommendations
 ui/rack-plan.js    Racks card on the DimCity page (+ "Use as network plan")
 ui/issue-fix.js    Validation: jump to the problem, Fix… dialogs
 ui/search.js       Cmd+K search
@@ -99,7 +99,7 @@ switches
 dimCityPlans
 ```
 
-`switchTypes` (RJ45 + SFP ports), `panelTypes` (LK7-1 / VIM4 / XLR / etherCON sockets) and
+`switchTypes` (RJ45 + SFP ports), `panelTypes` (LK7-1 / Veam4 / XLR / etherCON sockets) and
 `rackTypes` (`{ id, name, articleKey, heightU, items:[{ iid, kind, typeId, u }] }`, `u` = top row counted
 from the top, `heightU` from 1U) are edited in the Device Builder. Every type has `heightU`. Node types
 have `ethernetCount` (1 or 2 RJ45 ports). Type keys are fixed once saved.

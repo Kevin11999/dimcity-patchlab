@@ -556,6 +556,7 @@ function render(){
     <button class="sm" id="flFit" title="${esc(t('Fit the whole drawing in view (0)', 'Hele tekening in beeld (0)'))}">${I('compass', 14)}${t('Fit', 'Passend')}</button>
     <span class="fl-sep"></span>
     <button class="sm" id="flAuto" title="${esc(t('Put every block of the DimCities in view back in its automatic place', 'Zet elk blok van de DimCities in beeld terug op zijn automatische plek'))}">${I('layout', 14)}${t('Auto layout', 'Auto-indeling')}</button>
+    <button class="sm" id="flShare" title="${esc(t('Copy the drawing as a picture to paste in a chat or e-mail', 'Kopieer de tekening als afbeelding om in een chat of e-mail te plakken'))}">${I('copy', 14)}${t('Share image', 'Afbeelding delen')}</button>
     <button class="sm" id="flSave" title="${esc(t('Save the drawing as an SVG image', 'Sla de tekening op als SVG-afbeelding'))}">${I('download', 14)}${t('Save image', 'Afbeelding opslaan')}</button>
     <span class="fl-hint">${t('Hover = follow · click = pin · Esc = release · drag = move', 'Beweeg = volgen · klik = vastzetten · Esc = loslaten · sleep = verplaatsen')}</span></div>`;
   for(const b of graph.blocks) b.graphEdges = graph.edges;
@@ -622,6 +623,7 @@ function bind(root, graph, byId){
   root.querySelector('#flFit').onclick = fit;
   root.querySelector('#flAuto').onclick = () => { for(const dc of selectedDims()){ if(f.pos[dc]) delete f.pos[dc][f.dir]; } M().ui.dirty = true; S.fitNext = true; S.sel.clear(); render(); App.ui.toast(t('Blocks put back in their automatic place', 'Blokken terug op hun automatische plek')); };
   root.querySelector("#flSave").onclick = () => exportSvg();
+  root.querySelector("#flShare").onclick = () => window.Fun?.shareFlow?.();
   root.querySelectorAll('.fl-uni').forEach(chip => { const u = chip.dataset.uni; chip.onmouseenter = () => highlight(uniLines(u)); chip.onmouseleave = () => highlight(); chip.onclick = () => pinToggle({ key:`uni:${u}`, uni:u, lines:uniLines(u) }); });
   // hovering: the innermost element with lines under the mouse decides what lights up
   svg.addEventListener('mousemove', e => { if(S.drag || S.pan || S.marquee) return; const el = linesEl(e.target); if(el !== S.hoverEl){ S.hoverEl = el; highlight(el ? linesOf(el) : null); } });

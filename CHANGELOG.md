@@ -4,6 +4,20 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.3.2 (unreleased)
+
+- Confetti and "Patch perfect!" when a show goes from having issues to none (Settings > General > Fun switches it off).
+- Festival wrapped (Help menu): a shareable card with the numbers of your show; save or copy it as an image.
+- Signal Flow: "Share image" copies the drawing as a picture for a chat or e-mail.
+
+<details><summary>Nederlands</summary>
+
+- Confetti en "Patch perfect!" zodra een show van problemen naar geen problemen gaat (Instellingen > Algemeen > Plezier zet het uit).
+- Festival wrapped (Help-menu): een deelbare kaart met de cijfers van je show; opslaan of kopiëren als afbeelding.
+- Signaalstroom: "Afbeelding delen" kopieert de tekening als plaatje voor een chat of e-mail.
+
+</details>
+
 ## 0.3.1 — 2026-10-02
 
 - Signal Flow page (sidebar, Cmd/Ctrl+4): a drawing of how the data runs from the rack to every object. Hover a universe, a port, a line or a block to follow it with the data moving along; click to pin; give LK blocks your own name (issue #3).

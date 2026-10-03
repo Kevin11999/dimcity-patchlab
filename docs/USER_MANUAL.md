@@ -374,6 +374,11 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.3.2 (unreleased)
+- Confetti and "Patch perfect!" when a show goes from having issues to none (Settings > General > Fun switches it off).
+- Festival wrapped (Help menu): a shareable card with the numbers of your show; save or copy it as an image.
+- Signal Flow: "Share image" copies the drawing as a picture for a chat or e-mail.
+
 ### Version 0.3.1 — 2026-10-02
 - Signal Flow page (sidebar, Cmd/Ctrl+4): a drawing of how the data runs from the rack to every object. Hover a universe, a port, a line or a block to follow it with the data moving along; click to pin; give LK blocks your own name (issue #3).
 - Racks in the Signal Flow are drawn like in the Rack Builder (rails, U numbers, the faces of nodes, splitters and panels with their sockets); the patch inside a rack lights up when you hover it. LK, Veam and DMX cables differ in thickness, DMX lines have the colour of their universe and every line leaves a block straight from its side.
@@ -772,6 +777,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.3.2 (nog niet uitgebracht)
+- Confetti en "Patch perfect!" zodra een show van problemen naar geen problemen gaat (Instellingen > Algemeen > Plezier zet het uit).
+- Festival wrapped (Help-menu): een deelbare kaart met de cijfers van je show; opslaan of kopiëren als afbeelding.
+- Signaalstroom: "Afbeelding delen" kopieert de tekening als plaatje voor een chat of e-mail.
 
 ### Versie 0.3.1 — 2026-10-02
 - Pagina Signaalstroom (zijbalk, Cmd/Ctrl+4): een tekening van hoe de data van het rek naar elk object loopt. Beweeg over een universe, een poort, een lijn of een blok om hem te volgen met bewegende data; klik om vast te zetten; geef LK-blokken een eigen naam (issue #3).

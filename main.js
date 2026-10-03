@@ -85,7 +85,7 @@ const MENU_NL = {
   'Project Overview':'Projectoverzicht', 'Validation':'Validatie', 'Patch List':'Patchlijst', 'Recalculate':'Herberekenen',
   'Network':'Netwerk', 'Network Planner…':'Netwerkplanner…', 'Signal Flow…':'Signaalstroom…', 'Device Builder…':'Device Builder…', 'Rack Builder…':'Rack Builder…',
   'Export Library…':'Bibliotheek exporteren…', 'Import Library…':'Bibliotheek importeren…', 'Show Library File':'Bibliotheekbestand tonen',
-  'Help':'Help', 'Take the Tour':'Rondleiding', 'Keyboard Shortcuts':'Sneltoetsen', 'User Manual':'Handleiding', 'Take the Tour…':'Rondleiding…', 'Open Demo Show':'Demo-show openen', 'Send a Request…':'Een verzoek sturen…', "What's New":'Wat is er nieuw'
+  'Help':'Help', 'Take the Tour':'Rondleiding', 'Keyboard Shortcuts':'Sneltoetsen', 'User Manual':'Handleiding', 'Take the Tour…':'Rondleiding…', 'Open Demo Show':'Demo-show openen', 'Festival Wrapped…':'Festival wrapped…', 'Send a Request…':'Een verzoek sturen…', "What's New":'Wat is er nieuw'
 };
 const T = s => (menuLang === 'nl' && MENU_NL[s]) || s;
 
@@ -190,6 +190,7 @@ function buildMenu(recent = lastRecent){
         { type: 'separator' },
         { label: T('Take the Tour…'), click: () => send('tourMenu') },
         { label: T('Open Demo Show'), click: () => send('demo') },
+        { label: T('Festival Wrapped…'), click: () => send('wrapped') },
         { label: T('Keyboard Shortcuts'), click: () => send('shortcuts') },
         ...(isMac ? [] : [{ type: 'separator' }, { label: T('Check for Updates…'), click: () => send('checkUpdates') }, { label: `${T('About')} ${APP_NAME}`, click: () => send('about') }])
       ]

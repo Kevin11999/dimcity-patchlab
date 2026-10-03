@@ -2269,6 +2269,8 @@ async function runCommand(cmd, arg){
     case 'checkUpdates':  return window.Updater?.check?.({ manual:true });
     case 'help':          return window.Help?.open?.(arg);
     case 'demo':          return window.Demo?.open?.();
+    case 'wrapped':       return window.Fun?.wrapped?.();
+    case 'shareFlow':     return window.Fun?.shareFlow?.();
     case 'tourMenu':      return UI?.chooseTour?.();
     case 'request':       return window.Help?.openRequest?.();
   }

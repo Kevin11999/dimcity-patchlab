@@ -599,6 +599,19 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.3.2', date:'unreleased',
+    en:[
+      'Confetti and "Patch perfect!" when a show goes from having issues to none (Settings > General > Fun switches it off).',
+      'Festival wrapped (Help menu): a shareable card with the numbers of your show; save or copy it as an image.',
+      'Signal Flow: "Share image" copies the drawing as a picture for a chat or e-mail.'
+    ],
+    nl:[
+      'Confetti en "Patch perfect!" zodra een show van problemen naar geen problemen gaat (Instellingen > Algemeen > Plezier zet het uit).',
+      'Festival wrapped (Help-menu): een deelbare kaart met de cijfers van je show; opslaan of kopiëren als afbeelding.',
+      'Signaalstroom: "Afbeelding delen" kopieert de tekening als plaatje voor een chat of e-mail.'
+    ]
+  },
+  {
     version:'0.3.1', date:'2026-10-02',
     en:[
       'Signal Flow page (sidebar, Cmd/Ctrl+4): a drawing of how the data runs from the rack to every object. Hover a universe, a port, a line or a block to follow it with the data moving along; click to pin; give LK blocks your own name (issue #3).',

@@ -19,7 +19,8 @@ const DEFAULTS = {
   },
   recovery: true,                // herstelbestand bijhouden voor na een crash
   updates: { repo:'Kevin11999/dimcity-patchlab', token:'', checkOnStart:true },
-  library: { checkOnStart:true }     // standaardbibliotheek (Luminex / ELC …) van GitHub bijwerken
+  library: { checkOnStart:true },    // standaardbibliotheek (Luminex / ELC …) van GitHub bijwerken
+  fun: { confetti:true }             // confetti zodra de validatie schoon is
 };
 
 let S = structuredClone(DEFAULTS);
@@ -78,7 +79,8 @@ function open(section = 'general'){
     general: () => `
       <div class="rb-group"><div class="rb-label">Appearance</div>${seg('theme', S.theme, [['dark', 'Dark'], ['light', 'Light'], ['system', 'Match system']])}</div>
       <div class="rb-group"><div class="rb-label">Language</div>${seg('language', S.language, [['en', 'English'], ['nl', 'Nederlands']])}
-        <div class="hint">Changes the app and its menus. PDF reports stay in English.</div></div>`,
+        <div class="hint">Changes the app and its menus. PDF reports stay in English.</div></div>
+      <div class="rb-group"><div class="rb-label">Fun</div>${sw('fun.confetti', S.fun.confetti, 'Confetti when a show has no errors or warnings left', 'A little party when the validation turns clean. Switch it off if you prefer a quiet app.')}</div>`,
     autosave: () => {
       const a = S.autosave;
       return `

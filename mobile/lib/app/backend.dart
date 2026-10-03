@@ -91,8 +91,7 @@ class AppBackend extends ChangeNotifier {
       return;
     }
     if (!useBroadcast) artnet!.broadcastTargets.clear();
-    final bc = network.directedBroadcast;
-    if (bc != null && useBroadcast) artnet!.broadcastTargets.add(bc);
+    if (useBroadcast) artnet!.broadcastTargets.addAll(network.broadcastTargets);
     if (settings.extraBroadcast.isNotEmpty && useBroadcast) artnet!.broadcastTargets.add(settings.extraBroadcast);
     _nodesSub = artnet!.nodesChanged.listen((_) => _scheduleRebuild());
     if (enableRdmnet) rdmnet = RdmnetService(cid: settings.cid, controllerUid: settings.controllerUid);

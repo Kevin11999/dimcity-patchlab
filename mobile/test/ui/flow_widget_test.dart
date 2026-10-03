@@ -28,7 +28,7 @@ void main() {
       // Nodes screen: the scan (2.5 s) finds the demo node.
       await wait(const Duration(seconds: 4));
       expect(find.text('LumiNode 8 demo'), findsOneWidget);
-      expect(find.textContaining('Je telefoon'), findsOneWidget);
+      expect(find.textContaining('Dit apparaat'), findsOneWidget);
 
       await tester.tap(find.text('LumiNode 8 demo'));
       await wait(const Duration(milliseconds: 400));

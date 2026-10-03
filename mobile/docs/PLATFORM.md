@@ -39,6 +39,26 @@ Android app. Reasons for this choice over Swift + Kotlin or React Native:
   multicast / broadcast packets to save power.
 * Application id `nl.dimcity.patchlab.rdm`.
 
+## Windows
+
+* Flutter desktop, 64-bit Windows 10/11. The code base is the same; the differences are small:
+  * `SO_REUSEPORT` does not exist on Windows, so the UDP socket only sets `SO_REUSEADDR` there
+    (`lib/net/udp.dart`). Another Art-Net program on the same laptop can still hold port 6454 if it also
+    allows sharing; otherwise the app reports that the socket could not be opened.
+  * Windows reports an ICMP "port unreachable" from an earlier UDP send as a socket error; the socket ignores it
+    and keeps listening.
+  * A laptop has several adapters. `LocalNetwork` lists every IPv4 address, ranks Art-Net ranges (2.x / 10.x)
+    first and virtual adapters last, accepts a node that is in any of the subnets, and sends ArtPoll to the
+    directed broadcast of each subnet. Dart cannot read the real subnet mask on desktop, so it is guessed from
+    the address class and /8, /16 and /24 broadcasts are all tried (marked `~` in the UI).
+  * Windows sends `255.255.255.255` out of one adapter only, which is why per-subnet broadcasts matter.
+* Firewall: the installer adds an inbound UDP rule for the program on all profiles. A network without internet
+  is often classified *Public*, so a private-only rule would not help. Uninstalling removes the rule.
+* The installer (Inno Setup, `windows/installer/patchlab_rdm.iss`) ships the three Visual C++ runtime DLLs
+  next to the exe, so a clean machine needs no separate download. It is **not code-signed**; for a
+  signed build add a code-signing certificate to the workflow.
+* Layout: on a wide window the phone layout stays in a centred 760 px column.
+
 ## Network
 
 * Art-Net: UDP 6454 (bound with `SO_REUSEADDR` / `SO_REUSEPORT`).

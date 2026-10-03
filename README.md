@@ -31,7 +31,7 @@ The installers are not code-signed (no Apple / Microsoft certificate yet), so th
 - **Windows**: SmartScreen shows "Windows protected your PC" → *More info* → *Run anyway*.
 - **macOS**: right-click (or Ctrl-click) the app → *Open* → *Open*. Or System Settings → Privacy & Security → *Open Anyway*.
 
-PatchLab itself is a desktop app (macOS, Windows, Linux). The **phone app for addressing fixtures on site** (RDM over Art-Net / RDMnet on Luminex and ELC nodes, iPhone and Android) lives in [`mobile/`](mobile/README.md) and is built separately with Flutter.
+PatchLab itself is a desktop app (macOS, Windows, Linux). The **app for addressing fixtures on site** (RDM over Art-Net / RDMnet on Luminex and ELC nodes; Android, iPhone and a Windows installer for laptops) lives in [`mobile/`](mobile/README.md) and is built separately with Flutter.
 
 ## Requests and bug reports
 
@@ -54,7 +54,7 @@ Project layout, data model and conventions: [docs/PROJECT_STRUCTURE.md](docs/PRO
 
 ### Mobile app (PatchLab RDM)
 
-The RDM addressing app for iPhone / Android is a Flutter project in `mobile/`:
+The RDM addressing app (Android, iPhone, Windows) is a Flutter project in `mobile/`:
 
 ```bash
 cd mobile

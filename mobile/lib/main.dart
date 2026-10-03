@@ -37,6 +37,11 @@ class _PatchLabAppState extends State<PatchLabApp> {
           darkTheme: buildTheme(Brightness.dark),
           themeMode: ThemeMode.dark,
           debugShowCheckedModeBanner: false,
+          // On a wide window (laptop) keep the phone layout in a centred column.
+          builder: (context, child) => ColoredBox(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 760), child: child)),
+          ),
           home: NodesScreen(backend: widget.backend, settings: widget.settings),
         ),
       );

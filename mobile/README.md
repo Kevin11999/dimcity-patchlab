@@ -1,6 +1,6 @@
 # DimCity PatchLab RDM (mobile)
 
-Native iPhone / Android app (Flutter) for the lighting technician on site:
+Native app (Flutter) for Android, iPhone and **Windows** for the lighting technician on site:
 find Luminex / ELC nodes on the Wi-Fi, see and program their ports, run RDM
 discovery per port, align the fixtures by making them blink one by one,
 choose a mode per fixture type, let the app calculate every address, send
@@ -13,6 +13,26 @@ E1.37-7 endpoints) as the second route. The technician does not see the
 difference. Details and assumptions: [docs/PROTOCOLS.md](docs/PROTOCOLS.md).
 Platform notes (iOS multicast entitlement, Android multicast lock):
 [docs/PLATFORM.md](docs/PLATFORM.md).
+
+## Install on Windows (test build)
+
+1. Download `PatchLab-RDM-Setup-<version>-b<n>.exe` from the **Releases** page (pre-release `mobile-v…`),
+   or from GitHub → Actions → *Mobile* → latest run → **Artifacts** → `PatchLab-RDM-windows` (a zip with the installer
+   and a portable zip).
+2. Run it. The installer is not code-signed, so SmartScreen shows *Windows protected your PC*:
+   click **More info**, then **Run anyway**.
+3. The installer adds a Start menu shortcut (and optionally a desktop icon) and a Windows Firewall rule that lets
+   the app receive Art-Net replies (UDP, all network profiles). Without it the node list stays empty.
+4. Connect the laptop to the node's network, by cable or Wi-Fi, **in the node's IP range** (Luminex / ELC default to
+   2.x.x.x or 10.x.x.x with mask 255.0.0.0): give that network adapter a fixed IP such as 2.0.0.200.
+   The app looks on every network adapter of the laptop. The *This device* line shows them, with `~` before the
+   prefix when Windows did not tell the real mask and the app guessed it from the address.
+5. No node at hand? Settings → **Demo mode**.
+
+Needs Windows 10 or 11, 64-bit. The Visual C++ runtime is included in the installer. Uninstall through
+Windows Settings → Apps; that also removes the firewall rule. To build it yourself you need Windows with
+Visual Studio 2022 (Desktop development with C++): `flutter build windows --release`, then compile
+`windows/installer/patchlab_rdm.iss` with Inno Setup 6.
 
 ## Install on Android (test build)
 

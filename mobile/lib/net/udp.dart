@@ -21,6 +21,9 @@ class RawUdpSocket implements UdpSocket {
           if (!_controller.isClosed) _controller.add(d!);
         }
       }
+    }, onError: (Object _) {
+      // Windows reports ICMP "port unreachable" for an earlier send as a socket error
+      // (connection reset). That is not fatal for UDP: keep listening.
     }, onDone: () {
       if (!_controller.isClosed) unawaited(_controller.close());
     });
@@ -36,7 +39,8 @@ class RawUdpSocket implements UdpSocket {
       InternetAddress.anyIPv4,
       port,
       reuseAddress: true,
-      reusePort: reusePort,
+      // SO_REUSEPORT does not exist on Windows; SO_REUSEADDR (above) already lets sockets share the port there.
+      reusePort: reusePort && !Platform.isWindows,
     );
     s.broadcastEnabled = broadcast;
     s.multicastLoopback = false;

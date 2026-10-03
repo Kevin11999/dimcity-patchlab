@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/backend.dart';
 import '../app/settings.dart';
+import '../app/version.dart';
 import '../l10n/strings.dart';
 import 'widgets.dart';
 
@@ -92,7 +93,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Divider(),
             Text(t('set.about'), style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
-            Text(t('set.about.text', {'version': '0.1.0'})),
+            Text(t('set.about.text', {'version': appVersion})),
           ],
         ),
       ),

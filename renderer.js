@@ -957,7 +957,24 @@ function kpi(label, value, icon, cls='', foot=''){
 }
 
 // ---- Centrale render ----
+// Veams that are patched on a Veam4 socket of a rack / loose spider (they need no LK link): { V101 -> 'Veam3' }
+let SOCK = null;
+function veamSockets(){
+  if(SOCK) return SOCK;
+  SOCK = new Map();
+  try {
+    const E = window.RackEngine;
+    for(const dc of sortedDims()){
+      if(!E?.hasRackPlan?.(MODEL, dc)) continue;
+      const P = E.computeRackPlan(MODEL, dc);
+      for(const v of [...P.groups.flatMap(g => g.vims), ...P.soloVims]) if(v.used) SOCK.set(v.used.id, v.label);
+    }
+  } catch {}
+  return SOCK;
+}
+const veamIsPatched = vid => (MODEL.veamUse.get(vid) || []).length >= 1 || veamSockets().has(vid);
 function renderAll(){
+  SOCK = null;
   renderSummary();
   renderIssues();
   renderRight();
@@ -1036,7 +1053,7 @@ function renderSummary(){
         const ves = [...MODEL.byVeam.values()].filter(x=>x.dimcity===dc).sort(byId);
         sub = `<div class="nav-sub">${lks.map(lk=>navEntity('LK', lk.id, 'box', detail && sel.kind==='LK' && sel.id===lk.id)).join('')}${ves.map(v=>{
           const uses = MODEL.veamUse.get(v.id)||[];
-          const mark = uses.length>1 ? '<span class="count err">2×</span>' : uses.length===0 ? '<span class="count">free</span>' : '';
+          const mark = uses.length>1 ? '<span class="count err">2×</span>' : (uses.length===0 && !veamSockets().has(v.id)) ? '<span class="count">free</span>' : '';
           return navEntity('VEAM', v.id, 'plug', detail && sel.kind==='VEAM' && sel.id===v.id, mark);
         }).join('')}${!lks.length && !ves.length ? '<div class="nav-empty">No LK or Veam yet</div>' : ''}</div>`;
       }
@@ -1050,6 +1067,7 @@ function renderSummary(){
 
 // ---- Router ----
 function renderRight(){
+  SOCK = null;
   const sel = MODEL.selected || {};
   const detail = MODEL.ui.rightMode === 'DETAIL' && sel.kind;
   const view = detail ? 'DETAIL' : (MODEL.ui.view || 'HOME');
@@ -1100,7 +1118,7 @@ function renderRightHome(){
   for(const [, s] of MODEL.uniStats){ for(const u of s.counts.keys()) allUnis.add(u); points += s.totalPorts; }
   const errs = MODEL.issues.filter(i=>i.severity==='RED').length;
   const warns = MODEL.issues.length - errs;
-  const linkedVeams = [...MODEL.byVeam.keys()].filter(v=>(MODEL.veamUse.get(v)||[]).length===1).length;
+  const linkedVeams = [...MODEL.byVeam.keys()].filter(v=>(MODEL.veamUse.get(v)||[]).length===1 || ((MODEL.veamUse.get(v)||[]).length===0 && veamSockets().has(v))).length;
 
   const kpis = `<div class="kpis">
     ${kpi('DimCities', dims.length, 'layers')}
@@ -1118,7 +1136,7 @@ function renderRightHome(){
     const iss = issuesForDim(dc);
     const e = iss.filter(i=>i.severity==='RED').length, w = iss.length - e;
     const vs = [...(s.veams||[])];
-    const linked = vs.filter(v=>(MODEL.veamUse.get(v)||[]).length>=1).length;
+    const linked = vs.filter(v=>veamIsPatched(v)).length;
     const status = e ? `<span class="tag red">${plural(e,'error')}</span>` : w ? `<span class="tag yellow">${plural(w,'warning')}</span>` : '<span class="tag green">OK</span>';
     return `<tr class="clickable-row" data-open-kind="DIM" data-open-id="${esc(dc)}">
       <td><span class="dim-dot" style="display:inline-block;margin-right:8px;vertical-align:-1px;background:${dimColor(dc)}"></span><b>${esc(dc)}</b></td>
@@ -1323,6 +1341,8 @@ function veamLinkBadge(vid){
   const uses = MODEL.veamUse.get(vid)||[];
   if(uses.length===1) return `<span class="veam-link-badge good">${I('check',12)} ${esc(uses[0].lkId)} · Veam ${'ABC'[uses[0].slot-1]}</span>`;
   if(uses.length>1) return `<span class="veam-link-badge bad">${I('alert',12)} Linked ${uses.length}×: ${uses.map(u=>esc(u.lkId)).join(', ')}</span>`;
+  const sk = veamSockets().get(vid);
+  if(sk) return `<span class="veam-link-badge good">${I('check',12)} On ${esc(sk)} in the rack</span>`;
   return '<span class="veam-link-badge warn">Not linked</span>';
 }
 function universeInfoForDim(dc){
@@ -1448,7 +1468,7 @@ function renderDimCityDetail(dc){
   const focusU = MODEL.ui.dimFocusUniverse?.[dc] || null;
   const iss = issuesForDim(dc);
   const errs = iss.filter(i=>i.severity==='RED').length, warns = iss.length - errs;
-  const linked = veams.filter(v=>(MODEL.veamUse.get(v.id)||[]).length>=1).length;
+  const linked = veams.filter(v=>veamIsPatched(v.id)).length;
 
   pageHead({
     crumbs:`<a data-nav-view="HOME">Overview</a>${I('chevronRight',12)}<span>DimCities</span>`,
@@ -1593,7 +1613,10 @@ function renderVeamDetail(vid){
     sub: loc ? `Main location: ${esc(loc)}` : 'No locations patched yet',
     actions:`<button data-open-kind="DIM" data-open-id="${esc(ve.dimcity)}">${I('chevronLeft',15)}Back to ${esc(ve.dimcity)}</button><button class="danger" data-del-veam="${esc(ve.id)}">${I('trash',15)}Delete Veam</button>`
   });
-  const link = uses.length===0
+  const onSock = veamSockets().get(ve.id);
+  const link = (uses.length===0 && onSock)
+    ? `<div class="empty" style="padding:20px"><p>${esc(ve.id)} is patched on <b>${esc(onSock)}</b> of the rack, so it does not need to be linked to an LK.</p></div>`
+    : uses.length===0
     ? `<div class="empty" style="padding:20px"><p>This Veam is not linked to an LK yet. Open an LK in ${esc(ve.dimcity)} and pick ${esc(ve.id)} in one of its Veam slots.</p></div>`
     : `<table class="data-table"><thead><tr><th>LK</th><th>Slot</th><th>LK ports</th><th></th></tr></thead><tbody>${uses.map(u=>`<tr><td><b>${esc(u.lkId)}</b></td><td>${SLOT_META[u.slot].name}</td><td>${SLOT_META[u.slot].range}</td><td class="num"><button class="sm ghost" data-open-kind="LK" data-open-id="${esc(u.lkId)}">Open ${I('arrowRight',13)}</button></td></tr>`).join('')}</tbody></table>${uses.length>1?'<div class="hint" style="padding:0 16px 12px;color:var(--red)">A Veam can only be connected to one LK slot. Remove the extra links.</div>':''}`;
   const rows = [1,2,3,4].map(p=>{

@@ -4,7 +4,7 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
-## 0.3.2 (unreleased)
+## 0.3.2 — 2026-10-03
 
 - Stickers on Herma A4 label sheets (laser printer): 4680 / 4690 / 4102 / 4112 and 4097 / 4232 / 4221, taken from the HERMA templates, plus custom sheets. Cable labels (both ends), panel connection labels, node ports, racks / nodes / switches / splitters and QR stickers, with company and show images, per DimCity, with a start position for part-used sheets and a calibration sheet.
 - Network cables: CSV rows C101 / C101.1 (a Cat loom of 4 lines, VLAN in the third column) for each DB, shown on the DimCity page, in the patch list, the PDF and as stickers.

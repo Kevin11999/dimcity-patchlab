@@ -2117,7 +2117,7 @@ function renderDimNetworkDevices(dc){
 
   const nodeHtml = plan.nodes.map((n,idx)=>{
     const nt = nd.nodeTypes.find(x=>x.id===n.typeId);
-    if(!nt) return '';
+    if(!nt) return `<div class="network-instance node-instance" style="--device-color:#ef4444"><div class="network-instance-head"><div><b>${esc(n.id || '')}</b> <span class="muted">${esc(n.name || '')}</span><div class="subtle" style="font-size:12px">${I('alert',13)} Node type ${esc(n.typeId || '?')} is not in this show any more</div></div><button class="sm danger dimRemoveNode" data-node-index="${idx}">${I('trash',13)}Remove</button></div></div>`;
     if(!Array.isArray(n.universes)) n.universes = [];
     return `<div class="network-instance node-instance" style="--device-color:${safeHex(nt.color || '#4c9dff')}">
       <div class="network-instance-head"><div><b>${esc(n.id || '')}</b> <span class="muted">${esc(n.name || '')}</span><div class="subtle" style="font-size:12px">${esc([nt.brand, nt.name || nt.id].filter(Boolean).join(' '))} · segment ${esc(n.segment || '')} · ${Number(nt.portCount||0)} ports</div></div><button class="sm danger dimRemoveNode" data-node-index="${idx}">${I('trash',13)}Remove</button></div>
@@ -2134,7 +2134,7 @@ function renderDimNetworkDevices(dc){
   }).join('');
   const splitterHtml = plan.splitters.map((inst,idx)=>{
     const sp = nd.splitterTypes.find(x=>x.id===inst.typeId);
-    if(!sp) return '';
+    if(!sp) return `<div class="network-instance splitter-instance" style="--device-color:#ef4444"><div class="network-instance-head"><div><b>${esc(inst.id || '')}</b> <span class="muted">${esc(inst.name || '')}</span><div class="subtle" style="font-size:12px">${I('alert',13)} Splitter type ${esc(inst.typeId || '?')} is not in this show any more</div></div><button class="sm danger dimRemoveSplitter" data-splitter-index="${idx}">${I('trash',13)}Remove</button></div></div>`;
     return `<div class="network-instance splitter-instance" style="--device-color:${safeHex(sp.color || '#f2b33d')}">
       <div class="network-instance-head"><div><b>${esc(inst.id || '')}</b> <span class="muted">${esc(inst.name || '')}</span><div class="subtle" style="font-size:12px">${esc([sp.brand, sp.name || sp.id].filter(Boolean).join(' '))} · ${sp.mode==='AB'?'A/B input':'Single input'} · ${Number(sp.outputCount||0)} outputs</div></div><button class="sm danger dimRemoveSplitter" data-splitter-index="${idx}">${I('trash',13)}Remove</button></div>
       <div class="network-instance-fields">

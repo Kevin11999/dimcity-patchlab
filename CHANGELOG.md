@@ -8,11 +8,13 @@ All notable changes to DimCity PatchLab. The entry of a version is also the text
 
 - Add a location anywhere: the + next to DimCities in the sidebar now has Add DB (next number), Add FOH (front of house) and Add location with a name; the Network page has + DB and + FOH next to the DimCity chips (as Setup already had).
 - A switch that sits in a rack can now be removed on the Network page (button Remove from rack); before, only switches added to the DimCity itself had a Remove button.
+- Nodes and splitters whose type no longer exists (old files) now show as a red card with a Remove button instead of staying invisible.
 
 <details><summary>Nederlands</summary>
 
 - Een locatie toevoegen kan overal: de + naast DimCities in de zijbalk heeft nu DB toevoegen (volgend nummer), FOH toevoegen (front of house) en Locatie met een naam toevoegen; de pagina Netwerk heeft + DB en + FOH naast de DimCity-chips (zoals Setup al had).
 - Een switch die in een rek zit kan nu op de pagina Netwerk worden verwijderd (knop Uit rek halen); eerder hadden alleen switches die aan de DimCity zelf waren toegevoegd een knop Verwijderen.
+- Nodes en splitters waarvan het type niet meer bestaat (oude bestanden) verschijnen nu als rode kaart met een knop Verwijderen, in plaats van onzichtbaar te blijven.
 
 </details>
 

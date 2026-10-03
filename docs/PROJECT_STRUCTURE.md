@@ -40,6 +40,9 @@ ui/flow.js         Signal Flow page: graph from the rack patch (node → splitte
                    hover tracing, draggable blocks, own LK names; saved in MODEL.flow
 library/standard-library.json  Standard device types (Luminex, ELC, panels, racks); synced into the
                    personal library at start and updatable from GitHub (Settings → Device library)
+mobile/            The phone app (Flutter, iOS + Android) for RDM addressing on site: Art-Net node
+                   discovery and port programming, RDM over Art-Net and RDMnet, align, address
+                   calculation, verify. Separate build and tests; see mobile/README.md
 ```
 
 Commands from the native menu, toolbar buttons and `data-cmd` attributes all go through

@@ -31,7 +31,7 @@ The installers are not code-signed (no Apple / Microsoft certificate yet), so th
 - **Windows**: SmartScreen shows "Windows protected your PC" → *More info* → *Run anyway*.
 - **macOS**: right-click (or Ctrl-click) the app → *Open* → *Open*. Or System Settings → Privacy & Security → *Open Anyway*.
 
-PatchLab is a desktop app (macOS, Windows, Linux); there is no iPhone / iPad version.
+PatchLab itself is a desktop app (macOS, Windows, Linux). The **phone app for addressing fixtures on site** (RDM over Art-Net / RDMnet on Luminex and ELC nodes, iPhone and Android) lives in [`mobile/`](mobile/README.md) and is built separately with Flutter.
 
 ## Requests and bug reports
 
@@ -51,6 +51,20 @@ npm run manual     # regenerate docs/USER_MANUAL.md and CHANGELOG.md from core/m
 ```
 
 Project layout, data model and conventions: [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md).
+
+### Mobile app (PatchLab RDM)
+
+The RDM addressing app for iPhone / Android is a Flutter project in `mobile/`:
+
+```bash
+cd mobile
+flutter pub get
+flutter analyze
+flutter test        # codec tests + the whole flow against a simulated node
+flutter run         # on a connected phone
+```
+
+How it finds nodes and talks RDM (Art-Net RDM, RDMnet), what was researched about Luminex / ELC and which assumptions still need a check on real hardware: [mobile/docs/PROTOCOLS.md](mobile/docs/PROTOCOLS.md). iOS multicast entitlement and Android multicast lock: [mobile/docs/PLATFORM.md](mobile/docs/PLATFORM.md). GitHub Actions (`.github/workflows/mobile.yml`) analyzes and tests it on every change.
 
 ### Keeping the manual up to date
 

@@ -1,0 +1,27 @@
+# Analyzes and tests the mobile app (mobile/) on every change to it.
+name: Mobile
+
+on:
+  push:
+    paths: ['mobile/**', '.github/workflows/mobile.yml']
+  pull_request:
+    paths: ['mobile/**', '.github/workflows/mobile.yml']
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Analyze and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.6
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test

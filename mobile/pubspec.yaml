@@ -1,0 +1,28 @@
+name: patchlab_rdm
+description: "DimCity PatchLab RDM – address DMX fixtures on site through Luminex / ELC nodes (Art-Net RDM and RDMnet)."
+publish_to: 'none'
+
+# Version of the mobile app (independent of the desktop app in the repository root).
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  # mDNS / DNS-SD browsing for RDMnet brokers (_rdmnet._tcp).
+  multicast_dns: ^0.3.3
+  # Own Wi-Fi IP address, subnet mask and broadcast address (subnet check against the nodes).
+  network_info_plus: ^8.2.2
+  # Settings: language, RDMnet scope, manual broker, controller UID.
+  shared_preferences: ^2.5.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

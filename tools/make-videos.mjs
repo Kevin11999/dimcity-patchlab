@@ -170,7 +170,7 @@ async function record(part, L) {
 
 const want = process.argv.slice(2).filter(a => !a.startsWith('-'));
 const only = want.length ? PARTS.filter(p => want.includes(p.id)) : PARTS;
-for (const L of ['en', 'nl']) for (const p of only) { console.log('recording', p.id, L); await record(p, L); }
+for (const L of (process.env.VIDEO_LANGS || 'en,nl').split(',')) for (const p of only) { console.log('recording', p.id, L); await record(p, L); }
 
 // The 'complete tour' is not a separate file: the Help panel plays the parts one after another.
 fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(PARTS.map(p => ({ id: p.id, title: p.title })), null, 1));

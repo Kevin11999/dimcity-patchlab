@@ -1,6 +1,6 @@
 {
   "name": "lk-veam-tool",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "DimCity PatchLab – LK/Veam patch en DimCity universe validator",
   "author": "Kevin van Setten",
   "main": "main.js",

@@ -265,6 +265,12 @@ The network plan lists the DMX nodes and splitters of every DimCity with their I
 
 The quickest way to a complete plan is to build it from the rack patch: **Use as network plan** on the [Racks card](#racks).
 
+### Several addresses per device and the FENT scheme
+- A node can have **more than one address**: use **Add address** on the node. This is for a device that is managed on one VLAN and sends or scans on another: a management address (VLAN 1090) and a lighting address (VLAN 1040), optionally a scan address (VLAN 1041). For a node with two RJ45 ports you choose which port (ETH1 or ETH2) carries which address; on a node with one port both addresses share it and the switch port becomes a trunk.
+- **FENT** (Framework Entertainment Netwerk Technologie v1.1) is the standard numbering for entertainment networks. Switch it on in the **FENT** card on the Network Planner page. All addresses are 10.x.x.x with mask 255.255.0.0; the second byte is the discipline (management 10.90, lighting 10.40); the third byte splits location (1-99) from production (101-199), here taken from the DimCity number (DB02 becomes 102 in production); the fourth byte is the device, from 11 (1-10 and 251-254 are for switches and routers).
+- **Apply to all DimCities** gives every node a management and a lighting address in one go and replaces its current addresses. **Check** warns about duplicates, an address that belongs to another VLAN, DHCP ranges, reserved addresses and a mask other than 255.255.0.0.
+- The **Switch ports** list shows, per DimCity, which switch port each RJ45 of each device gets, access or trunk, and the VLAN colour from FENT. Export PDF prints it in the Network section, and Stickers can print a label per port. Set the VLAN IDs of your Luminex GigaCore groups to the FENT numbers; Luminex uses group × 100 by default.
+
 <a id="flow"></a>
 ## Signal flow
 
@@ -326,6 +332,7 @@ Stickers (menu File > Print Stickers, the **Stickers** button in the toolbar, or
 - **Panel connection labels**, one per LK7-1 / Veam4 socket, to stick above the socket.
 - **Node port labels**: universe and where each port goes.
 - **Racks, nodes, switches and splitters**.
+- **Switch port labels**: port, device and VLAN (in the FENT colour) for the switch.
 - **QR stickers** with the patch as plain text (one per LK, Veam and rack); scanning shows the text on any phone, no server needed.
 - A **company image** and a **show image** on the labels (defaults: the company logo of the report brand and the logo of the project, or choose your own).
 
@@ -403,6 +410,7 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 
 ### Version 0.3.2 (unreleased)
 - Stickers on Herma A4 label sheets (laser printer): 4680 / 4690 / 4102 / 4112 and 4097 / 4232 / 4221, taken from the HERMA templates, plus custom sheets. Cable labels (both ends), panel connection labels, node ports, racks / nodes / switches / splitters and QR stickers, with company and show images, per DimCity, with a start position for part-used sheets and a calibration sheet.
+- Network: several addresses per device (management, lighting, scan) and the FENT scheme (v1.1) with one-click addressing of all nodes, checks, a VLAN table and a switch port plan with access/trunk and VLAN colours, also in the PDF and as switch port stickers.
 - Confetti and "Patch perfect!" when a show goes from having issues to none (Settings > General > Fun switches it off).
 - Festival wrapped (Help menu): a shareable card with the numbers of your show; save or copy it as an image.
 - Signal Flow: "Share image" copies the drawing as a picture for a chat or e-mail.
@@ -697,6 +705,12 @@ Het netwerkplan somt de DMX-nodes en splitters van elke DimCity op met hun IP-ad
 
 De snelste weg naar een compleet plan is het uit de rack-patch opbouwen: **Gebruik als netwerkplan** op de [Racks-kaart](#racks-nl).
 
+### Meerdere adressen per apparaat en het FENT-schema
+- Een node kan **meer dan één adres** hebben: gebruik **Adres toevoegen** bij de node. Dat is voor een apparaat dat op het ene VLAN wordt beheerd en op een ander VLAN data stuurt of scant: een beheeradres (VLAN 1090) en een lichtadres (VLAN 1040), eventueel een scanadres (VLAN 1041). Bij een node met twee RJ45-poorten kies je welke poort (ETH1 of ETH2) welk adres draagt; bij een node met één poort delen beide adressen die poort en wordt de switchpoort een trunk.
+- **FENT** (Framework Entertainment Netwerk Technologie v1.1) is de standaardnummering voor entertainmentnetwerken. Zet het aan in de kaart **FENT** op de Netwerkplanner-pagina. Alle adressen zijn 10.x.x.x met masker 255.255.0.0; de tweede byte is de discipline (beheer 10.90, licht 10.40); de derde byte scheidt locatie (1-99) van productie (101-199), hier afgeleid van het DimCity-nummer (DB02 wordt 102 bij productie); de vierde byte is het apparaat, vanaf 11 (1-10 en 251-254 zijn voor switches en routers).
+- **Toepassen op alle DimCities** geeft elke node in één keer een beheer- en een lichtadres en vervangt zijn huidige adressen. **Controle** waarschuwt voor dubbele adressen, een adres dat bij een ander VLAN hoort, DHCP-reeksen, gereserveerde adressen en een ander masker dan 255.255.0.0.
+- De lijst **Switchpoorten** toont per DimCity welke switchpoort elke RJ45 van elk apparaat krijgt, access of trunk, en de VLAN-kleur uit FENT. Export PDF print hem in de sectie Netwerk, en Stickers kan per poort een label printen. Zet de VLAN-ID's van je Luminex GigaCore-groepen op de FENT-nummers; Luminex gebruikt standaard groep × 100.
+
 <a id="flow-nl"></a>
 ## Signaalstroom
 
@@ -758,6 +772,7 @@ Stickers (menu Bestand > Stickers printen, de knop **Stickers** in de werkbalk, 
 - **Aansluitlabels paneel**, één per LK7-1- / Veam4-aansluiting, om boven de aansluiting te plakken.
 - **Nodepoort-labels**: universe en waar elke poort heen gaat.
 - **Racks, nodes, switches en splitters**.
+- **Switchpoort-labels**: poort, apparaat en VLAN (in de FENT-kleur) voor de switch.
 - **QR-stickers** met de patch als platte tekst (één per LK, Veam en rack); scannen toont de tekst op elke telefoon, zonder server.
 - Een **bedrijfsafbeelding** en een **showafbeelding** op de labels (standaard: het bedrijfslogo uit de huisstijl van het rapport en het logo van het project, of kies zelf een afbeelding).
 
@@ -835,6 +850,7 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 ### Versie 0.3.2 (nog niet uitgebracht)
 - Stickers op Herma A4-etikettenvellen (laserprinter): 4680 / 4690 / 4102 / 4112 en 4097 / 4232 / 4221, overgenomen uit de HERMA-sjablonen, plus eigen vellen. Kabellabels (beide uiteinden), aansluitlabels paneel, nodepoorten, racks / nodes / switches / splitters en QR-stickers, met bedrijfs- en showafbeelding, per DimCity, met een startpositie voor deels gebruikte vellen en een kalibratieblad.
+- Netwerk: meerdere adressen per apparaat (beheer, licht, scan) en het FENT-schema (v1.1) met één-klik adressering van alle nodes, controles, een VLAN-tabel en een switchpoortplan met access/trunk en VLAN-kleuren, ook in de PDF en als switchpoort-stickers.
 - Confetti en "Patch perfect!" zodra een show van problemen naar geen problemen gaat (Instellingen > Algemeen > Plezier zet het uit).
 - Festival wrapped (Help-menu): een deelbare kaart met de cijfers van je show; opslaan of kopiëren als afbeelding.
 - Signaalstroom: "Afbeelding delen" kopieert de tekening als plaatje voor een chat of e-mail.

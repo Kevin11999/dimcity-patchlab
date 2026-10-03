@@ -1241,7 +1241,8 @@ function renderNetworkView(){
     </div>`;
   }).join('') || '<div class="device-list-empty">No DimCities yet.</div>';
 
-  $('#lkDetail').innerHTML = `<div class="stack">${prefs}${card({ key:'net-dims', title:'DimCities', icon:'layers', collapsible:false, body:rows })}</div>`;
+  $('#lkDetail').innerHTML = `<div class="stack">${prefs}${window.FentUI?.plannerCard() || ''}${card({ key:'net-dims', title:'DimCities', icon:'layers', collapsible:false, body:rows })}</div>`;
+  window.FentUI?.bindPlanner($('#lkDetail'), renderNetworkView);
 
   const root = $('#lkDetail');
   root.querySelector('#netPrefNodeSpare').oninput = e=>{ nd.prefs.nodeSparePorts = Math.max(0, Number(e.target.value||0)); MODEL.ui.dirty = true; };
@@ -1663,7 +1664,7 @@ function showCsvSourcesModal(){
 
 // ===== Network Devices: data helpers =====
 function normalizeNetworkDevices(net){
-  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0 }, nodeTypes:[], splitterTypes:[], switchTypes:[], panelTypes:[], rackTypes:[], nodes:[], splitters:[], switches:[], dimCityPlans:{} };
+  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0, fent:{ on:false, group:'production', scan:false } }, nodeTypes:[], splitterTypes:[], switchTypes:[], panelTypes:[], rackTypes:[], nodes:[], splitters:[], switches:[], dimCityPlans:{} };
   if(!net || typeof net !== 'object') return base;
 
   const nodeTypes = Array.isArray(net.nodeTypes) ? net.nodeTypes.slice() : [];
@@ -1705,7 +1706,8 @@ function normalizeNetworkDevices(net){
     prefs: {
       nodeSparePorts: Number(net.prefs?.nodeSparePorts ?? 0),
       splitterSparePorts: Number(net.prefs?.splitterSparePorts ?? 0),
-      switchSparePorts: Number(net.prefs?.switchSparePorts ?? 0)
+      switchSparePorts: Number(net.prefs?.switchSparePorts ?? 0),
+      fent: { on:!!net.prefs?.fent?.on, group:net.prefs?.fent?.group === 'location' ? 'location' : 'production', scan:!!net.prefs?.fent?.scan }
     },
     nodeTypes,
     splitterTypes,
@@ -2100,6 +2102,7 @@ function renderDimNetworkDevices(dc){
         <label>IP address<input class="dimNodeField ipv4" data-node-index="${idx}" data-field="ip" value="${esc(n.ip || '')}" inputmode="numeric" placeholder="192.168.1.10"></label>
         <label>Subnet<input class="dimNodeField ipv4" data-node-index="${idx}" data-field="subnet" value="${esc(n.subnet || nt.subnet || '255.255.255.0')}" inputmode="numeric"></label>
       </div>
+      ${window.FentUI?.deviceBlock(dc, 'node', idx, n) || ''}
       ${renderNodeInstanceFace(nt, n, idx, dc)}
     </div>`;
   }).join('');
@@ -2112,6 +2115,7 @@ function renderDimNetworkDevices(dc){
         <label>ID<input class="dimSplitterField" data-splitter-index="${idx}" data-field="id" value="${esc(inst.id || '')}"></label>
         <label>Name<input class="dimSplitterField" data-splitter-index="${idx}" data-field="name" value="${esc(inst.name || '')}"></label>
       </div>
+      ${(inst.ip || inst.ifaces?.length) ? (window.FentUI?.deviceBlock(dc, 'splitter', idx, inst) || '') : ''}
       ${Array.isArray(inst.portAssignments) && inst.portAssignments.length ? splitterPortMapHtml(sp, inst) : renderSplitterTypeFace(sp)}
     </div>`;
   }).join('');
@@ -2167,6 +2171,7 @@ function bindDimNetworkDevices(root, dc, rerender){
   root.querySelectorAll('.dimSplitterField').forEach(inp=>{
     inp.onchange = ()=>{ const s = getDimPlan(dc).splitters[Number(inp.dataset.splitterIndex)]; if(!s) return; s[inp.dataset.field] = inp.value.trim(); MODEL.ui.dirty = true; };
   });
+  window.FentUI?.bindDevice(root, dc, rerender);
   root.querySelectorAll('.uni-pool-chip').forEach(chip=> chip.addEventListener('dragstart', e=> e.dataTransfer.setData('text/plain', chip.dataset.uni || '')));
   root.querySelectorAll('.device-port.assignable[data-node-index]').forEach(port=>{
     port.onclick = e=>{ e.stopPropagation(); openPortUniversePicker(dc, Number(port.dataset.nodeIndex), Number(port.dataset.portIndex)); };

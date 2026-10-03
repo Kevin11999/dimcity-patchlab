@@ -7,6 +7,7 @@ All notable changes to DimCity PatchLab. The entry of a version is also the text
 ## 0.3.2 (unreleased)
 
 - Stickers on Herma A4 label sheets (laser printer): 4680 / 4690 / 4102 / 4112 and 4097 / 4232 / 4221, taken from the HERMA templates, plus custom sheets. Cable labels (both ends), panel connection labels, node ports, racks / nodes / switches / splitters and QR stickers, with company and show images, per DimCity, with a start position for part-used sheets and a calibration sheet.
+- Network: several addresses per device (management, lighting, scan) and the FENT scheme (v1.1) with one-click addressing of all nodes, checks, a VLAN table and a switch port plan with access/trunk and VLAN colours, also in the PDF and as switch port stickers.
 - Confetti and "Patch perfect!" when a show goes from having issues to none (Settings > General > Fun switches it off).
 - Festival wrapped (Help menu): a shareable card with the numbers of your show; save or copy it as an image.
 - Signal Flow: "Share image" copies the drawing as a picture for a chat or e-mail.
@@ -14,6 +15,7 @@ All notable changes to DimCity PatchLab. The entry of a version is also the text
 <details><summary>Nederlands</summary>
 
 - Stickers op Herma A4-etikettenvellen (laserprinter): 4680 / 4690 / 4102 / 4112 en 4097 / 4232 / 4221, overgenomen uit de HERMA-sjablonen, plus eigen vellen. Kabellabels (beide uiteinden), aansluitlabels paneel, nodepoorten, racks / nodes / switches / splitters en QR-stickers, met bedrijfs- en showafbeelding, per DimCity, met een startpositie voor deels gebruikte vellen en een kalibratieblad.
+- Netwerk: meerdere adressen per apparaat (beheer, licht, scan) en het FENT-schema (v1.1) met één-klik adressering van alle nodes, controles, een VLAN-tabel en een switchpoortplan met access/trunk en VLAN-kleuren, ook in de PDF en als switchpoort-stickers.
 - Confetti en "Patch perfect!" zodra een show van problemen naar geen problemen gaat (Instellingen > Algemeen > Plezier zet het uit).
 - Festival wrapped (Help-menu): een deelbare kaart met de cijfers van je show; opslaan of kopiëren als afbeelding.
 - Signaalstroom: "Afbeelding delen" kopieert de tekening als plaatje voor een chat of e-mail.

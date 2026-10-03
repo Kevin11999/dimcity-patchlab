@@ -31,7 +31,7 @@
     notes:     { title:'Notes',                        icon:'note',     desc:'Free text, e.g. crew instructions.' }
   };
   const SECTION_OPTS = {
-    network:   [['universeTable','Include universe overview table', true], ['switches','Show switches placeholder', false]],
+    network:   [['universeTable','Include universe overview table', true], ['switches','Show switches placeholder', false], ['addresses','All addresses of a device and the switch port plan', true]],
     patch:     [['standaloneVeams','Include Veams that are not linked to an LK', true], ['location','Show location per port', true], ['source','Show source (LK / Veam) per port', false], ['groupColors','Tint Veam groups A / B / C', true]],
     patchlist: [['dmx','Include loose DMX', true]],
     racks:     [['drawing','Rack drawing', true], ['nodes','Node ports (which LK / Veam port is on which node port)', true], ['loose','Loose devices (nodes and spiders without a rack)', true], ['table','Patch table (node port → LK / Veam)', true], ['advice','Recommendations', true]],
@@ -50,7 +50,7 @@
       brand: { logo:null, logoPos:'none', logoHeight:9, wm:{ type:'none', text:'CONFIDENTIAL', opacity:8, size:55, angle:-30 } },
       cover: { show:true, title:'', subtitle:'{area} · {location}', showLogo:true, logoX:1, logoY:0, logoW:60, fields:{ area:true, location:true, date:true, prepared:true, dimcities:true, totals:true }, note:'', summaryPage:true },
       sections: [
-        { key:'summary', on:true }, { key:'network', on:true, opts:{ universeTable:true, switches:false } },
+        { key:'summary', on:true }, { key:'network', on:true, opts:{ universeTable:true, switches:false, addresses:true } },
         { key:'splitters', on:true }, { key:'racks', on:true, opts:{ drawing:true, nodes:true, loose:true, table:true, advice:true } }, { key:'flow', on:true, opts:{ legend:true, ownPage:true } }, { key:'patch', on:true, opts:{ standaloneVeams:true, location:true, source:false, groupColors:true } },
         { key:'universes', on:false }, { key:'patchlist', on:false, opts:{ dmx:true } },
         { key:'warnings', on:true, opts:{ projectWide:true } }, { key:'notes', on:false, opts:{ text:'' } }
@@ -472,10 +472,16 @@
       const ports = (Array.isArray(nd.universes) ? nd.universes : []).map((u,i)=>`<div class="port ${u?'':'empty'}" style="--uni:${u?uniColor(u,L):'#cbd5e1'}"><div class="nr">${i+1}</div><div class="uni">${u?'U'+esc(u):'—'}</div></div>`).join('');
       const nt = (M.networkDevices?.nodeTypes || []).find(t => t.id === nd.typeId) || {};
       const eth = Math.min(2, Math.max(1, Number(nt.ethernetCount) || 1));
-      return `<div class="card node"><div class="card-h"><span>${esc(nd.id || 'Node')}</span><small>${esc(nd.ip || '')}${nd.subnet?' / '+esc(nd.subnet):''}${eth > 1 ? ' · 2× RJ45' : ''}</small></div><div class="card-b"><div class="small" style="margin-bottom:1.2mm">${esc(nd.name || '')}</div><div class="ports p8">${ports || '<span class="small">No ports</span>'}</div></div></div>`;
+      const F = window.Fent, more = o.addresses !== false && F && (nd.ifaces || []).length ? F.ifaces(nd, eth).filter(x => !x.primary && x.ip) : [];
+      const vname = v => { const x = F?.vlanById(v); return x ? ` ${x.name} ${x.id}` : ''; };
+      const first = F && nd.ip && o.addresses !== false ? F.classify(nd.ip)?.vlan : null;
+      const addr = more.length ? `<div class="small" style="margin-bottom:1.2mm">${first ? `<b>${esc(nd.ip)}</b>${esc(' ' + first.name + ' ' + first.id)}` : esc(nd.ip || '')}${more.map(x => ` · <b>${esc(x.ip)}</b>${esc(vname(x.vlan))}${eth > 1 ? ' ETH' + x.eth : ''}`).join('')}</div>` : '';
+      return `<div class="card node"><div class="card-h"><span>${esc(nd.id || 'Node')}</span><small>${esc(nd.ip || '')}${nd.subnet?' / '+esc(nd.subnet):''}${eth > 1 ? ' · 2× RJ45' : ''}</small></div><div class="card-b"><div class="small" style="margin-bottom:1.2mm">${esc(nd.name || '')}</div>${addr}<div class="ports p8">${ports || '<span class="small">No ports</span>'}</div></div></div>`;
     }).join('') : '<div class="placeholder">No nodes planned for this DimCity.</div>';
     const sw = o.switches ? (switches.length ? switches.map(s=>`<div class="card"><div class="card-h"><span>${esc(s.id||'Switch')}</span><small>${esc(s.ip||'')}</small></div></div>`).join('') : '<div class="placeholder">Network switches will appear here.</div>') : '';
-    const right = (o.universeTable !== false ? `<div class="card"><div class="card-h"><span>Universe overview</span><small>physical patch points</small></div><div class="card-b">${buildUniverseTable(M, dc, L)}</div></div>` : '') + sw;
+    const pp = o.addresses !== false ? window.FentUI?.portPlan?.(dc)?.rows || [] : [];
+    const portCard = pp.length ? `<div class="card"><div class="card-h"><span>Switch ports &amp; VLAN</span><small>${pp.length} ports</small></div><div class="card-b"><table><thead><tr><th>Port</th><th>Device</th><th>Mode</th><th>VLAN</th><th>Address</th></tr></thead><tbody>${pp.map(r => `<tr><td><b>${r.port}</b></td><td>${esc(r.device)}${r.ethCount > 1 ? ' ETH' + r.eth : ''}</td><td>${r.mode === 'trunk' ? 'Trunk (tagged)' : 'Access'}</td><td>${r.vlans.map(v => { const x = window.Fent?.vlanById(v); return x ? `<span class="tag" style="${x.color ? `border-left:2mm solid ${x.color}` : ''}">${esc(x.id + ' ' + x.name)}</span>` : esc(v); }).join(' ')}</td><td>${r.ips.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div></div>` : '';
+    const right = portCard + (o.universeTable !== false ? `<div class="card"><div class="card-h"><span>Universe overview</span><small>physical patch points</small></div><div class="card-b">${buildUniverseTable(M, dc, L)}</div></div>` : '') + sw;
     return `<div class="section">${h3(n, 'Network / DMX nodes', `${nodes.length} node${nodes.length===1?'':'s'}`)}<div class="grid ${right?'cols2':''}"><div>${nodeHtml}</div>${right?`<div>${right}</div>`:''}</div></div>`;
   }
   function buildSplitters(M, dc, L, n){

@@ -19,13 +19,13 @@ const lang = () => (window.I18n?.language === 'nl' ? 'nl' : 'en');
 const t = (en, nl) => (lang() === 'nl' ? nl : en);
 const uniHue = u => `hsl(${(Number(u || 0) * 47) % 360} 72% 58%)`;
 
-const S = { dc:'ALL', zoom:1, tx:40, ty:30, tool:'select', sel:new Set(), view:{}, layout:null, drag:null, pan:null, marquee:null, pin:null, hoverEl:null, space:false, fitNext:true };
+const S = { layer:'all', dc:'ALL', zoom:1, tx:40, ty:30, tool:'select', sel:new Set(), view:{}, layout:null, drag:null, pan:null, marquee:null, pin:null, hoverEl:null, space:false, fitNext:true };
 const ROW = 15, HEAD = 26, PAD = 8, MINI_H = ROW;
 // rack geometry, after the Rack Builder: rails with U numbers, a bay of 500 px, 34 px per U
 const UH = 34, RAIL = 22, FRAME = 6, EAR = 11, LABEL_W = 150, BAY = 490, TITLE = 24, STACK_GAP = 4;
 const sp = () => flowState().spacing || 1;
 const GAP = () => Math.round(22 * sp()), COL_GAP = () => Math.round(130 * sp()), DC_GAP = () => Math.round(90 * sp());
-const W = { lk:210, veam:170, dmx:200, obj:210, mini:160 };
+const W = { lk:210, veam:170, dmx:200, obj:210, mini:160, switch:230, cat:210, ext:220, netnode:200 };
 // colours of the rack drawing: dark like the Rack Builder in the app, light on paper
 const THEME = {
   app:  { frame:'#2a2f38', bg:'#111317', rail:'#1a1d23', railLine:'#20242b', railText:'#7d8594', slot:'#22262d', face:'url(#flFace)', faceStroke:'#3a414d', ear:'#323843', screw:'#151820', screwRing:'#4a5260', text:'#e8eaef', text3:'#7d8594', portBg:'#0d0f13', portText:'#a3aab7', rj:'#5a6372', rjBg:'#0b0d10', badgeText:'#0b0d10', title:'var(--text)', sub:'var(--text-3)', font:'var(--font,system-ui)', mono:'var(--mono,monospace)' },
@@ -84,7 +84,7 @@ function buildGraph(dcs){
           nodes.push({ label:n.label, title:`${n.label} · ${u.name}`, color:n.color, where:n.loose ? (n.name || t('Loose node', 'Losse node')) : rackName(ri) });
           grp(n.ports.map((p, i) => { const k = `n${i + 1}`; refs.set(`node:${n.label}:${i + 1}`, { block:blockId, port:k }); return pp(k, 'dmx', p ? `U${p.universe}` : i + 1, n.color, { free:!p, title:p ? `${n.label} ${t('port', 'poort')} ${i + 1} · U${p.universe} → ${p.to}` : `${n.label} ${t('port', 'poort')} ${i + 1} · ${t('free', 'vrij')}` }); }));
           const eth = Math.min(2, Math.max(1, Number(ty.ethernetCount) || 1));
-          grp(Array.from({ length:eth }, (_, i) => pp(`e${i + 1}`, 'rj', eth > 1 ? i + 1 : '', null, { title:eth > 1 ? `${t('Network', 'Netwerk')} ${i + 1}` : t('Network', 'Netwerk') })));
+          grp(Array.from({ length:eth }, (_, i) => { refs.set(`eth:${n.label}:${i + 1}`, { block:blockId, port:`e${i + 1}` }); return pp(`e${i + 1}`, 'rj', eth > 1 ? i + 1 : '', null, { title:eth > 1 ? `${t('Network', 'Netwerk')} ${i + 1}` : t('Network', 'Netwerk') }); }));
         }
       } else if(it.kind === 'splitter'){
         const s = P.splitters.find(x => x.iid === it.iid && x.rack === ri);
@@ -245,6 +245,70 @@ function buildGraph(dcs){
     }
     // objects of a Veam not patched on a node yet
     for(const ve of veams){ const vb = B.get(`${dc}|veam|${ve.id}`); if(!vb) continue; for(const r of vb.rows){ if(r.universe == null || !r.dest || r.lines.length) continue; const key = `${dc}|${ve.id}|${r.key}|unfed`; lines.set(key, { universe:r.universe, dest:r.dest, owner:ve.id, ownerKind:'VEAM', label:`${ve.id} · ${r.label}`, dc }); r.lines.push(key); const gb = groupOf(vb); let g = rowOf(gb, `r${r.label}`); if(!g){ g = port(`r${r.label}`, r.label, r.universe, { dest:r.dest }); gb.rows.push(g); } g.lines.push(key); cable({ block:vb.id, port:r.key }, { block:gb.id, port:`r${r.label}` }, 'dmx', uniHue(r.universe), key, { universe:r.universe }); } }
+
+    // ---- network layer: nodes → switch ports, network cables (C) → switch ports ----
+    if(window.NetSwitches && window.FentUI){
+      const vlanColor = v => (v != null && window.Fent?.vlanById(v)?.color) || null;
+      const vlanTag = v => v != null ? String(v) : '';
+      const swRows = window.FentUI.portPlan(dc).rows;
+      const swList = window.NetSwitches.list(dc);
+      const fibUse = sw => (window.Fibers ? window.Fibers.usage(dc, sw) : new Map());
+      for(const sw of swList){
+        const mine = swRows.filter(r => r.sw === sw.label), fib = fibUse(sw.label);
+        if(!mine.length && !fib.size) continue;
+        const rows = mine.map(r => port(`p${r.swPort}`, String(r.swPort), null, { dest:`${r.device}${r.ethCount > 1 && !r.cable ? ` ETH${r.eth}` : ''}`, tag:vlanTag(r.vlans[0]), tagColor:vlanColor(r.vlans[0]) }));
+        for(const [n, l] of [...fib.entries()].sort((a, b) => a[0] - b[0])){ const other = (l.a?.dc === dc && l.a?.sw === sw.label && Number(l.a?.sfp) === n) ? l.b : l.a; rows.push(port(`s${n}`, `SFP ${n}`, null, { dest:window.Fibers.endLabel(other), tag:l.id, tagColor:window.Fibers.color(l) })); }
+        const ty = sw.type || {};
+        add({ id:`${dc}|sw|${sw.label}`, kind:'switch', band:'net', dc, col:1, title:sw.label, sub:`${[ty.brand, ty.name].filter(Boolean).join(' ')}${sw.where ? ` · ${sw.where}` : ''}`, color:/^#[0-9a-f]{6}$/i.test(ty.color || '') ? ty.color : '#35c47c', rows });
+      }
+      const swBlock = r => B.get(`${dc}|sw|${r.sw}`);
+      for(const r of swRows){
+        const sb = r.sw ? swBlock(r) : null; if(!sb) continue;
+        const key = `net|${dc}|${r.device}`, col = vlanColor(r.vlans[0]);
+        const row = rowOf(sb, `p${r.swPort}`); if(row) row.lines.push(key);
+        lines.set(key, { universe:null, dest:r.device, owner:r.device, ownerKind:'NET', label:r.device, dc, net:true });
+        let from = null;
+        if(r.cable){
+          const cid = r.device.split('.')[0];
+          const cbId = `${dc}|cat|${cid}`;
+          if(!B.has(cbId)){
+            const cab = (window.NetCables?.cables(dc) || []).find(c => c.id === cid);
+            add({ id:cbId, kind:'cat', band:'net', dc, col:0, title:cid, sub:t('network cable', 'netwerkkabel'), color:'#94a3b8', rows:(cab?.lines || []).filter(l => !l.empty).map(l => port(`l${l.port}`, `${cid}.${l.port}`, null, { dest:l.dest, tag:vlanTag(l.vlan), tagColor:vlanColor(l.vlan) })) });
+          }
+          const cb = B.get(cbId), cr = rowOf(cb, `l${r.device.split('.')[1]}`); if(cr) cr.lines.push(key);
+          from = { block:cbId, port:`l${r.device.split('.')[1]}` };
+        } else if(r.ref?.kind === 'node'){
+          const en = P.nodes[r.ref.idx], ref = en ? refs.get(`eth:${en.label}:${r.eth}`) : null;
+          if(ref){ tagRef(ref, key); from = ref; }
+          else {
+            const nid = `${dc}|netnode|${r.device}`;
+            if(!B.has(nid)) add({ id:nid, kind:'netnode', band:'net', dc, col:0, title:r.device, sub:t('node', 'node'), color:en?.color || '#4c9dff', rows:[port('e', 'ETH', null, { dest:r.device })] });
+            rowOf(B.get(nid), 'e').lines.push(key); from = { block:nid, port:'e' };
+          }
+        }
+        if(from) cable(from, { block:sb.id, port:`p${r.swPort}` }, 'cat', col || '#94a3b8', key);
+      }
+    }
+  }
+  // fibres: switch SFP port ↔ switch SFP port (another DimCity, or outside the show: a block for the far end)
+  if(window.Fibers){
+    const dcSet = new Set(dcs);
+    const lastRow = (b, key) => b.rows.find(r => r.key === key);
+    for(const l of window.Fibers.all()){
+      const aIn = l.a?.dc && dcSet.has(l.a.dc), bIn = l.b?.dc && dcSet.has(l.b.dc);
+      if(!aIn && !bIn) continue;
+      const key = `net|fiber|${l.id}`; lines.set(key, { universe:null, dest:l.id, owner:l.id, ownerKind:'NET', label:l.id, dc:(aIn ? l.a : l.b).dc, net:true });
+      const endBlock = (e, home) => {
+        if(e && !e.free && dcSet.has(e.dc)){ const sb = B.get(`${e.dc}|sw|${e.sw}`); if(sb) return { b:sb, port:`s${e.sfp}` }; }
+        const id = `${home}|ext|${window.Fibers.endLabel(e)}`;
+        if(!B.has(id)) blocks.push(Object.assign(B.set(id, { id, kind:'ext', band:'net', dc:home, col:2, title:e?.free || `${e?.dc || ''} · ${e?.sw || ''}`, sub:t('other end', 'andere kant'), color:'#94a3b8', rows:[{ key:'s', type:'port', h:ROW, label:e?.free ? '' : `SFP ${e?.sfp}`, universe:null, lines:[], dest:'' }], lines:[] }).get(id)));
+        return { b:B.get(id), port:'s' };
+      };
+      const home = (aIn ? l.a : l.b).dc;
+      const A = endBlock(l.a, home), Bz = endBlock(l.b, home);
+      for(const x of [A, Bz]){ const r = lastRow(x.b, x.port); if(r && !r.lines.includes(key)) r.lines.push(key); }
+      edges.push({ id:`e${edges.length}`, from:{ block:A.b.id, port:A.port }, to:{ block:Bz.b.id, port:Bz.port }, cable:'fiber', color:window.Fibers.color(l), lines:[key], inner:false, label:l.id });
+    }
   }
   for(const b of blocks) if(b.kind === 'obj' && !b.mini) b.rows.sort((a, c) => Number(a.label) - Number(c.label));
   // every block knows the lines that run through it (for hovering the block as a whole)
@@ -252,6 +316,19 @@ function buildGraph(dcs){
   for(const e of edges){ for(const id of [e.from.block, e.to.block]){ if(!through.has(id)) through.set(id, new Set()); e.lines.forEach(k => through.get(id).add(k)); } }
   for(const b of blocks) b.lines = [...(through.get(b.id) || [])];
   return { blocks, edges, lines, nodes };
+}
+
+// ---------- Layers: everything, only the DMX side, or only the network ----------
+function filterLayer(graph, layer){
+  if(!layer || layer === 'all') return graph;
+  const isNet = b => b.band === 'net';
+  graph.blocks = graph.blocks.filter(b => layer === 'net' ? (isNet(b) || b.kind === 'rack' || b.kind === 'stack') : !isNet(b));
+  const ids = new Set(graph.blocks.map(b => b.id));
+  graph.edges = graph.edges.filter(e => ids.has(e.from.block) && ids.has(e.to.block) && !(layer === 'net' && e.inner));
+  const through = new Map();
+  for(const e of graph.edges){ for(const id of [e.from.block, e.to.block]){ if(!through.has(id)) through.set(id, new Set()); e.lines.forEach(k => through.get(id).add(k)); } }
+  for(const b of graph.blocks) b.lines = [...(through.get(b.id) || [])];
+  return graph;
 }
 
 // ---------- Sizes, port positions and the points where a line leaves or enters a block ----------
@@ -364,27 +441,38 @@ function layout(graph, dcs){
     const stack = (list, wants, from) => { let cross = from; for(const b of list){ const w = wants.get(b.id), at = w == null ? cross : Math.max(cross, w); b.rel = { x:b.rel?.x ?? 0, y:Math.round(at) }; cross = at + b.size.h + gapAfter(b); } };
     let main = 0;
     const order = new Map();
+    const colNets = new Map();
     for(const c of colKeys){
-      let list = cols.get(c).sort((a, b) => rank(a) - rank(b) || a.title.localeCompare(b.title, undefined, { numeric:true }));
-      for(const b of list) b.rel = { x:main, y:0 };
+      const everything = cols.get(c);
+      colNets.set(c, everything.filter(b => b.band === 'net').sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric:true })));
+      let list = everything.filter(b => b.band !== 'net').sort((a, b) => rank(a) - rank(b) || a.title.localeCompare(b.title, undefined, { numeric:true }));
+      for(const b of everything) b.rel = { x:main, y:0 };
       const wants = new Map(list.map(b => [b.id, c <= 0 ? null : want(b)]));
       if(c > 0) list = list.slice().sort((a, b) => (wants.get(a.id) ?? 1e9) - (wants.get(b.id) ?? 1e9) || list.indexOf(a) - list.indexOf(b));
       stack(list, wants, 0);
       order.set(c, list);
-      main += Math.max(...list.map(b => b.size.w)) + COL_GAP();
+      const colW = Math.max(...everything.map(b => b.size.w));
+      if(c <= 0) for(const b of colNets.get(c)) b.rel = { x:main + colW - b.size.w, y:0 };   // network blocks on the left: right edges level, so lines leave the column and never cross a rack
+      main += colW + COL_GAP();
     }
     // the racks (and the node racks that feed them) move level with the blocks they feed, so the
     // cables leave as straight as possible; the rest keeps its place
     for(const c of colKeys.filter(k => k <= 0).sort((a, b) => b - a)){
       const list = order.get(c);
       const wants = new Map(list.map(b => {
-        const outs = graph.edges.filter(e => !e.inner && e.from.block === b.id && byId.get(e.to.block)?.col > c);
-        if(!outs.length) return [b.id, null];
+        const outs = graph.edges.filter(e => !e.inner && e.from.block === b.id && byId.get(e.to.block)?.col > c && byId.get(e.to.block)?.band !== 'net');
+        if(!outs.length) return [b.id, b.rel.y];
         const d = outs.map(e => { const z = byId.get(e.to.block); return z.rel.y + crossOff(z, e.to.port, 'in') - crossOff(b, e.from.port, 'out'); });
         return [b.id, Math.round(d.reduce((p, q) => p + q, 0) / d.length)];
       }));
       stack(list, wants, -1e9);
     }
+    // the network band (switches, network cables, far ends of fibres): below the blocks of its own column on the
+    // left (racks), and level across the columns to the right: below the DMX blocks, or at the top when there are none
+    { const normal = bl.filter(b => b.band !== 'net');
+      const leftBottom = Math.max(-1e9, ...normal.filter(b => b.col <= 0).map(b => b.rel.y + b.size.h));
+      const right = normal.filter(b => b.col > 0), rightBottom = right.length ? Math.max(...right.map(b => b.rel.y + b.size.h)) + GAP() * 3 : 0;
+      for(const c of colKeys){ let cross = c <= 0 ? (leftBottom > -1e9 ? leftBottom + GAP() * 3 : 0) : rightBottom; for(const b of colNets.get(c)){ b.rel = { x:b.rel.x, y:Math.round(cross) }; cross += b.size.h + GAP(); } } }
     for(const b of bl) b.auto = { ...b.rel };
     // the user's own positions, relative to this DimCity's origin
     const saved = f.pos?.[dc]?.[dir] || {};
@@ -428,14 +516,15 @@ function blockSvg(b, TH, print){
     if(r.type === 'head') return `<g class="fp-grp" transform="translate(0,${yy})"><text x="12" y="10" class="fp-g">${esc(r.label)}</text></g>`;
     if(r.type === 'slot') return `<g class="fp slot" data-port="${esc(r.key)}" data-lines="${linesAttr(r.lines)}" transform="translate(0,${yy})"><title>${esc(r.label)} → ${esc(r.dest)}</title><rect x="6" y="2" width="${w - 12}" height="${r.h - 4}" rx="3" ${print ? `fill="${b.color}" fill-opacity=".14"` : ''}/><text x="12" y="${r.h / 2 + 3.5}" class="fp-g" style="text-transform:none">${esc(r.label)}</text><text x="${w - 12}" y="${r.h / 2 + 3.5}" class="fp-u" text-anchor="end" ${print ? `fill="${b.color}"` : ''}>→ ${esc(r.dest)}</text></g>`;
     const objRow = b.kind === 'obj';
-    const uni = r.universe != null ? `<text x="30" y="${ROW / 2 + 3.5}" class="fp-u" style="fill:${uniHue(r.universe)}">U${esc(r.universe)}</text>` : '';
-    const right = objRow ? `<text x="60" y="${ROW / 2 + 3.5}" class="fp-d">${esc(trim(r.dest || r.to || '', 24))}</text>` : `<text x="${w - 12}" y="${ROW / 2 + 3.5}" class="fp-d" text-anchor="end">${esc(trim(r.dest || r.to || '', 14))}</text>`;
+    const netKind = ['switch', 'cat', 'ext', 'netnode'].includes(b.kind);
+    const uni = r.tag ? `<text x="${netKind ? 54 : 30}" y="${ROW / 2 + 3.5}" class="fp-u" style="fill:${r.tagColor || 'var(--text)'}">${esc(r.tag)}</text>` : r.universe != null ? `<text x="30" y="${ROW / 2 + 3.5}" class="fp-u" style="fill:${uniHue(r.universe)}">U${esc(r.universe)}</text>` : '';
+    const right = objRow ? `<text x="60" y="${ROW / 2 + 3.5}" class="fp-d">${esc(trim(r.dest || r.to || '', 24))}</text>` : `<text x="${w - 12}" y="${ROW / 2 + 3.5}" class="fp-d" text-anchor="end">${esc(trim(r.dest || r.to || '', netKind ? 24 : 14))}</text>`;
     return `<g class="fp ${r.isIn ? 'in' : ''}" data-port="${esc(r.key)}" data-lines="${linesAttr(r.lines)}" transform="translate(0,${yy})"><title>${esc(r.label)}${r.universe != null ? ` · U${r.universe}` : ''}${r.dest ? ` · ${esc(r.dest)}` : ''}</title><rect x="6" y="1" width="${w - 12}" height="${ROW - 2}" rx="3"/><text x="12" y="${ROW / 2 + 3.5}" class="fp-n">${esc(r.label)}</text>${uni}${right}</g>`;
   }).join('');
   const name = b.kind === 'lk' ? `<text x="10" y="17" class="fb-t fb-edit" data-rename="${esc(b.lkId)}">${esc(b.title)}${b.title !== b.lkId ? ` <tspan class="fb-id">(${esc(b.lkId)})</tspan>` : ''}</text>` : `<text x="10" y="17" class="fb-t">${esc(trim(b.title, 30))}</text>`;
   return `<g class="fb fb-${b.kind}" data-block="${esc(b.id)}" data-dc="${esc(b.dc)}" data-lines="${linesAttr(b.lines)}" transform="translate(${b.pos.x},${b.pos.y})" style="--c:${b.color}">${selbox}
     <rect class="fb-bg" width="${w}" height="${h}" rx="6"/><rect class="fb-head" width="${w}" height="${HEAD}" rx="6" ${headFill}/><rect class="fb-bar" x="0" y="0" width="4" height="${h}" rx="2" ${bar}/>
-    ${name}<text x="${w - 8}" y="17" class="fb-s" text-anchor="end">${esc(trim(b.sub, 26))}</text><g class="fp in" data-port="in"><title>${esc(b.title)}</title></g>${rows}</g>`;
+    ${name}<text x="${w - 8}" y="17" class="fb-s" text-anchor="end">${esc(trim(b.sub, ['switch', 'cat', 'ext', 'netnode'].includes(b.kind) ? 30 : 26))}</text><g class="fp in" data-port="in"><title>${esc(b.title)}</title></g>${rows}</g>`;
 }
 // a rack (frame, rails, U numbers, faces) or a stack of loose devices, drawn like the Rack Builder does
 function deviceSvg(b, TH, print, selbox){
@@ -489,7 +578,7 @@ function portSvg(p, cx, cy, s, TH){
   const label = p.label && s >= 13 ? `<text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="${s >= 20 ? 8.5 : 7.5}" font-weight="700" font-family="${TH.font}" fill="${TH.portText}">${esc(p.label)}</text>` : '';
   return `<g class="fport ${p.cls} ${free ? 'free' : ''}" data-port="${esc(p.key)}" data-lines="${linesAttr(p.lines)}" style="--c:${col}" ${free ? 'opacity=".45"' : ''}><title>${esc(p.title)}</title>${shape}${label}</g>`;
 }
-const cableName = e => ({ lk:t('LK multicore', 'LK-multicore'), veam:t('Veam cable', 'Veam-kabel'), dmx:'DMX', patch:t('Patch', 'Patch') }[e.cable]);
+const cableName = e => ({ lk:t('LK multicore', 'LK-multicore'), veam:t('Veam cable', 'Veam-kabel'), dmx:'DMX', patch:t('Patch', 'Patch'), cat:t('Network cable (Cat)', 'Netwerkkabel (Cat)'), fiber:t('Fibre', 'Fiber') }[e.cable]);
 function edgesSvg(graph, byId, print){
   return graph.edges.filter(e => !e.inner).map(e => { const d = edgePath(e, byId); const a = byId.get(e.from.block), z = byId.get(e.to.block); return `<path class="fe c-${e.cable}" data-edge="${e.id}" data-lines="${linesAttr(e.lines)}" data-from="${esc(e.from.block)}" data-to="${esc(e.to.block)}" d="${d}" style="--c:${e.color}" ${print ? `stroke="${e.color}"` : ''}/>${print ? '' : `<path class="fe-hit" data-hit="${e.id}" data-lines="${linesAttr(e.lines)}" d="${d}"><title>${esc(cableName(e))}${e.universe != null ? ` U${e.universe}` : ''} · ${esc(a?.title || '')} → ${esc(z?.title || '')}${e.lines.length > 1 ? ` · ${e.lines.length} ${t('lines', 'lijnen')}` : ''}</title></path>`}`; }).join('');
 }
@@ -506,12 +595,12 @@ function bounds(graph){
   return { minX:Math.min(...bs.map(b => b.pos.x)) - 12, minY:Math.min(...bs.map(b => b.pos.y)) - (many ? 44 : 12), maxX:Math.max(...bs.map(b => b.pos.x + b.size.w)) + 12, maxY:Math.max(...bs.map(b => b.pos.y + b.size.h)) + 12 };
 }
 // The drawing as a stand-alone SVG (print colours, styles inlined) — for "Save image" and the PDF
-function standaloneSvg(dcs){
-  const graph = layout(buildGraph(dcs), dcs);
+function standaloneSvg(dcs, layer = 'all'){
+  const graph = layout(filterLayer(buildGraph(dcs), layer), dcs);
   const byId = new Map(graph.blocks.map(b => [b.id, b]));
   for(const b of graph.blocks) b.graphEdges = graph.edges;
   const bb = bounds(graph); if(!bb || !graph.edges.length) return null;
-  const css = `svg{font-family:Helvetica,Arial,sans-serif}.fe{fill:none;opacity:.95;stroke-linecap:round}.c-lk{stroke-width:6}.c-veam{stroke-width:4}.c-patch{stroke-width:2.5}.c-dmx{stroke-width:2}.fe-inner{display:none}.fb-selbox{fill:none;stroke:none}.fb-bg{fill:#fff;stroke:#334155}.fb-t{font-size:12px;font-weight:600;fill:#0f172a}.fb-id{font-weight:400;fill:#64748b}.fb-s{font-size:10.5px;fill:#64748b}.fp rect{fill:#f1f5f9}.fp-n{font-family:Menlo,Consolas,monospace;font-size:10px;fill:#64748b}.fp-u{font-size:10.5px;font-weight:600;fill:#0f172a}.fp-d{font-size:9.5px;fill:#334155}.fp-g{font-size:9.5px;font-weight:600;fill:#64748b;text-transform:uppercase}.fl-band-t{font-size:13px;font-weight:700;fill:#0f172a}.fl-band-s{font-size:10.5px;fill:#64748b}.fl-band line{stroke:#cbd5e1}`;
+  const css = `svg{font-family:Helvetica,Arial,sans-serif}.fe{fill:none;opacity:.95;stroke-linecap:round}.c-lk{stroke-width:6}.c-veam{stroke-width:4}.c-patch{stroke-width:2.5}.c-dmx{stroke-width:2}.c-cat{stroke-width:2.8}.c-fiber{stroke-width:4.5}.fe-inner{display:none}.fb-selbox{fill:none;stroke:none}.fb-bg{fill:#fff;stroke:#334155}.fb-t{font-size:12px;font-weight:600;fill:#0f172a}.fb-id{font-weight:400;fill:#64748b}.fb-s{font-size:10.5px;fill:#64748b}.fp rect{fill:#f1f5f9}.fp-n{font-family:Menlo,Consolas,monospace;font-size:10px;fill:#64748b}.fp-u{font-size:10.5px;font-weight:600;fill:#0f172a}.fp-d{font-size:9.5px;fill:#334155}.fp-g{font-size:9.5px;font-weight:600;fill:#64748b;text-transform:uppercase}.fl-band-t{font-size:13px;font-weight:700;fill:#0f172a}.fl-band-s{font-size:10.5px;fill:#64748b}.fl-band line{stroke:#cbd5e1}`;
   const w = bb.maxX - bb.minX, h = bb.maxY - bb.minY;
   const body = `${bandsSvg(graph, dcs)}<g>${edgesSvg(graph, byId, true)}</g><g>${graph.blocks.map(b => blockSvg(b, THEME.print, true)).join('')}</g>`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${bb.minX} ${bb.minY} ${w} ${h}" width="${w}" height="${h}"><style>${css}</style><rect x="${bb.minX}" y="${bb.minY}" width="${w}" height="${h}" fill="#fff"/>${defsSvg().replace('context-stroke', '#334155')}${body}</svg>`;
@@ -519,8 +608,8 @@ function standaloneSvg(dcs){
   return { svg, w, h, lk, veams:ve, racks, lines:graph.lines.size };
 }
 // one DimCity for the PDF (the arrangement from the Signal Flow page)
-function printSvg(dc){
-  try{ const r = standaloneSvg([dc]); if(!r) return null; return { ...r, svg:r.svg.replace(/ width="\d+(\.\d+)?" height="\d+(\.\d+)?"><style>/, '><style>') }; } catch(err){ console.warn('Signal flow for PDF failed', err); return null; }
+function printSvg(dc, layer = 'all'){
+  try{ const r = standaloneSvg([dc], layer); if(!r) return null; return { ...r, svg:r.svg.replace(/ width="\d+(\.\d+)?" height="\d+(\.\d+)?"><style>/, '><style>') }; } catch(err){ console.warn('Signal flow for PDF failed', err); return null; }
 }
 
 // ---------- Render ----------
@@ -531,7 +620,7 @@ function render(){
   if(S.dc !== 'ALL' && !dims.includes(S.dc)) S.dc = 'ALL';
   const dcs = selectedDims();
   App.pageHead?.({ eyebrow:'Project', title:t('Signal Flow', 'Signaalstroom'), sub:t('How the data runs from the rack to every object. Hover a universe, a port or a line to follow it; click to pin.', 'Hoe de data van het rek naar elk object loopt. Beweeg over een universe, een poort of een lijn om hem te volgen; klik om vast te zetten.') });
-  const graph = layout(buildGraph(dcs), dcs);
+  const graph = layout(filterLayer(buildGraph(dcs), S.layer), dcs);
   S.layout = graph;
   const byId = new Map(graph.blocks.map(b => [b.id, b]));
   const unis = new Map();
@@ -541,10 +630,11 @@ function render(){
     <div class="fl-sec"><div class="rb-label">DimCities</div>
       <button class="fl-item ${S.dc === 'ALL' ? 'on' : ''}" data-dc="ALL">${I('layers', 14)}<span>${t('All DimCities', 'Alle DimCities')}</span><em>${dims.length}</em></button>
       ${dims.map(dc => `<button class="fl-item ${S.dc === dc ? 'on' : ''}" data-dc="${esc(dc)}"><i class="dot" style="background:${App.dimColor(dc)}"></i><span>${esc(dc)}</span><em>${m.byDim.get(dc)?.lks?.size || 0} LK</em></button>`).join('')}</div>
+    <div class="fl-sec"><div class="rb-label">${t('Show', 'Tonen')}</div><div class="segmented rb-full" id="flLayer"><button data-v="all" class="${S.layer === 'all' ? 'active' : ''}">${t('All', 'Alles')}</button><button data-v="dmx" class="${S.layer === 'dmx' ? 'active' : ''}">DMX</button><button data-v="net" class="${S.layer === 'net' ? 'active' : ''}">${t('Network', 'Netwerk')}</button></div></div>
     <div class="fl-sec"><div class="rb-label">${t('Universes', 'Universes')} <span class="subtle">${uniList.length}</span></div>
       <div class="fl-unis">${uniList.map(u => `<button class="fl-uni ${S.pin?.uni === u ? 'pinned' : ''}" data-uni="${u}" style="--u:${uniHue(u)}"><b>U${u}</b><span>${unis.get(u)}</span></button>`).join('') || `<div class="subtle" style="padding:4px 8px">${t('No universes patched', 'Geen universes gepatcht')}</div>`}</div></div>
     <div class="fl-sec"><div class="rb-label">${t('Nodes', 'Nodes')}</div>${graph.nodes.map(n => `<div class="fl-node"><i style="background:${n.color}"></i><span>${esc(n.title)}</span><em title="${esc(n.where)}">${esc(n.where)}</em></div>`).join('') || `<div class="subtle" style="padding:4px 8px">${t('Place a rack or loose node first', 'Plaats eerst een rek of losse node')}</div>`}</div>
-    <div class="fl-sec"><div class="rb-label">${t('Cables', 'Kabels')}</div><div class="fl-legend"><span><i class="lk"></i>${t('LK multicore', 'LK-multicore')}</span><span><i class="veam"></i>${t('Veam cable', 'Veam-kabel')}</span><span><i class="dmx"></i>${t('DMX line (universe colour)', 'DMX-lijn (universe-kleur)')}</span><span><i class="patch"></i>${t('Patch in the rack (shown when lit)', 'Patch in het rek (zichtbaar als hij oplicht)')}</span></div></div>
+    <div class="fl-sec"><div class="rb-label">${t('Cables', 'Kabels')}</div><div class="fl-legend"><span><i class="lk"></i>${t('LK multicore', 'LK-multicore')}</span><span><i class="veam"></i>${t('Veam cable', 'Veam-kabel')}</span><span><i class="dmx"></i>${t('DMX line (universe colour)', 'DMX-lijn (universe-kleur)')}</span><span><i class="patch"></i>${t('Patch in the rack (shown when lit)', 'Patch in het rek (zichtbaar als hij oplicht)')}</span><span><i class="cat"></i>${t('Network cable (VLAN colour)', 'Netwerkkabel (VLAN-kleur)')}</span><span><i class="fiber"></i>${t('Fibre', 'Fiber')}</span></div></div>
     <div class="fl-sec"><div class="rb-label">${t('Layout', 'Indeling')}</div>
       <label class="field">${t('Spacing', 'Afstand')} <span class="subtle" id="flSpVal">${Math.round((f.spacing || 1) * 100)}%</span><input type="range" id="flSpacing" min="50" max="250" step="10" value="${Math.round((f.spacing || 1) * 100)}"></label>
       <div class="hint" style="margin-top:8px">${t('The arrangement, zoom and LK names of every DimCity are saved with the project and printed with Export PDF.', 'De indeling, zoom en LK-namen van elke DimCity worden met het project opgeslagen en geprint bij Export PDF.')}</div></div>
@@ -616,6 +706,7 @@ function bind(root, graph, byId){
   const f = flowState();
   root.querySelectorAll('[data-dc]').forEach(b => b.onclick = () => { S.dc = b.dataset.dc; S.pin = null; S.sel.clear(); render(); });
   const spc = root.querySelector('#flSpacing'); if(spc){ spc.oninput = () => { root.querySelector('#flSpVal').textContent = `${spc.value}%`; }; spc.onchange = () => { f.spacing = Number(spc.value) / 100; M().ui.dirty = true; S.fitNext = true; render(); }; }
+  root.querySelectorAll('#flLayer button').forEach(b => b.onclick = () => { S.layer = b.dataset.v; S.pin = null; S.sel.clear(); S.fitNext = true; render(); });
   root.querySelectorAll('#flTool button').forEach(b => b.onclick = () => setTool(b.dataset.tool));
   root.querySelector('#flZoomIn').onclick = () => zoomCenter(S.zoom * 1.25);
   root.querySelector('#flZoomOut').onclick = () => zoomCenter(S.zoom / 1.25);
@@ -711,7 +802,7 @@ function renameLk(dc, lkId){
   inp.onkeydown = e => { if(e.key === 'Enter') save(); };
 }
 function exportSvg(){
-  const r = standaloneSvg(selectedDims()); if(!r){ App.ui.toast(t('Nothing to save yet', 'Nog niets om op te slaan'), 'info'); return; }
+  const r = standaloneSvg(selectedDims(), S.layer); if(!r){ App.ui.toast(t('Nothing to save yet', 'Nog niets om op te slaan'), 'info'); return; }
   const name = `${(M().projectMeta?.project || 'PatchLab').replace(/[^a-z0-9_-]+/gi, '_')}-signal-flow-${S.dc}.svg`;
   const a = Object.assign(document.createElement('a'), { href:URL.createObjectURL(new Blob([r.svg], { type:'image/svg+xml' })), download:name });
   document.body.appendChild(a); a.click(); a.remove();

@@ -35,7 +35,7 @@
     patch:     [['standaloneVeams','Include Veams that are not linked to an LK', true], ['location','Show location per port', true], ['source','Show source (LK / Veam) per port', false], ['groupColors','Tint Veam groups A / B / C', true]],
     patchlist: [['dmx','Include loose DMX', true]],
     racks:     [['drawing','Rack drawing', true], ['nodes','Node ports (which LK / Veam port is on which node port)', true], ['loose','Loose devices (nodes and spiders without a rack)', true], ['table','Patch table (node port → LK / Veam)', true], ['advice','Recommendations', true]],
-    flow:      [['legend','Cable legend', true], ['ownPage','Start on a new sheet', true]],
+    flow:      [['legend','Cable legend', true], ['ownPage','Start on a new sheet', true], ['netOnly','Also a drawing of only the network (switches, Cat cables, fibres)', true]],
     warnings:  [['projectWide','Include project-wide issues', true]]
   };
 
@@ -51,7 +51,7 @@
       cover: { show:true, title:'', subtitle:'{area} · {location}', showLogo:true, logoX:1, logoY:0, logoW:60, fields:{ area:true, location:true, date:true, prepared:true, dimcities:true, totals:true }, note:'', summaryPage:true },
       sections: [
         { key:'summary', on:true }, { key:'network', on:true, opts:{ universeTable:true, switches:false, addresses:true } },
-        { key:'splitters', on:true }, { key:'racks', on:true, opts:{ drawing:true, nodes:true, loose:true, table:true, advice:true } }, { key:'flow', on:true, opts:{ legend:true, ownPage:true } }, { key:'patch', on:true, opts:{ standaloneVeams:true, location:true, source:false, groupColors:true } },
+        { key:'splitters', on:true }, { key:'racks', on:true, opts:{ drawing:true, nodes:true, loose:true, table:true, advice:true } }, { key:'flow', on:true, opts:{ legend:true, ownPage:true, netOnly:true } }, { key:'patch', on:true, opts:{ standaloneVeams:true, location:true, source:false, groupColors:true } },
         { key:'universes', on:false }, { key:'patchlist', on:false, opts:{ dmx:true } },
         { key:'warnings', on:true, opts:{ projectWide:true } }, { key:'notes', on:false, opts:{ text:'' } }
       ]
@@ -349,6 +349,7 @@
       .pflow-page{break-before:page;page-break-before:always}
       .pflow{border:var(--bw) solid var(--ln2);border-radius:1.6mm;padding:2mm;background:#fff;break-inside:avoid}
       .pflow svg{display:block;width:100%;height:auto;max-height:${Math.max(60, ph - mt - mb - 40)}mm}
+      .pflow-sub{font-weight:800;font-size:${fs*.95}px;text-transform:uppercase;letter-spacing:.05em;margin:4mm 0 1.5mm;color:#334155}
       .pflow-legend{display:flex;flex-wrap:wrap;gap:5mm;margin-top:1.5mm;font-size:${fs*.8}px;color:#475569}
       .pflow-legend span{display:inline-flex;align-items:center;gap:1.2mm}
       .pflow-legend i{display:inline-block;width:8mm;background:#334155;border-radius:.4mm}
@@ -547,9 +548,11 @@
   function buildFlow(M, dc, L, n, o={}){
     const r = window.Flow?.printSvg?.(dc);
     if(!r) return '';
-    const legend = o.legend === false ? '' : `<div class="pflow-legend"><span><i style="height:1.6mm"></i>LK multicore</span><span><i style="height:1.1mm"></i>Veam cable</span><span><i style="height:.6mm;background:linear-gradient(90deg,#f87171,#60a5fa,#4ade80)"></i>DMX line (universe colour)</span><span>LK and Veam cables have the colour of the node that feeds them</span></div>`;
+    const legend = o.legend === false ? '' : `<div class="pflow-legend"><span><i style="height:1.6mm"></i>LK multicore</span><span><i style="height:1.1mm"></i>Veam cable</span><span><i style="height:.6mm;background:linear-gradient(90deg,#f87171,#60a5fa,#4ade80)"></i>DMX line (universe colour)</span><span><i style="height:.8mm;background:linear-gradient(90deg,#325197,#E80000,#32CD32)"></i>Network cable (VLAN colour)</span><span><i style="height:1.3mm;background:#22c3d6"></i>Fibre</span><span>LK and Veam cables have the colour of the node that feeds them</span></div>`;
     const sub = [r.racks ? `${r.racks} rack${r.racks===1?'':'s'}` : '', `${r.lk} LK`, `${r.veams} Veam`, `${r.lines} lines`].filter(Boolean).join(' · ');
-    return `<div class="section ${o.ownPage === false ? '' : 'pflow-page'}">${h3(n, 'Signal flow', sub)}<div class="pflow">${r.svg}</div>${legend}</div>`;
+    const net = o.netOnly !== false ? window.Flow?.printSvg?.(dc, 'net') : null;
+    const netBlock = net ? `<div class="pflow-sub">Network only</div><div class="pflow">${net.svg}</div>` : '';
+    return `<div class="section ${o.ownPage === false ? '' : 'pflow-page'}">${h3(n, 'Signal flow', sub)}<div class="pflow">${r.svg}</div>${legend}${netBlock}</div>`;
   }
   function buildRacks(M, dc, L, n, o={}){
     const E = window.RackEngine;

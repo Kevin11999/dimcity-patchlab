@@ -107,7 +107,7 @@
     } catch { return { n:0, rj:0, sfp:0 }; }
   }
   function portPlan(dc){
-    const rows = F().switchPlan(devices(dc).map(({ kind, dev }) => ({ label:dev.id || dev.name || kind, ethCount:ethOf(kind, dev), dev })));
+    const rows = F().switchPlan(devices(dc).map(({ kind, idx, dev }) => ({ label:dev.id || dev.name || kind, ethCount:ethOf(kind, dev), dev, ref:{ kind, idx } })));
     // after the nodes: the network cables (C) that come into the DimCity, one switch port per line
     let port = rows.length + 1;
     for(const c of (window.NetCables?.cables(dc) || [])) for(const l of c.lines) if(!l.empty) rows.push({ port:port++, device:`${c.id}.${l.port}`, eth:1, ethCount:1, mode:'access', vlans:l.vlan != null ? [l.vlan] : [], ips:[], dest:l.dest || '', cable:true });

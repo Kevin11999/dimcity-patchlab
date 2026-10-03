@@ -121,7 +121,7 @@
   // Switch port plan: every RJ45 of every device gets the next switch port. devices: [{ label, ethCount, dev }]
   function switchPlan(devices, first = 1){
     const rows = []; let port = first;
-    for(const d of devices) for(const p of portsOf(d.dev, d.ethCount)){ rows.push({ port:port++, device:d.label, eth:p.eth, ethCount:d.ethCount, mode:p.mode, vlans:p.vlans, ips:p.ifs.map(x => x.ip).filter(Boolean) }); }
+    for(const d of devices) for(const p of portsOf(d.dev, d.ethCount)){ rows.push({ port:port++, device:d.label, ref:d.ref || null, eth:p.eth, ethCount:d.ethCount, mode:p.mode, vlans:p.vlans, ips:p.ifs.map(x => x.ip).filter(Boolean) }); }
     return rows;
   }
   // The VLAN column of a C row: a GigaCore group number (1-20) or a VLAN ID (1, 200, 300 … or a FENT number)

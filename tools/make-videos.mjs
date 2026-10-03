@@ -142,7 +142,7 @@ async function record(part, L) {
     },
     async go(view) { await k.click(`.nav-item[data-view="${view}"]`); await page.waitForTimeout(500); },
     async closeDialog() {
-      const done = await page.evaluate(() => { const bs = [...document.querySelectorAll('.modal-backdrop button, .modal button, dialog button')]; const b = bs.find(x => /^(cancel|close|annuleren|sluiten)$/i.test(x.textContent.trim())); if (b) { b.click(); return true; } return false; });
+      const done = await page.evaluate(() => { const bs = [...document.querySelectorAll('.modal-backdrop button, .modal button, dialog button')]; const b = bs.filter(x => x.offsetParent !== null).reverse().find(x => /^(cancel|close|annuleren|sluiten)$/i.test(x.textContent.trim())); if (b) { b.click(); return true; } return false; });
       if (!done) await page.keyboard.press('Escape');
       await page.waitForTimeout(500);
     },

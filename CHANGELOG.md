@@ -4,6 +4,18 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.5.1 — 2026-10-07
+
+- New video tutorials with a spoken explanation (female English voice) and subtitles, in 720p: the whole workflow from the imported patch to the printed show in nine parts — Start, Racks and the advice, Couple LKs and Veams, Nodes, Network, Fibres, Signal Flow, the PDF and Stickers. Help > Video Tutorials plays them one after the other or one by one.
+- The advice (best setup) now also shows on a DimCity that has no rack yet; before, it was hidden exactly then.
+
+<details><summary>Nederlands</summary>
+
+- Nieuwe video-uitleg met gesproken uitleg (Engelse vrouwenstem) en ondertiteling, in 720p: de hele workflow van de geïmporteerde patch tot de geprinte show in negen delen — Start, Racks en het advies, LK's en Veams koppelen, Nodes, Netwerk, Fibers, Signaalstroom, de PDF en Stickers. Help > Video-uitleg speelt ze achter elkaar of een voor een af.
+- Het advies (beste setup) staat nu ook op een DimCity zonder rek; eerder was het juist dan verborgen.
+
+</details>
+
 ## 0.5.0 — 2026-10-06
 
 - VLANs: the VLAN list is now its own card on the Network page (tab VLAN & addresses) and is always there, also when the FENT scheme is off. Rename any VLAN, change its colour, reset it to the standard, or add your own VLAN (ID + name). Names and colours show in the port plan, on stickers and in the PDF.

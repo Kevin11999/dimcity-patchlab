@@ -76,9 +76,9 @@ Bottom-left, a small bar shows how complete the show is: project info, patch imp
 <a id="videos"></a>
 ## Videos
 
-Short screen recordings with subtitles (no sound) show how the app works. Watch the **complete tour** first, or pick one part: Import, Network, Racks, Couple the LKs, Fibres, PDF or Stickers.
+Screen recordings with a spoken explanation (English, with subtitles) show how the app works. Watch the **complete workflow** first, from the imported patch to the printed show, or pick one part: Start, Racks and the advice, Couple LKs and Veams, Nodes, Network, Fibres, Signal Flow, the PDF or Stickers.
 
-The recordings use the Demo Show, so everything you see is also in the app when you open **Open Demo Show** on the welcome screen. The **Setup** button in the toolbar walks you through the same steps for your own project.
+The recordings follow the same demo show, so everything you see you can also do yourself in **Open Demo Show** on the welcome screen. The **Setup** button in the toolbar walks you through the same steps for your own project.
 
 <a id="import"></a>
 ## Importing a CSV
@@ -510,6 +510,10 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.5.1 — 2026-10-07
+- New video tutorials with a spoken explanation (female English voice) and subtitles, in 720p: the whole workflow from the imported patch to the printed show in nine parts — Start, Racks and the advice, Couple LKs and Veams, Nodes, Network, Fibres, Signal Flow, the PDF and Stickers. Help > Video Tutorials plays them one after the other or one by one.
+- The advice (best setup) now also shows on a DimCity that has no rack yet; before, it was hidden exactly then.
+
 ### Version 0.5.0 — 2026-10-06
 - VLANs: the VLAN list is now its own card on the Network page (tab VLAN & addresses) and is always there, also when the FENT scheme is off. Rename any VLAN, change its colour, reset it to the standard, or add your own VLAN (ID + name). Names and colours show in the port plan, on stickers and in the PDF.
 - Background picture: much bigger sizes (up to 2000% on the slider, or type any percentage), a larger move range and a Fit to drawing button; large pictures are kept sharper.
@@ -666,7 +670,7 @@ Linksonder toont een kleine balk hoe compleet de show is: projectinfo, patch ge�
 <a id="videos-nl"></a>
 ## Video’s
 
-Korte schermopnames met ondertiteling (zonder geluid) laten zien hoe de app werkt. Kijk eerst de **complete rondleiding**, of kies een onderdeel: Importeren, Netwerk, Racks, LK’s koppelen, Fibers, PDF of Stickers.
+Schermopnames met gesproken uitleg (Engels, met ondertiteling) laten zien hoe de app werkt. Kijk eerst de **complete workflow**, van de geïmporteerde patch tot de geprinte show, of kies een onderdeel: Start, Racks en het advies, LK’s en Veams koppelen, Nodes, Netwerk, Fibers, Signaalstroom, de PDF of Stickers.
 
 De opnames gebruiken de Demo-show; alles wat je ziet kun je dus zelf nadoen via **Demo-show openen** op het welkomstscherm. De knop **Setup** in de werkbalk loopt dezelfde stappen met je door voor je eigen project.
 
@@ -1099,6 +1103,10 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.5.1 — 2026-10-07
+- Nieuwe video-uitleg met gesproken uitleg (Engelse vrouwenstem) en ondertiteling, in 720p: de hele workflow van de geïmporteerde patch tot de geprinte show in negen delen — Start, Racks en het advies, LK's en Veams koppelen, Nodes, Netwerk, Fibers, Signaalstroom, de PDF en Stickers. Help > Video-uitleg speelt ze achter elkaar of een voor een af.
+- Het advies (beste setup) staat nu ook op een DimCity zonder rek; eerder was het juist dan verborgen.
 
 ### Versie 0.5.0 — 2026-10-06
 - VLAN's: de VLAN-lijst is nu een eigen kaart op de pagina Netwerk (tab VLAN & adressen) en is er altijd, ook als het FENT-schema uit staat. Hernoem elk VLAN, wijzig de kleur, zet terug naar de standaard, of voeg je eigen VLAN toe (ID + naam). Namen en kleuren staan in het poortplan, op stickers en in de PDF.

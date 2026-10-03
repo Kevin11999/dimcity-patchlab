@@ -59,11 +59,12 @@ async function record(part){
   const t0 = frames[0];
   const audio = [];
   await sleep(700);
-  for(const step of part.steps){
+  let si = 0;
+  for(const step of part.steps){ si++;
     const wav = path.join(AUD, sha(step.say) + '.wav'), d = dur(wav);
     await page.evaluate(([x]) => { const c = document.getElementById('vcap'); c.textContent = x; c.classList.remove('off'); }, [step.say]);
     audio.push({ wav, at: Date.now() / 1000 - t0 });
-    await Promise.all([step.do ? step.do(k).catch(e => console.log('  step failed:', e.message.split('\n')[0])) : null, sleep(d * 1000 + 450)]);
+    await Promise.all([step.do ? step.do(k).catch(e => console.log(`  step ${si} failed:`, e.message.split('\n').slice(0, 2).join(' '))) : null, sleep(d * 1000 + 450)]);
   }
   await page.evaluate(() => document.getElementById('vcap')?.classList.add('off'));
   await sleep(900);

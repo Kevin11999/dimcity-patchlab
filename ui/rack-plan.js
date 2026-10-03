@@ -204,7 +204,7 @@ function cardHtml(dc){
     </div>`;
   if(!any){
     return App.ui.card({ key:`${dc}:racks`, title:'Racks', icon:'rack', meta:'none placed', collapsed:false,
-      body:`${controls}<div class="hint" style="margin-top:10px">${I('info', 13)} Place a rack and PatchLab patches the LKs and Veams of ${esc(dc)} onto its sockets and node ports automatically.${rackTypes.length ? '' : ' Build a rack in the Rack Builder first.'}</div>${looseHtml(plan, dc)}` });
+      body:`${adviceHtml(dc)}${controls}<div class="hint" style="margin-top:10px">${I('info', 13)} Place a rack and PatchLab patches the LKs and Veams of ${esc(dc)} onto its sockets and node ports automatically.${rackTypes.length ? '' : ' Build a rack in the Rack Builder first.'}</div>${looseHtml(plan, dc)}` });
   }
   const chip = (label, used, total, warn) => `<div class="rp-stat ${warn ? 'warn' : ''}"><span>${label}</span><b>${used}<em>/${total}</em></b></div>`;
   const stats = `<div class="rp-stats">

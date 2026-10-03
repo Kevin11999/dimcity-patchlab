@@ -50,7 +50,7 @@ async function standardLibrary(){
   } catch { return null; }
 }
 
-async function open({ silent=false } = {}){
+async function open({ silent=false, tutorial=false } = {}){
   if(!silent && !(await window.ProjectIO?.confirmSaveIfDirty?.())) return false;
   window.PatchLabUI?.closeWelcome?.();
   const meta = { project:'Demo Festival 2026', area:'Mainstage + B-stage', location:'Biddinghuizen', date:new Date().toISOString().slice(0, 10), prepared:'PatchLab demo', logo:null };
@@ -95,6 +95,15 @@ async function open({ silent=false } = {}){
   for(const r of (nd2.rackTypes || [])){ const had = (r.items || []).filter(it => it.kind === 'switch'); if(!had.length) continue; r.items = r.items.filter(it => it.kind !== 'switch'); r.items.forEach(it => { it.u = Math.max(1, it.u - had.length); }); r.heightU = Math.max(1, r.heightU - had.length); }
   nd2.fiberStock = [{ typeId:'CABLE:DEMO-OC250', qty:6 }, { typeId:'CABLE:DEMO-OC75', qty:6 }, { typeId:'CABLE:DEMO-FF250', qty:2 }];
   nd2.fiberLinks = [];
+  if(tutorial){
+    // the start of the video tutorials: the patch is imported, nothing is built yet (no racks, devices, switches or fibres)
+    for(const dc of ['DB01', 'DB02', 'DB03']){ const p = plan(dc); p.racks = []; p.loose = []; p.switches = []; p.nodes = []; p.splitters = []; delete p.assign; }
+    M2.ui.dirty = false; M2.ui.cardCollapsed = {};
+    App.setMODEL(M2);
+    App.fullRebuildAndRender(); window.PatchHistory?.reset?.();
+    App.navigate('HOME');
+    return true;
+  }
   // 4. network plan from the rack patch
   App.hydrateDimOrigins(); App.recomputeVeamUseAndIssues(); App.recomputeUniverseStats();
   for(const dc of ['DB01', 'DB02', 'DB03']) window.RackPlan?.applyToNetworkPlan?.(dc, { quiet:true });

@@ -65,10 +65,10 @@ Linksonder toont een kleine balk hoe compleet de show is: projectinfo, patch ge�
   {
     id:'videos', icon:'play', context:['videos'],
     title:{ en:'Videos', nl:'Video’s' },
-    en:`Short screen recordings with subtitles (no sound) show how the app works. Watch the **complete tour** first, or pick one part: Import, Network, Racks, Couple the LKs, Fibres, PDF or Stickers.
+    en:`Screen recordings with a spoken explanation (English, with subtitles) show how the app works. Watch the **complete workflow** first, from the imported patch to the printed show, or pick one part: Start, Racks and the advice, Couple LKs and Veams, Nodes, Network, Fibres, Signal Flow, the PDF or Stickers.
 
-The recordings use the Demo Show, so everything you see is also in the app when you open **Open Demo Show** on the welcome screen. The **Setup** button in the toolbar walks you through the same steps for your own project.`,
-    nl:`Korte schermopnames met ondertiteling (zonder geluid) laten zien hoe de app werkt. Kijk eerst de **complete rondleiding**, of kies een onderdeel: Importeren, Netwerk, Racks, LK’s koppelen, Fibers, PDF of Stickers.
+The recordings follow the same demo show, so everything you see you can also do yourself in **Open Demo Show** on the welcome screen. The **Setup** button in the toolbar walks you through the same steps for your own project.`,
+    nl:`Schermopnames met gesproken uitleg (Engels, met ondertiteling) laten zien hoe de app werkt. Kijk eerst de **complete workflow**, van de geïmporteerde patch tot de geprinte show, of kies een onderdeel: Start, Racks en het advies, LK’s en Veams koppelen, Nodes, Netwerk, Fibers, Signaalstroom, de PDF of Stickers.
 
 De opnames gebruiken de Demo-show; alles wat je ziet kun je dus zelf nadoen via **Demo-show openen** op het welkomstscherm. De knop **Setup** in de werkbalk loopt dezelfde stappen met je door voor je eigen project.`
   },

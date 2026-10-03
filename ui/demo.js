@@ -84,11 +84,15 @@ async function open({ silent=false } = {}){
   // fibre between the stage switch and the B-stage switch, with two cable types made by hand
   const nd2 = M2.networkDevices;   // fillProject made a new object: use the current one
   nd2.cableTypes = [
-    { id:'CABLE:DEMO-OC4', brand:'', name:'opticalCON QUAD 4-core singlemode', medium:'smf', cores:4, connA:'opticalCON QUAD', connB:'opticalCON QUAD', lengthM:100, articleKey:'', color:'#22c3d6' },
-    { id:'CABLE:DEMO-FF', brand:'', name:'FiberFox 4-core singlemode', medium:'smf', cores:4, connA:'FiberFox', connB:'FiberFox', lengthM:50, articleKey:'', color:'#e05dd8' },
+    { id:'CABLE:DEMO-OC250', brand:'', name:'opticalCON DUO 4-core singlemode', medium:'smf', cores:4, connA:'opticalCON DUO', connB:'opticalCON DUO', lengthM:250, articleKey:'', color:'#22c3d6' },
+    { id:'CABLE:DEMO-OC75', brand:'', name:'opticalCON DUO 4-core singlemode', medium:'smf', cores:4, connA:'opticalCON DUO', connB:'opticalCON DUO', lengthM:7.5, articleKey:'', color:'#2f5bff' },
+    { id:'CABLE:DEMO-FF250', brand:'', name:'FiberFox DUO 4-core singlemode', medium:'smf', cores:4, connA:'FiberFox', connB:'FiberFox', lengthM:250, articleKey:'', color:'#ff3b30' },
     { id:'CABLE:DEMO-SFP', brand:'', name:'SFP patch LC duplex', medium:'smf', cores:2, connA:'SFP (LC)', connB:'SFP (LC)', lengthM:3, articleKey:'', color:'#f2b33d' }
   ];
-  nd2.fiberLinks = [{ id:'F1', typeId:'CABLE:DEMO-OC4', a:{ dc:'DB01', sw:'DB01-SW1', sfp:1 }, b:{ dc:'DB02', sw:'DB02-SW1', sfp:1 }, note:'Stage to B-stage' }, { id:'F2', typeId:'CABLE:DEMO-FF', a:{ dc:'DB02', sw:'DB02-SW1', sfp:2 }, b:{ dc:'DB03', sw:'DB03-SW1', sfp:1 }, note:'B-stage to FOH' }];
+  // the switch in the demo racks is a GigaCore 20t, so the fibre ports are opticalCON (17-18) and FiberFox (19-20)
+  for(const r of (nd2.rackTypes || [])) for(const it of (r.items || [])) if(it.kind === 'switch') it.typeId = 'SWITCH:LMX-GC20T';
+  nd2.fiberStock = [{ typeId:'CABLE:DEMO-OC250', qty:6 }, { typeId:'CABLE:DEMO-OC75', qty:6 }, { typeId:'CABLE:DEMO-FF250', qty:2 }];
+  nd2.fiberLinks = [];
   // 4. network plan from the rack patch
   App.hydrateDimOrigins(); App.recomputeVeamUseAndIssues(); App.recomputeUniverseStats();
   for(const dc of ['DB01', 'DB02', 'DB03']) window.RackPlan?.applyToNetworkPlan?.(dc, { quiet:true });
@@ -104,9 +108,16 @@ async function open({ silent=false } = {}){
   M2.ui.cardCollapsed = {};
   App.setMODEL(M2);
   // a network switch in every DimCity (nodes first, then the Cat cables), addressed with the FENT scheme
-  for(const dc of ['DB01', 'DB02', 'DB03']){ const p = plan(dc); p.switches = [{ id:`${dc}-SW1`, name:`${dc} Luminex GigaCore 18t`, typeId:'SWITCH:LMX-GC18T', ip:'', subnet:'', ifaces:[] }]; }
+  App.addDimCity('FOH');
+  const swOf = (dc, k) => ({ id:`${dc}-SW${k}`, name:`${dc} Luminex GigaCore 20t`, typeId:'SWITCH:LMX-GC20T', ip:'', subnet:'', ifaces:[] });
+  for(const dc of ['DB01', 'DB02', 'DB03', 'FOH']){
+    const p = plan(dc), inRacks = (window.NetSwitches?.list(dc) || []).length;   // switches that sit in the racks of this DimCity
+    p.switches = (dc === 'DB01' || !inRacks) ? [swOf(dc, 1)] : [];
+  }
   M2.networkDevices.prefs.fent = { on:true, group:'production', scan:false, vlanMode:'luminex' };
-  for(const dc of ['DB01', 'DB02', 'DB03']) window.FentUI?.applyDim?.(dc);
+  for(const dc of ['DB01', 'DB02', 'DB03', 'FOH']) window.FentUI?.applyDim?.(dc);
+  // fibres: the three switches of DB01 are chained with the short cable, the locations form a ring with the long one
+  window.Fibers?.autoAssign?.({ topology:'ring', intraType:'CABLE:DEMO-OC75', interType:'CABLE:DEMO-OC250' });
   App.fullRebuildAndRender();
   window.PatchHistory?.reset?.();
   App.openEntity('DIM', 'DB01');

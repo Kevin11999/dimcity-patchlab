@@ -42,7 +42,7 @@
     let done = false, detail = '';
     if(id === 'import'){ done = f.rows > 0; detail = done ? `${f.rows} ${t('rows', 'regels')} · ${dims.length} DimCities` : t('nothing imported yet', 'nog niets geïmporteerd'); }
     else if(id === 'network'){ const have = dims.filter(d => f.per[d].switches.length).length; done = !!dims.length && have === dims.length; detail = `${have}/${dims.length} ${t('DBs with a switch', 'DB\'s met een switch')}`; }
-    else if(id === 'racks'){ const have = dims.filter(d => f.per[d].hasPlan).length; done = !!dims.length && have === dims.length; detail = `${have}/${dims.length} ${t('DBs with a rack or devices', 'DB\'s met een rek of apparaten')}`; }
+    else if(id === 'racks'){ const rd = dims.filter(d => d !== 'FOH'), have = rd.filter(d => f.per[d].hasPlan).length; done = !!rd.length && have === rd.length; detail = `${have}/${rd.length} ${t('DBs with a rack or devices', 'DB\'s met een rek of apparaten')}`; }
     else if(id === 'lks'){ const ok = dims.filter(d => f.per[d].hasPlan && !f.per[d].unfed && f.per[d].nodes).length; const need = dims.filter(d => f.per[d].hasPlan).length; done = need > 0 && ok === need; detail = `${ok}/${need} ${t('DBs fully patched', 'DB\'s volledig gepatcht')}`; }
     else if(id === 'fibers'){ const n = window.Fibers ? window.Fibers.all().length : 0; done = n > 0; detail = n ? `${n} ${t('fibres', 'fibers')}` : t('no fibres yet', 'nog geen fibers'); }
     else if(id === 'check'){ const n = (m().issues || []).length; done = f.rows > 0 && n === 0; detail = n ? `${n} ${t('open issues', 'open meldingen')}` : t('no open issues', 'geen open meldingen'); }

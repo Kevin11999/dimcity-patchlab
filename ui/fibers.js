@@ -82,5 +82,103 @@
       d.footer.querySelector('[data-a=c]').onclick = () => { d.close(); res(null); }; d.footer.querySelector('[data-a=ok]').onclick = ok; inp.onkeydown = e => { if(e.key === 'Enter') ok(); };
     });
   }
-  window.Fibers = { all, links, usage, matrix, card, bind, typeOf, typeName, endLabel, portName, color, lenOf, freePorts };
+
+  // ---- stock: "4× OC 7,5 m, 6× OC 250 m …" — how many of each cable type you own ----
+  const stock = () => (nd().fiberStock ||= []);
+  const qtyOf = typeId => { const e = stock().find(x => x.typeId === typeId); return e ? Number(e.qty) || 0 : null; };   // null = not counted (unlimited)
+  const usedOf = typeId => all().filter(l => l.typeId === typeId).length;
+  const leftOf = typeId => { const q = qtyOf(typeId); return q == null ? Infinity : Math.max(0, q - usedOf(typeId)); };
+  function setQty(typeId, qty){
+    const list = stock(), i = list.findIndex(x => x.typeId === typeId);
+    if(qty == null || qty === ''){ if(i >= 0) list.splice(i, 1); }
+    else if(i >= 0) list[i].qty = Math.max(0, Number(qty) || 0); else list.push({ typeId, qty:Math.max(0, Number(qty) || 0) });
+    M().ui.dirty = true;
+  }
+  const fmtLen = m => String(Number(m) || 0).replace('.', ',');
+  // short code printed on a drawing / label: OC250, FF250, OC7,5, SFP3
+  function code(typeId){
+    const ty = typeOf(typeId); if(!ty) return '?';
+    const c = String(ty.connA || ''), pre = /optical/i.test(c) ? 'OC' : /fiberfox/i.test(c) ? 'FF' : /sfp|dac/i.test(c) || ty.medium === 'dac' ? 'SFP' : (c.slice(0, 2).toUpperCase() || 'F');
+    return pre + fmtLen(ty.lengthM);
+  }
+  const connClass = c => /optical/i.test(c) ? 'oc' : /fiberfox/i.test(c) ? 'ff' : 'sfp';
+  function addLink(a, b, typeId, note = ''){
+    const l = { id:nextId(), typeId, a, b, note }; nd().fiberLinks.push(l); M().ui.dirty = true; return l;
+  }
+  // free fibre ports of the switches in a location, preferring the connector class of the cable
+  function freeIn(dc, swLabel, cls, taken){
+    const sw = (window.NetSwitches?.list(dc) || []).find(x => x.label === swLabel); if(!sw) return null;
+    const used = new Set(taken); for(const l of all()) for(const e of ends(l)) if(e?.dc === dc && e.sw === swLabel) used.add(Number(e.sfp));
+    const ok = [];
+    for(let n = 1; n <= sw.sfp; n++) if(!used.has(n)) ok.push(n);
+    const pref = ok.find(n => window.SwPorts.kindOf(window.SwPorts.conn(sw.type, n)) === cls);
+    return pref ?? ok[0] ?? null;
+  }
+  // Auto-assign: switches in one location are chained with the short cable, locations are linked with the long cable (ring or chain).
+  function autoAssign({ topology = 'ring', intraType, interType, dryRun = false } = {}){
+    const out = { made:[], missing:[], noPort:[] };
+    const locs = App.sortedDims().map(dc => ({ dc, sws:(window.NetSwitches?.list(dc) || []).filter(s => s.sfp > 0) })).filter(l => l.sws.length);
+    const reserve = new Map();   // typeId -> used by this run
+    const left = id => leftOf(id) - (reserve.get(id) || 0);
+    const taken = new Map();     // `${dc}|${sw}` -> ports used by this run
+    const take = (dc, sw, cls) => { const k = `${dc}|${sw}`; const arr = taken.get(k) || []; const n = freeIn(dc, sw, cls, arr); if(n != null){ arr.push(n); taken.set(k, arr); } return n; };
+    const linked = (x, y) => all().some(l => (l.a?.dc === x.dc && l.a?.sw === x.sw && l.b?.dc === y.dc && l.b?.sw === y.sw) || (l.b?.dc === x.dc && l.b?.sw === x.sw && l.a?.dc === y.dc && l.a?.sw === y.sw)) || out.made.some(m => (m.a.dc === x.dc && m.a.sw === x.sw && m.b.dc === y.dc && m.b.sw === y.sw) || (m.b.dc === x.dc && m.b.sw === x.sw && m.a.dc === y.dc && m.a.sw === y.sw));
+    const connect = (x, y, typeId) => {
+      if(!typeId) return;
+      if(x.dc === y.dc && x.sw === y.sw) return;
+      if(linked(x, y)) return;
+      if(left(typeId) <= 0){ out.missing.push({ typeId, between:`${x.dc} ${x.sw} ⇄ ${y.dc} ${y.sw}` }); return; }
+      const cls = connClass(typeOf(typeId)?.connA);
+      const pa = take(x.dc, x.sw, cls), pb = take(y.dc, y.sw, cls);
+      if(pa == null || pb == null){ out.noPort.push(`${x.dc} ${x.sw} ⇄ ${y.dc} ${y.sw}`); return; }
+      reserve.set(typeId, (reserve.get(typeId) || 0) + 1);
+      out.made.push({ a:{ dc:x.dc, sw:x.sw, sfp:pa }, b:{ dc:y.dc, sw:y.sw, sfp:pb }, typeId });
+    };
+    for(const l of locs) for(let i = 0; i + 1 < l.sws.length; i++) connect({ dc:l.dc, sw:l.sws[i].label }, { dc:l.dc, sw:l.sws[i + 1].label }, intraType);
+    const n = locs.length;
+    for(let i = 0; i < n; i++){
+      if(i + 1 >= n && !(topology === 'ring' && n > 2)) break;
+      const A = locs[i], B = locs[(i + 1) % n];
+      connect({ dc:A.dc, sw:A.sws[A.sws.length - 1].label }, { dc:B.dc, sw:B.sws[0].label }, interType);
+    }
+    if(!dryRun) for(const m of out.made) addLink(m.a, m.b, m.typeId, '');
+    return out;
+  }
+  function suggestTypes(){
+    const types = nd().cableTypes.slice().sort((a, b) => (Number(a.lengthM) || 0) - (Number(b.lengthM) || 0));
+    const pool = types.filter(ty => ty.medium !== 'cat');
+    const stocked = pool.filter(ty => qtyOf(ty.id) != null && leftOf(ty.id) > 0);
+    const src = stocked.length >= 2 ? stocked : pool;
+    return { intra:src[0]?.id || '', inter:src[src.length - 1]?.id || '' };
+  }
+  function stockCard(){
+    const types = nd().cableTypes;
+    if(!types.length) return `<div class="hint">${I('info', 13)} ${t('Make cable types first (Device Builder → Cables).', 'Maak eerst kabeltypes (Device Builder → Kabels).')} <a data-cmd="deviceBuilder" data-arg="cable">${t('Open', 'Openen')}</a></div>`;
+    return `<table class="data-table fent-ports"><thead><tr><th>${t('Cable', 'Kabel')}</th><th>${t('Code', 'Code')}</th><th class="num">${t('In stock', 'Voorraad')}</th><th class="num">${t('Used', 'Gebruikt')}</th><th class="num">${t('Left', 'Over')}</th></tr></thead><tbody>${types.map(ty => { const q = qtyOf(ty.id), u = usedOf(ty.id), l = leftOf(ty.id);
+      return `<tr><td><i class="dot" style="background:${esc(ty.color || '#22c3d6')}"></i> ${esc(typeName(ty))} <span class="subtle">${esc(MEDIUM[ty.medium] || '')} ${fmtLen(ty.lengthM)} m</span></td><td><b>${esc(code(ty.id))}</b></td><td class="num"><input type="number" min="0" max="999" class="fibQty" data-t="${esc(ty.id)}" value="${q == null ? '' : q}" placeholder="–" style="width:70px"></td><td class="num">${u}</td><td class="num ${l === 0 ? 'err' : ''}">${l === Infinity ? '∞' : l}</td></tr>`; }).join('')}</tbody></table>
+      <div class="hint" style="margin-top:6px">${t('Fill in how many of each cable you have. Empty = not counted.', 'Vul in hoeveel je van elke kabel hebt. Leeg = niet geteld.')}</div>`;
+  }
+  function bindStock(root, rerender){
+    root.querySelectorAll('.fibQty').forEach(i => i.onchange = () => { setQty(i.dataset.t, i.value === '' ? null : i.value); rerender(); });
+  }
+  function autoDialog(done){
+    const types = nd().cableTypes.filter(ty => ty.medium !== 'cat');
+    if(!types.length){ App.ui.toast(t('Make cable types first', 'Maak eerst kabeltypes'), 'info'); return; }
+    const sg = suggestTypes();
+    const opts = sel => types.map(ty => `<option value="${esc(ty.id)}" ${ty.id === sel ? 'selected' : ''}>${esc(code(ty.id))} · ${esc(typeName(ty))} (${leftOf(ty.id) === Infinity ? '∞' : leftOf(ty.id)} ${t('left', 'over')})</option>`).join('');
+    const d = App.ui.openDialog({ title:t('Auto-assign fibres', 'Fibers automatisch koppelen'), width:'520px',
+      body:`<div class="hint" style="margin:0 0 12px">${t('Switches inside one location are chained with the short cable; the locations are linked with the long cable. Free ports with the right connector are used first.', 'Switches binnen één locatie worden achter elkaar gekoppeld met de korte kabel; de locaties worden met de lange kabel gekoppeld. Vrije poorten met de juiste connector gaan eerst.')}</div>
+        <label class="field">${t('Cable inside a location (switch to switch)', 'Kabel binnen een locatie (switch naar switch)')}<select id="auIntra">${opts(sg.intra)}</select></label>
+        <label class="field">${t('Cable between locations', 'Kabel tussen locaties')}<select id="auInter">${opts(sg.inter)}</select></label>
+        <label class="field">${t('Between locations', 'Tussen locaties')}<select id="auTopo"><option value="ring">${t('Ring (last back to first)', 'Ring (laatste terug naar eerste)')}</option><option value="chain">${t('Chain (in a line)', 'Ketting (op een rij)')}</option></select></label>
+        <div id="auPrev" class="subtle" style="margin-top:8px"></div>`,
+      footer:`<button data-a="c">${t('Cancel', 'Annuleren')}</button><button class="primary" data-a="ok">${t('Assign', 'Koppelen')}</button>` });
+    const get = () => ({ topology:d.body.querySelector('#auTopo').value, intraType:d.body.querySelector('#auIntra').value, interType:d.body.querySelector('#auInter').value });
+    const prev = () => { const r = autoAssign({ ...get(), dryRun:true }); d.body.querySelector('#auPrev').innerHTML = `${r.made.length} ${t('new fibres', 'nieuwe fibers')}${r.missing.length ? ` · <span style="color:var(--yellow)">${r.missing.length} ${t('missing in stock', 'te weinig voorraad')}</span>` : ''}${r.noPort.length ? ` · <span style="color:var(--yellow)">${r.noPort.length} ${t('without a free port', 'zonder vrije poort')}</span>` : ''}`; };
+    d.body.querySelectorAll('select').forEach(x => x.onchange = prev); prev();
+    d.footer.querySelector('[data-a=c]').onclick = () => d.close();
+    d.footer.querySelector('[data-a=ok]').onclick = () => { const r = autoAssign(get()); d.close(); App.ui.toast(`${r.made.length} ${t('fibres coupled', 'fibers gekoppeld')}${r.missing.length ? ` · ${r.missing.length} ${t('short in stock', 'tekort in voorraad')}` : ''}${r.noPort.length ? ` · ${r.noPort.length} ${t('no free port', 'geen vrije poort')}` : ''}`); done?.(); };
+  }
+
+  window.Fibers = { all, links, usage, matrix, card, bind, typeOf, typeName, endLabel, portName, color, lenOf, freePorts, stock, qtyOf, usedOf, leftOf, setQty, code, connClass, addLink, autoAssign, suggestTypes, stockCard, bindStock, autoDialog, fmtLen };
 })();

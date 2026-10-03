@@ -622,6 +622,10 @@ function render(){
   const root = App.$('#lkDetail'); if(!root) return;
   const m = M(); const dims = App.sortedDims(); const f = flowState();
   if(S.dc !== 'ALL' && !dims.includes(S.dc)) S.dc = 'ALL';
+  if(S.layer === 'fibre'){
+    App.pageHead?.({ eyebrow:'Project', title:t('Signal Flow', 'Signaalstroom'), sub:t('The fibres between the switches of every location. Draw a fibre from one port to another, or let Auto-assign do it.', 'De fibers tussen de switches van elke locatie. Teken een fiber van de ene poort naar de andere, of laat Automatisch koppelen het doen.') });
+    window.FibreView.render(root); return;
+  }
   const dcs = selectedDims();
   App.pageHead?.({ eyebrow:'Project', title:t('Signal Flow', 'Signaalstroom'), sub:t('How the data runs from the rack to every object. Hover a universe, a port or a line to follow it; click to pin.', 'Hoe de data van het rek naar elk object loopt. Beweeg over een universe, een poort of een lijn om hem te volgen; klik om vast te zetten.') });
   const graph = layout(filterLayer(buildGraph(dcs), S.layer), dcs);
@@ -634,7 +638,7 @@ function render(){
     <div class="fl-sec"><div class="rb-label">DimCities</div>
       <button class="fl-item ${S.dc === 'ALL' ? 'on' : ''}" data-dc="ALL">${I('layers', 14)}<span>${t('All DimCities', 'Alle DimCities')}</span><em>${dims.length}</em></button>
       ${dims.map(dc => `<button class="fl-item ${S.dc === dc ? 'on' : ''}" data-dc="${esc(dc)}"><i class="dot" style="background:${App.dimColor(dc)}"></i><span>${esc(dc)}</span><em>${m.byDim.get(dc)?.lks?.size || 0} LK</em></button>`).join('')}</div>
-    <div class="fl-sec"><div class="rb-label">${t('Show', 'Tonen')}</div><div class="segmented rb-full" id="flLayer"><button data-v="all" class="${S.layer === 'all' ? 'active' : ''}">${t('All', 'Alles')}</button><button data-v="dmx" class="${S.layer === 'dmx' ? 'active' : ''}">DMX</button><button data-v="net" class="${S.layer === 'net' ? 'active' : ''}">${t('Network', 'Netwerk')}</button></div></div>
+    <div class="fl-sec"><div class="rb-label">${t('Show', 'Tonen')}</div><div class="segmented rb-full" id="flLayer"><button data-v="all" class="${S.layer === 'all' ? 'active' : ''}">${t('All', 'Alles')}</button><button data-v="dmx" class="${S.layer === 'dmx' ? 'active' : ''}">DMX</button><button data-v="net" class="${S.layer === 'net' ? 'active' : ''}">${t('Network', 'Netwerk')}</button><button data-v="fibre">${t('Fibres', 'Fibers')}</button></div></div>
     <div class="fl-sec"><div class="rb-label">${t('Universes', 'Universes')} <span class="subtle">${uniList.length}</span></div>
       <div class="fl-unis">${uniList.map(u => `<button class="fl-uni ${S.pin?.uni === u ? 'pinned' : ''}" data-uni="${u}" style="--u:${uniHue(u)}"><b>U${u}</b><span>${unis.get(u)}</span></button>`).join('') || `<div class="subtle" style="padding:4px 8px">${t('No universes patched', 'Geen universes gepatcht')}</div>`}</div></div>
     <div class="fl-sec"><div class="rb-label">${t('Nodes', 'Nodes')}</div>${graph.nodes.map(n => `<div class="fl-node"><i style="background:${n.color}"></i><span>${esc(n.title)}</span><em title="${esc(n.where)}">${esc(n.where)}</em></div>`).join('') || `<div class="subtle" style="padding:4px 8px">${t('Place a rack or loose node first', 'Plaats eerst een rek of losse node')}</div>`}</div>
@@ -710,7 +714,7 @@ function bind(root, graph, byId){
   const f = flowState();
   root.querySelectorAll('[data-dc]').forEach(b => b.onclick = () => { S.dc = b.dataset.dc; S.pin = null; S.sel.clear(); render(); });
   const spc = root.querySelector('#flSpacing'); if(spc){ spc.oninput = () => { root.querySelector('#flSpVal').textContent = `${spc.value}%`; }; spc.onchange = () => { f.spacing = Number(spc.value) / 100; M().ui.dirty = true; S.fitNext = true; render(); }; }
-  root.querySelectorAll('#flLayer button').forEach(b => b.onclick = () => { S.layer = b.dataset.v; S.pin = null; S.sel.clear(); S.fitNext = true; render(); });
+  root.querySelectorAll('#flLayer button').forEach(b => b.onclick = () => setLayer(b.dataset.v));
   root.querySelectorAll('#flTool button').forEach(b => b.onclick = () => setTool(b.dataset.tool));
   root.querySelector('#flZoomIn').onclick = () => zoomCenter(S.zoom * 1.25);
   root.querySelector('#flZoomOut').onclick = () => zoomCenter(S.zoom / 1.25);
@@ -813,4 +817,6 @@ function exportSvg(){
   App.ui.toast(t('Drawing saved as SVG', 'Tekening opgeslagen als SVG'));
 }
 
-window.Flow = { render, fit, buildGraph, layout, standaloneSvg, printSvg, state:S };
+function setLayer(v){ S.layer = v; S.pin = null; S.sel.clear(); S.fitNext = true; if(v === 'fibre' && window.FibreView) window.FibreView.state.fit = true; render(); }
+function openFibres(){ S.layer = 'fibre'; window.FibreView.state.fit = true; App.navigate('FLOW'); render(); }
+window.Flow = { setLayer, openFibres, render, fit, buildGraph, layout, standaloneSvg, printSvg, state:S };

@@ -1128,3 +1128,21 @@ body.nav-mini .nav-empty{display:none}
 
 .rk-item.half{width:50%}.rk-item.half-R{justify-self:end}.rk-item.half-L{justify-self:start}
 .ru-blind{--c:#000}.ru-blind .ru-body{background:#050506}.ru-blind .ru-label b{color:#555;font-weight:500}
+
+/* fibre overview (Signal Flow > Fibres) */
+.fv-canvas{position:relative;cursor:grab;overflow:hidden}.fv-canvas.grab{cursor:grabbing}
+#fvSvg{width:100%;height:100%;display:block;background:var(--bg)}
+.fv-card{fill:var(--surface);stroke:var(--border)}.fv-sw{fill:var(--surface-2);stroke:var(--border)}
+.fv-title{font:700 14px system-ui,sans-serif;fill:var(--text)}.fv-swt{font:700 11.5px system-ui,sans-serif;fill:var(--text)}
+.fv-sub{font:500 10.5px system-ui,sans-serif;fill:var(--text-3)}
+.fv-pn{font:700 10px system-ui,sans-serif;fill:var(--text)}.fv-pc{font:600 6.5px system-ui,sans-serif;fill:var(--text-3)}
+.fv-port{cursor:pointer}.fv-port:hover rect{stroke-width:3}.fv-port.pend rect{stroke:#fff}
+.fv-line{fill:none;stroke-width:3.2;stroke-linecap:round;opacity:.92}.fv-hit{fill:none;stroke:transparent;stroke-width:14;cursor:pointer}
+.fv-cable:hover .fv-line,.fv-cable.sel .fv-line{stroke-width:5.5;opacity:1}.fv-code{font:700 10.5px system-ui,sans-serif}
+.fv-pal{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 4px 2px}
+.fv-chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface-2);color:var(--text)}
+.fv-chip i{width:10px;height:10px;border-radius:50%;background:var(--c)}.fv-chip span{color:var(--text-3);font-size:11.5px}
+.fv-chip.on{border-color:var(--c);box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 35%,transparent)}.fv-chip.out{opacity:.5}
+.fv-selbar{font-size:12.5px;color:var(--text-2)}
+body.view-flow .view{width:100%}
+.fv-line{stroke-linejoin:round}

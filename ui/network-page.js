@@ -63,7 +63,9 @@
       ${App.ui.card({ key:'net-addr', title:t('All addresses', 'Alle adressen'), icon:'table', collapsible:false, body:`<div style="padding:4px 14px 12px">${addressTable()}<div class="hint" style="margin-top:8px">${I('info', 13)} ${t('Change an address on the DimCity page, in the node card.', 'Wijzig een adres op de DimCity-pagina, in de nodekaart.')}</div></div>` })}</div>`;
   }
   function fibersTab(){
-    return `<div class="stack">${window.Fibers.card()}
+    const F = window.Fibers;
+    const top = App.ui.card({ key:'net-fibstock', title:t('Fibre stock and auto-assign', 'Fiberoverzicht en automatisch koppelen'), icon:'layers', collapsible:false, body:`<div style="padding:8px 14px 14px">${F.stockCard()}<div class="su-row" style="margin-top:10px"><button class="primary" id="fibAuto">${I('check', 14)}${t('Auto-assign fibres…', 'Fibers automatisch koppelen…')}</button><button id="fibView">${I('cable', 14)}${t('Draw in the fibre overview', 'Tekenen in het fiber-overzicht')}</button></div></div>` });
+    return `<div class="stack">${top}${window.Fibers.card()}
       ${App.ui.card({ key:'net-cabletypes', title:t('Cable types', 'Kabeltypes'), icon:'cable', meta:`${(M().networkDevices.cableTypes || []).length}`, collapsible:false, body:`<div style="padding:8px 14px 12px">${(M().networkDevices.cableTypes || []).map(ty => `<div class="subtle" style="font-size:12.5px;margin:2px 0"><span class="fent-sw" style="background:${esc(ty.color || '#22c3d6')}"></span>${esc([ty.brand, ty.name].filter(Boolean).join(' '))} · ${esc(ty.connA || '')} · ${Number(ty.lengthM) || 0} m</div>`).join('') || `<div class="subtle">${t('None yet.', 'Nog geen.')}</div>`}<button class="sm" data-cmd="deviceBuilder" data-arg="cable" style="margin-top:8px">${I('plus', 13)}${t('Make cable types', 'Kabeltypes maken')}</button></div>` })}</div>`;
   }
   function overviewTab(){
@@ -87,7 +89,10 @@
     root.querySelectorAll('[data-netopen]').forEach(b => b.onclick = () => { S.dc = b.dataset.netopen; S.tab = 'ports'; render(); });
     if(S.tab === 'ports' && S.dc){ window.NetSwitches.bind(root, S.dc, again); window.FentUI.bindDevice(root, S.dc, again); }
     if(S.tab === 'vlan') window.FentUI.bindPlanner(root, again);
-    if(S.tab === 'fibers') window.Fibers.bind(root, again);
+    if(S.tab === 'fibers'){ window.Fibers.bind(root, again); window.Fibers.bindStock(root, again);
+      const au = root.querySelector('#fibAuto'); if(au) au.onclick = () => window.Fibers.autoDialog(again);
+      const fv = root.querySelector('#fibView'); if(fv) fv.onclick = () => window.Flow?.openFibres?.();
+    }
   }
   window.NetworkPage = { render, summaryCard, stats, status, state:S };
 })();

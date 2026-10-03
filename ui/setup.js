@@ -57,6 +57,7 @@
     if(!M()) return;
     const f = facts();
     S.step = opts.step || STEPS.find(s => { const st = status(s.id, f); return !st.done && !st.skipped; })?.id || 'check';
+    if(opts.dc) S.dc = opts.dc;
     if(!S.dc || !f.dims.includes(S.dc)) S.dc = f.dims[0] || null;
     document.getElementById('suRoot')?.remove();
     R = document.createElement('div'); R.id = 'suRoot'; R.className = 'rb';
@@ -87,7 +88,7 @@
     const sk = R.querySelector('#suSkip'); if(sk) sk.onclick = () => { state().skipped[S.step] = true; M().ui.dirty = true; S.step = STEPS[Math.min(STEPS.length - 1, idx(S.step) + 1)].id; render(); };
     bindStep(cur.id);
   }
-  const dcBar = f => `<div class="rb-chips" style="margin:0 0 14px">${f.dims.map(d => `<label class="rb-chip ${S.dc === d ? 'on' : ''}"><input type="radio" name="sudc" data-sudc="${esc(d)}" ${S.dc === d ? 'checked' : ''}><i class="dot" style="background:${App.dimColor(d)}"></i>${esc(d)}<span class="subtle">${f.per[d].switches.length ? '✓' : ''}</span></label>`).join('')}</div>`;
+  const dcBar = f => `<div class="rb-chips" style="margin:0 0 14px">${f.dims.map(d => `<label class="rb-chip ${S.dc === d ? 'on' : ''}"><input type="radio" name="sudc" data-sudc="${esc(d)}" ${S.dc === d ? 'checked' : ''}><i class="dot" style="background:${App.dimColor(d)}"></i>${esc(d)}<span class="subtle">${f.per[d].switches.length ? '✓' : ''}</span></label>`).join('')}<button class="sm ghost" data-su-adddb title="${esc(t('Add a DB', 'Een DB toevoegen'))}">${I('plus', 12)} DB</button>${f.dims.includes('FOH') ? '' : `<button class="sm ghost" data-su-addfoh title="${esc(t('Front of house: where the lighting desk stands', 'Front of house: waar de lichttafel staat'))}">${I('plus', 12)} FOH</button>`}</div>`;
 
   function bodyFor(id, f){
     const dc = S.dc, n = nd(), c = n.prefs.fent;
@@ -139,12 +140,22 @@
   function bindStep(id){
     const n = nd(), root = R, dc = S.dc;
     const dirty = () => { M().ui.dirty = true; };
+    for(const [sid, key] of [['suSwType', 'swType'], ['suRackType', 'rackType'], ['suNodeType', 'nodeType']]){
+      const sel = root.querySelector('#' + sid); if(!sel) continue;
+      if(S[key] && [...sel.options].some(o => o.value === S[key])) sel.value = S[key];
+      sel.onchange = () => { S[key] = sel.value; };
+    }
+    const mkLoc = name => { const r = App.addDimCity(name); if(!r.ok){ App.ui.toast(r.error); return; } S.dc = r.id; App.renderAll(); render(); };
+    const adb = root.querySelector('[data-su-adddb]'); if(adb) adb.onclick = () => mkLoc(App.nextDbName());
+    const afoh = root.querySelector('[data-su-addfoh]'); if(afoh) afoh.onclick = () => mkLoc('FOH');
     root.querySelectorAll('[data-sudc]').forEach(i => i.onchange = () => { S.dc = i.dataset.sudc; render(); });
     root.querySelectorAll('[data-cmd-run]').forEach(b => b.onclick = () => {
       const cmd = b.dataset.cmdRun, arg = b.dataset.arg;
       if(cmd === 'issues'){ close(); App.navigate('ISSUES'); return; }
       if(cmd === 'demo'){ close(); window.Demo?.open?.(); return; }
+      const back = { step:S.step, dc:S.dc }, before = new Set(document.querySelectorAll('.rb, .modal-backdrop'));
       close(); App.runCommand?.(cmd, arg);
+      comeBack(back, before);
     });
     root.querySelectorAll('[data-su-mode] button').forEach(b => b.onclick = () => { n.prefs.fent.vlanMode = b.dataset.v; dirty(); render(); });
     const fe = root.querySelector('[data-su-fent]'); if(fe) fe.onchange = () => { n.prefs.fent.on = fe.checked; dirty(); render(); };
@@ -166,6 +177,20 @@
     root.querySelectorAll('[data-su-open]').forEach(b => b.onclick = () => { close(); App.openEntity('DIM', b.dataset.suOpen); });
     const fb = root.querySelector('[data-su-fibers]'); if(fb) fb.onclick = () => { close(); App.navigate('NET'); window.NetworkPage?.render?.({ tab:'fibers' }); };
     const nf = root.querySelector('[data-su-nofiber]'); if(nf) nf.onclick = () => { state().skipped.fibers = true; dirty(); S.step = 'check'; render(); };
+  }
+
+  // A builder / report dialog that opens on top of the wizard: when it closes, return to the same step
+  function comeBack(back, before){
+    let tries = 0;
+    const sel = '.rb:not(#suRoot), .modal-backdrop';
+    const iv = setInterval(() => {
+      const el = [...document.querySelectorAll(sel)].find(e => !before.has(e) && e.style.display !== 'none');
+      if(el){
+        clearInterval(iv);
+        const mo = new MutationObserver(() => { if(!document.body.contains(el)){ mo.disconnect(); setTimeout(() => open(back), 80); } });
+        mo.observe(document.body, { childList:true, subtree:true });
+      } else if(++tries > 12) clearInterval(iv);
+    }, 150);
   }
 
   window.Setup = { open, close, status, facts, STEPS };

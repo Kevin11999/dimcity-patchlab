@@ -344,6 +344,7 @@
       .pp.in{border-color:#2563eb}
       .pp.rj,.pp.sfp{border-radius:.5mm;border-width:.3mm;border-color:#475569;background:#f1f5f9;--ps:calc(var(--uh) * .55)}
       .pp.sfp{width:calc(var(--ps) * 1.4);flex-basis:calc(var(--ps) * 1.4)}
+      .prk-half{width:50%}.prk-R{justify-self:end}.prk-L{justify-self:start}
       .prk-tag{display:inline-block;font-size:${fs*.68}px;font-weight:800;padding:0 .9mm;border-radius:.6mm;background:var(--c,#475569);color:#fff;line-height:1.5}
       /* signaalstroom-tekening */
       .pflow-page{break-before:page;page-break-before:always}
@@ -511,7 +512,8 @@
     const uh = Math.max(3.2, Math.min(6.5, (ph - mt - mb - 45) / H));   // mm per U, zodat het rek op één pagina past
     const nodes = new Map(P.nodes.filter(x => x.rack === ri).map(x => [x.iid, x]));
     const splits = new Map(P.splitters.filter(x => x.rack === ri).map(x => [x.iid, x]));
-    const items = (R.rack.items || []).slice().sort((a, b) => a.u - b.u).map(it => {
+    const items = (R.rack.items || []).slice().sort((a, b) => (a.u - b.u) || ((a.side === 'R') - (b.side === 'R'))).map(it => {
+      if(it.kind === 'blind') return `<div class="prk-it prk-half prk-${it.side === 'R' ? 'R' : 'L'}" style="grid-row:${it.u} / span 1"><div class="pru" style="--c:#000;background:#0b0c0e"></div></div>`;
       const key = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes', panel:'panelTypes' }[it.kind];
       const t = find(key, it.typeId); if(!t) return '';
       let ports = '', tag = '';
@@ -526,12 +528,14 @@
         ports = grp(x?.inputs.length ? x.inputs.map(u => pp('dmx in', `U${u}`, x.feedColor)).join('') : pp('dmx in', 'A', null, true)) + grp((x?.outputs || []).map((l, i) => pp('dmx', l ? l.owner.replace(/^(LK|V)/, '') : String(i + 1), l?.feed?.color, !l)).join(''));
       } else if(it.kind === 'panel'){
         ports = P.groups.filter(g => g.iid === it.iid && g.rack === ri).map(g => grp(pp('lk', g.lk ? g.lk.id.replace(/^LK/, '') : '', g.lk ? owners.get(g.lk.id) : null, !g.lk) + g.vims.map(v => pp('vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? owners.get(v.used.id) : null, !v.used)).join(''))).join('')
+          + window.SwPorts.panelGroups(t).map(g => grp(g.items.map(x => pp(g.cls, String(x.no), null)).join(''))).join('')
           + grp(P.soloVims.filter(v => v.iid === it.iid && v.rack === ri).map(v => pp('vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? owners.get(v.used.id) : null, !v.used)).join(''));
       } else {
-        ports = grp(Array.from({ length:Number(t.portCount) || 0 }, (_, i) => pp('rj', String(i + 1), null)).join('')) + grp(Array.from({ length:Number(t.sfpCount) || 0 }, (_, i) => pp('sfp', `S${i + 1}`, null)).join(''));
+        const SP = window.SwPorts, panels = (R.rack.items || []).filter(x => x.kind === 'panel').map(x => find('panelTypes', x.typeId));
+        ports = grp(Array.from({ length:SP.front(t) }, (_, i) => pp('rj', String(i + 1), null)).join('')) + (SP.fibreOnPanel(t, panels) ? '' : grp(Array.from({ length:Number(t.sfpCount) || 0 }, (_, i) => pp('sfp', SP.short(t, i + 1), null)).join('')));
       }
       const hu = Math.max(1, Number(t.heightU) || 1);
-      return `<div class="prk-it" style="grid-row:${it.u} / span ${hu}"><div class="pru" style="--c:${hex(t.color, '#475569')}"><div class="pru-label"><b>${tag}${esc(typeNameOf(t))}</b><span>${esc(it.kind)} · ${hu}U</span></div><div class="pru-ports">${ports}</div></div></div>`;
+      return `<div class="prk-it ${t.width === 'half' ? `prk-half prk-${it.side === 'R' ? 'R' : 'L'}` : ''}" style="grid-row:${it.u} / span ${hu}"><div class="pru" style="--c:${hex(t.color, '#475569')}"><div class="pru-label"><b>${tag}${esc(typeNameOf(t))}</b><span>${esc(it.kind)} · ${hu}U</span></div><div class="pru-ports">${ports}</div></div></div>`;
     }).join('');
     const rail = `<div class="prk-rail">${Array.from({ length:H }, (_, i) => `<span>${H - i}</span>`).join('')}</div>`;
     const slots = Array.from({ length:H }, (_, i) => `<div class="prk-slot" style="grid-row:${i + 1}"></div>`).join('');

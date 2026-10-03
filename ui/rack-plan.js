@@ -43,7 +43,8 @@ function rackFace(plan, ri){
   const find = (key, id) => (M().networkDevices?.[key] || []).find(x => x.id === id);
   const port = (cls, label, title, color, empty) => `<span class="rp ${cls} ${empty ? 'free' : ''}" style="${color ? `--c:${color}` : ''}" title="${esc(title)}"><i>${esc(label)}</i></span>`;
   const H = rack.heightU;
-  const rows = (rack.items || []).slice().sort((a, b) => a.u - b.u).map(it => {
+  const rows = (rack.items || []).slice().sort((a, b) => (a.u - b.u) || ((a.side === 'R') - (b.side === 'R'))).map(it => {
+    if(it.kind === 'blind') return `<div class="rk-item static half half-${it.side || 'L'}" style="grid-row:${it.u} / span 1"><div class="ru ru-rack ru-blind" style="--hu:1"><span class="ru-ear"></span><div class="ru-body"></div><span class="ru-ear"></span></div></div>`;
     const key = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes', panel:'panelTypes' }[it.kind];
     const t = find(key, it.typeId); if(!t) return '';
     let ports = '', badge = '';
@@ -60,13 +61,16 @@ function rackFace(plan, ri){
         <span class="ru-grp">${(s?.outputs || []).map((o, i) => port('dmx', o ? o.port : i + 1, o ? `${s.label} out ${i + 1} → ${o.label}` : `${s.label} out ${i + 1} · free`, o?.feed?.color, !o)).join('')}</span>`;
     } else if(it.kind === 'panel'){
       const gs = groupsBy.get(it.iid) || [], vs = soloBy.get(it.iid) || [];
-      ports = gs.map(g => `<span class="ru-grp">${port('lk', g.lk ? g.lk.id.replace(/^LK/, '') : '', g.lk ? `${g.label}: ${g.lk.id}` : `${g.label}: free`, g.lk ? owners.get(g.lk.id) : null, !g.lk)}${g.vims.map(v => port('vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? `${v.label}: ${v.used.id}` : `${v.label}: free`, v.used ? owners.get(v.used.id) : null, !v.used)).join('')}</span>`).join('')
+      const statics = window.SwPorts.panelGroups(t).map(g => `<span class="ru-grp">${g.items.map(x => port(`${g.cls} ${g.sub}`, x.no, x.title)).join('')}</span>`).join('');
+      ports = statics + gs.map(g => `<span class="ru-grp">${port('lk', g.lk ? g.lk.id.replace(/^LK/, '') : '', g.lk ? `${g.label}: ${g.lk.id}` : `${g.label}: free`, g.lk ? owners.get(g.lk.id) : null, !g.lk)}${g.vims.map(v => port('vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? `${v.label}: ${v.used.id}` : `${v.label}: free`, v.used ? owners.get(v.used.id) : null, !v.used)).join('')}</span>`).join('')
         + (vs.length ? `<span class="ru-grp">${vs.map(v => port('vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? `${v.label}: ${v.used.id}` : `${v.label}: free`, v.used ? owners.get(v.used.id) : null, !v.used)).join('')}</span>` : '');
     } else {
-      ports = `<span class="ru-grp">${Array.from({ length:Number(t.portCount) || 0 }, (_, i) => port('rj', i + 1, `Port ${i + 1}`)).join('')}</span>`;
+      const SP = window.SwPorts, panels = (rack.items || []).filter(x => x.kind === 'panel').map(x => find('panelTypes', x.typeId));
+      ports = `<span class="ru-grp">${Array.from({ length:SP.front(t) }, (_, i) => port(t.jack === 'etherCON' ? 'rj ec' : 'rj', i + 1, `Port ${i + 1}`)).join('')}</span>`
+        + (SP.fibreOnPanel(t, panels) ? '' : (Number(t.sfpCount) ? `<span class="ru-grp">${Array.from({ length:Number(t.sfpCount) }, (_, i) => port(`sfp ${SP.kindOf(SP.conn(t, i + 1))}`, SP.short(t, i + 1), SP.label(t, i + 1))).join('')}</span>` : ''));
     }
     const hu = Math.max(1, Number(t.heightU) || 1);
-    return `<div class="rk-item static" style="grid-row:${it.u} / span ${hu}"><div class="ru ru-rack" style="--c:${safeHex(t.color, '#4c9dff')};--hu:${hu}"><span class="ru-ear"></span><div class="ru-body"><div class="ru-label"><b>${badge}${esc(typeName(t))}</b><span>${esc(it.kind)}</span></div><div class="ru-ports">${ports}</div></div><span class="ru-ear"></span></div></div>`;
+    return `<div class="rk-item static ${t.width === 'half' ? `half half-${it.side || 'L'}` : ''}" style="grid-row:${it.u} / span ${hu}"><div class="ru ru-rack" style="--c:${safeHex(t.color, '#4c9dff')};--hu:${hu}"><span class="ru-ear"></span><div class="ru-body"><div class="ru-label"><b>${badge}${esc(typeName(t))}</b><span>${esc(it.kind)}</span></div><div class="ru-ports">${ports}</div></div><span class="ru-ear"></span></div></div>`;
   }).join('');
   const rail = `<div class="rack-rail">${Array.from({ length:H }, (_, i) => `<span>${H - i}</span>`).join('')}</div>`;
   return `<div class="rack" style="--h:${H}">${rail}<div class="rack-bay" style="grid-template-rows:repeat(${H}, var(--uh))">${Array.from({ length:H }, (_, i) => `<div class="rk-slot" style="grid-row:${i + 1}"></div>`).join('')}${rows}</div>${rail}</div>`;

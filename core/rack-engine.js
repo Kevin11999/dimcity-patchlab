@@ -67,7 +67,7 @@ function resources(M, dc){
     const rack = find('rackTypes', pl.rackId);
     racks.push({ placement:pl, rack, index:ri });
     if(!rack) return;
-    const items = (rack.items || []).slice().sort((a, b) => a.u - b.u);
+    const items = (rack.items || []).slice().sort((a, b) => (a.u - b.u) || ((a.side === 'R') - (b.side === 'R')));
     for(const it of items){
       const kindKey = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes', panel:'panelTypes' }[it.kind];
       const t = find(kindKey, it.typeId);

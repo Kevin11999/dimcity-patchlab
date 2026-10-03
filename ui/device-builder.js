@@ -30,6 +30,7 @@ const FIELDS = {
   node: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'LumiNode 12' },
     { k:'portCount', label:'DMX ports', type:'number', min:1, max:64, def:8 },
     { k:'ethernetCount', label:'Ethernet ports', type:'select', def:'1', options:[['1', '1× RJ45'], ['2', '2× RJ45 (link + redundant)']] },
+    { k:'width', label:'Width in the rack', type:'select', def:'full', options:[['full', 'Full 19″'], ['half', 'Half 19″ — two side by side; a blind plate fills the rest']] },
     F_IP, F_SUBNET, F_HEIGHT, F_COLOR('node')],
   splitter: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'10 output splitter' },
     { k:'mode', label:'Input', type:'select', def:'A', options:[['A', 'Single input'], ['AB', 'A/B input']] },
@@ -38,21 +39,28 @@ const FIELDS = {
     F_IP, F_SUBNET, F_HEIGHT, F_COLOR('splitter')],
   switch: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'GigaCore 16Xt' },
     { k:'portCount', label:'RJ45 ports', type:'number', min:1, max:96, def:16 },
-    { k:'sfpCount', label:'SFP ports', type:'number', min:0, max:16, def:2 },
+    { k:'sfpCount', label:'SFP / fibre ports', type:'number', min:0, max:16, def:2 },
+    { k:'jack', label:'Copper port jack', type:'select', def:'RJ45', options:[['RJ45', 'RJ45'], ['etherCON', 'etherCON']] },
+    { k:'frontCount', label:'Ports on the front (0 = all; the rest go to a panel)', type:'number', min:0, max:96, def:0 },
+    { k:'sfpConnectors', label:'Fibre connector per port, in order (numbers continue after the copper ports)', type:'text', ph:'opticalCON DUO, opticalCON DUO, FiberFox DUO, FiberFox DUO' },
     F_IP, F_SUBNET, F_HEIGHT, F_COLOR('switch')],
   cable: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'opticalCON DUO 4-core' },
     { k:'medium', label:'Medium', type:'select', def:'smf', options:[['smf', 'Fibre, singlemode'], ['mmf', 'Fibre, multimode'], ['dac', 'SFP patch / DAC (short)'], ['cat', 'Copper Cat (RJ45)']] },
     { k:'cores', label:'Cores', type:'number', min:1, max:48, def:4 },
     { k:'connA', label:'Connector end A', type:'combo', ph:'opticalCON DUO', list:CONNECTORS },
     { k:'connB', label:'Connector end B', type:'combo', ph:'opticalCON DUO', list:CONNECTORS },
-    { k:'lengthM', label:'Length (m)', type:'number', min:1, max:2000, def:50 },
+    { k:'lengthM', label:'Length (m)', type:'number', dec:true, min:0.5, max:2000, def:50 },
     { k:'articleKey', label:'Article key', type:'text', ph:'optional' },
     F_COLOR('cable')],
   panel: [F_ID, F_BRAND, { k:'name', label:'Name', type:'text', ph:'LK panel 3×' },
     { k:'lkCount', label:'LK7-1 sockets', type:'number', min:0, max:12, def:3 },
     { k:'vimCount', label:'Veam4 sockets', type:'number', min:0, max:12, def:0 },
     { k:'xlrCount', label:'XLR 5-pin', type:'number', min:0, max:48, def:0 },
-    { k:'etherconCount', label:'etherCON', type:'number', min:0, max:24, def:0 },
+    { k:'etherconCount', label:'etherCON', type:'number', min:0, max:48, def:0 },
+    { k:'etherconFirst', label:'First etherCON number', type:'number', min:1, max:96, def:1 },
+    { k:'opticalConCount', label:'opticalCON DUO', type:'number', min:0, max:12, def:0 },
+    { k:'fiberfoxCount', label:'FiberFox DUO', type:'number', min:0, max:12, def:0 },
+    { k:'fibreFirst', label:'First fibre port number', type:'number', min:1, max:96, def:17 },
     F_HEIGHT, F_COLOR('panel')]
 };
 
@@ -75,7 +83,7 @@ function setList(key, list){
   m.networkDevices = App.net.normalizeNetworkDevices(m.networkDevices);
   m.networkDevices[key] = list;
 }
-function findType(kind, id){ return plist(KINDS[kind].key).find(x => x.id === id) || null; }
+function findType(kind, id){ return !KINDS[kind] ? null : plist(KINDS[kind].key).find(x => x.id === id) || null; }
 function afterChange(){
   M().ui.dirty = true;
   App.updateChrome?.();
@@ -87,14 +95,14 @@ function metaLine(kind, t){
   switch(kind){
     case 'node': return `${num(t.portCount, 8)} DMX ports${ethernetPorts(t) > 1 ? ` · ${ethernetPorts(t)}× RJ45` : ''}`;
     case 'splitter': return `${t.mode === 'AB' ? 'A/B' : '1'} in · ${num(t.outputCount, 10)} out${t.switching === 'paired' ? ' · paired' : ''}`;
-    case 'switch': return `${num(t.portCount, 16)} RJ45${num(t.sfpCount) ? ` + ${num(t.sfpCount)} SFP` : ''}`;
-    case 'cable': return `${MEDIUM[t.medium] || 'Fibre'} · ${num(t.cores, 4)}-core · ${num(t.lengthM, 50)} m`;
+    case 'switch': return `${num(t.portCount, 16)} ${t.jack === 'etherCON' ? 'etherCON' : 'RJ45'}${num(t.sfpCount) ? ` + ${num(t.sfpCount)} ${String(t.sfpConnectors || '').trim() ? 'fibre' : 'SFP'}` : ''}`;
+    case 'cable': return `${MEDIUM[t.medium] || 'Fibre'} · ${num(t.cores, 4)}-core · ${String(num(t.lengthM, 50)).replace('.', ',')} m`;
     case 'panel': return [[t.lkCount, 'LK7-1'], [t.vimCount, 'Veam4'], [t.xlrCount, 'XLR'], [t.etherconCount, 'etherCON']]
       .filter(([n]) => num(n) > 0).map(([n, l]) => `${num(n)}× ${l}`).join(' · ') || 'No sockets';
   }
   return '';
 }
-function portsHtml(kind, t){
+function portsHtml(kind, t, opts = {}){
   const port = (cls, label, title) => `<span class="rp ${cls}" title="${esc(title)}"><i>${esc(label)}</i></span>`;
   const grp = (inner, cls='') => `<span class="ru-grp ${cls}">${inner}</span>`;
   switch(kind){
@@ -109,13 +117,24 @@ function portsHtml(kind, t){
       } else outs = range(count, i => port('dmx', i, `Output ${i}`));
       return ins + grp(outs);
     }
-    case 'switch':
-      return grp(range(num(t.portCount, 16), i => port('rj', i, `Port ${i}`))) +
-        (num(t.sfpCount) ? grp(range(num(t.sfpCount), i => port('sfp', `S${i}`, `SFP ${i}`))) : '');
-    case 'panel':
-      return [[t.lkCount, 'lk', 'LK7-1'], [t.vimCount, 'vim', 'Veam4'], [t.xlrCount, 'dmx', 'XLR 5-pin'], [t.etherconCount, 'rj', 'etherCON']]
-        .filter(([n]) => num(n) > 0)
-        .map(([n, cls, title]) => grp(range(num(n), i => port(cls, i, `${title} ${i}`)))).join('') || '<span class="subtle">No sockets</span>';
+    case 'switch': {
+      const SP = window.SwPorts, all = num(t.portCount, 16), fr = SP ? SP.front(t) : all, jack = t.jack === 'etherCON' ? 'rj ec' : 'rj';
+      let h = grp(range(fr, i => port(jack, i, `Port ${i}`)));
+      if(fr < all) h += grp(`<span class="rp-more" title="Ports ${fr + 1}-${all} sit on a panel">${fr + 1}–${all} ▸ panel</span>`);
+      if(num(t.sfpCount) && !opts.noSfp) h += grp(range(num(t.sfpCount), i => port(`sfp ${SP ? SP.kindOf(SP.conn(t, i)) : ''}`, SP ? SP.short(t, i) : `S${i}`, SP ? SP.label(t, i) : `SFP ${i}`)));
+      return h;
+    }
+    case 'panel': {
+      const g = [], ef = num(t.etherconFirst, 1) || 1;
+      if(num(t.lkCount) > 0) g.push(grp(range(num(t.lkCount), i => port('lk', i, `LK7-1 ${i}`))));
+      if(num(t.vimCount) > 0) g.push(grp(range(num(t.vimCount), i => port('vim', i, `Veam4 ${i}`))));
+      if(num(t.xlrCount) > 0) g.push(grp(range(num(t.xlrCount), i => port('dmx', i, `XLR 5-pin ${i}`))));
+      if(num(t.etherconCount) > 0) g.push(grp(range(num(t.etherconCount), i => port('rj ec', i + ef - 1, `etherCON ${i + ef - 1}`))));
+      const ff = num(t.fibreFirst, 17), oc = num(t.opticalConCount), fx = num(t.fiberfoxCount);
+      if(oc > 0) g.push(grp(range(oc, i => port('sfp oc', ff + i - 1, `opticalCON DUO ${ff + i - 1}`))));
+      if(fx > 0) g.push(grp(range(fx, i => port('sfp ff', ff + oc + i - 1, `FiberFox DUO ${ff + oc + i - 1}`))));
+      return g.join('') || '<span class="subtle">No sockets</span>';
+    }
   }
   return '';
 }
@@ -123,14 +142,14 @@ function cableFace(t, size){
   const c = safeHex(t?.color, KINDS.cable.color), lbl = typeName(t) || 'New cable';
   return `<div class="cb-face cb-${size}" style="--c:${c}"><span class="cb-end">${esc(t?.connA || '—')}</span><span class="cb-line"><b>${esc(lbl)}</b><small>${esc(metaLine('cable', t || {}))}</small></span><span class="cb-end">${esc(t?.connB || t?.connA || '—')}</span></div>`;
 }
-function unitFace(kind, t, size='md'){
+function unitFace(kind, t, size='md', opts = {}){
   if(kind === 'cable') return cableFace(t, size);
   const hu = Math.max(1, num(t?.heightU, 1));
   return `<div class="ru ru-${size}" style="--c:${safeHex(t?.color, KINDS[kind].color)};--hu:${hu}">
     <span class="ru-ear"></span>
     <div class="ru-body">
       <div class="ru-label"><b>${esc(typeName(t) || `New ${KINDS[kind].one.toLowerCase()}`)}</b><span>${esc(metaLine(kind, t))}</span></div>
-      <div class="ru-ports">${portsHtml(kind, t)}</div>
+      <div class="ru-ports">${portsHtml(kind, t, opts)}</div>
     </div>
     <span class="ru-ear"></span>
   </div>`;
@@ -169,7 +188,7 @@ function fieldHtml(f, t){
   let input;
   switch(f.type){
     case 'id': input = `<input type="text" ${attrs} value="${esc(v)}" ${S.origId ? 'readonly title="The type key cannot change once saved — shows refer to it"' : ''}>`; break;
-    case 'number': input = `<input type="number" ${attrs} min="${f.min}" max="${f.max}" value="${esc(v)}">`; break;
+    case 'number': input = f.dec ? `<input type="text" inputmode="decimal" ${attrs} value="${esc(String(v ?? '').replace('.', ','))}" placeholder="7,5">` : `<input type="number" ${attrs} min="${f.min}" max="${f.max}" value="${esc(v)}">`; break;
     case 'select': input = `<select ${attrs}>${f.options.map(([val, lab]) => `<option value="${val}" ${String(v) === val ? 'selected' : ''}>${esc(lab)}</option>`).join('')}</select>`; break;
     case 'color': input = `<input type="color" ${attrs} value="${safeHex(v, f.def)}">`; break;
     case 'combo': input = `<input type="text" ${attrs} list="dl-${f.k}" value="${esc(v)}" placeholder="${esc(f.ph || '')}"><datalist id="dl-${f.k}">${(f.list || []).map(o => `<option value="${esc(o)}">`).join('')}</datalist>`; break;
@@ -225,6 +244,7 @@ function renderDeviceTab(kind){
   </div>`;
 }
 function readField(f, el){
+  if(f.type === 'number' && f.dec) return Math.min(f.max, Math.max(f.min, Math.round(num(String(el.value).replace(',', '.'), f.def) * 100) / 100));
   if(f.type === 'number') return Math.min(f.max, Math.max(f.min, Math.round(num(el.value, f.def))));
   if(f.type === 'color') return safeHex(el.value, f.def);
   return el.value.trim();
@@ -325,19 +345,23 @@ async function deleteType(kind){
 }
 
 // ===== Racks =====
-const itemHU = it => Math.max(1, num(findType(it.kind, it.typeId)?.heightU, 1));
+const itemHU = it => it.kind === 'blind' ? 1 : Math.max(1, num(findType(it.kind, it.typeId)?.heightU, 1));
+const typeHalf = (kind, typeId) => kind === 'blind' || findType(kind, typeId)?.width === 'half';
+const itemHalf = it => typeHalf(it.kind, it.typeId);
 const currentRack = () => plist('rackTypes').find(r => r.id === S.rackId) || null;
-function canPlace(rack, row, hu, ignoreIid){
+// half-width devices (and blind plates) may share a U when they sit on opposite sides
+function canPlace(rack, row, hu, ignoreIid, half = false, side = 'L'){
   if(row < 1 || row + hu - 1 > rack.heightU) return false;
   return (rack.items || []).every(it => {
     if(it.iid === ignoreIid) return true;
     const a = it.u, b = it.u + itemHU(it) - 1;
-    return row + hu - 1 < a || row > b;
+    if(row + hu - 1 < a || row > b) return true;
+    return half && itemHalf(it) && (it.side || 'L') !== side;
   });
 }
-function firstFree(rack, hu){
-  for(let r = 1; r <= rack.heightU - hu + 1; r++) if(canPlace(rack, r, hu)) return r;
-  return 0;
+function firstFree(rack, hu, half = false){
+  for(let r = 1; r <= rack.heightU - hu + 1; r++) for(const side of half ? ['L', 'R'] : ['L']) if(canPlace(rack, r, hu, null, half, side)) return { row:r, side };
+  return null;
 }
 function saveRack(rack){
   delete rack.std;
@@ -358,15 +382,17 @@ function newRack(){
 }
 function rackSummary(rack){
   const t = { node:0, splitter:0, switch:0, panel:0 }, p = { dmx:0, out:0, rj:0, sfp:0, lk:0, vim:0, xlr:0, ec:0 };
-  let used = 0;
+  const rows = new Set();
   for(const it of rack.items || []){
+    for(let r = it.u; r < it.u + itemHU(it); r++) rows.add(r);
     const ty = findType(it.kind, it.typeId); if(!ty) continue;
-    t[it.kind]++; used += itemHU(it);
+    t[it.kind]++;
     if(it.kind === 'node') p.dmx += num(ty.portCount, 8);
     if(it.kind === 'splitter') p.out += num(ty.outputCount, 10);
     if(it.kind === 'switch'){ p.rj += num(ty.portCount, 16); p.sfp += num(ty.sfpCount); }
     if(it.kind === 'panel'){ p.lk += num(ty.lkCount); p.vim += num(ty.vimCount); p.xlr += num(ty.xlrCount); p.ec += num(ty.etherconCount); }
   }
+  const used = rows.size;
   const stat = (label, value, sub='') => `<div class="rk-stat"><span>${label}</span><b>${value}</b>${sub ? `<em>${sub}</em>` : ''}</div>`;
   return `<div class="rk-summary">
     ${stat('Height used', `${used} / ${rack.heightU}U`, `${rack.heightU - used}U free`)}
@@ -382,12 +408,13 @@ function rackHtml(rack){
   const rail = `<div class="rack-rail">${range(H, r => `<span>${label(r)}</span>`)}</div>`;
   const slots = range(H, r => `<div class="rk-slot" data-row="${r}" style="grid-row:${r}"></div>`);
   const items = (rack.items || []).map(it => {
-    const ty = findType(it.kind, it.typeId), hu = itemHU(it);
-    const face = ty ? unitFace(it.kind, ty, 'rack')
+    const ty = findType(it.kind, it.typeId), hu = itemHU(it), half = itemHalf(it), side = it.side || 'L';
+    const face = it.kind === 'blind' ? `<div class="ru ru-rack ru-blind" style="--hu:1"><span class="ru-ear"></span><div class="ru-body"><div class="ru-label"><b>Blind plate</b></div></div><span class="ru-ear"></span></div>`
+      : ty ? unitFace(it.kind, ty, 'rack', { noSfp: it.kind === 'switch' && window.SwPorts?.fibreOnPanel(ty, (rack.items || []).filter(x => x.kind === 'panel').map(x => findType('panel', x.typeId))) })
       : `<div class="ru ru-rack ru-missing" style="--hu:1"><span class="ru-ear"></span><div class="ru-body"><div class="ru-label"><b>Missing device</b><span>${esc(it.typeId)} is not in this show</span></div></div><span class="ru-ear"></span></div>`;
-    return `<div class="rk-item" draggable="true" data-iid="${esc(it.iid)}" style="grid-row:${it.u} / span ${ty ? hu : 1}">
+    return `<div class="rk-item ${half ? `half half-${side}` : ''}" draggable="true" data-iid="${esc(it.iid)}" style="grid-row:${it.u} / span ${ty || it.kind === 'blind' ? hu : 1}">
       ${face}
-      <div class="rk-tools">
+      <div class="rk-tools">${half ? `<button class="ghost sm icon-only" data-side title="Left / right">⇄</button>` : ''}
         <button class="ghost sm icon-only" data-mv="-1" title="Move up">${I('chevronDown', 13).replace('<svg', '<svg style="transform:rotate(180deg)"')}</button>
         <button class="ghost sm icon-only" data-mv="1" title="Move down">${I('chevronDown', 13)}</button>
         <button class="ghost sm icon-only" data-rm title="Remove from rack">${I('x', 13)}</button>
@@ -397,7 +424,10 @@ function rackHtml(rack){
   return `<div class="rack" style="--h:${H}">${rail}<div class="rack-bay" id="rkBay" style="grid-template-rows:repeat(${H}, var(--uh))">${slots}${items}</div>${rail}</div>`;
 }
 function paletteHtml(){
-  return DEVICE_KINDS.map(kind => {
+  const blind = `<div class="pal-group"><div class="rb-label">${I('rack', 13)} Fillers</div>
+    <div class="pal-card" draggable="true" data-kind="blind" data-type="blind" style="--c:#111" title="Half-width blind plate (1U)"><div><b>Blind plate ½</b><span>black, half width, 1U</span></div><span class="tag">1U</span><button class="ghost sm icon-only" data-add title="Add at first free position">${I('plus', 14)}</button></div>
+    <button class="sm" data-rkblind style="margin-top:6px">Fill gaps next to half-width devices</button></div>`;
+  return blind + DEVICE_KINDS.map(kind => {
     const K = KINDS[kind], list = plist(K.key);
     return `<div class="pal-group">
       <div class="rb-label">${I(K.icon, 13)} ${K.label} <span class="subtle">${list.length}</span></div>
@@ -442,17 +472,19 @@ function renderRackTab(){
     <aside class="db-side rk-pal">${rack ? `<div class="hint" style="margin:0 0 10px">Drag devices into the rack, or click + to add at the first free position.</div>${paletteHtml()}` : ''}</aside>
   </div>`;
 }
-function placeNew(rack, kind, typeId, row){
-  const hu = Math.max(1, num(findType(kind, typeId)?.heightU, 1));
-  const at = row ?? firstFree(rack, hu);
-  if(!at || !canPlace(rack, at, hu)){ App.ui.toast(row ? 'Not enough free space there' : `No ${hu}U space left in this rack`, 'err'); return; }
-  rack.items = (rack.items || []).concat({ iid:`it_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, kind, typeId, u:at });
+function placeNew(rack, kind, typeId, row, side){
+  const hu = kind === 'blind' ? 1 : Math.max(1, num(findType(kind, typeId)?.heightU, 1)), half = typeHalf(kind, typeId);
+  const at = row != null ? { row, side:side || 'L' } : firstFree(rack, hu, half);
+  if(!at || !canPlace(rack, at.row, hu, null, half, at.side)){ App.ui.toast(row ? 'Not enough free space there' : `No ${hu}U space left in this rack`, 'err'); return; }
+  const item = { iid:`it_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, kind, typeId: kind === 'blind' ? '' : typeId, u:at.row };
+  if(half) item.side = at.side;
+  rack.items = (rack.items || []).concat(item);
   saveRack(rack);
 }
 function moveItem(rack, iid, dir){
   const me = rack.items.find(x => x.iid === iid); if(!me) return;
   const hu = itemHU(me);
-  if(canPlace(rack, me.u + dir, hu, iid)){ me.u += dir; return saveRack(rack); }
+  if(canPlace(rack, me.u + dir, hu, iid, itemHalf(me), me.side || 'L')){ me.u += dir; return saveRack(rack); }
   // anders wisselen met het buur-apparaat
   const nb = rack.items.find(x => x.iid !== iid && (dir < 0 ? x.u + itemHU(x) === me.u : x.u === me.u + hu));
   if(!nb) return;
@@ -497,6 +529,15 @@ function bindRackTab(){
     Lib()?.del('rackTypes', rack.id);
     S.rackId = null; afterChange(); render();
   };
+  const fill = body.querySelector('[data-rkblind]'); if(fill) fill.onclick = () => {
+    let n = 0;
+    for(const it of [...(rack.items || [])]){
+      if(!itemHalf(it)) continue;
+      const other = (it.side || 'L') === 'L' ? 'R' : 'L';
+      if(canPlace(rack, it.u, 1, null, true, other)){ rack.items.push({ iid:`it_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}${n}`, kind:'blind', typeId:'', u:it.u, side:other }); n++; }
+    }
+    if(n) saveRack(rack); else App.ui.toast('No gaps next to half-width devices');
+  };
   body.querySelectorAll('.pal-card [data-add]').forEach(b => b.onclick = e => {
     const card = e.currentTarget.closest('.pal-card');
     placeNew(rack, card.dataset.kind, card.dataset.type);
@@ -504,24 +545,26 @@ function bindRackTab(){
   body.querySelectorAll('.rk-item').forEach(itEl => {
     const iid = itEl.dataset.iid;
     itEl.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => moveItem(rack, iid, num(b.dataset.mv)));
+    const sd = itEl.querySelector('[data-side]'); if(sd) sd.onclick = () => { const me = rack.items.find(x => x.iid === iid), to = (me.side || 'L') === 'L' ? 'R' : 'L'; if(canPlace(rack, me.u, 1, iid, true, to)){ me.side = to; saveRack(rack); } else App.ui.toast('That side is taken', 'err'); };
     itEl.querySelector('[data-rm]').onclick = () => { rack.items = rack.items.filter(x => x.iid !== iid); saveRack(rack); };
   });
 
   // ---- slepen ----
   const bay = body.querySelector('#rkBay');
   const clear = () => bay.querySelectorAll('.rk-slot').forEach(s => s.classList.remove('ok', 'bad'));
+  const sideAt = x => { const rc = bay.getBoundingClientRect(); return x < rc.left + rc.width / 2 ? 'L' : 'R'; };
   const rowAt = y => {
     const rc = bay.getBoundingClientRect();
     return Math.min(rack.heightU, Math.max(1, Math.floor((y - rc.top) / (rc.height / rack.heightU)) + 1));
   };
   body.querySelectorAll('.pal-card').forEach(card => card.addEventListener('dragstart', e => {
-    S.drag = { kind:card.dataset.kind, typeId:card.dataset.type, hu:Math.max(1, num(findType(card.dataset.kind, card.dataset.type)?.heightU, 1)), grab:0 };
+    S.drag = { kind:card.dataset.kind, typeId:card.dataset.type, hu:card.dataset.kind === 'blind' ? 1 : Math.max(1, num(findType(card.dataset.kind, card.dataset.type)?.heightU, 1)), grab:0, half:typeHalf(card.dataset.kind, card.dataset.type) };
     e.dataTransfer.setData('text/plain', card.dataset.type);
     e.dataTransfer.effectAllowed = 'copy';
   }));
   body.querySelectorAll('.rk-item').forEach(itEl => itEl.addEventListener('dragstart', e => {
     const it = rack.items.find(x => x.iid === itEl.dataset.iid);
-    S.drag = { iid:it.iid, hu:itemHU(it), grab:rowAt(e.clientY) - it.u };
+    S.drag = { iid:it.iid, hu:itemHU(it), grab:rowAt(e.clientY) - it.u, half:itemHalf(it) };
     e.dataTransfer.setData('text/plain', it.iid);
     e.dataTransfer.effectAllowed = 'move';
     requestAnimationFrame(() => itEl.classList.add('dragging'));
@@ -530,8 +573,8 @@ function bindRackTab(){
   bay.addEventListener('dragover', e => {
     if(!S.drag) return;
     e.preventDefault();
-    const row = rowAt(e.clientY) - S.drag.grab;
-    const fits = canPlace(rack, row, S.drag.hu, S.drag.iid);
+    const row = rowAt(e.clientY) - S.drag.grab, side = sideAt(e.clientX);
+    const fits = canPlace(rack, row, S.drag.hu, S.drag.iid, S.drag.half, side);
     clear();
     for(let r = Math.max(1, row); r < row + S.drag.hu && r <= rack.heightU; r++) bay.querySelector(`.rk-slot[data-row="${r}"]`)?.classList.add(fits ? 'ok' : 'bad');
     e.dataTransfer.dropEffect = fits ? (S.drag.iid ? 'move' : 'copy') : 'none';
@@ -541,12 +584,12 @@ function bindRackTab(){
     e.preventDefault();
     const drag = S.drag; S.drag = null; clear();
     if(!drag) return;
-    const row = rowAt(e.clientY) - drag.grab;
+    const row = rowAt(e.clientY) - drag.grab, side = sideAt(e.clientX);
     if(drag.iid){
-      if(!canPlace(rack, row, drag.hu, drag.iid)){ App.ui.toast('Not enough free space there', 'err'); return; }
-      rack.items.find(x => x.iid === drag.iid).u = row;
+      if(!canPlace(rack, row, drag.hu, drag.iid, drag.half, side)){ App.ui.toast('Not enough free space there', 'err'); return; }
+      const me = rack.items.find(x => x.iid === drag.iid); me.u = row; if(drag.half) me.side = side;
       saveRack(rack);
-    } else placeNew(rack, drag.kind, drag.typeId, row);
+    } else placeNew(rack, drag.kind, drag.typeId, row, side);
   });
 }
 

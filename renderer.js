@@ -2244,6 +2244,8 @@ window.LKApp = {
   lkAutoLocation,
   veamAutoLocation,
   sortedDims,
+  addDimCity,
+  nextDbName,
 
   // UI helpers
   ui: { toast, openDialog, confirmDialog, showMenu, icon: I, card, plural },
@@ -2371,6 +2373,23 @@ $('#toolsBackdrop').addEventListener('keydown', (e)=>{
   if (e.key === 'Escape') closeToolsModal();
   if (e.key === 'Enter') ($('#modalAddLK').style.display !== 'none' ? $('#lkAddConfirm') : $('#veamAddConfirm')).click();
 });
+
+// Extra location without patch rows yet (a DB, or FOH = front of house, where the lighting desk stands)
+function addDimCity(raw){
+  const id = String(raw || '').trim().toUpperCase().replace(/\s+/g, '');
+  if(!/^[A-Z0-9][A-Z0-9_-]{1,11}$/.test(id)) return { ok:false, error:'Use letters and numbers, for example DB04 or FOH.' };
+  if(MODEL.byDim.has(id)) return { ok:false, error:`${id} exists already.` };
+  MODEL.byDim.set(id, emptyDimStats());
+  if(!MODEL.dimFromManual) MODEL.dimFromManual = new Set();
+  MODEL.dimFromManual.add(id);
+  MODEL.ui.dirty = true;
+  ensureDimColors();
+  return { ok:true, id };
+}
+function nextDbName(){
+  const nums = sortedDims().map(d => /^DB(\d+)$/.exec(d)).filter(Boolean).map(m => Number(m[1]));
+  return 'DB' + String((nums.length ? Math.max(...nums) : 0) + 1).padStart(2, '0');
+}
 
 async function ensureDimForNew(id, dim, errEl){
   if (MODEL.byDim.has(dim)) return true;

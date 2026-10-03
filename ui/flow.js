@@ -74,7 +74,7 @@ function buildGraph(dcs){
     const rackName = ri => P.racks[ri]?.placement.name || P.racks[ri]?.rack?.name || `Rack ${ri + 1}`;
     // one unit (a face with its ports) of a rack or of a loose device, as the Rack Builder draws it
     const unitOf = (it, ty, ri, blockId) => {
-      const u = { iid:it.iid, kind:it.kind, u:it.u || 1, hu:Math.max(1, Number(ty.heightU) || 1), name:typeName(ty), meta:KIND_NAME[it.kind] || it.kind, color:safeHex(ty.color, KIND_COLOR[it.kind]), badge:null, badgeColor:null, groups:[], lines:[] };
+      const u = { iid:it.iid, kind:it.kind, u:it.u || 1, hu:Math.max(1, Number(ty.heightU) || 1), name:typeName(ty), meta:KIND_NAME[it.kind] || it.kind, color:safeHex(ty.color, KIND_COLOR[it.kind]), badge:null, badgeColor:null, groups:[], lines:[], side:ty.width === 'half' ? (it.side || 'L') : null };
       const grp = ps => { if(ps.length) u.groups.push(ps); };
       const inRack = x => ri < 0 ? x.loose : x.rack === ri;
       if(it.kind === 'node'){
@@ -101,10 +101,12 @@ function buildGraph(dcs){
           for(const v of g.vims){ ps.push(pp(`s${v.label}`, 'vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? owners.get(v.used.id) : null, { free:!v.used, owner:v.used?.id, title:`${v.label}: ${v.used ? v.used.id : t('free', 'vrij')}` })); if(v.used) refs.set(`owner:${v.used.id}`, { block:blockId, port:`s${v.label}` }); }
           grp(ps);
         }
+        for(const g of window.SwPorts.panelGroups(ty)) grp(g.items.map(x => pp(`st${g.sub || g.cls}${x.no}`, g.cls, x.no, null, { title:x.title })));
         grp(vs.map(v => { if(v.used) refs.set(`owner:${v.used.id}`, { block:blockId, port:`s${v.label}` }); return pp(`s${v.label}`, 'vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? owners.get(v.used.id) : null, { free:!v.used, owner:v.used?.id, title:`${v.label}: ${v.used ? v.used.id : t('free', 'vrij')}` }); }));
       } else {
-        grp(Array.from({ length:Number(ty.portCount) || 0 }, (_, i) => pp(`r${i + 1}`, 'rj', i + 1, null, { title:`${t('Port', 'Poort')} ${i + 1}` })));
-        grp(Array.from({ length:Number(ty.sfpCount) || 0 }, (_, i) => pp(`f${i + 1}`, 'sfp', `S${i + 1}`, null, { title:`SFP ${i + 1}` })));
+        const SP = window.SwPorts, panels = ri >= 0 ? (P.racks[ri]?.rack?.items || []).filter(x => x.kind === 'panel').map(x => find('panelTypes', x.typeId)) : [];
+        grp(Array.from({ length:SP.front(ty) }, (_, i) => pp(`r${i + 1}`, 'rj', i + 1, null, { title:`${t('Port', 'Poort')} ${i + 1}` })));
+        if(!SP.fibreOnPanel(ty, panels)) grp(Array.from({ length:Number(ty.sfpCount) || 0 }, (_, i) => pp(`f${i + 1}`, 'sfp', SP.short(ty, i + 1), null, { title:SP.label(ty, i + 1) })));
       }
       return u;
     };
@@ -112,7 +114,7 @@ function buildGraph(dcs){
     P.racks.forEach((R, ri) => {
       if(!R.rack) return;
       const id = `${dc}|rack|${ri}`;
-      const units = (R.rack.items || []).slice().sort((a, b) => a.u - b.u).map(it => { const ty = find(KIND_KEY[it.kind], it.typeId); return ty ? unitOf(it, ty, ri, id) : null; }).filter(Boolean);
+      const units = (R.rack.items || []).slice().sort((a, b) => (a.u - b.u) || ((a.side === 'R') - (b.side === 'R'))).map(it => { if(it.kind === 'blind') return { iid:it.iid, kind:'blind', u:it.u || 1, hu:1, name:'', meta:'', color:'#000000', badge:null, badgeColor:null, groups:[], lines:[], side:it.side || 'L', blind:true }; const ty = find(KIND_KEY[it.kind], it.typeId); return ty ? unitOf(it, ty, ri, id) : null; }).filter(Boolean);
       add({ id, kind:'rack', dc, col:0, H:Math.max(1, Number(R.rack.heightU) || 1), units, title:rackName(ri), sub:`${R.rack.heightU}U${R.rack.articleKey ? ` · ${R.rack.articleKey}` : ''}`, color:'#94a3b8' });
     });
     // ---- loose devices: a node with the spiders it feeds as one stack; other spiders on their own ----
@@ -339,7 +341,7 @@ function prepare(b){
     b.portPos = new Map(); b.unitRect = new Map();
     let y = TITLE;
     for(const u of b.units){
-      const rect = rack ? { x:FRAME + RAIL + 1, y:TITLE + FRAME + (u.u - 1) * UH + 1, w:BAY - 2, h:unitH(u) - 2 } : { x:1, y, w:BAY, h:unitH(u) };
+      const rect = rack ? { x:FRAME + RAIL + 1 + (u.side === 'R' ? BAY / 2 : 0), y:TITLE + FRAME + (u.u - 1) * UH + 1, w:(u.side ? BAY / 2 : BAY) - 2, h:unitH(u) - 2 } : { x:1, y, w:BAY, h:unitH(u) };
       if(!rack) y += unitH(u) + STACK_GAP;
       b.unitRect.set(u, rect);
       for(const p of portLayout(u, rect)) b.portPos.set(p.p.key, p);
@@ -351,11 +353,12 @@ function prepare(b){
   b.size = { w:W[b.kind] || 180, h:HEAD + PAD + b.rows.reduce((n, r) => n + r.h, 0) + 4 };
 }
 // the ports of a unit on its face: groups with a gap between them, scaled down when they do not fit
+const labelW = u => u.side ? Math.round(LABEL_W * .55) : LABEL_W;   // half-width devices get a shorter name field
 function portLayout(u, rect){
   const base = { dmx:UH * .5, in:UH * .5, rj:UH * .5, sfp:UH * .5, lk:UH * .74, vim:UH * .62 };
   const sizeOf = p => (base[p.cls] || UH * .5) * (p.cls === 'sfp' ? 1.4 : 1);
   const natural = u.groups.reduce((n, g) => n + g.reduce((s, p) => s + sizeOf(p), 0) + (g.length - 1) * 3, 0) + (u.groups.length - 1) * 8;
-  const x0 = rect.x + EAR + 10 + LABEL_W + 10, avail = rect.x + rect.w - EAR - 8 - x0;
+  const x0 = rect.x + EAR + 10 + labelW(u) + 10, avail = rect.x + rect.w - EAR - 8 - x0;
   const k = natural > avail ? avail / natural : 1;
   const cy = rect.y + rect.h / 2;
   let x = x0; const out = [];
@@ -553,13 +556,14 @@ function deviceSvg(b, TH, print, selbox){
 }
 function unitFaceSvg(b, u, TH){
   const r = b.unitRect.get(u), { x, y, w, h } = r;
+  if(u.blind) return `<g class="funit"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="#0b0c0e" stroke="#2b2f36"/><circle cx="${x + 9}" cy="${y + h * .3}" r="2.3" fill="${TH.screw}"/><circle cx="${x + w - 9}" cy="${y + h * .3}" r="2.3" fill="${TH.screw}"/><circle cx="${x + 9}" cy="${y + h * .72}" r="2.3" fill="${TH.screw}"/><circle cx="${x + w - 9}" cy="${y + h * .72}" r="2.3" fill="${TH.screw}"/></g>`;
   const screw = (cx, cy) => `<circle cx="${cx}" cy="${cy}" r="2.3" fill="${TH.screw}" stroke="${TH.screwRing}"/>`;
   const ear = ex => `<rect x="${ex}" y="${y}" width="${EAR}" height="${h}" fill="${TH.ear}"/>${screw(ex + EAR / 2, y + h * .28)}${screw(ex + EAR / 2, y + h * .72)}`;
   const lx = x + EAR + 10, mid = y + h / 2;
   const bw = u.badge ? Math.round(String(u.badge).length * 6.6 + 8) : 0;
   const badge = u.badge ? `<rect x="${lx}" y="${mid - 13}" width="${bw}" height="13" rx="3" fill="${u.badgeColor}"/><text x="${lx + bw / 2}" y="${mid - 3}" text-anchor="middle" font-size="9.5" font-weight="700" font-family="${TH.font}" fill="${TH.badgeText}">${esc(u.badge)}</text>` : '';
   const face = `<rect class="fu-face" x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${TH.face}" stroke="${TH.faceStroke}"/><rect x="${x + 14}" y="${y}" width="${w - 28}" height="2" fill="${u.color}" opacity=".85"/>${ear(x)}${ear(x + w - EAR)}`;
-  const maxChars = Math.max(6, Math.floor((LABEL_W - (bw ? bw + 5 : 0) - 4) / 6.1));
+  const maxChars = Math.max(6, Math.floor((labelW(u) - (bw ? bw + 5 : 0) - 4) / 6.1));
   const text = `${badge}<text x="${lx + (bw ? bw + 5 : 0)}" y="${mid - 3}" font-size="10.5" font-weight="700" font-family="${TH.font}" fill="${TH.text}">${esc(trim(u.name, maxChars))}</text><text x="${lx}" y="${mid + 9}" font-size="10" font-family="${TH.font}" fill="${TH.text3}">${esc(trim(u.meta, 26))}</text>`;
   return `<g class="funit" data-unit="${esc(u.iid)}" data-lines="${linesAttr(u.lines)}"><title>${esc((u.badge ? u.badge + ' · ' : '') + u.name)}</title>${face}${text}</g>`;
 }

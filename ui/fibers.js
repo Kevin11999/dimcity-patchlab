@@ -17,7 +17,10 @@
 
   const all = () => nd().fiberLinks;
   const ends = l => [l.a, l.b];
-  const endLabel = e => !e ? '—' : e.free ? e.free : `${e.dc} · ${e.sw} · SFP ${e.sfp}`;
+  // name of a fibre port as printed on the device: "SFP 1", or "17 · opticalCON DUO" for types that define connectors
+  const swOf = (dc, sw) => (window.NetSwitches?.list(dc) || []).find(x => x.label === sw);
+  const portName = (dc, sw, n) => window.SwPorts ? window.SwPorts.label(swOf(dc, sw)?.type, Number(n)) : `SFP ${n}`;
+  const endLabel = e => !e ? '—' : e.free ? e.free : `${e.dc} · ${e.sw} · ${portName(e.dc, e.sw, e.sfp)}`;
   const links = dc => all().filter(l => ends(l).some(e => e?.dc === dc));
   // which fibre sits on SFP port n of a switch
   function usage(dc, sw){ const m = new Map(); for(const l of all()) for(const e of ends(l)) if(e?.dc === dc && e.sw === sw) m.set(Number(e.sfp), l); return m; }
@@ -25,7 +28,7 @@
   function freePorts(){
     const used = new Set(); for(const l of all()) for(const e of ends(l)) if(e && !e.free) used.add(keyOf(e));
     const out = [];
-    for(const dc of App.sortedDims()) for(const s of (window.NetSwitches?.list(dc) || [])) for(let n = 1; n <= s.sfp; n++){ const k = `${dc}|${s.label}|${n}`; if(!used.has(k)) out.push({ dc, sw:s.label, sfp:n, key:k, text:`${dc} · ${s.label} · SFP ${n}` }); }
+    for(const dc of App.sortedDims()) for(const s of (window.NetSwitches?.list(dc) || [])) for(let n = 1; n <= s.sfp; n++){ const k = `${dc}|${s.label}|${n}`; if(!used.has(k)) out.push({ dc, sw:s.label, sfp:n, key:k, text:`${dc} · ${s.label} · ${window.SwPorts ? window.SwPorts.label(s.type, n) : 'SFP ' + n}` }); }
     return out;
   }
   // DB-to-DB overview: [{ a:'DB01', b:'DB02', count }]
@@ -41,7 +44,7 @@
   function card(){
     const free = freePorts(), types = nd().cableTypes;
     const opt = (list, sel) => list.map(p => `<option value="${esc(p.key)}" ${sel === p.key ? 'selected' : ''}>${esc(p.text)}</option>`).join('');
-    const tOpts = types.map(ty => `<option value="${esc(ty.id)}">${esc(typeName(ty))} · ${esc(MEDIUM[ty.medium] || '')} ${Number(ty.cores) || ''}-core · ${Number(ty.lengthM) || 0} m</option>`).join('');
+    const tOpts = types.map(ty => `<option value="${esc(ty.id)}">${esc(typeName(ty))} · ${esc(MEDIUM[ty.medium] || '')} ${Number(ty.cores) || ''}-core · ${String(Number(ty.lengthM) || 0).replace('.', ',')} m</option>`).join('');
     const form = `<div class="planner-controls" id="fibForm">
         <label>${t('Cable', 'Kabel')}<select id="fibType">${tOpts || `<option value="">${t('No cable types yet', 'Nog geen kabeltypes')}</option>`}</select></label>
         <label>${t('End A', 'Uiteinde A')}<select id="fibA">${opt(free)}<option value="*">${t('Other (type a name)…', 'Anders (typ een naam)…')}</option></select></label>
@@ -79,5 +82,5 @@
       d.footer.querySelector('[data-a=c]').onclick = () => { d.close(); res(null); }; d.footer.querySelector('[data-a=ok]').onclick = ok; inp.onkeydown = e => { if(e.key === 'Enter') ok(); };
     });
   }
-  window.Fibers = { all, links, usage, matrix, card, bind, typeOf, typeName, endLabel, color, lenOf, freePorts };
+  window.Fibers = { all, links, usage, matrix, card, bind, typeOf, typeName, endLabel, portName, color, lenOf, freePorts };
 })();

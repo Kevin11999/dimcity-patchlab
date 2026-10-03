@@ -91,7 +91,7 @@
     }
     if(L.kinds.fibers && window.Fibers){   // a label on both ends of every fibre; the label tells where the other end goes
       for(const l of window.Fibers.links(dc)) for(const [mine, other] of [[l.a, l.b], [l.b, l.a]]){ if(!mine || mine.dc !== dc) continue; const ty = window.Fibers.typeOf(l.typeId);
-        out.push({ kind:'fiber', dc, title:l.id, sub:`${mine.sw} · SFP ${mine.sfp}`, lines:[`→ ${window.Fibers.endLabel(other)}`, ty ? `${window.Fibers.typeName(ty)} ${ty.lengthM} m` : ''].filter(Boolean), color:window.Fibers.color(l), badge:'', copies:1 }); }
+        out.push({ kind:'fiber', dc, title:l.id, sub:`${mine.sw} · ${window.Fibers.portName(mine.dc || dc, mine.sw, mine.sfp)}`, lines:[`→ ${window.Fibers.endLabel(other)}`, ty ? `${window.Fibers.typeName(ty)} ${ty.lengthM} m` : ''].filter(Boolean), color:window.Fibers.color(l), badge:'', copies:1 }); }
     }
     if(L.kinds.netCables && window.NetCables){   // Cat looms: one label per line, both ends, in the colour of its VLAN
       for(const c of window.NetCables.cables(dc)) for(const l of c.lines){ if(l.empty) continue; const v = l.vlan != null ? window.Fent?.vlanById(l.vlan) : null;

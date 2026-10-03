@@ -1121,3 +1121,10 @@ body.nav-mini .nav-empty{display:none}
 .su-nav{display:flex;gap:8px;align-items:center;margin-top:22px;padding-top:16px;border-top:1px solid var(--border)}
 .help-videos{margin:0 0 16px}.help-video{width:100%;max-height:420px;border-radius:10px;background:#000;border:1px solid var(--border);display:block}
 .help-vlist{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+
+.rp.rj.ec{border-radius:50%;border-color:#8a94a6}
+.rp.sfp.oc{border-color:#35a7ff;background:#07131d}.rp.sfp.ff{border-color:#ff4d4d;background:#1d0a0a}
+.rp-more{font-size:calc(var(--uh) * .28);color:#8a94a6;white-space:nowrap;padding:0 6px;align-self:center}
+
+.rk-item.half{width:50%}.rk-item.half-R{justify-self:end}.rk-item.half-L{justify-self:start}
+.ru-blind{--c:#000}.ru-blind .ru-body{background:#050506}.ru-blind .ru-label b{color:#555;font-weight:500}

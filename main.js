@@ -318,6 +318,18 @@ ipcMain.handle('writeTextFile', async (_evt, { filePath, content }) => {
   return true;
 });
 
+// ---- Network: find Art-Net nodes and send them their configuration (core/artnet-io.js) ----
+let _artIo = null;
+const artIo = async () => (_artIo ||= await import(new URL('./core/artnet-io.js', import.meta.url).href));
+ipcMain.handle('artnetScan', async (_evt, opts = {}) => { const io = await artIo(); const targets = Array.isArray(opts.targets) ? opts.targets.filter(x => /^\d+\.\d+\.\d+\.\d+$/.test(x)) : null; return io.groupDevices(await io.poll({ timeoutMs:Math.min(8000, Number(opts.timeoutMs) || 2200), targets })); });
+ipcMain.handle('artnetApply', async (_evt, job = {}) => {
+  const io = await artIo(); if(!/^\d+\.\d+\.\d+\.\d+$/.test(job.ip || '')) throw new Error('Bad IP');
+  for(const a of (job.address || [])) await io.sendAddress(job.ip, a);          // names and universes first …
+  let ipReply = null; if(job.ipProg) ipReply = await io.sendIpProg(job.ip, job.ipProg);   // … the IP address last (the device moves)
+  return { ok:true, ipReply };
+});
+ipcMain.handle('netProbe', async (_evt, { ip, ports } = {}) => { const io = await artIo(); if(!/^\d+\.\d+\.\d+\.\d+$/.test(ip || '')) return []; return io.probe(ip, Array.isArray(ports) && ports.length ? ports.slice(0, 6) : [80, 443]); });
+
 ipcMain.handle('readTextFile', async (_evt, filePath) => {
   if (!filePath) return null;
   return await fs.readFile(filePath, 'utf8');

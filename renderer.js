@@ -910,11 +910,11 @@ function openDialog({ title, subtitle='', body='', width='', cls='', footer=null
   return { bd, modal:m, body:m.querySelector('.modal-body'), footer:m.querySelector('.modal-footer'), close };
 }
 
-function confirmDialog({ title='Are you sure?', message='', okLabel='Continue', cancelLabel='Cancel', danger=false }){
+function confirmDialog({ title='Are you sure?', message='', okLabel='Continue', cancelLabel='Cancel', danger=false, html=false, width='440px' }){
   return new Promise(resolve=>{
     let done = false;
     const d = openDialog({
-      title, width:'440px', body:`<p style="margin:0;color:var(--text-2);line-height:1.55;white-space:pre-line">${esc(message)}</p>`,
+      title, width: html ? '680px' : width, body: html ? `<div style="color:var(--text-2);line-height:1.55">${message}</div>` : `<p style="margin:0;color:var(--text-2);line-height:1.55;white-space:pre-line">${esc(message)}</p>`,
       footer:`<button data-act="cancel">${esc(cancelLabel)}</button><button data-act="ok" class="${danger?'danger':'primary'}">${esc(okLabel)}</button>`,
       onClose:()=>{ if(!done) resolve(false); }
     });
@@ -2352,6 +2352,7 @@ async function runCommand(cmd, arg){
     case 'help':          return window.Help?.open?.(arg);
     case 'demo':          return window.Demo?.open?.();
     case 'exchange':      return window.Exchange?.open?.();
+    case 'netDevices':    return window.NetDev?.open?.();
     case 'wrapped':       return window.Fun?.wrapped?.();
     case 'stickers':      return window.Labels?.open?.(arg ? { dcs:[arg] } : {});
     case 'shareFlow':     return window.Fun?.shareFlow?.();

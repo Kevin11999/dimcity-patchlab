@@ -63,6 +63,7 @@
       ${nextCard}
       ${App.ui.card({ key:'tasks:pipe', title:t('The workflow', 'De werkwijze'), icon:'cable', meta:`${doneN}/${st.length}`, collapsible:false, body:pipe })}
       ${App.ui.card({ key:'tasks:matrix', title:t('Per DB', 'Per DB'), icon:'grid', meta:t('click a square to go there', 'klik op een vakje om ernaartoe te gaan'), collapsible:false, body:matrix })}
+      ${App.ui.card({ key:'tasks:ex', title:t('Exchange with other programs', 'Uitwisselen met andere programma\'s'), icon:'refresh', collapsible:false, meta:'Lightwright · Vectorworks', body:`<div class="subtle" style="margin-bottom:10px">${t('Send the patch to Lightwright or Vectorworks, and take their changes back — universe and position per LK / Veam port.', 'Stuur de patch naar Lightwright of Vectorworks en neem hun wijzigingen terug — universe en positie per LK-/Veam-poort.')}</div><button data-cmd="exchange">${I('refresh', 14)}${t('Open exchange…', 'Uitwisseling openen…')}</button> <button data-cmd="netDevices">${I('network', 14)}${t('Devices on the network…', 'Apparaten op het netwerk…')}</button>` })}
       ${App.ui.card({ key:'tasks:checks', title:t('Show checks', 'Controles van de show'), icon:'checkCircle', meta:`${P.done}/${P.total}`, body:checks })}
     </div>`;
     root.querySelectorAll('[data-tk-go]').forEach(b => b.onclick = () => S.open({ step:b.dataset.tkGo, dc:b.dataset.dc || undefined }));

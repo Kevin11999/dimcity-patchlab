@@ -2351,6 +2351,7 @@ async function runCommand(cmd, arg){
     case 'checkUpdates':  return window.Updater?.check?.({ manual:true });
     case 'help':          return window.Help?.open?.(arg);
     case 'demo':          return window.Demo?.open?.();
+    case 'exchange':      return window.Exchange?.open?.();
     case 'wrapped':       return window.Fun?.wrapped?.();
     case 'stickers':      return window.Labels?.open?.(arg ? { dcs:[arg] } : {});
     case 'shareFlow':     return window.Fun?.shareFlow?.();

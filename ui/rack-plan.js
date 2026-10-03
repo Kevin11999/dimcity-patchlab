@@ -148,7 +148,7 @@ function rackFace(plan, ri){
         + (SP.fibreOnPanel(t, panels) ? '' : (Number(t.sfpCount) ? `<span class="ru-grp">${Array.from({ length:Number(t.sfpCount) }, (_, i) => port(`sfp ${SP.kindOf(SP.conn(t, i + 1))}`, SP.short(t, i + 1), SP.label(t, i + 1))).join('')}</span>` : ''));
     }
     const hu = Math.max(1, Number(t.heightU) || 1);
-    return `<div class="rk-item static ${t.width === 'half' ? `half half-${it.side || 'L'}` : ''}" style="grid-row:${it.u} / span ${hu}"><div class="ru ru-rack" style="--c:${safeHex(t.color, '#4c9dff')};--hu:${hu}"><span class="ru-ear"></span><div class="ru-body"><div class="ru-label"><b>${badge}${esc(typeName(t))}</b><span>${esc(it.kind)}</span></div><div class="ru-ports">${ports}</div></div><span class="ru-ear"></span></div></div>`;
+    return `<div class="rk-item static ${t.width === 'half' ? `half half-${it.side || 'L'}` : ''}" style="grid-row:${it.u} / span ${hu}"><div class="ru ru-rack" style="--c:${safeHex(t.color, '#4c9dff')};--hu:${hu}"><span class="ru-ear"></span><div class="ru-body"><div class="ru-label"><b title="${esc(typeName(t))}">${badge}${esc(window.ShortName ? window.ShortName.of(t) : typeName(t))}</b><span>${esc(it.kind)}</span></div><div class="ru-ports">${ports}</div></div><span class="ru-ear"></span></div></div>`;
   }).join('');
   const rail = `<div class="rack-rail">${Array.from({ length:H }, (_, i) => `<span>${H - i}</span>`).join('')}</div>`;
   return `<div class="rack" style="--h:${H}">${rail}<div class="rack-bay" style="grid-template-rows:repeat(${H}, var(--uh))">${Array.from({ length:H }, (_, i) => `<div class="rk-slot" style="grid-row:${i + 1}"></div>`).join('')}${rows}</div>${rail}</div>`;

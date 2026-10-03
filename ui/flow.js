@@ -74,7 +74,7 @@ function buildGraph(dcs){
     const rackName = ri => P.racks[ri]?.placement.name || P.racks[ri]?.rack?.name || `Rack ${ri + 1}`;
     // one unit (a face with its ports) of a rack or of a loose device, as the Rack Builder draws it
     const unitOf = (it, ty, ri, blockId) => {
-      const u = { iid:it.iid, kind:it.kind, u:it.u || 1, hu:Math.max(1, Number(ty.heightU) || 1), name:typeName(ty), meta:KIND_NAME[it.kind] || it.kind, color:safeHex(ty.color, KIND_COLOR[it.kind]), badge:null, badgeColor:null, groups:[], lines:[], side:ty.width === 'half' ? (it.side || 'L') : null, special:ty.special || null };
+      const u = { iid:it.iid, kind:it.kind, u:it.u || 1, hu:Math.max(1, Number(ty.heightU) || 1), name:window.ShortName ? window.ShortName.of(ty) : typeName(ty), meta:KIND_NAME[it.kind] || it.kind, color:safeHex(ty.color, KIND_COLOR[it.kind]), badge:null, badgeColor:null, groups:[], lines:[], side:ty.width === 'half' ? (it.side || 'L') : null, special:ty.special || null };
       const grp = ps => { if(ps.length) u.groups.push(ps); };
       const inRack = x => ri < 0 ? x.loose : x.rack === ri;
       if(it.kind === 'node'){

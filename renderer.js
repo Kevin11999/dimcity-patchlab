@@ -1514,6 +1514,7 @@ function renderDimCityDetail(dc){
   const anyOpen = lks.some(lk=>isInlineOpen(dc,'lk',lk.id));
   root.style.setProperty('--dim-color', color);
   root.innerHTML = `<div class="stack">${kpis}
+    ${window.DimOverview?.card?.(dc) || ''}
     ${card({ key:`${dc}:uni`, title:'Universes', icon:'universe', meta:plural(uniCount,'universe'), body:`<div class="uni-overview-grid">${uniCards}</div>${renderInlineUniverseDetails(dc, focusU)}` })}
     ${card({ key:`${dc}:lk`, title:'LK blocks', icon:'box', meta:plural(lks.length,'block'), actions: lks.length ? `<button class="sm ghost" id="dimToggleAll">${anyOpen?'Collapse all':'Expand all'}</button>` : '', body:`<div class="hint" style="margin:-4px 0 10px">Click a block to edit its block type and Veam links.</div><div class="lk-card-grid">${lkCards}</div>` })}
     ${card({ key:`${dc}:veam`, title:'Veams', icon:'plug', meta:`${linked}/${veams.length} linked`, body:`<div class="lk-card-grid veams">${veamCards}</div>` })}

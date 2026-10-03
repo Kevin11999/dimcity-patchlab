@@ -537,7 +537,7 @@
         ports = grp(Array.from({ length:SP.front(t) }, (_, i) => pp('rj', String(i + 1), null)).join('')) + (SP.fibreOnPanel(t, panels) ? '' : grp(Array.from({ length:Number(t.sfpCount) || 0 }, (_, i) => pp('sfp', SP.short(t, i + 1), null)).join('')));
       }
       const hu = Math.max(1, Number(t.heightU) || 1);
-      return `<div class="prk-it ${t.width === 'half' ? `prk-half prk-${it.side === 'R' ? 'R' : 'L'}` : ''}" style="grid-row:${it.u} / span ${hu}"><div class="pru" style="--c:${hex(t.color, '#475569')}"><div class="pru-label"><b>${tag}${esc(typeNameOf(t))}</b><span>${esc(it.kind)} · ${hu}U</span></div><div class="pru-ports">${ports}</div></div></div>`;
+      return `<div class="prk-it ${t.width === 'half' ? `prk-half prk-${it.side === 'R' ? 'R' : 'L'}` : ''}" style="grid-row:${it.u} / span ${hu}"><div class="pru" style="--c:${hex(t.color, '#475569')}"><div class="pru-label"><b>${tag}${esc(window.ShortName ? window.ShortName.of(t) : typeNameOf(t))}</b><span>${esc(it.kind)} · ${hu}U</span></div><div class="pru-ports">${ports}</div></div></div>`;
     }).join('');
     const rail = `<div class="prk-rail">${Array.from({ length:H }, (_, i) => `<span>${H - i}</span>`).join('')}</div>`;
     const slots = Array.from({ length:H }, (_, i) => `<div class="prk-slot" style="grid-row:${i + 1}"></div>`).join('');

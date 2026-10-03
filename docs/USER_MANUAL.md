@@ -515,6 +515,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 - Racks are zones: LK and Veam cables are short, so an LK or Veam on a rack socket only feeds nodes in the same rack. Racks that stand directly on top of each other can be marked "stacked on the rack above" (DimCity card and Setup) and then count as one. Between racks only network cables run. The patch warns when a rack has no free node port of its own.
 - A node without a rack now comes with an LK spider automatically, and the check warns when a loose node has no LK or Veam spider.
 - Custom rack: build a rack of your own straight from the DimCity card or from Setup — pick how many panels, nodes, splitters and switches, PatchLab places them. No article key needed (you can still add one in the Rack Builder).
+- Short names: every device type in the Device Builder has a Short name (made automatically when empty; the button Fill short names writes them into all your current devices so you can adjust them). Racks, the Signal Flow, the PDF and the new overview use the short name, so long names are no longer cut off.
+- New "At a glance" card at the top of every DimCity: the LK blocks and Veams with their socket and node, the racks with their devices, the nodes and splitters, and the network switches with their fibres — in one view. Switches you add on the Network page show up here.
+- Signal Flow: the Show switch no longer cuts off "Fibres".
 
 ### Version 0.5.1 — 2026-10-07
 - New video tutorials with a spoken explanation (female English voice) and subtitles, in 720p: the whole workflow from the imported patch to the printed show in nine parts — Start, Racks and the advice, Couple LKs and Veams, Nodes, Network, Fibres, Signal Flow, the PDF and Stickers. Help > Video Tutorials plays them one after the other or one by one.
@@ -1115,6 +1118,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 - Rekken zijn zones: LK- en Veam-kabels zijn kort, dus een LK of Veam op een rekaansluiting voedt alleen nodes in hetzelfde rek. Rekken die direct op elkaar staan kun je aanvinken als "gestapeld op het rek erboven" (DimCity-kaart en Setup); ze tellen dan als één. Tussen rekken lopen alleen netwerkkabels. De patch waarschuwt als een rek geen eigen vrije nodepoort heeft.
 - Een node zonder rek krijgt nu automatisch een LK-spin erbij, en de controle waarschuwt als een losse node geen LK- of Veam-spin heeft.
 - Eigen rek: bouw een eigen rek direct vanuit de DimCity-kaart of Setup — kies hoeveel panelen, nodes, splitters en switches, PatchLab plaatst ze. Geen artikelkey nodig (in de Rack Builder kun je die nog wel invullen).
+- Korte namen: elk devicetype in de Device Builder heeft een Korte naam (automatisch gemaakt als hij leeg is; de knop Korte namen invullen zet ze in al je huidige devices zodat je ze kunt aanpassen). Racks, de Signaalstroom, de PDF en het nieuwe overzicht gebruiken de korte naam, dus lange namen worden niet meer afgekapt.
+- Nieuwe kaart "In één oogopslag" bovenaan elke DimCity: de LK-blokken en Veams met hun aansluiting en node, de racks met hun devices, de nodes en splitters, en de netwerkswitches met hun fibers — in één overzicht. Switches die je op de Netwerk-pagina toevoegt staan er direct in.
+- Signaalstroom: de Tonen-schakelaar kapt "Fibers" niet meer af.
 
 ### Versie 0.5.1 — 2026-10-07
 - Nieuwe video-uitleg met gesproken uitleg (Engelse vrouwenstem) en ondertiteling, in 720p: de hele workflow van de geïmporteerde patch tot de geprinte show in negen delen — Start, Racks en het advies, LK's en Veams koppelen, Nodes, Netwerk, Fibers, Signaalstroom, de PDF en Stickers. Help > Video-uitleg speelt ze achter elkaar of een voor een af.

@@ -75,4 +75,18 @@
 
   SwPorts.gc20tShapes = gc20tShapes; SwPorts.gc20tSvg = gc20tSvg; SwPorts.isSpecial = isSpecial;
   window.SwPorts = SwPorts;
+  // Short names: a device type can have its own short name (Device Builder); without one, the shortest sensible name is derived
+  // (brand dropped, filler words and spaces removed). Racks and overviews use it, so long names are no longer cut off.
+  const ShortName = {
+    derive(t){
+      let n = String(t?.name || t?.id || '').trim();
+      const b = String(t?.brand || '').trim();
+      if(b && n.toLowerCase().startsWith(b.toLowerCase() + ' ')) n = n.slice(b.length).trim();
+      n = n.replace(/\bpanel\b/gi, '').replace(/(\d)×\s+/g, '$1×').replace(/\s*\+\s*/g, ' + ').replace(/\s{2,}/g, ' ').trim();
+      return n || String(t?.id || '');
+    },
+    of(t){ return String(t?.short || '').trim() || ShortName.derive(t); },
+    full(t){ return [t?.brand, t?.name].filter(Boolean).join(' ') || t?.id || ''; }
+  };
+  window.ShortName = ShortName;
 })();

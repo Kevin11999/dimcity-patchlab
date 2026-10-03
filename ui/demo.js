@@ -76,7 +76,7 @@ async function open({ silent=false, tutorial=false } = {}){
   for(const key of ['nodeTypes', 'splitterTypes', 'switchTypes', 'panelTypes', 'rackTypes']) for(const it of (std?.[key] || [])) if(!nd[key].some(x => x.id === it.id)) nd[key].push(JSON.parse(JSON.stringify(it)));
   window.Library?.fillProject?.(M2);
   const plan = dc => App.net.getDimPlan(dc);
-  plan('DB01').racks = [{ iid:'rk_demo1', rackId:'RACK:STD-DIM-LMX', name:'Dimmer rack SL' }, { iid:'rk_demo1b', rackId:'RACK:STD-NODE-LMX', name:'Node rack SR' }];
+  plan('DB01').racks = [{ iid:'rk_demo1', rackId:'RACK:STD-DIM-LMX', name:'Dimmer rack SL' }, { iid:'rk_demo1b', rackId:'RACK:STD-NODE-LMX', name:'Node rack SR', stack:true }];
   plan('DB01').loose = [{ iid:'ls_demo1', kind:'node', typeId:'NODE:LMX-LN4', name:'Truss 2 node' }, { iid:'ls_demo2', kind:'vimSpider', nodeIid:'ls_demo1' }];
   plan('DB02').racks = [{ iid:'rk_demo2', rackId:'RACK:STD-DIM-ELC', name:'B-stage rack' }];
   plan('DB02').loose = [{ iid:'ls_demo6', kind:'node', typeId:'NODE:ELC-NGBX8', name:'B-stage truss node' }];

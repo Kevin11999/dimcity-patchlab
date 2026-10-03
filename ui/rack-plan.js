@@ -30,6 +30,83 @@ function nodePortsStrip(n, size=''){
   return `<div class="np-strip">${cells}</div>`;
 }
 
+
+// ---- Advice: the best setup for this DimCity from its LKs, Veams and universes ----
+function adviceHtml(dc, { compact = false } = {}){
+  const A = window.RackAdvisor?.advise(dc); if(!A) return '';
+  if(!A.lines && !A.lk && !A.veams) return '';
+  const ico = l => l === 'warn' ? 'alert' : l === 'ok' ? 'checkCircle' : 'info';
+  const items = A.items.map(i => `<tr><td><b>${i.count}×</b></td><td>${esc(typeName(i.type))}</td><td class="num">${i.u}U</td><td class="subtle">${esc(i.why)}</td></tr>`).join('');
+  const blocks = A.blocks.map(b => `<tr><td><b>${esc(b.id)}</b></td><td>${esc(b.label)}</td><td class="subtle">${esc(b.why)}</td><td>${b.differs ? `<span class="tag yellow" title="${esc(b.manual ? 'You set this mode yourself' : 'Auto-detect shows')}">now ${esc(b.currentLabel)}</span> <button class="sm" data-adv-mode="${esc(b.id)}" data-mode="${esc(b.mode)}">Use ${esc(b.label)}</button>` : '<span class="tag green">matches</span>'}</td></tr>`).join('');
+  const rackLine = A.rack.existing ? `fits in <b>${esc(A.rack.type.name || A.rack.type.id)}</b> (${A.rack.type.heightU}U) — or a rack made for it` : `needs a rack of <b>${A.rack.height}U</b> (you have no rack type that big)`;
+  const body = `<div class="adv-sum"><b>${A.lk}</b> LK · <b>${A.veams}</b> Veam · <b>${A.lines}</b> lines · <b>${A.universes}</b> universes → <b>${A.totalU}U</b> of devices, ${rackLine}.</div>
+    ${A.items.length ? `<table class="data-table adv-items"><thead><tr><th></th><th>Device</th><th class="num">Space</th><th>Why</th></tr></thead><tbody>${items}</tbody></table>` : ''}
+    ${A.notes.map(n => `<div class="rp-adv-note ${n.level}">${I(ico(n.level), 13)} ${esc(n.text)}</div>`).join('')}
+    ${!compact && blocks ? `<details class="adv-blocks" ${A.blocks.some(b => b.differs) ? 'open' : ''}><summary>Block mode per LK</summary><table class="data-table"><thead><tr><th>LK</th><th>Advice</th><th>Because</th><th></th></tr></thead><tbody>${blocks}</tbody></table></details>` : ''}
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="primary" data-adv-apply ${A.ok ? '' : 'disabled'}>${I('check', 14)} Apply this advice to ${esc(dc)}</button><span class="subtle" style="align-self:center;font-size:12px">It adds a rack made for this DimCity${(A.spiders.lk || A.spiders.vim) ? ' and loose spiders' : ''}. Your own racks stay.</span></div>`;
+  return App.ui.card({ key:`${dc}:advice`, title:'Advice: best setup', icon:'star', meta:A.ok ? `${A.totalU}U · ${A.items.reduce((n, i) => n + i.count, 0)} devices` : '', collapsible:true, collapsed:compact, body:`<div class="rp-advice">${body}</div>` });
+}
+function bindAdvice(root, dc, rerender){
+  const ap = root.querySelector('[data-adv-apply]');
+  if(ap) ap.onclick = async () => {
+    const plan = App.net.getDimPlan(dc);
+    if((plan.racks || []).some(r => r.iid !== plan.adviceRack?.iid)){
+      const ok = await App.ui.confirmDialog({ title:`Add the advice to ${dc}?`, message:`${dc} already has racks. The advice adds a rack made for it next to them (a rack from an earlier advice is replaced).`, okLabel:'Add rack' });
+      if(!ok) return;
+    }
+    const a = window.RackAdvisor.apply(dc);
+    if(a) App.ui.toast(`${dc}: advice applied — ${a.totalU}U in a new rack${(a.spiders.lk || a.spiders.vim) ? ' plus loose spiders' : ''}`);
+    rerender();
+  };
+  root.querySelectorAll('[data-adv-mode]').forEach(b => b.onclick = () => {
+    const lk = M().byLK.get(b.dataset.advMode); if(!lk) return;
+    App.applyBlockType(lk, b.dataset.mode); M().ui.dirty = true; rerender();
+  });
+}
+
+// ---- Couple every LK / Veam to a socket: automatic by default, every line can be overruled ----
+const isLkId = id => /^LK\d+$/i.test(id);
+function assignRows(dc, plan){
+  const m = M(), assign = App.net.getDimPlan(dc).assign || {};
+  const rows = new Map();
+  for(const l of plan.lines){
+    if(l.ownerKind !== 'LK' && l.ownerKind !== 'VEAM') continue;
+    const r = rows.get(l.owner) || { id:l.owner, kind:l.ownerKind, lines:0, unis:new Set(), socket:l.socket };
+    r.lines++; if(l.universe != null) r.unis.add(l.universe); rows.set(l.owner, r);
+  }
+  for(const id of (plan.skipped || [])){
+    const src = isLkId(id) ? m.byLK.get(id) : m.byVeam.get(id);
+    const ls = (src?.lines || []).filter(L => L.universe != null && L.universe !== '');
+    rows.set(id, { id, kind:isLkId(id) ? 'LK' : 'VEAM', lines:ls.length, unis:new Set(ls.map(L => L.universe)), socket:null, skipped:true });
+  }
+  const sockets = {
+    LK: plan.groups.map(g => ({ value:g.label, text:`${g.label} · ${g.panel}${g.lk ? ` — ${g.lk.id}` : ''}`, by:g.lk?.id })),
+    VEAM: [...plan.groups.flatMap(g => g.vims.map(v => ({ ...v, panel:g.panel }))), ...plan.soloVims].map(v => ({ value:v.label, text:`${v.label} · ${v.panel}${v.used ? ` — ${v.used.id}` : ''}`, by:v.used?.id }))
+  };
+  return [...rows.values()].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric:true })).map(r => ({ ...r, mode:assign[r.id] || 'auto', options:sockets[r.kind] }));
+}
+function assignHtml(plan, dc){
+  const rows = assignRows(dc, plan);
+  if(!rows.length) return '';
+  const own = rows.filter(r => r.mode !== 'auto').length;
+  const opt = (r) => `<option value="auto" ${r.mode === 'auto' ? 'selected' : ''}>Automatic</option>${r.options.map(o => `<option value="${esc(o.value)}" ${r.mode === o.value ? 'selected' : ''}>${esc(o.text)}</option>`).join('')}<option value="spider" ${r.mode === 'spider' ? 'selected' : ''}>Loose ${r.kind === 'LK' ? 'LK' : 'Veam4'} spider</option><option value="none" ${r.mode === 'none' ? 'selected' : ''}>Do not patch</option>`;
+  const now = r => r.skipped ? '<span class="tag">not patched</span>' : /spider/i.test(r.socket || '') ? `<span class="tag yellow">${esc(r.socket)}</span>` : `<span class="tag green">${esc(r.socket || '—')}</span>`;
+  return `<details class="rp-table rp-assign" open><summary>${I('plug', 14)} Couple LKs &amp; Veams to sockets <span class="subtle">${own ? `${own} of your own choice${own > 1 ? 's' : ''}` : 'all automatic'}</span></summary>
+    <div class="rp-assign-body"><div class="subtle" style="font-size:12.5px;margin:0 0 8px">Automatic fills the sockets in order. Choose a socket to decide yourself, <b>Loose spider</b> when it should not sit in the rack, or <b>Do not patch</b> to leave it out. A socket you choose is kept first; the rest stays automatic.</div>
+    <table class="data-table"><thead><tr><th>LK / Veam</th><th class="num">Lines</th><th>Universes</th><th>Now on</th><th>Choose</th></tr></thead><tbody>${rows.map(r => `<tr><td><b>${esc(r.id)}</b></td><td class="num">${r.lines}</td><td class="subtle">${[...r.unis].sort((a, b) => a - b).slice(0, 6).map(u => 'U' + u).join(' ')}${r.unis.size > 6 ? ' …' : ''}</td><td>${now(r)}</td><td><select class="rp-assign-sel ${r.mode !== 'auto' ? 'own' : ''}" data-owner="${esc(r.id)}">${opt(r)}</select></td></tr>`).join('')}</tbody></table>
+    ${own ? `<div style="margin-top:8px"><button class="sm" data-assign-reset>${I('refresh', 13)} Everything automatic again</button></div>` : ''}</div></details>`;
+}
+function bindAssign(root, dc, rerender){
+  root.querySelectorAll('.rp-assign-sel').forEach(sel => sel.onchange = () => {
+    const plan = App.net.getDimPlan(dc); plan.assign ||= {};
+    window.PatchHistory?.label?.(`${dc}: socket choice for ${sel.dataset.owner}`);
+    if(sel.value === 'auto') delete plan.assign[sel.dataset.owner]; else plan.assign[sel.dataset.owner] = sel.value;
+    M().ui.dirty = true; rerender();
+  });
+  const rs = root.querySelector('[data-assign-reset]');
+  if(rs) rs.onclick = () => { App.net.getDimPlan(dc).assign = {}; M().ui.dirty = true; rerender(); };
+}
+
 // Rek met de berekende patch erin: nodes met universes, panelen met aangesloten LK/Veam
 function rackFace(plan, ri){
   const R = plan.racks[ri];
@@ -155,10 +232,12 @@ function cardHtml(dc){
   const warn = plan.recs.some(r => r.level === 'warn');
   const meta = [placed.length ? App.ui.plural(placed.length, 'rack') : '', loose.length ? App.ui.plural(loose.length, 'loose device') : ''].filter(Boolean).join(' + ');
   return App.ui.card({ key:`${dc}:racks`, title:'Racks', icon:'rack', meta:`${meta} · ${warn ? 'needs attention' : 'all patched'}`,
-    body:`${controls}${stats}${recs}${legend ? `<div class="rp-legend"><span class="subtle">Node per LK / Veam:</span>${legend}</div>` : ''}<div class="rp-racks">${racks}</div>${nodeStrips}${looseHtml(plan, dc)}${table}` });
+    body:`${adviceHtml(dc)}${controls}${stats}${recs}${legend ? `<div class="rp-legend"><span class="subtle">Node per LK / Veam:</span>${legend}</div>` : ''}<div class="rp-racks">${racks}</div>${assignHtml(plan, dc)}${nodeStrips}${looseHtml(plan, dc)}${table}` });
 }
 
 function bind(root, dc, rerender){
+  bindAssign(root, dc, rerender);
+  bindAdvice(root, dc, rerender);
   const place = root.querySelector('#rpPlace');
   if(place) place.onclick = () => {
     const id = root.querySelector('#rpRackType').value;
@@ -258,4 +337,4 @@ function applyToNetworkPlan(dc, { quiet=false } = {}){
   if(!quiet) App.ui.toast(`${dc}: ${App.ui.plural(plan.nodes.length, 'node')}${plan.splitters.length ? ` and ${App.ui.plural(plan.splitters.length, 'splitter')}` : ''} taken from the rack`);
 }
 
-window.RackPlan = { cardHtml, bind, rackFace, nodePortsStrip, applyToNetworkPlan };
+window.RackPlan = { cardHtml, bind, rackFace, nodePortsStrip, applyToNetworkPlan, assignHtml, bindAssign, adviceHtml, bindAdvice };

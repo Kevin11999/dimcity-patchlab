@@ -116,32 +116,51 @@ export function computeRackPlan(M, dc){
   const noSocket = { lk:[], ve:[] };
   const prefNode = new Map();       // LK/Veam-id -> iid van de losse node waar de spin bij voorkeur op zit
 
-  // 1. LK's op LK-aansluitingen: eerst spinnen die aan een losse node hangen, dan de rekpanelen, dan losse spinnen
-  const groupsInOrder = [...R.groups.filter(g => g.nodeIid), ...R.groups.filter(g => !g.nodeIid)];
-  let gi = 0;
-  for(const need of D.lkNeeds){
-    if(!need.lines.length && !need.slotUsed.some(Boolean)) continue;     // LK zonder data: niets aansluiten
-    const g = groupsInOrder[gi++];
-    if(g){
-      g.lk = need;
-      if(g.nodeIid) prefNode.set(need.id, g.nodeIid);
-      need.lines.forEach(l => lines.push({ ...l, socket:g.label }));
-    } else {
-      noSocket.lk.push(need.id);
-      need.lines.forEach(l => lines.push({ ...l, socket:'Loose LK spider' }));
-    }
+  // Own choices per LK / Veam (plan.assign): 'auto' (default) | an exact socket label ('LK2', 'Veam3') | 'spider' (a loose spider) | 'none' (do not patch)
+  const assign = M.networkDevices?.dimCityPlans?.[dc]?.assign || {};
+  const skipped = [], badAssign = [];
+  const give = (need, socket, node) => { if(node) prefNode.set(need.id, node); need.lines.forEach(l => lines.push({ ...l, socket })); };
+
+  // 1. LK's op LK-aansluitingen: eerst de eigen keuzes, dan spinnen die aan een losse node hangen, dan de rekpanelen, dan losse spinnen
+  const wanted = D.lkNeeds.filter(n => n.lines.length || n.slotUsed.some(Boolean));     // LK zonder data: niets aansluiten
+  const done = new Set();
+  for(const need of wanted){
+    const a = assign[need.id];
+    if(!a || a === 'auto') continue;
+    if(a === 'none'){ skipped.push(need.id); done.add(need.id); continue; }
+    if(a === 'spider'){ noSocket.lk.push(need.id); give(need, 'Loose LK spider'); done.add(need.id); continue; }
+    const g = R.groups.find(x => x.label === a && !x.lk);
+    if(g){ g.lk = need; give(need, g.label, g.nodeIid); done.add(need.id); }
+    else badAssign.push(`${need.id} → ${a}`);
   }
-  // 2. Losse Veams: eerst vrije Veam4 naast een LK, dan losse Veam4, dan Veam4 van lege LK-groepen
+  const groupsInOrder = [...R.groups.filter(g => g.nodeIid && !g.lk), ...R.groups.filter(g => !g.nodeIid && !g.lk)];
+  let gi = 0;
+  for(const need of wanted){
+    if(done.has(need.id)) continue;
+    const g = groupsInOrder[gi++];
+    if(g){ g.lk = need; give(need, g.label, g.nodeIid); }
+    else { noSocket.lk.push(need.id); give(need, 'Loose LK spider'); }
+  }
+  // 2. Losse Veams: eigen keuzes, dan vrije Veam4 naast een LK, dan losse Veam4, dan Veam4 van lege LK-groepen
   const freeVims = [...R.soloVims.filter(v => v.nodeIid)];               // Veam4-spin aan een losse node eerst
   for(const g of R.groups) if(g.lk) g.vims.forEach(v => { if(!g.lk.slotUsed[v.slot]) freeVims.push(v); });
   freeVims.push(...R.soloVims.filter(v => !v.nodeIid));
   for(const g of R.groups) if(!g.lk) freeVims.push(...g.vims);
-  let vi = 0;
-  for(const need of D.veNeeds){
-    if(!need.lines.length) continue;
-    const v = freeVims[vi++];
-    if(v){ v.used = need; if(v.nodeIid) prefNode.set(need.id, v.nodeIid); need.lines.forEach(l => lines.push({ ...l, socket:v.label })); }
-    else { noSocket.ve.push(need.id); need.lines.forEach(l => lines.push({ ...l, socket:'Loose Veam4 spider' })); }
+  const veWanted = D.veNeeds.filter(n => n.lines.length), veDone = new Set();
+  for(const need of veWanted){
+    const a = assign[need.id];
+    if(!a || a === 'auto') continue;
+    if(a === 'none'){ skipped.push(need.id); veDone.add(need.id); continue; }
+    if(a === 'spider'){ noSocket.ve.push(need.id); give(need, 'Loose Veam4 spider'); veDone.add(need.id); continue; }
+    const v = freeVims.find(x => x.label === a && !x.used);
+    if(v){ v.used = need; give(need, v.label, v.nodeIid); veDone.add(need.id); }
+    else badAssign.push(`${need.id} → ${a}`);
+  }
+  for(const need of veWanted){
+    if(veDone.has(need.id)) continue;
+    const v = freeVims.find(x => !x.used);
+    if(v){ v.used = need; give(need, v.label, v.nodeIid); }
+    else { noSocket.ve.push(need.id); give(need, 'Loose Veam4 spider'); }
   }
   D.loose.forEach(l => lines.push({ ...l, socket:'Direct (XLR)' }));
 
@@ -209,6 +228,8 @@ export function computeRackPlan(M, dc){
   const vimSockets = R.groups.reduce((n, g) => n + g.vims.length, 0) + R.soloVims.length;
   const vimUsed = freeVims.filter(v => v.used).length;
   const nodeTypes = [...new Set(R.nodes.map(n => n.type))];
+  if(badAssign.length) recs.push({ level:'warn', text:`Your socket choice is not possible any more for ${badAssign.join(', ')} → automatic instead.` });
+  if(skipped.length) recs.push({ level:'info', text:`Not patched on purpose: ${skipped.join(', ')}.` });
   if(!R.racks.length && !R.loose.length) recs.push({ level:'info', text:'Place a rack to patch this DimCity automatically.' });
   else {
     const missing = R.loose.filter(d => d.missing);
@@ -229,7 +250,7 @@ export function computeRackPlan(M, dc){
     if(!recs.some(r => r.level === 'warn') && lines.length) recs.unshift({ level:'ok', text:`Everything fits: ${lines.length} line${lines.length > 1 ? 's' : ''} patched on ${usedPorts} node port${usedPorts === 1 ? '' : 's'}.` });
   }
   return {
-    dc, racks:R.racks, loose:R.loose, nodes:R.nodes, splitters:R.splitters, groups:R.groups, soloVims:R.soloVims, lines, recs,
+    dc, skipped, badAssign, racks:R.racks, loose:R.loose, nodes:R.nodes, splitters:R.splitters, groups:R.groups, soloVims:R.soloVims, lines, recs,
     stats:{ lkSockets, lkUsed, vimSockets, vimUsed, nodePorts:totalPorts, nodePortsUsed:usedPorts, lines:lines.length, unfed,
       spiders:{ lk:noSocket.lk.length, vim:noSocket.ve.length } }
   };
@@ -249,4 +270,4 @@ export function ownerColors(plan){
   return out;
 }
 
-window.RackEngine = { computeRackPlan, placedRacks, looseDevices, hasRackPlan, ownerColors, NODE_COLORS };
+window.RackEngine = { computeRackPlan, placedRacks, looseDevices, hasRackPlan, ownerColors, demand, NODE_COLORS };

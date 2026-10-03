@@ -323,10 +323,10 @@ Per DimCity: nodes, switches, ports used, Cat lines, fibres and a status.
 The **Setup** button in the toolbar (also offered after an import, and under the File menu) walks through a new project in the right order. Nothing is locked: take the steps in order or jump to any step.
 
 1. **Import the patch** — LK, Veam and C rows.
-2. **Network per DB** — VLAN numbering, FENT on or off, and a network switch for every DB.
-3. **Racks** — place racks or loose devices and apply the rack as network plan.
-4. **Couple the LKs** to the racks.
-5. **Link nodes to the CSV** — DMX lines named like "Node 401.1" (see [Node names](#node-names)).
+2. **Racks and devices** — read the **advice** (best setup for the LKs, Veams and universes) and apply it, or place racks and loose devices yourself.
+3. **Couple LKs and Veams** — every LK and Veam gets a socket; automatic, or choose a socket / loose spider / do not patch yourself.
+4. **Nodes** — the rack patch becomes the nodes of the network plan; DMX lines named like "Node 401.1" are put on that node port (see [Node names](#node-names)).
+5. **Network per DB** — VLAN numbering, FENT on or off, and a network switch for every DB (the nodes take its ports).
 6. **Couple the fibres** between the DBs: auto-assign from your stock, or draw them (see [Fibres](#fibres)).
 7. **Check and output** — open the issues, the Signal Flow, the PDF or the stickers.
 
@@ -510,9 +510,12 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
-### Version 0.4.4 — 2026-10-06
+### Version 0.5.0 — 2026-10-06
 - VLANs: the VLAN list is now its own card on the Network page (tab VLAN & addresses) and is always there, also when the FENT scheme is off. Rename any VLAN, change its colour, reset it to the standard, or add your own VLAN (ID + name). Names and colours show in the port plan, on stickers and in the PDF.
 - Background picture: much bigger sizes (up to 2000% on the slider, or type any percentage), a larger move range and a Fit to drawing button; large pictures are kept sharper.
+- Advice: best setup per DimCity (Racks card and Setup). From the LKs, Veams, lines and universes it works out the block mode per LK, the LK / Veam4 panels (or loose spiders when a few Veams do not justify a panel), the nodes, whether a splitter saves space, and the rack size — using only the types in your Device Builder, with the reason for each choice. One button applies it as a rack made for the DimCity.
+- Couple LKs and Veams: a table per DimCity shows where every LK and Veam sits and lets you choose a socket yourself, a loose spider, or Do not patch; the rest stays automatic. Everything automatic again with one button. Also in Setup.
+- Setup follows the work now: Import → Racks and devices (with the advice) → Couple LKs and Veams → Nodes (nodes from the racks + CSV names) → Network → Fibres → Check.
 - A Veam that sits on a Veam4 socket of a rack (or a loose Veam4 spider) is no longer shown as "Not linked": the Veam page, the sidebar, the overview counts and the DimCity page now count it as patched and say on which socket it sits.
 
 ### Version 0.4.3 — 2026-10-05
@@ -1097,9 +1100,12 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
 
-### Versie 0.4.4 — 2026-10-06
+### Versie 0.5.0 — 2026-10-06
 - VLAN's: de VLAN-lijst is nu een eigen kaart op de pagina Netwerk (tab VLAN & adressen) en is er altijd, ook als het FENT-schema uit staat. Hernoem elk VLAN, wijzig de kleur, zet terug naar de standaard, of voeg je eigen VLAN toe (ID + naam). Namen en kleuren staan in het poortplan, op stickers en in de PDF.
 - Achtergrondafbeelding: veel grotere formaten (tot 2000% op de schuif, of typ elk percentage), een groter verschuifbereik en een knop Aan tekening aanpassen; grote afbeeldingen blijven scherper.
+- Advies: beste setup per DimCity (kaart Racks en Setup). Uit de LK's, Veams, lijnen en universes rekent het uit: de blokmodus per LK, de LK-/Veam4-panelen (of losse spinnen als een paar Veams geen paneel rechtvaardigen), de nodes, of een splitter ruimte bespaart, en de rekgrootte — met alleen de types uit je Device Builder en de reden bij elke keuze. Eén knop past het toe als een rek dat voor de DimCity is gemaakt.
+- LK's en Veams koppelen: een tabel per DimCity laat zien waar elke LK en Veam zit en laat je zelf een aansluiting kiezen, een losse spin, of Niet patchen; de rest blijft automatisch. Met één knop weer alles automatisch. Ook in Setup.
+- Setup volgt nu het werk: Importeren → Racks en apparaten (met het advies) → LK's en Veams koppelen → Nodes (nodes uit de racks + CSV-namen) → Netwerk → Fibers → Controle.
 - Een Veam die op een Veam4-aansluiting van een rek (of een losse Veam4-spin) zit wordt niet meer als "Niet gekoppeld" getoond: de Veam-pagina, de zijbalk, de tellingen in het overzicht en de DimCity-pagina tellen hem nu als gepatcht mee en zeggen op welke aansluiting hij zit.
 
 ### Versie 0.4.3 — 2026-10-05

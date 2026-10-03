@@ -59,7 +59,7 @@
     const P = window.RackEngine.computeRackPlan(M(), dc);
     const sws = (window.NetSwitches?.list(dc) || []).length;
     const warn = P.recs.some(r => r.level === 'warn');
-    return App.ui.card({ key:`${dc}:glance`, title:t('At a glance', 'In één oogopslag'), icon:'grid', meta:`${P.racks.length} ${t('racks', 'racks')} · ${P.nodes.length} ${t('nodes', 'nodes')} · ${sws} ${t('switches', 'switches')}${warn ? ` · ${t('needs attention', 'aandacht nodig')}` : ''}`,
+    return App.ui.card({ key:`${dc}:glance`, title:t('At a glance', 'In één oogopslag'), actions:`<button class="sm" data-qr-open="${esc(dc)}" title="${esc(t('QR code with everything of this DB', 'QR-code met alles van deze DB'))}">${I('grid', 13)} QR</button>`, icon:'grid', meta:`${P.racks.length} ${t('racks', 'racks')} · ${P.nodes.length} ${t('nodes', 'nodes')} · ${sws} ${t('switches', 'switches')}${warn ? ` · ${t('needs attention', 'aandacht nodig')}` : ''}`,
       body:`<div class="gl-grid">${lkTable(dc, P)}${racksCol(dc, P)}${nodesCol(P)}${netCol(dc)}</div>` });
   }
   window.DimOverview = { card };

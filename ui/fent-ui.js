@@ -12,7 +12,7 @@
   const M = () => App.getMODEL();
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const cfg = () => { const nd = M().networkDevices; nd.prefs ||= {}; nd.prefs.fent ||= { on:false, group:'production', scan:false }; nd.prefs.fent.vlanMode ||= 'luminex'; return nd.prefs.fent; };
-  const dimNo = dc => { const m = /(\d+)/.exec(String(dc)); return m ? Number(m[1]) : 1; };
+  const dimNo = dc => (window.LKApp?.dimSlot ? window.LKApp.dimSlot(dc) : (/(\d+)/.exec(String(dc)) || [0, 1])[1] * 1);
   const plan = dc => M().networkDevices?.dimCityPlans?.[dc] || { nodes:[], splitters:[], switches:[] };
   const TYPES = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes' }, LISTS = { node:'nodes', splitter:'splitters', switch:'switches' };
   const typeOf = (kind, dev) => (M().networkDevices?.[TYPES[kind]] || []).find(x => x.id === dev.typeId) || {};

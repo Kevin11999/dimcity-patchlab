@@ -28,6 +28,7 @@
     universes: { title:'Universe overview',            icon:'universe', desc:'Patch points per universe (LK / Veam / DMX).' },
     patchlist: { title:'Patch list table',             icon:'table',    desc:'All rows of this DimCity sorted by universe.' },
     warnings:  { title:'Warnings & errors',            icon:'alert',    desc:'Validation results for this DimCity.' },
+    qr:        { title:'QR codes (the whole DB)',    icon:'grid',     desc:'QR codes that hold everything of this DB as text: sockets, nodes with IP, switches, fibres. Optional: the whole system.' },
     notes:     { title:'Notes',                        icon:'note',     desc:'Free text, e.g. crew instructions.' }
   };
   const SECTION_OPTS = {
@@ -36,7 +37,8 @@
     patchlist: [['dmx','Include loose DMX', true]],
     racks:     [['drawing','Rack drawing', true], ['nodes','Node ports (which LK / Veam port is on which node port)', true], ['loose','Loose devices (nodes and spiders without a rack)', true], ['table','Patch table (node port → LK / Veam)', true], ['advice','Recommendations', true]],
     flow:      [['legend','Cable legend', true], ['ownPage','Start on a new sheet', true], ['netOnly','Also a drawing of only the network (switches, Cat cables, fibres)', true]],
-    warnings:  [['projectWide','Include project-wide issues', true]]
+    warnings:  [['projectWide','Include project-wide issues', true]],
+    qr:        [['system','Also the QR set for the whole system (first DB only)', true]]
   };
 
   function defaultLayout(){
@@ -53,7 +55,7 @@
         { key:'summary', on:true }, { key:'network', on:true, opts:{ universeTable:true, switches:false, addresses:true } },
         { key:'splitters', on:true }, { key:'racks', on:true, opts:{ drawing:true, nodes:true, loose:true, table:true, advice:true } }, { key:'flow', on:true, opts:{ legend:true, ownPage:true, netOnly:true } }, { key:'patch', on:true, opts:{ standaloneVeams:true, location:true, source:false, groupColors:true } },
         { key:'universes', on:false }, { key:'patchlist', on:false, opts:{ dmx:true } },
-        { key:'warnings', on:true, opts:{ projectWide:true } }, { key:'notes', on:false, opts:{ text:'' } }
+        { key:'warnings', on:true, opts:{ projectWide:true } }, { key:'qr', on:false, opts:{ system:true } }, { key:'notes', on:false, opts:{ text:'' } }
       ]
     };
   }
@@ -331,6 +333,7 @@
       .prk-slot{grid-column:1;border-bottom:.25mm dashed #94a3b8}
       .prk-it{grid-column:1;position:relative;z-index:1;padding:.35mm .6mm;min-width:0}
       .pru{height:100%;display:flex;align-items:center;gap:1.5mm;border:.5mm solid #0f172a;border-left:1.8mm solid var(--c,#475569);border-radius:.8mm;background:#fff;padding:0 1.5mm;overflow:hidden}
+      .qrgrid{display:flex;flex-wrap:wrap;gap:6mm}.qrf{margin:0;width:48mm;text-align:center}.qrb{width:48mm;height:48mm;border:.3mm solid #cbd5e1}.qrf figcaption{font-size:${fs*.8}px;margin-top:1mm}
       .pru-label{width:30mm;flex:none;line-height:1.12;overflow:hidden}
       .pru-label b{display:flex;align-items:center;gap:.6mm;font-size:${fs*.84}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pru-label span{display:block;font-size:${fs*.66}px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -437,6 +440,7 @@
         case 'universes': return wrap(s, buildUniverses(M, dc, L, n));
         case 'patchlist': return wrap(s, buildPatchList(M, dc, L, n, o));
         case 'warnings':  return wrap(s, buildWarnings(M, dc, L, n, o));
+        case 'qr':        { const h = buildQr(M, dc, L, n, o); if(!h) n--; return wrap(s, h); }
         case 'notes':     return wrap(s, `<div class="section">${h3(n, 'Notes')}<div class="notes">${esc(fillTokens(o.text, meta, dc))}</div></div>`);
       }
       return '';
@@ -452,6 +456,15 @@
     const style = p ? ` style="--x:${p.x}mm;--y:${p.y}mm;--w:${p.w}mm"` : '';
     const grip = preview ? `<span class="sec-grip" data-grip="${s.key}" title="Drag to position this section on the sheet">${I('grip', 10)}</span>` : '';
     return `<div data-sec="${s.key}" class="${p ? 'fixed' : ''}"${style}>${grip}${html}</div>`;
+  }
+  // QR codes with the whole DB (and, on the first DB, the whole system) as plain text, in numbered parts
+  function buildQr(M, dc, L, n, o){
+    const Q = window.QrInfo; if(!Q) return '';
+    const sets = [{ name:dc, text:Q.dbText(dc) }];
+    if(o.system !== false && App().sortedDims()[0] === dc) sets.push({ name:'System', text:Q.sysText() });
+    const cells = sets.flatMap(st => Q.parts(st.name, st.text, 700).map((p, i, a) => `<figure class="qrf"><div class="qrb">${Q.svg(p)}</div><figcaption><b>${esc(st.name)}</b>${a.length > 1 ? ` ${i + 1}/${a.length}` : ''}</figcaption></figure>`));
+    if(!cells.length) return '';
+    return `<div class="section">${h3(n, 'QR codes', 'scan to read the whole DB')}<div class="qrgrid">${cells.join('')}</div></div>`;
   }
   const h3 = (n, title, small='') => `<h3><span><span class="n">${n}</span>${esc(title)}</span>${small?`<small>${small}</small>`:''}</h3>`;
 

@@ -181,7 +181,7 @@
     const fe = root.querySelector('[data-su-fent]'); if(fe) fe.onchange = () => { n.prefs.fent.on = fe.checked; dirty(); render(); };
     const addSw = (d, typeId) => { const ty = n.switchTypes.find(x => x.id === typeId) || n.switchTypes[0]; if(!ty) return; const p = plan(d); p.switches ||= []; const k = p.switches.length + 1;
       const sw = { id:`${d}-SW${k}`, name:`${d} ${typeName(ty)}`, typeId:ty.id, ip:'', subnet:ty.subnet || '', ifaces:[] };
-      if(n.prefs.fent.on && window.Fent){ const c = n.prefs.fent; sw.ip = window.Fent.suggestEquipment(window.Fent.roleVlan('management', c.vlanMode), c.group, (/(\d+)/.exec(d) || [0, 1])[1], k); sw.subnet = window.Fent.MASK; sw.ipRole = 'management'; sw.ipVlan = window.Fent.roleVlan('management', c.vlanMode); }
+      if(n.prefs.fent.on && window.Fent){ const c = n.prefs.fent; sw.ip = window.Fent.suggestEquipment(window.Fent.roleVlan('management', c.vlanMode), c.group, App.dimSlot(d), k); sw.subnet = window.Fent.MASK; sw.ipRole = 'management'; sw.ipVlan = window.Fent.roleVlan('management', c.vlanMode); }
       p.switches.push(sw); dirty(); };
     const a1 = root.querySelector('[data-su-addsw]'); if(a1) a1.onclick = () => { addSw(dc, root.querySelector('#suSwType').value); render(); };
     const a2 = root.querySelector('[data-su-addall]'); if(a2) a2.onclick = () => { const tid = root.querySelector('#suSwType').value; for(const d of App.sortedDims()) if(!(plan(d).switches || []).length && !(window.NetSwitches.list(d).length)) addSw(d, tid); render(); };

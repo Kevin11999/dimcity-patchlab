@@ -1216,3 +1216,6 @@ body.view-flow .view{width:100%}
 .tk-mdot.done{background:#35c47c;border-color:#35c47c;color:#06210f}.tk-mdot.now{border-color:var(--accent);color:var(--accent)}
 .tk-mline{width:14px;height:2px;background:var(--border-strong)}
 .tk-mtx{flex:1;min-width:200px;font-size:13px}.tk-mtx small{color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;font-size:10.5px;margin-right:6px}.tk-mtx span{color:var(--text-3)}
+.qr-dlg{display:flex;flex-wrap:wrap;gap:16px;justify-content:center}.qr-dlg figure{margin:0;text-align:center}
+.qr-big{width:300px;height:300px;background:#fff;border-radius:8px;padding:6px}
+.qr-pre{max-height:220px;overflow:auto;font-size:11.5px;background:var(--bg-sunken);padding:10px;border-radius:8px;white-space:pre-wrap}

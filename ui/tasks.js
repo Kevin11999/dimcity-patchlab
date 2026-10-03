@@ -76,7 +76,7 @@
     const f = S.facts(); if(!f.dims.length) return '';
     const st = S.STEPS.map(s => ({ ...s, ...S.status(s.id, f) })), next = st.find(s => !s.done && !s.skipped) || st.find(s => !s.done);
     const dots = st.map((s, i) => `<i class="tk-mdot ${s.done ? 'done' : next && next.id === s.id ? 'now' : s.skipped ? 'skip' : ''}" title="${esc(t(s.en, s.nl))} — ${esc(s.detail)}">${s.done ? '✓' : i + 1}</i>`).join('<b class="tk-mline"></b>');
-    return `<div class="tk-mini"><div class="tk-mdots">${dots}</div><div class="tk-mtx">${next ? `<small>${t('Next up', 'Hierna')}</small> <b>${esc(t(next.en, next.nl))}</b> <span>${esc(next.detail)}</span>` : `<b>${t('The show is ready — export the PDF.', 'De show is klaar — exporteer de PDF.')}</b>`}</div><button data-view="TASKS" class="sm">${t('All tasks', 'Alle taken')}</button>${next ? `<button class="sm primary" onclick="window.Setup.open({step:'${next.id}'})">${t('Do this now', 'Doe dit nu')}</button>` : ''}</div>`;
+    return `<div class="tk-mini"><div class="tk-mdots">${dots}</div><div class="tk-mtx">${next ? `<small>${t('Next up', 'Hierna')}</small> <b>${esc(t(next.en, next.nl))}</b> <span>${esc(next.detail)}</span>` : `<b>${t('The show is ready — export the PDF.', 'De show is klaar — exporteer de PDF.')}</b>`}</div><button data-qr-open="*" class="sm" title="${esc(t('QR code for the whole system', 'QR-code voor het hele systeem'))}">QR</button><button data-view="TASKS" class="sm">${t('All tasks', 'Alle taken')}</button>${next ? `<button class="sm primary" onclick="window.Setup.open({step:'${next.id}'})">${t('Do this now', 'Doe dit nu')}</button>` : ''}</div>`;
   }
   window.Tasks = { render, cell, COLS, miniHtml };
 })();

@@ -1843,8 +1843,16 @@ function dimNumber(dc){
   const m = String(dc || '').match(/(\d+)/);
   return m ? Number(m[1]) : 0;
 }
+// A number for the address plan: DB02 → 2. A name without a number (FOH, Stage …) gets the next free number after the
+// numbered ones, so its addresses never collide with a DB.
+function dimSlot(dc){
+  const n = dimNumber(dc); if(n) return n;
+  const dims = sortedDims(), top = Math.max(0, ...dims.map(dimNumber));
+  const un = dims.filter(d => !dimNumber(d));
+  return top + 1 + Math.max(0, un.indexOf(dc));
+}
 function dimDeviceNumber(dc, index){
-  const d = dimNumber(dc);
+  const d = dimSlot(dc);
   if(d <= 1) return index + 1;
   return d * 10 + index + 1;
 }
@@ -1861,8 +1869,7 @@ function ipWithLastOctet(ip, last){
   return parts.join('.');
 }
 function segmentFromDim(dc){
-  const d = dimNumber(dc);
-  return d || 1;
+  return dimSlot(dc) || 1;
 }
 function rowsForDimUniverse(dc, uni){
   const s = String(uni);
@@ -2241,6 +2248,7 @@ function bindDimNetworkDevices(root, dc, rerender){
   });
 }
 window.LKApp = {
+  dimSlot,
   getMODEL: ()=> MODEL,
   setMODEL: (m)=> { MODEL = m; },
 

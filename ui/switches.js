@@ -68,7 +68,7 @@
       const ty = types().find(x => x.id === root.querySelector('#dimSwitchType')?.value) || types()[0]; if(!ty) return;
       const p = plan(dc); p.switches ||= []; const n = p.switches.length + 1;
       const sw = { id:`${dc}-SW${n}`, name:`${dc} ${typeName(ty)}`, typeId:ty.id, ip:'', subnet:ty.subnet || '', ifaces:[] };
-      if(M().networkDevices?.prefs?.fent?.on && window.Fent){ const c = M().networkDevices.prefs.fent; sw.ip = window.Fent.suggestEquipment(window.Fent.roleVlan('management', c.vlanMode), c.group, (/(\d+)/.exec(dc) || [0, 1])[1], n); sw.subnet = window.Fent.MASK; sw.ipRole = 'management'; sw.ipVlan = window.Fent.roleVlan('management', c.vlanMode); }
+      if(M().networkDevices?.prefs?.fent?.on && window.Fent){ const c = M().networkDevices.prefs.fent; sw.ip = window.Fent.suggestEquipment(window.Fent.roleVlan('management', c.vlanMode), c.group, App.dimSlot(dc), n); sw.subnet = window.Fent.MASK; sw.ipRole = 'management'; sw.ipVlan = window.Fent.roleVlan('management', c.vlanMode); }
       p.switches.push(sw); M().ui.dirty = true; rerender();
     };
     root.querySelectorAll('.dimRemoveRackSwitch').forEach(b => b.onclick = async () => {

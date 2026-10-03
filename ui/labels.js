@@ -27,7 +27,7 @@
 
   function defaults(){
     return { sheet:SHEETS[0].id, custom:{ w:48.26, h:25.4, cols:4, rows:11, left:8.48, top:8.8, gapX:0, gapY:0 },
-      kinds:{ cables:true, strips:true, nodePorts:false, devices:true, qr:false, switchPorts:false, netCables:true, fibers:true }, dcs:null, perDc:true, start:1, mono:false, outline:false,
+      kinds:{ cables:true, strips:true, nodePorts:false, devices:true, qr:false, qrDb:false, qrSys:false, switchPorts:false, netCables:true, fibers:true }, dcs:null, perDc:true, start:1, mono:false, outline:false,
       company:{ on:true, img:null }, show:{ on:true, img:null } };
   }
   function state(){
@@ -106,6 +106,14 @@
     if(L.kinds.qr){
       for(const s of sockets) out.push({ kind:'qr', dc, title:s.owner, sub:`${dc} · ${s.label}`, lines:[s.where, feeders(s.owner).join(' + ')].filter(Boolean), color:owners.get(s.owner), badge:'', qr:qrText(s.owner, `${s.label} @ ${s.where}`), copies:1 });
       P.racks.forEach((R, ri) => { if(R.rack) out.push({ kind:'qr', dc, title:rackName(ri), sub:`${R.rack.heightU}U · ${dc}`, lines:[R.rack.articleKey || ''].filter(Boolean), color:'#475569', badge:'', qr:trim(`${rackName(ri)} · ${dc}\n${P.nodes.filter(n => n.rack === ri).map(n => `${n.label} ${typeName(n.type)}`).join('\n')}`, 300), copies:1 }); });
+    }
+    if(L.kinds.qrDb && window.QrInfo){   // the whole DB in QR codes: numbered parts, scan them in order
+      const ps = window.QrInfo.parts(dc, window.QrInfo.dbText(dc), 300);
+      ps.forEach((p, i) => out.push({ kind:'qr', dc, title:`${dc} ${t('info', 'info')}`, sub:ps.length > 1 ? `${i + 1}/${ps.length}` : t('everything of this DB', 'alles van deze DB'), lines:[`LK ${[...m.byLK.values()].filter(x => x.dimcity === dc).length} · ${P.nodes.length} nodes`], color:'#ff8a1f', badge:'', qr:p, copies:1 }));
+    }
+    if(L.kinds.qrSys && window.QrInfo && dc === App.sortedDims()[0]){
+      const ps = window.QrInfo.parts(t('System', 'Systeem'), window.QrInfo.sysText(), 300);
+      ps.forEach((p, i) => out.push({ kind:'qr', dc, title:t('System', 'Systeem'), sub:ps.length > 1 ? `${i + 1}/${ps.length}` : (M().projectMeta?.project || ''), lines:[t('all DBs, nodes, switches, fibres', 'alle DB\'s, nodes, switches, fibers')], color:'#0ea5e9', badge:'', qr:p, copies:1 }));
     }
     return out.flatMap(it => Array.from({ length:it.copies || 1 }, () => it));
   }
@@ -253,6 +261,8 @@
         ${sw('k:fibers', L.kinds.fibers, `${t('Fibre labels', 'Fiberlabels')} <span class="subtle">${cnt.fibers}</span>`, t('Both ends of every fibre, with where the other end goes', 'Beide uiteinden van elke fiber, met waar het andere uiteinde heen gaat'))}
         ${sw('k:netCables', L.kinds.netCables, `${t('Network cable labels', 'Netwerkkabel-labels')} <span class="subtle">${cnt.netCables}</span>`, t('C cables: one per line, both ends, in the VLAN colour', 'C-kabels: één per lijn, beide uiteinden, in de VLAN-kleur'))}
         ${sw('k:switchPorts', L.kinds.switchPorts, `${t('Switch port labels', 'Switchpoort-labels')} <span class="subtle">${cnt.switchPorts}</span>`, t('Port, device and VLAN (FENT colour) for the switch', 'Poort, apparaat en VLAN (FENT-kleur) voor de switch'))}
+        ${sw('k:qrDb', L.kinds.qrDb, `${t('DB info QR', 'DB-info QR')} <span class="subtle">${cnt.qrDb}</span>`, t('Scan = the whole DB as text: LK/Veam → socket → node, racks, nodes with IP, switches, fibres', 'Scan = de hele DB als tekst: LK/Veam → aansluiting → node, racks, nodes met IP, switches, fibers'))}
+        ${sw('k:qrSys', L.kinds.qrSys, `${t('System QR', 'Systeem-QR')} <span class="subtle">${cnt.qrSys}</span>`, t('One QR set for the whole show: every DB with its universes, nodes and switches, and the fibres', 'Eén QR-set voor de hele show: elke DB met universes, nodes en switches, en de fibers'))}
         ${sw('k:qr', L.kinds.qr, `${t('QR stickers', 'QR-stickers')} <span class="subtle">${cnt.qr}</span>`, t('QR code with the patch as plain text, one per LK / Veam / rack', 'QR-code met de patch als platte tekst, één per LK / Veam / rack'))}</div>
       <div class="rb-group"><div class="rb-label">${t('Images and look', 'Afbeeldingen en uiterlijk')}</div>
         ${sw('company', L.company.on, t('Company image', 'Bedrijfsafbeelding'), t('Default: the company logo of the report brand', 'Standaard: het bedrijfslogo uit de huisstijl van het rapport'))}${L.company.on ? img('company', t('Image', 'Afbeelding')) : ''}

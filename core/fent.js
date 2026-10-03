@@ -37,14 +37,17 @@
   };
   // 'luminex' = VLAN IDs like the GigaCore groups, 'fent' = the FENT numbers (1090, 1040 …)
   // names the user typed over the standard ones: prefs.fent.vlanNames = { 1090: 'Beheer', 200: 'Licht FOH' }
-  const nameOv = () => window.LKApp?.getMODEL?.()?.networkDevices?.prefs?.fent?.vlanNames || {};
-  const named = v => { const n = nameOv()[v.id]; return n ? { ...v, name:n, stdName:v.name } : v; };
-  const vlanList = mode => (mode === 'fent' ? VLANS : LUMINEX).map(named);
+  const fcfg = () => window.LKApp?.getMODEL?.()?.networkDevices?.prefs?.fent || {};
+  const nameOv = () => fcfg().vlanNames || {};
+  const colorOv = () => fcfg().vlanColors || {};
+  const customs = () => (fcfg().customVlans || []).filter(v => Number.isInteger(Number(v.id))).map(v => ({ id:Number(v.id), name:String(v.name || `VLAN ${v.id}`), discipline:'Custom', net:'', second:null, color:v.color || '#94a3b8', colorName:'', custom:true }));
+  const named = v => { const n = nameOv()[v.id], c = colorOv()[v.id]; return (n || c) ? { ...v, name:n || v.name, color:c || v.color, stdName:v.name, stdColor:v.color } : v; };
+  const vlanList = mode => (mode === 'fent' ? VLANS : LUMINEX).map(named).concat(customs().filter(c => !(mode === 'fent' ? VLANS : LUMINEX).some(v => v.id === c.id)));
   const roleVlan = (role, mode) => { const r = ROLES[role] || ROLES.other; return mode === 'fent' ? r.vlan : r.luminex; };
   const GROUPS = { location:{ first:1, last:99, dhcp:100 }, production:{ first:101, last:199, dhcp:200 } };
 
   const isIp = s => /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(String(s || '').trim()) && String(s).trim().split('.').every(n => Number(n) <= 255);
-  const vlanById = id => { const v = LUMINEX.find(x => x.id === Number(id)) || VLANS.find(x => x.id === Number(id)) || null; return v ? named(v) : null; };
+  const vlanById = id => { const v = LUMINEX.find(x => x.id === Number(id)) || VLANS.find(x => x.id === Number(id)) || customs().find(x => x.id === Number(id)) || null; return v ? named(v) : null; };
   const vlanBySecond = b => VLANS.find(v => v.second === Number(b) && !v.extension) || null;
   const parts = ip => String(ip).trim().split('.').map(Number);
 

@@ -59,7 +59,7 @@
     return out.length ? `<table class="data-table"><thead><tr><th>DimCity</th><th>${t('Device', 'Apparaat')}</th><th>${t('Addresses', 'Adressen')}</th></tr></thead><tbody>${out.join('')}</tbody></table>` : `<div class="subtle" style="padding:8px 0">${t('No addresses yet.', 'Nog geen adressen.')}</div>`;
   }
   function vlanTab(){
-    return `<div class="stack">${window.FentUI.plannerCard({ ports:false })}
+    return `<div class="stack">${window.FentUI.vlanCard()}${window.FentUI.plannerCard({ ports:false })}
       ${App.ui.card({ key:'net-addr', title:t('All addresses', 'Alle adressen'), icon:'table', collapsible:false, body:`<div style="padding:4px 14px 12px">${addressTable()}<div class="hint" style="margin-top:8px">${I('info', 13)} ${t('Change an address on the DimCity page, in the node card.', 'Wijzig een adres op de DimCity-pagina, in de nodekaart.')}</div></div>` })}</div>`;
   }
   function fibersTab(){

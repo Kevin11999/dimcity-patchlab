@@ -37,7 +37,7 @@
         const img = new Image();
         img.onerror = () => rej(new Error('image'));
         img.onload = () => {
-          const k = Math.min(1, 2400 / Math.max(img.width, img.height)), w = Math.round(img.width * k), h = Math.round(img.height * k);
+          const k = Math.min(1, 3200 / Math.max(img.width, img.height)), w = Math.round(img.width * k), h = Math.round(img.height * k);
           const cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(img, 0, 0, w, h);
           const png = /png|svg|gif|webp/i.test(file.type);
           let out = cv.toDataURL(png ? 'image/png' : 'image/jpeg', .85);
@@ -55,10 +55,10 @@
     return `<div class="fl-sec fl-bgsec"><div class="rb-label">${t('Background picture', 'Achtergrondafbeelding')}</div>
       ${c?.img ? `<div class="flbg-thumb" style="background-image:url('${c.img}')"></div>
         <label class="flbg-row">${t('Opacity', 'Doorzichtigheid')} <span class="subtle" id="bgOpV">${c.opacity ?? 35}%</span><input type="range" id="bgOp" min="5" max="100" step="5" value="${c.opacity ?? 35}"></label>
-        <label class="flbg-row">${t('Size', 'Grootte')} <span class="subtle" id="bgSzV">${c.size || 100}%</span><input type="range" id="bgSz" min="10" max="400" step="5" value="${c.size || 100}"></label>
-        <label class="flbg-row">${t('Left ↔ right', 'Links ↔ rechts')}<input type="range" id="bgX" min="-1500" max="1500" step="10" value="${c.x || 0}"></label>
-        <label class="flbg-row">${t('Up ↔ down', 'Boven ↔ onder')}<input type="range" id="bgY" min="-1500" max="1500" step="10" value="${c.y || 0}"></label>
-        <div class="flbg-btns"><button class="sm" id="bgPick">${t('Replace…', 'Vervangen…')}</button><button class="sm danger" id="bgDel">${t('Remove', 'Verwijderen')}</button></div>`
+        <label class="flbg-row">${t('Size', 'Grootte')} <span class="subtle" id="bgSzV">${c.size || 100}%</span><input type="range" id="bgSz" min="10" max="2000" step="5" value="${c.size || 100}"><span class="flbg-num"><input type="number" id="bgSzN" min="5" max="10000" value="${c.size || 100}"> %</span></label>
+        <label class="flbg-row">${t('Left ↔ right', 'Links ↔ rechts')}<input type="range" id="bgX" min="-6000" max="6000" step="25" value="${c.x || 0}"></label>
+        <label class="flbg-row">${t('Up ↔ down', 'Boven ↔ onder')}<input type="range" id="bgY" min="-6000" max="6000" step="25" value="${c.y || 0}"></label>
+        <div class="flbg-btns"><button class="sm" id="bgFit" title="${esc(t('Make the picture cover the whole drawing', 'Laat de afbeelding de hele tekening bedekken'))}">${t('Fit to drawing', 'Aan tekening aanpassen')}</button><button class="sm" id="bgPick">${t('Replace…', 'Vervangen…')}</button><button class="sm danger" id="bgDel">${t('Remove', 'Verwijderen')}</button></div>`
       : `<button class="sm" id="bgPick" style="width:100%">${t('Choose a picture…', 'Kies een afbeelding…')}</button><div class="hint" style="margin-top:6px">${t('A floor plan or stage plot under the drawing.', 'Een plattegrond of stageplot onder de tekening.')}</div>`}
       <label class="rb-row" style="margin-top:8px"><span>${t('Same picture on every view', 'Zelfde afbeelding op elke weergave')}<span class="hint" style="display:block;margin:2px 0 0">${t(`Off: this view (${name?.[1] || layer}) has its own picture.`, `Uit: deze weergave (${name?.[2] || layer}) heeft een eigen afbeelding.`)}</span></span><span class="switch"><input type="checkbox" id="bgShared" ${st.shared ? 'checked' : ''}><span></span></span></label>
       <input type="file" id="bgFile" accept="image/*" hidden></div>`;
@@ -80,6 +80,8 @@
     const del = root.querySelector('#bgDel'); if(del) del.onclick = () => { delete st.items[keyOf(layer)]; dirty(); onChange(true); };
     const bind1 = (id, key, vid) => { const el = root.querySelector('#' + id); if(!el) return; el.oninput = () => { const c = cfgFor(layer); if(!c) return; c[key] = Number(el.value); if(vid) root.querySelector('#' + vid).textContent = `${el.value}%`; dirty(); live(); }; };
     bind1('bgOp', 'opacity', 'bgOpV'); bind1('bgSz', 'size', 'bgSzV'); bind1('bgX', 'x'); bind1('bgY', 'y');
+    const szn = root.querySelector('#bgSzN'); if(szn) szn.onchange = () => { const c = cfgFor(layer); if(!c) return; c.size = Math.max(5, Math.min(10000, Number(szn.value) || 100)); dirty(); setTimeout(() => onChange(true), 0); };
+    const fit = root.querySelector('#bgFit'); if(fit) fit.onclick = () => { const c = cfgFor(layer); if(!c || !lastBB) return; const bw = lastBB.maxX - lastBB.minX, bh = lastBB.maxY - lastBB.minY; c.size = Math.max(5, Math.round(Math.max(bw / c.w, bh / c.h) * 100)); c.x = 0; c.y = 0; dirty(); setTimeout(() => onChange(true), 0); };
     const sh = root.querySelector('#bgShared');
     if(sh) sh.onchange = () => {
       if(sh.checked){ const src = st.items['*'] || st.items[layer] || LAYERS.map(l => st.items[l[0]]).find(Boolean); if(src) st.items['*'] = { ...src }; else delete st.items['*']; }

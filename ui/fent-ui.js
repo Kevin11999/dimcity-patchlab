@@ -125,6 +125,22 @@
   }
 
   // ---- the card on the Network Planner page ----
+  // the VLAN list (names and colours can be changed, own VLANs can be added) — always visible, with or without the FENT scheme
+  function vlanCard(){
+    if(!F()) return '';
+    const c = cfg(), list = F().vlanList(c.vlanMode).filter(v => !v.extension);
+    const used = new Map(); try { for(const dc of App.sortedDims()) for(const r of (window.FentUI.portPlan ? window.FentUI.portPlan(dc) : [])) for(const v of (r.vlans || [])) used.set(Number(v), (used.get(Number(v)) || 0) + 1); } catch {}
+    const rows = list.map(v => `<tr><td><b>${v.id}</b></td>
+      <td><input type="text" class="vlanName" data-vlan="${v.id}" maxlength="24" value="${esc(v.name)}" placeholder="${esc(v.stdName || v.name)}" style="width:170px"> <span class="subtle">${esc(v.custom ? t('own VLAN', 'eigen VLAN') : (v.discipline || ''))}</span></td>
+      <td><input type="color" class="vlanColor" data-vlan="${v.id}" value="${/^#[0-9a-f]{6}$/i.test(v.color || '') ? v.color : '#94a3b8'}"></td>
+      <td class="mono">${v.net ? `${v.net} · ${F().MASK}` : (v.second ? `10.${v.second}.x.x · ${F().MASK}` : '—')}</td>
+      <td class="num">${used.get(v.id) || ''}</td>
+      <td>${v.custom ? `<button class="sm ghost vlanDel" data-vlan="${v.id}" title="${esc(t('Remove this VLAN', 'Verwijder dit VLAN'))}">${I('trash', 13)}</button>` : ((v.stdName && v.stdName !== v.name) || (v.stdColor && v.stdColor !== v.color) ? `<button class="sm ghost vlanReset" data-vlan="${v.id}" title="${esc(t('Back to the standard name and colour', 'Terug naar standaardnaam en -kleur'))}">${I('refresh', 13)}</button>` : '')}</td></tr>`).join('');
+    const body = `<div style="padding:6px 14px 14px"><table class="data-table fent-vlans"><thead><tr><th>ID</th><th>${t('Name', 'Naam')}</th><th>${t('Colour', 'Kleur')}</th><th>${t('Network', 'Netwerk')}</th><th class="num">${t('Ports', 'Poorten')}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="su-row" style="margin-top:10px"><b style="font-size:12.5px">${t('Add your own VLAN', 'Eigen VLAN toevoegen')}</b><input type="number" id="vlanNewId" min="1" max="4094" placeholder="ID" style="width:90px"><input type="text" id="vlanNewName" maxlength="24" placeholder="${esc(t('Name', 'Naam'))}" style="width:160px"><button id="vlanAdd">${I('plus', 13)}${t('Add', 'Toevoegen')}</button></div>
+      <div class="hint" style="margin-top:6px">${t('The name and colour are used in the port plan, on the stickers and in the PDF. Empty name = standard name.', 'De naam en kleur worden gebruikt in het poortplan, op de stickers en in de PDF. Lege naam = standaardnaam.')}</div></div>`;
+    return App.ui.card({ key:'net-vlans', title:`VLAN ${c.vlanMode === 'fent' ? 'FENT' : 'Luminex'}`, icon:'network', meta:`${list.length}`, collapsible:false, body });
+  }
   function plannerCard(opts = {}){
     if(!F()) return '';
     const c = cfg(), dims = App.sortedDims();
@@ -144,24 +160,36 @@
         <div style="display:flex;gap:8px;margin-top:10px"><button class="primary" data-fent-apply>${I('check', 14)}${t('Apply to all DimCities', 'Toepassen op alle DimCities')}</button></div>
         <div class="hint" style="margin-top:8px">${t('Third byte = DimCity number (DB02 → 102 in production), last byte = device from 11. Network equipment (switches) uses 1-10. Set the VLAN IDs in your GigaCore groups to these numbers — Luminex defaults to group × 100.', 'Derde byte = DimCity-nummer (DB02 → 102 bij productie), laatste byte = apparaat vanaf 11. Netwerkapparatuur (switches) gebruikt 1-10. Zet de VLAN-ID\'s in je GigaCore-groepen op deze nummers — Luminex gebruikt standaard groep × 100.')}</div></div>
         <div class="rb-group"><div class="rb-label">${t('Check', 'Controle')}</div>${issues.length ? `<div class="fent-issues">${issues.map(w => `<div class="fent-i ${w.level}">${I(w.level === 'err' ? 'alert' : w.level === 'warn' ? 'alert' : 'info', 13)}<b>${esc(w.owner)}</b> ${esc(w.ip)} — ${esc(t(w.en, w.nl))}</div>`).join('')}</div>` : `<div class="status-ok">${I('checkCircle', 13)} ${t('All addresses fit the scheme.', 'Alle adressen passen in het schema.')}</div>`}</div>
-        <div class="rb-group"><div class="rb-label">VLAN</div><table class="data-table fent-vlans"><thead><tr><th>ID</th><th>${t('Name', 'Naam')}</th><th>${t('Network', 'Netwerk')}</th><th>${t('Colour', 'Kleur')}</th></tr></thead><tbody>${F().vlanList(c.vlanMode).filter(v => !v.extension).map(v => `<tr><td>${v.id}</td><td><input type="text" class="vlanName" data-vlan="${v.id}" maxlength="24" value="${esc(v.name)}" placeholder="${esc(v.stdName || v.name)}" title="${esc(t('Rename this VLAN (empty = standard name)', 'Hernoem dit VLAN (leeg = standaardnaam)'))}" style="width:150px"> <span class="subtle">${esc(v.discipline || '')}</span></td><td class="mono">${v.net ? `${v.net} · ${F().MASK}` : (v.second ? `10.${v.second}.x.x · ${F().MASK}` : '—')}</td><td>${v.color ? `<span class="fent-sw" style="background:${v.color}"></span>${esc(v.colorName || '')} ${v.color}` : '—'}</td></tr>`).join('')}</tbody></table></div>
 `;
     }
     return App.ui.card({ key:'net-fent', title:'FENT', icon:'network', meta:c.on ? (c.group === 'production' ? t('production', 'productie') : t('location', 'locatie')) : '', collapsible:false, body });
   }
   function bindPlanner(root, rerender){
+    const stdOf = id => F().LUMINEX.concat(F().VLANS).find(v => v.id === Number(id));
     root.querySelectorAll('.vlanName').forEach(i => i.onchange = () => {
-      const c = cfg(); c.vlanNames ||= {};
-      const std = (F().LUMINEX.concat(F().VLANS).find(v => v.id === Number(i.dataset.vlan)) || {}).name;
-      const val = i.value.trim();
-      if(!val || val === std) delete c.vlanNames[i.dataset.vlan]; else c.vlanNames[i.dataset.vlan] = val;
+      const c = cfg(), id = Number(i.dataset.vlan), val = i.value.trim(), cv = (c.customVlans || []).find(v => Number(v.id) === id);
+      if(cv){ cv.name = val || `VLAN ${id}`; }
+      else { c.vlanNames ||= {}; if(!val || val === stdOf(id)?.name) delete c.vlanNames[id]; else c.vlanNames[id] = val; }
       M().ui.dirty = true; rerender();
     });
+    root.querySelectorAll('.vlanColor').forEach(i => i.onchange = () => {
+      const c = cfg(), id = Number(i.dataset.vlan), cv = (c.customVlans || []).find(v => Number(v.id) === id);
+      if(cv) cv.color = i.value; else { c.vlanColors ||= {}; if(i.value.toLowerCase() === (stdOf(id)?.color || '').toLowerCase()) delete c.vlanColors[id]; else c.vlanColors[id] = i.value; }
+      M().ui.dirty = true; rerender();
+    });
+    root.querySelectorAll('.vlanReset').forEach(b => b.onclick = () => { const c = cfg(); delete (c.vlanNames || {})[b.dataset.vlan]; delete (c.vlanColors || {})[b.dataset.vlan]; M().ui.dirty = true; rerender(); });
+    root.querySelectorAll('.vlanDel').forEach(b => b.onclick = () => { const c = cfg(); c.customVlans = (c.customVlans || []).filter(v => Number(v.id) !== Number(b.dataset.vlan)); M().ui.dirty = true; rerender(); });
+    const va = root.querySelector('#vlanAdd'); if(va) va.onclick = () => {
+      const id = Number(root.querySelector('#vlanNewId').value), name = root.querySelector('#vlanNewName').value.trim();
+      if(!Number.isInteger(id) || id < 1 || id > 4094){ App.ui.toast(t('Give a VLAN ID between 1 and 4094', 'Geef een VLAN-ID tussen 1 en 4094'), 'err'); return; }
+      if(F().vlanList(cfg().vlanMode).some(v => v.id === id)){ App.ui.toast(t(`VLAN ${id} exists already`, `VLAN ${id} bestaat al`), 'err'); return; }
+      const c = cfg(); (c.customVlans ||= []).push({ id, name:name || `VLAN ${id}`, color:'#94a3b8' }); M().ui.dirty = true; rerender();
+    };
     root.querySelectorAll('[data-fent-sw]').forEach(i => i.onchange = () => { cfg()[i.dataset.fentSw] = i.checked; M().ui.dirty = true; rerender(); });
     root.querySelectorAll('[data-fent-mode] button').forEach(b => b.onclick = () => { cfg().vlanMode = b.dataset.v; M().ui.dirty = true; rerender(); });
     root.querySelectorAll('[data-fent-group] button').forEach(b => b.onclick = () => { cfg().group = b.dataset.v; M().ui.dirty = true; rerender(); });
     const ap = root.querySelector('[data-fent-apply]'); if(ap) ap.onclick = async () => { await applyAll(App.sortedDims()); rerender(); };
   }
 
-  window.FentUI = { deviceBlock, bindDevice, plannerCard, bindPlanner, portPlan, portTable, devices, applyAll, applyDim };
+  window.FentUI = { deviceBlock, bindDevice, vlanCard, plannerCard, bindPlanner, portPlan, portTable, devices, applyAll, applyDim };
 })();

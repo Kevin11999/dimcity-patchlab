@@ -1729,7 +1729,7 @@ function normalizeNetworkDevices(net){
       nodeSparePorts: Number(net.prefs?.nodeSparePorts ?? 0),
       splitterSparePorts: Number(net.prefs?.splitterSparePorts ?? 0),
       switchSparePorts: Number(net.prefs?.switchSparePorts ?? 0),
-      fent: { on:!!net.prefs?.fent?.on, group:net.prefs?.fent?.group === 'location' ? 'location' : 'production', scan:!!net.prefs?.fent?.scan, vlanMode:net.prefs?.fent?.vlanMode === 'fent' ? 'fent' : 'luminex', vlanNames:(net.prefs?.fent?.vlanNames && typeof net.prefs.fent.vlanNames === 'object') ? { ...net.prefs.fent.vlanNames } : {} }
+      fent: { on:!!net.prefs?.fent?.on, group:net.prefs?.fent?.group === 'location' ? 'location' : 'production', scan:!!net.prefs?.fent?.scan, vlanMode:net.prefs?.fent?.vlanMode === 'fent' ? 'fent' : 'luminex', vlanNames:(net.prefs?.fent?.vlanNames && typeof net.prefs.fent.vlanNames === 'object') ? { ...net.prefs.fent.vlanNames } : {}, vlanColors:(net.prefs?.fent?.vlanColors && typeof net.prefs.fent.vlanColors === 'object') ? { ...net.prefs.fent.vlanColors } : {}, customVlans:Array.isArray(net.prefs?.fent?.customVlans) ? net.prefs.fent.customVlans.map(v => ({ ...v })) : [] }
     },
     nodeTypes,
     splitterTypes,

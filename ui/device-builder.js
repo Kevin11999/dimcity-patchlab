@@ -12,6 +12,7 @@ const KINDS = {
   splitter: { key:'splitterTypes', label:'Splitters', one:'Splitter', prefix:'SPLIT:',  icon:'cable',     color:'#FFC107' },
   switch:   { key:'switchTypes',   label:'Switches',  one:'Switch',   prefix:'SWITCH:', icon:'switchDev', color:'#35c47c' },
   panel:    { key:'panelTypes',    label:'Panels',    one:'Panel',    prefix:'PANEL:',  icon:'panel',     color:'#b18cff' },
+  cable:    { key:'cableTypes',    label:'Cables',    one:'Cable',    prefix:'CABLE:',  icon:'cable',     color:'#22c3d6' },
   rack:     { key:'rackTypes',     label:'Racks',     one:'Rack',     prefix:'RACK:',   icon:'rack' }
 };
 const DEVICE_KINDS = ['node', 'splitter', 'switch', 'panel'];
@@ -23,6 +24,8 @@ const F_IP     = { k:'defaultIp', label:'Default IP', type:'ip', ph:'optional' }
 const F_SUBNET = { k:'subnet', label:'Subnet', type:'ip', def:'255.255.255.0' };
 const F_HEIGHT = { k:'heightU', label:'Height (U)', type:'number', min:1, max:8, def:1 };
 const F_COLOR  = kind => ({ k:'color', label:'Color', type:'color', def:KINDS[kind].color });
+const CONNECTORS = ['opticalCON DUO', 'opticalCON QUAD', 'opticalCON ADVANCED', 'FiberFox', 'LC duplex', 'SC duplex', 'SFP (LC)', 'SFP DAC', 'RJ45'];
+const MEDIUM = { smf:'Singlemode', mmf:'Multimode', dac:'SFP patch / DAC', cat:'Cat' };
 const FIELDS = {
   node: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'LumiNode 12' },
     { k:'portCount', label:'DMX ports', type:'number', min:1, max:64, def:8 },
@@ -37,6 +40,14 @@ const FIELDS = {
     { k:'portCount', label:'RJ45 ports', type:'number', min:1, max:96, def:16 },
     { k:'sfpCount', label:'SFP ports', type:'number', min:0, max:16, def:2 },
     F_IP, F_SUBNET, F_HEIGHT, F_COLOR('switch')],
+  cable: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'opticalCON DUO 4-core' },
+    { k:'medium', label:'Medium', type:'select', def:'smf', options:[['smf', 'Fibre, singlemode'], ['mmf', 'Fibre, multimode'], ['dac', 'SFP patch / DAC (short)'], ['cat', 'Copper Cat (RJ45)']] },
+    { k:'cores', label:'Cores', type:'number', min:1, max:48, def:4 },
+    { k:'connA', label:'Connector end A', type:'combo', ph:'opticalCON DUO', list:CONNECTORS },
+    { k:'connB', label:'Connector end B', type:'combo', ph:'opticalCON DUO', list:CONNECTORS },
+    { k:'lengthM', label:'Length (m)', type:'number', min:1, max:2000, def:50 },
+    { k:'articleKey', label:'Article key', type:'text', ph:'optional' },
+    F_COLOR('cable')],
   panel: [F_ID, F_BRAND, { k:'name', label:'Name', type:'text', ph:'LK panel 3×' },
     { k:'lkCount', label:'LK7-1 sockets', type:'number', min:0, max:12, def:3 },
     { k:'vimCount', label:'Veam4 sockets', type:'number', min:0, max:12, def:0 },
@@ -77,6 +88,7 @@ function metaLine(kind, t){
     case 'node': return `${num(t.portCount, 8)} DMX ports${ethernetPorts(t) > 1 ? ` · ${ethernetPorts(t)}× RJ45` : ''}`;
     case 'splitter': return `${t.mode === 'AB' ? 'A/B' : '1'} in · ${num(t.outputCount, 10)} out${t.switching === 'paired' ? ' · paired' : ''}`;
     case 'switch': return `${num(t.portCount, 16)} RJ45${num(t.sfpCount) ? ` + ${num(t.sfpCount)} SFP` : ''}`;
+    case 'cable': return `${MEDIUM[t.medium] || 'Fibre'} · ${num(t.cores, 4)}-core · ${num(t.lengthM, 50)} m`;
     case 'panel': return [[t.lkCount, 'LK7-1'], [t.vimCount, 'Veam4'], [t.xlrCount, 'XLR'], [t.etherconCount, 'etherCON']]
       .filter(([n]) => num(n) > 0).map(([n, l]) => `${num(n)}× ${l}`).join(' · ') || 'No sockets';
   }
@@ -107,7 +119,12 @@ function portsHtml(kind, t){
   }
   return '';
 }
+function cableFace(t, size){
+  const c = safeHex(t?.color, KINDS.cable.color), lbl = typeName(t) || 'New cable';
+  return `<div class="cb-face cb-${size}" style="--c:${c}"><span class="cb-end">${esc(t?.connA || '—')}</span><span class="cb-line"><b>${esc(lbl)}</b><small>${esc(metaLine('cable', t || {}))}</small></span><span class="cb-end">${esc(t?.connB || t?.connA || '—')}</span></div>`;
+}
 function unitFace(kind, t, size='md'){
+  if(kind === 'cable') return cableFace(t, size);
   const hu = Math.max(1, num(t?.heightU, 1));
   return `<div class="ru ru-${size}" style="--c:${safeHex(t?.color, KINDS[kind].color)};--hu:${hu}">
     <span class="ru-ear"></span>
@@ -155,6 +172,7 @@ function fieldHtml(f, t){
     case 'number': input = `<input type="number" ${attrs} min="${f.min}" max="${f.max}" value="${esc(v)}">`; break;
     case 'select': input = `<select ${attrs}>${f.options.map(([val, lab]) => `<option value="${val}" ${String(v) === val ? 'selected' : ''}>${esc(lab)}</option>`).join('')}</select>`; break;
     case 'color': input = `<input type="color" ${attrs} value="${safeHex(v, f.def)}">`; break;
+    case 'combo': input = `<input type="text" ${attrs} list="dl-${f.k}" value="${esc(v)}" placeholder="${esc(f.ph || '')}"><datalist id="dl-${f.k}">${(f.list || []).map(o => `<option value="${esc(o)}">`).join('')}</datalist>`; break;
     case 'ip': input = `<input type="text" class="ipv4" inputmode="numeric" ${attrs} value="${esc(v)}" placeholder="${esc(f.ph || '')}">`; break;
     default: input = `<input type="text" ${attrs} value="${esc(v)}" placeholder="${esc(f.ph || '')}">`;
   }
@@ -195,7 +213,7 @@ function renderDeviceTab(kind){
   const cards = list.map(t => `
     <div class="db-card ${S.origId === t.id ? 'sel' : ''}" data-pick="${esc(t.id)}" tabindex="0">
       <div class="db-card-head"><b>${esc(typeName(t))}</b>${libBadge(K.key, t)}</div>
-      <div class="subtle db-card-meta">${esc(t.id)} · ${esc(metaLine(kind, t))} · ${num(t.heightU, 1)}U</div>
+      <div class="subtle db-card-meta">${esc(t.id)} · ${esc(metaLine(kind, t))}${kind === 'cable' ? '' : ` · ${num(t.heightU, 1)}U`}</div>
       ${unitFace(kind, t, 'sm')}
     </div>`).join('');
   return `<div class="db-split">
@@ -562,7 +580,7 @@ function open(tab){
   S.draft = null; S.origId = null;
   const d = App.ui.openDialog({
     title:'Device Builder',
-    subtitle:'Nodes, splitters, switches and panels — and the racks you build from them.',
+    subtitle:'Nodes, splitters, switches, panels and cables — and the racks you build from them.',
     cls:'xl db-modal', body:'',
     footer:`<span class="left">Share your devices with a colleague via Export Library.</span>
       <button data-a="import">${I('upload', 14)}Import Library…</button>

@@ -80,6 +80,14 @@ async function open({ silent=false } = {}){
   plan('DB03').racks = [];
   plan('DB03').loose = [{ iid:'ls_demo3', kind:'node', typeId:'NODE:LMX-LN12', name:'FOH node' }, { iid:'ls_demo4', kind:'lkSpider', nodeIid:'ls_demo3' }, { iid:'ls_demo5', kind:'vimSpider', nodeIid:'ls_demo3' }];
   nd.prefs.nodeSparePorts = 0;
+  // fibre between the stage switch and the B-stage switch, with two cable types made by hand
+  const nd2 = M2.networkDevices;   // fillProject made a new object: use the current one
+  nd2.cableTypes = [
+    { id:'CABLE:DEMO-OC4', brand:'', name:'opticalCON QUAD 4-core singlemode', medium:'smf', cores:4, connA:'opticalCON QUAD', connB:'opticalCON QUAD', lengthM:100, articleKey:'', color:'#22c3d6' },
+    { id:'CABLE:DEMO-FF', brand:'', name:'FiberFox 4-core singlemode', medium:'smf', cores:4, connA:'FiberFox', connB:'FiberFox', lengthM:50, articleKey:'', color:'#e05dd8' },
+    { id:'CABLE:DEMO-SFP', brand:'', name:'SFP patch LC duplex', medium:'smf', cores:2, connA:'SFP (LC)', connB:'SFP (LC)', lengthM:3, articleKey:'', color:'#f2b33d' }
+  ];
+  nd2.fiberLinks = [{ id:'F1', typeId:'CABLE:DEMO-OC4', a:{ dc:'DB01', sw:'R-SW1', sfp:1 }, b:{ dc:'DB02', sw:'R-SW1', sfp:1 }, note:'Stage to B-stage' }];
   // 4. network plan from the rack patch
   App.hydrateDimOrigins(); App.recomputeVeamUseAndIssues(); App.recomputeUniverseStats();
   for(const dc of ['DB01', 'DB02', 'DB03']) window.RackPlan?.applyToNetworkPlan?.(dc, { quiet:true });

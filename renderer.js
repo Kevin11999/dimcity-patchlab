@@ -1261,8 +1261,9 @@ function renderNetworkView(){
     </div>`;
   }).join('') || '<div class="device-list-empty">No DimCities yet.</div>';
 
-  $('#lkDetail').innerHTML = `<div class="stack">${prefs}${window.FentUI?.plannerCard() || ''}${card({ key:'net-dims', title:'DimCities', icon:'layers', collapsible:false, body:rows })}</div>`;
+  $('#lkDetail').innerHTML = `<div class="stack">${prefs}${window.FentUI?.plannerCard() || ''}${window.Fibers?.card() || ''}${card({ key:'net-dims', title:'DimCities', icon:'layers', collapsible:false, body:rows })}</div>`;
   window.FentUI?.bindPlanner($('#lkDetail'), renderNetworkView);
+  window.Fibers?.bind($('#lkDetail'), renderNetworkView);
 
   const root = $('#lkDetail');
   root.querySelector('#netPrefNodeSpare').oninput = e=>{ nd.prefs.nodeSparePorts = Math.max(0, Number(e.target.value||0)); MODEL.ui.dirty = true; };
@@ -1685,7 +1686,7 @@ function showCsvSourcesModal(){
 
 // ===== Network Devices: data helpers =====
 function normalizeNetworkDevices(net){
-  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0, fent:{ on:false, group:'production', scan:false, vlanMode:'luminex' } }, nodeTypes:[], splitterTypes:[], switchTypes:[], panelTypes:[], rackTypes:[], nodes:[], splitters:[], switches:[], dimCityPlans:{} };
+  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0, fent:{ on:false, group:'production', scan:false, vlanMode:'luminex' } }, nodeTypes:[], splitterTypes:[], switchTypes:[], panelTypes:[], rackTypes:[], cableTypes:[], fiberLinks:[], nodes:[], splitters:[], switches:[], dimCityPlans:{} };
   if(!net || typeof net !== 'object') return base;
 
   const nodeTypes = Array.isArray(net.nodeTypes) ? net.nodeTypes.slice() : [];
@@ -1735,6 +1736,8 @@ function normalizeNetworkDevices(net){
     switchTypes: Array.isArray(net.switchTypes) ? net.switchTypes : [],
     panelTypes: Array.isArray(net.panelTypes) ? net.panelTypes : [],
     rackTypes: Array.isArray(net.rackTypes) ? net.rackTypes : [],
+    cableTypes: Array.isArray(net.cableTypes) ? net.cableTypes : [],
+    fiberLinks: Array.isArray(net.fiberLinks) ? net.fiberLinks : [],
     nodes: Array.isArray(net.nodes) ? net.nodes : [],
     splitters: Array.isArray(net.splitters) ? net.splitters : [],
     switches: Array.isArray(net.switches) ? net.switches : [],

@@ -38,9 +38,9 @@
   const usage = (dc, rows) => list(dc).map(s => ({ ...s, used:rows.filter(r => r.sw === s.label).length }));
 
   // ---- UI: the card on the DimCity page ----
-  function portStrip(s, rows){
-    const mine = rows.filter(r => r.sw === s.label), byPort = new Map(mine.map(r => [r.swPort, r]));
-    const sq = (n, kind) => { const r = kind === 'rj' ? byPort.get(n) : null; const v = r?.vlans?.[0] != null ? window.Fent?.vlanById(r.vlans[0]) : null;
+  function portStrip(dc, s, rows){
+    const mine = rows.filter(r => r.sw === s.label), byPort = new Map(mine.map(r => [r.swPort, r])), fib = window.Fibers && s.source === 'plan' ? window.Fibers.usage(dc, s.label) : (window.Fibers ? window.Fibers.usage(dc, s.label) : new Map());
+    const sq = (n, kind) => { const f = kind === 'sfp' ? fib.get(n) : null; if(f) return `<span class="swp sfp on" style="--c:${window.Fibers.color(f)}" title="${esc(`SFP ${n} · ${f.id} · ${window.Fibers.typeName(window.Fibers.typeOf(f.typeId))} · ${window.Fibers.endLabel(f.a?.dc === dc && f.a?.sw === s.label && Number(f.a?.sfp) === n ? f.b : f.a)}`)}"><i>${n}</i></span>`; const r = kind === 'rj' ? byPort.get(n) : null; const v = r?.vlans?.[0] != null ? window.Fent?.vlanById(r.vlans[0]) : null;
       return `<span class="swp ${kind} ${r ? 'on' : ''}" style="${v?.color ? `--c:${v.color}` : ''}" title="${esc(kind === 'sfp' ? `SFP ${n}` : `${t('Port', 'Poort')} ${n}${r ? ` · ${r.device}${r.ethCount > 1 ? ` ETH${r.eth}` : ''}` : ` · ${t('free', 'vrij')}`}`)}"><i>${n}</i></span>`; };
     return `<div class="swp-strip">${Array.from({ length:s.rj }, (_, i) => sq(i + 1, 'rj')).join('')}${s.sfp ? `<span class="swp-gap"></span>${Array.from({ length:s.sfp }, (_, i) => sq(i + 1, 'sfp')).join('')}` : ''}</div>`;
   }
@@ -58,7 +58,7 @@
       const head = `<div class="network-instance-head"><div><b>${esc(s.label)}</b> <span class="muted">${esc(s.dev?.name || '')}${s.where ? esc(` ${t('in', 'in')} ${s.where}`) : ''}</span><div class="subtle" style="font-size:12px">${esc(typeName(ty))} · ${s.rj} RJ45${s.sfp ? ` + ${s.sfp} SFP` : ''} · ${un}/${s.rj} ${t('used', 'gebruikt')}${s.source === 'rack' ? ` · ${t('from the rack', 'uit het rek')}` : ''}</div></div>${s.source === 'plan' ? `<button class="sm danger dimRemoveSwitch" data-i="${s.idx}">${I('trash', 13)}${t('Remove', 'Verwijderen')}</button>` : ''}</div>`;
       const fields = s.source === 'plan' ? `<div class="network-instance-fields"><label>ID<input class="dimSwitchField" data-i="${s.idx}" data-field="id" value="${esc(s.dev.id || '')}"></label><label>${t('Name', 'Naam')}<input class="dimSwitchField" data-i="${s.idx}" data-field="name" value="${esc(s.dev.name || '')}"></label>
         <label>${t('IP address', 'IP-adres')}<input class="dimSwitchField" data-i="${s.idx}" data-field="ip" value="${esc(s.dev.ip || '')}" inputmode="numeric" placeholder="10.90.101.2"></label><label>Subnet<input class="dimSwitchField" data-i="${s.idx}" data-field="subnet" value="${esc(s.dev.subnet || ty.subnet || '255.255.255.0')}" inputmode="numeric"></label></div>${window.FentUI?.deviceBlock(dc, 'switch', s.idx, s.dev) || ''}` : '';
-      return `<div class="network-instance switch-instance" style="--device-color:${esc(/^#[0-9a-f]{6}$/i.test(ty.color || '') ? ty.color : '#35c47c')}">${head}${fields}${portStrip(s, rows)}</div>`;
+      return `<div class="network-instance switch-instance" style="--device-color:${esc(/^#[0-9a-f]{6}$/i.test(ty.color || '') ? ty.color : '#35c47c')}">${head}${fields}${portStrip(dc, s, rows)}</div>`;
     }).join('') || `<div class="device-list-empty">${t('No switches yet. Add a switch to give the nodes and network cables their ports.', 'Nog geen switches. Voeg een switch toe om de nodes en netwerkkabels hun poorten te geven.')}</div>`}</div>`;
     return App.ui.card({ key:`${dc}:switches`, title:t('Network switches', 'Netwerkswitches'), icon:'switchDev', meta:`${sws.length} ${t('switches', 'switches')} · ${need} ${t('ports used', 'poorten in gebruik')}`, body, collapsed:!sws.length && !need });
   }

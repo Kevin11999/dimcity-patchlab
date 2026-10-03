@@ -1056,3 +1056,14 @@ body.nav-mini .nav-empty{display:none}
 .swp.on{background:color-mix(in srgb,var(--c,#4c9dff) 80%,#000);border-color:var(--c,#4c9dff);color:#fff;font-weight:700}
 .swp.sfp{border-radius:5px;width:24px}
 .swp-gap{width:10px}
+
+/* ===== cables (fibre, SFP patch, Cat) in the Device Builder ===== */
+.cb-face{display:flex;align-items:center;min-height:46px;color:var(--text)}
+.cb-end{flex:none;max-width:42%;padding:5px 9px;border:2px solid var(--c);border-radius:8px;background:var(--bg-sunken);font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cb-line{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;padding:0 4px;line-height:1.25}
+.cb-line::before{content:"";position:absolute;left:0;right:0;top:50%;height:5px;background:var(--c);border-radius:3px;transform:translateY(-50%)}
+.cb-line b,.cb-line small{position:relative;background:var(--surface);padding:0 6px;border-radius:4px;max-width:96%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cb-line b{font-size:12px}.cb-line small{font-size:10.5px;color:var(--text-3)}
+.cb-sm{min-height:34px}.cb-sm .cb-end{font-size:9.5px;padding:3px 6px}.cb-sm .cb-line b{font-size:11px}.cb-sm .cb-line small{display:none}
+.cb-lg{min-height:64px}.cb-lg .cb-end{font-size:12.5px;padding:8px 12px}.cb-lg .cb-line b{font-size:14px}
+.db-card .cb-face{margin-top:8px}

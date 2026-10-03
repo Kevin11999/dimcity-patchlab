@@ -440,7 +440,7 @@ async function importSelected(){
   renderAll();
   const errs = MODEL.issues.filter(i=>i.severity==='RED').length;
   toast(`Imported ${rows.length} rows from ${sourceName}${errs ? ` — ${errs} error${errs===1?'':'s'} found` : ''}`, errs ? 'err' : 'ok',
-        errs ? { action:{ label:'Show', run:()=>navigate('ISSUES') } } : {});
+        errs ? { action:{ label:'Show', run:()=>navigate('ISSUES') } } : { action:{ label:'Setup', run:()=>window.Setup?.open?.() }, ms:7000 });
 }
 
 
@@ -654,6 +654,7 @@ async function processRows(rows){
     pdfSettings: MODEL.pdfSettings,
     flow: MODEL.flow || null,           // signaalstroom: eigen namen en posities van blokken
     labels: MODEL.labels || null,       // sticker-instellingen
+    setup: MODEL.setup || null,         // stappenplan: overgeslagen stappen
     pdfTemplates: Array.isArray(MODEL.pdfTemplates) ? MODEL.pdfTemplates : [],
     libraryDismissed: Array.isArray(MODEL.libraryDismissed) ? MODEL.libraryDismissed : [],
     dimColors: MODEL.dimColors && typeof MODEL.dimColors === 'object' ? {...MODEL.dimColors} : {},

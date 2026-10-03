@@ -229,9 +229,12 @@ function applyToNetworkPlan(dc, { quiet=false } = {}){
   const r = E().computeRackPlan(M(), dc);
   const plan = App.net.getDimPlan(dc);
   window.PatchHistory?.label?.(`${dc}: network plan from rack patch`);
+  const before = (plan.nodes || []).slice();
   plan.nodes = r.nodes.map((n, i) => {
     const inst = App.net.createNodeInstance(dc, n.type, i, n.ports.map(p => p ? p.universe : null));
     if(n.loose && n.name) inst.name = `${dc} ${n.name}`;
+    const o = before[i];   // addresses set before stay (also the extra ones)
+    if(o && o.typeId === inst.typeId) for(const k of ['ip', 'subnet', 'ifaces', 'ipRole', 'ipVlan']) if(o[k] !== undefined && o[k] !== '' && !(Array.isArray(o[k]) && !o[k].length)) inst[k] = o[k];
     return inst;
   });
   plan.nodeTypeId = r.nodes[0]?.type.id || plan.nodeTypeId;
@@ -244,6 +247,7 @@ function applyToNetworkPlan(dc, { quiet=false } = {}){
   });
   if(used[0]) plan.lastSplitterTypeId = used[0].type.id;
   App.net.refreshDimDeviceIdentity(dc);
+  if(M().networkDevices?.prefs?.fent?.on && plan.nodes.some(n => !(n.ifaces && n.ifaces.length))) window.FentUI?.applyDim?.(dc);
   M().ui.dirty = true;
   if(!quiet) App.ui.toast(`${dc}: ${App.ui.plural(plan.nodes.length, 'node')}${plan.splitters.length ? ` and ${App.ui.plural(plan.splitters.length, 'splitter')}` : ''} taken from the rack`);
 }

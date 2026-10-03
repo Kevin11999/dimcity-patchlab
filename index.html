@@ -29,6 +29,7 @@
       <button class="ghost" id="btnRebuild" title="Recalculate validation and statistics (⌘R)"><span data-icon="refresh"></span>Recalculate</button>
       <span class="sep"></span>
       <button id="tbSave" title="Save project (⌘S)"><span data-icon="save"></span>Save</button>
+      <button id="tbStickers" title="Print stickers on Herma label sheets"><span data-icon="grid"></span>Stickers</button>
       <button class="primary" id="fileExportPdf" title="Open the report builder (⌘P)"><span data-icon="file"></span>Export PDF</button>
       <span class="sep"></span>
       <button class="ghost" id="tbHelp" title="User manual for this page (? or F1)"><span data-icon="help"></span>Help</button>
@@ -215,6 +216,7 @@
 <div class="toast-host" id="toastHost"></div>
 
 <script src="./node_modules/papaparse/papaparse.min.js"></script>
+<script src="./node_modules/qrcode-generator/dist/qrcode.js"></script>
 <script src="./ui/icons.js"></script>
 <script src="./export-pdf.js"></script>
 <script type="module" src="./renderer.js"></script>
@@ -233,6 +235,7 @@
 <script type="module" src="./ui/demo.js"></script>
 <script type="module" src="./ui/flow.js"></script>
 <script src="./ui/fun.js"></script>
+<script src="./ui/labels.js"></script>
 <script type="module" src="./core/rack-engine.js"></script>
 <script type="module" src="./ui/rack-plan.js"></script>
 <script type="module" src="./csv-editor.js"></script>

@@ -78,7 +78,7 @@ const MENU_NL = {
   'About':'Over', 'Settings…':'Instellingen…', 'Check for Updates…':'Zoeken naar updates…',
   'File':'Bestand', 'New Project…':'Nieuw project…', 'Open Project…':'Project openen…', 'Open Recent':'Recent geopend',
   'Clear Recent':'Lijst wissen', 'No recent projects':'Geen recente projecten', 'Save':'Opslaan', 'Save As…':'Opslaan als…',
-  'Import CSV…':'CSV importeren…', 'Imported Files…':'Geïmporteerde bestanden…', 'Report Builder / Export PDF…':'Rapport / PDF exporteren…',
+  'Import CSV…':'CSV importeren…', 'Imported Files…':'Geïmporteerde bestanden…', 'Report Builder / Export PDF…':'Rapport / PDF exporteren…', 'Print Stickers…':'Stickers printen…',
   'Welcome Screen':'Welkomstscherm', 'Exit':'Afsluiten', 'Edit':'Wijzig', 'Undo':'Ongedaan maken', 'Redo':'Opnieuw',
   'History…':'Geschiedenis…', 'Find…':'Zoeken…', 'Cut':'Knippen', 'Copy':'Kopiëren', 'Paste':'Plakken', 'Select All':'Alles selecteren',
   'Edit Patch Rows…':'Patchregels bewerken…', 'Add LK…':'LK toevoegen…', 'Add Veam…':'Veam toevoegen…', 'View':'Weergave',
@@ -129,6 +129,7 @@ function buildMenu(recent = lastRecent){
         { label: T('Imported Files…'), click: () => send('csvSources') },
         { type: 'separator' },
         { label: T('Report Builder / Export PDF…'), accelerator: 'CmdOrCtrl+P', click: () => send('exportPdf') },
+        { label: T('Print Stickers…'), accelerator: 'CmdOrCtrl+Shift+L', click: () => send('stickers') },
         { type: 'separator' },
         { label: T('Welcome Screen'), click: () => send('welcome') },
         ...(isMac ? [] : [{ type: 'separator' }, { label: T('Settings…'), accelerator: 'Ctrl+,', click: () => send('settings') }, { type: 'separator' }, { role: 'quit', label: T('Exit') }])

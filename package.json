@@ -17,7 +17,8 @@
     "release-notes": "mkdir -p dist && node scripts/build-manual.mjs"
   },
   "dependencies": {
-    "papaparse": "^5.4.1"
+    "papaparse": "^5.4.1",
+    "qrcode-generator": "^2.0.4"
   },
   "devDependencies": {
     "electron": "^42.1.0",

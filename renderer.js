@@ -635,6 +635,7 @@ async function processRows(rows){
     networkDevices: normalizeNetworkDevices(MODEL.networkDevices),
     pdfSettings: MODEL.pdfSettings,
     flow: MODEL.flow || null,           // signaalstroom: eigen namen en posities van blokken
+    labels: MODEL.labels || null,       // sticker-instellingen
     pdfTemplates: Array.isArray(MODEL.pdfTemplates) ? MODEL.pdfTemplates : [],
     libraryDismissed: Array.isArray(MODEL.libraryDismissed) ? MODEL.libraryDismissed : [],
     dimColors: MODEL.dimColors && typeof MODEL.dimColors === 'object' ? {...MODEL.dimColors} : {},
@@ -1431,7 +1432,7 @@ function renderDimCityDetail(dc){
     crumbs:`<a data-nav-view="HOME">Overview</a>${I('chevronRight',12)}<span>DimCities</span>`,
     title:`<span class="dim-dot" style="width:14px;height:14px;border-radius:4px;background:${color}"></span>${esc(dc)}`,
     sub:`${plural(lks.length,'LK block')} · ${plural(veams.length,'Veam')} · ${plural(uniCount,'universe')} · ${plural(pointCount,'patch point')}`,
-    actions:`<button id="dimColorBtn">${I('sliders',15)}Color</button><button data-cmd="addLK">${I('plus',15)}Add LK</button><button class="primary" id="dimExport">${I('file',15)}Export ${esc(dc)}</button>`
+    actions:`<button id="dimColorBtn">${I('sliders',15)}Color</button><button data-cmd="addLK">${I('plus',15)}Add LK</button><button data-cmd="stickers" data-arg="${esc(dc)}" title="Print the stickers of this DimCity">${I('grid',15)}Stickers</button><button class="primary" id="dimExport">${I('file',15)}Export ${esc(dc)}</button>`
   });
 
   const kpis = `<div class="kpis">
@@ -2270,6 +2271,7 @@ async function runCommand(cmd, arg){
     case 'help':          return window.Help?.open?.(arg);
     case 'demo':          return window.Demo?.open?.();
     case 'wrapped':       return window.Fun?.wrapped?.();
+    case 'stickers':      return window.Labels?.open?.(arg ? { dcs:[arg] } : {});
     case 'shareFlow':     return window.Fun?.shareFlow?.();
     case 'tourMenu':      return UI?.chooseTour?.();
     case 'request':       return window.Help?.openRequest?.();

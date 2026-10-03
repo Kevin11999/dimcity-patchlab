@@ -493,6 +493,54 @@ De sectie Racks tekent elk rek zoals in de app, somt de nodepoorten op met de LK
 **Opslaan als template** bewaart de hele indeling in het project en je bibliotheek; kies hem in elke show uit het menu Template. Voorinstellingen: DB detailed paperwork, Network crew, Patch crew, Compact patch sheets, Racks only.`
   },
   {
+    id:'stickers', icon:'grid', context:[],
+    title:{ en:'Stickers (Herma sheets)', nl:'Stickers (Herma-vellen)' },
+    en:`Stickers (menu File > Print Stickers, the **Stickers** button in the toolbar, or the Stickers button on a DimCity page) prints labels on **Herma A4 label sheets**. The sheet layouts come straight from the HERMA label templates, so every label lands where the template puts it.
+
+## Sheets
+- **HERMA 4680 / 4690 / 4102 / 4112**: 48,26 × 25,4 mm, 44 labels (4 × 11), 8,48 mm from the left, 8,8 mm from the top, no gaps.
+- **HERMA 4097 / 4232 / 4221**: 45,72 × 21,167 mm, 48 labels (4 × 12), 9,75 mm from the left, 21,5 mm from the top, 2,54 mm between the columns.
+- **Custom sheet**: enter the numbers of another sheet yourself (they are on the HERMA template of that article).
+- The templates do not say which printers a sheet suits. For a laser printer use a sheet marked for laser on its pack.
+
+## What you can print
+- **Cable labels** for LK multicores and Veam cables, two per cable (both ends), with a colour band in the colour of the node that feeds it.
+- **Panel connection labels**, one per LK7-1 / Veam4 socket, to stick above the socket.
+- **Node port labels**: universe and where each port goes.
+- **Racks, nodes, switches and splitters**.
+- **QR stickers** with the patch as plain text (one per LK, Veam and rack); scanning shows the text on any phone, no server needed.
+- A **company image** and a **show image** on the labels (defaults: the company logo of the report brand and the logo of the project, or choose your own).
+
+## Printing
+- Choose the DimCities. With *Start a new sheet for each DimCity* every DB gets its own sheet. The button on a DimCity page opens the dialog for just that DimCity.
+- **Start at label** skips the labels you already used on a part-used sheet.
+- **Black and white** turns the colour bands black, for a mono laser printer.
+- Print the PDF at 100% (Actual size), never fit-to-page. The **Calibration sheet** is outlines only: print it on plain paper and hold it against a real sheet in front of a light.
+- The settings are saved with the project.`,
+    nl:`Stickers (menu Bestand > Stickers printen, de knop **Stickers** in de werkbalk, of de knop Stickers op een DimCity-pagina) print labels op **Herma A4-etikettenvellen**. De vel-indelingen komen rechtstreeks uit de HERMA-sjablonen, dus elk label komt waar het sjabloon het neerzet.
+
+## Vellen
+- **HERMA 4680 / 4690 / 4102 / 4112**: 48,26 × 25,4 mm, 44 labels (4 × 11), 8,48 mm vanaf links, 8,8 mm vanaf boven, geen tussenruimte.
+- **HERMA 4097 / 4232 / 4221**: 45,72 × 21,167 mm, 48 labels (4 × 12), 9,75 mm vanaf links, 21,5 mm vanaf boven, 2,54 mm tussen de kolommen.
+- **Eigen vel**: voer zelf de maten van een ander vel in (die staan op het HERMA-sjabloon van dat artikel).
+- De sjablonen vermelden niet voor welke printers een vel geschikt is. Gebruik voor een laserprinter een vel dat op de verpakking voor laser is aangegeven.
+
+## Wat je kunt printen
+- **Kabellabels** voor LK-multicores en Veam-kabels, twee per kabel (beide uiteinden), met een kleurband in de kleur van de node die hem voedt.
+- **Aansluitlabels paneel**, één per LK7-1- / Veam4-aansluiting, om boven de aansluiting te plakken.
+- **Nodepoort-labels**: universe en waar elke poort heen gaat.
+- **Racks, nodes, switches en splitters**.
+- **QR-stickers** met de patch als platte tekst (één per LK, Veam en rack); scannen toont de tekst op elke telefoon, zonder server.
+- Een **bedrijfsafbeelding** en een **showafbeelding** op de labels (standaard: het bedrijfslogo uit de huisstijl van het rapport en het logo van het project, of kies zelf een afbeelding).
+
+## Printen
+- Kies de DimCities. Met *Begin een nieuw vel voor elke DimCity* krijgt elke DB zijn eigen vel. De knop op een DimCity-pagina opent het venster voor alleen die DimCity.
+- **Begin bij label** slaat de labels over die je al op een deels gebruikt vel hebt gebruikt.
+- **Zwart-wit** maakt de kleurbanden zwart, voor een zwart-wit laserprinter.
+- Print de PDF op 100% (Werkelijke grootte), nooit passend maken. Het **Kalibratieblad** bevat alleen kaders: print het op gewoon papier en houd het tegen een echt vel voor een lamp.
+- De instellingen worden met het project opgeslagen.`
+  },
+  {
     id:'library', icon:'download', context:['library'],
     title:{ en:'Personal library', nl:'Persoonlijke bibliotheek' },
     en:`Device types, racks and report templates live in two places: in the show, and in your personal library on this computer (**Network → Show Library File**).
@@ -601,11 +649,13 @@ export const CHANGES = [
   {
     version:'0.3.2', date:'unreleased',
     en:[
+      'Stickers on Herma A4 label sheets (laser printer): 4680 / 4690 / 4102 / 4112 and 4097 / 4232 / 4221, taken from the HERMA templates, plus custom sheets. Cable labels (both ends), panel connection labels, node ports, racks / nodes / switches / splitters and QR stickers, with company and show images, per DimCity, with a start position for part-used sheets and a calibration sheet.',
       'Confetti and "Patch perfect!" when a show goes from having issues to none (Settings > General > Fun switches it off).',
       'Festival wrapped (Help menu): a shareable card with the numbers of your show; save or copy it as an image.',
       'Signal Flow: "Share image" copies the drawing as a picture for a chat or e-mail.'
     ],
     nl:[
+      'Stickers op Herma A4-etikettenvellen (laserprinter): 4680 / 4690 / 4102 / 4112 en 4097 / 4232 / 4221, overgenomen uit de HERMA-sjablonen, plus eigen vellen. Kabellabels (beide uiteinden), aansluitlabels paneel, nodepoorten, racks / nodes / switches / splitters en QR-stickers, met bedrijfs- en showafbeelding, per DimCity, met een startpositie voor deels gebruikte vellen en een kalibratieblad.',
       'Confetti en "Patch perfect!" zodra een show van problemen naar geen problemen gaat (Instellingen > Algemeen > Plezier zet het uit).',
       'Festival wrapped (Help-menu): een deelbare kaart met de cijfers van je show; opslaan of kopiëren als afbeelding.',
       'Signaalstroom: "Afbeelding delen" kopieert de tekening als plaatje voor een chat of e-mail.'

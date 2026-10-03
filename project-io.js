@@ -152,7 +152,8 @@
       pdfSettings: defaultPdfSettings(M.pdfSettings || {}),
       pdfTemplates: Array.isArray(M.pdfTemplates) ? M.pdfTemplates : [],
       libraryDismissed: Array.isArray(M.libraryDismissed) ? M.libraryDismissed : [],
-      flow: M.flow && typeof M.flow === 'object' ? M.flow : null
+      flow: M.flow && typeof M.flow === 'object' ? M.flow : null,
+      labels: M.labels && typeof M.labels === 'object' ? M.labels : null
     };
   }
 
@@ -222,6 +223,7 @@
     M.pdfTemplates = Array.isArray(snap.pdfTemplates) ? snap.pdfTemplates : [];
     M.libraryDismissed = Array.isArray(snap.libraryDismissed) ? snap.libraryDismissed : [];
     M.flow = snap.flow && typeof snap.flow === 'object' ? snap.flow : null;
+    M.labels = snap.labels && typeof snap.labels === 'object' ? snap.labels : null;
 
     if (snap.lkBlockType){
       for (const [id, bt] of Object.entries(snap.lkBlockType)){
@@ -411,6 +413,7 @@
       pdfTemplates: [],
       libraryDismissed: [],
       flow: null,
+      labels: null,
       issues: [],
       byDim: new Map(),
       byLK: new Map(),

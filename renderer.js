@@ -1664,7 +1664,7 @@ function showCsvSourcesModal(){
 
 // ===== Network Devices: data helpers =====
 function normalizeNetworkDevices(net){
-  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0, fent:{ on:false, group:'production', scan:false } }, nodeTypes:[], splitterTypes:[], switchTypes:[], panelTypes:[], rackTypes:[], nodes:[], splitters:[], switches:[], dimCityPlans:{} };
+  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0, fent:{ on:false, group:'production', scan:false, vlanMode:'luminex' } }, nodeTypes:[], splitterTypes:[], switchTypes:[], panelTypes:[], rackTypes:[], nodes:[], splitters:[], switches:[], dimCityPlans:{} };
   if(!net || typeof net !== 'object') return base;
 
   const nodeTypes = Array.isArray(net.nodeTypes) ? net.nodeTypes.slice() : [];
@@ -1707,7 +1707,7 @@ function normalizeNetworkDevices(net){
       nodeSparePorts: Number(net.prefs?.nodeSparePorts ?? 0),
       splitterSparePorts: Number(net.prefs?.splitterSparePorts ?? 0),
       switchSparePorts: Number(net.prefs?.switchSparePorts ?? 0),
-      fent: { on:!!net.prefs?.fent?.on, group:net.prefs?.fent?.group === 'location' ? 'location' : 'production', scan:!!net.prefs?.fent?.scan }
+      fent: { on:!!net.prefs?.fent?.on, group:net.prefs?.fent?.group === 'location' ? 'location' : 'production', scan:!!net.prefs?.fent?.scan, vlanMode:net.prefs?.fent?.vlanMode === 'fent' ? 'fent' : 'luminex' }
     },
     nodeTypes,
     splitterTypes,

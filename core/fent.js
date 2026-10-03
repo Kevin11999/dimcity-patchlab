@@ -22,18 +22,26 @@
     { id:1080, name:'SPECIAL',     discipline:'Functiegebonden', net:'10.80.0.0/16', second:80, color:'#80FFFF', colorName:'Aqua' },
     { id:1090, name:'MANAGEMENT',  discipline:'Management',   net:'10.90.0.0/16', second:90, color:'#FF8000', colorName:'Oranje' }
   ];
+  // Luminex GigaCore groups: group 1 is Management with VLAN ID 1, group N has VLAN ID N × 100 (200, 300 … 2000).
+  // The colours are the ones the GigaCore web interface shows. Only the first three groups have an IP range
+  // here (Management 10.90, Lighting 10.40); the others are free to use.
+  const LUMI_COLORS = ['#325197', '#E80000', '#32CD32', '#00E8E8', '#CC00CC', '#FF8200', '#E8E800', '#FF0099', '#20B2AA', '#FA8072', '#0033FF', '#008000', '#BB5555', '#8B0000', '#4B0082', '#999900', '#7CE800', '#660066', '#2F4F4F', '#0066CC'];
+  const LUMINEX = LUMI_COLORS.map((color, i) => ({ id:i === 0 ? 1 : (i + 1) * 100, group:i + 1, name:i === 0 ? 'Management' : `Group${String(i + 1).padStart(2, '0')}`, discipline:i === 0 ? 'Management' : `Group ${i + 1}`, net:'', second:i === 0 ? 90 : i <= 2 ? 40 : null, color, colorName:'', luminex:true }));
   const MASK = '255.255.0.0';
   // what a device uses an address for -> default VLAN
   const ROLES = {
-    management: { vlan:1090, en:'Management', nl:'Beheer' },
-    lighting:   { vlan:1040, en:'Lighting data (sACN / Art-Net)', nl:'Lichtdata (sACN / Art-Net)' },
-    scan:       { vlan:1041, en:'Scan / second lighting VLAN', nl:'Scan / tweede licht-VLAN' },
-    other:      { vlan:1040, en:'Other', nl:'Overig' }
+    management: { vlan:1090, luminex:1,   second:90, en:'Management', nl:'Beheer' },
+    lighting:   { vlan:1040, luminex:200, second:40, en:'Lighting data (sACN / Art-Net)', nl:'Lichtdata (sACN / Art-Net)' },
+    scan:       { vlan:1041, luminex:300, second:40, en:'Scan / second lighting VLAN', nl:'Scan / tweede licht-VLAN' },
+    other:      { vlan:1040, luminex:200, second:40, en:'Other', nl:'Overig' }
   };
+  // 'luminex' = VLAN IDs like the GigaCore groups, 'fent' = the FENT numbers (1090, 1040 …)
+  const vlanList = mode => mode === 'fent' ? VLANS : LUMINEX;
+  const roleVlan = (role, mode) => { const r = ROLES[role] || ROLES.other; return mode === 'fent' ? r.vlan : r.luminex; };
   const GROUPS = { location:{ first:1, last:99, dhcp:100 }, production:{ first:101, last:199, dhcp:200 } };
 
   const isIp = s => /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(String(s || '').trim()) && String(s).trim().split('.').every(n => Number(n) <= 255);
-  const vlanById = id => VLANS.find(v => v.id === Number(id)) || null;
+  const vlanById = id => LUMINEX.find(v => v.id === Number(id)) || VLANS.find(v => v.id === Number(id)) || null;
   const vlanBySecond = b => VLANS.find(v => v.second === Number(b) && !v.extension) || null;
   const parts = ip => String(ip).trim().split('.').map(Number);
 
@@ -55,6 +63,11 @@
     return `10.${v.second}.${third}.${fourth}`;
   }
   // Network equipment (a switch) uses 1-10 in the management range
+  // Address for a role (management → 10.90.x.x, lighting and scan → 10.40.x.x), whatever the VLAN numbering
+  function suggestRole(role, group, dimNo, host){
+    const r = ROLES[role] || ROLES.other, g = GROUPS[group] || GROUPS.production;
+    return `10.${r.second}.${Math.min(g.last, g.first - 1 + Math.max(1, Number(dimNo) || 1))}.${Math.max(11, Math.min(250, Number(host) || 11))}`;
+  }
   function suggestEquipment(vlanId, group, dimNo, n){
     const v = vlanById(vlanId); if(!v) return '';
     const g = GROUPS[group] || GROUPS.production;
@@ -67,7 +80,7 @@
     if(!isIp(ip)){ out.push({ level:'warn', code:'FORMAT', en:'Not a valid IPv4 address', nl:'Geen geldig IPv4-adres' }); return out; }
     const c = classify(ip), v = vlanById(vlanId);
     if(c.outside){ out.push({ level:'info', code:'OUTSIDE', en:'Not in the FENT range 10.x.x.x', nl:'Niet in de FENT-reeks 10.x.x.x' }); return out; }
-    if(v && c.vlan && c.vlan.second !== v.second) out.push({ level:'warn', code:'VLAN', en:`${ip} belongs to ${c.vlan.name} (${c.vlan.id}), not to ${v.name} (${v.id})`, nl:`${ip} hoort bij ${c.vlan.name} (${c.vlan.id}), niet bij ${v.name} (${v.id})` });
+    if(v && c.vlan && v.second != null && c.vlan.second !== v.second) out.push({ level:'warn', code:'VLAN', en:`${ip} belongs to ${c.vlan.name} (${c.vlan.id}), not to ${v.name} (${v.id})`, nl:`${ip} hoort bij ${c.vlan.name} (${c.vlan.id}), niet bij ${v.name} (${v.id})` });
     if(!c.vlan) out.push({ level:'info', code:'UNKNOWN_NET', en:`10.${parts(ip)[1]}.x.x is not a FENT discipline range`, nl:`10.${parts(ip)[1]}.x.x is geen FENT-disciplinereeks` });
     if(c.dhcp) out.push({ level:'warn', code:'DHCP', en:'In the DHCP range — fixed devices should have a static address', nl:'In de DHCP-reeks — vaste apparaten horen een vast adres te hebben' });
     if(c.group === null && c.vlan) out.push({ level:'warn', code:'GROUP', en:'Third byte outside 1-200 (location 1-99, production 101-199)', nl:'Derde byte buiten 1-200 (locatie 1-99, productie 101-199)' });
@@ -92,7 +105,7 @@
   function ifaces(dev, ethCount = 1){
     const list = [];
     if(dev?.ip) list.push({ primary:true, role:dev.ipRole || 'management', vlan:dev.ipVlan ?? classify(dev.ip)?.vlan?.id ?? null, ip:dev.ip, mask:dev.subnet || '', eth:1 });
-    (dev?.ifaces || []).forEach((x, i) => { if(x && (x.ip || x.vlan)) list.push({ primary:false, i, role:x.role || 'lighting', vlan:x.vlan ?? ROLES[x.role || 'lighting']?.vlan ?? null, ip:x.ip || '', mask:x.mask || '', eth:Math.min(Math.max(1, ethCount), Number(x.eth) || 1) }); });
+    (dev?.ifaces || []).forEach((x, i) => { if(x && (x.ip || x.vlan)) list.push({ primary:false, i, role:x.role || 'lighting', vlan:x.vlan ?? ROLES[x.role || 'lighting']?.luminex ?? null, ip:x.ip || '', mask:x.mask || '', eth:Math.min(Math.max(1, ethCount), Number(x.eth) || 1) }); });
     return list;
   }
   // The RJ45 ports of a device and what they carry. One VLAN on a port = access port; two or more = trunk
@@ -111,5 +124,5 @@
     for(const d of devices) for(const p of portsOf(d.dev, d.ethCount)){ if(!p.ifs.length) continue; rows.push({ port:port++, device:d.label, eth:p.eth, ethCount:d.ethCount, mode:p.mode, vlans:p.vlans, ips:p.ifs.map(x => x.ip).filter(Boolean) }); }
     return rows;
   }
-  window.Fent = { VLANS, MASK, ROLES, GROUPS, isIp, vlanById, classify, suggest, suggestEquipment, checkIp, checkAll, ifaces, portsOf, switchPlan };
+  window.Fent = { VLANS, LUMINEX, vlanList, roleVlan, suggestRole, MASK, ROLES, GROUPS, isIp, vlanById, classify, suggest, suggestEquipment, checkIp, checkAll, ifaces, portsOf, switchPlan };
 })();

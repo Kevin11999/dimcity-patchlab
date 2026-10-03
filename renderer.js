@@ -2011,12 +2011,13 @@ function renderSplitterTypeFace(sp){
 function getDimPlan(dc){
   MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
   if(!MODEL.networkDevices.dimCityPlans[dc]){
-    MODEL.networkDevices.dimCityPlans[dc] = { nodeTypeId:'', splitterTypeIds:[], nodes:[], splitters:[] };
+    MODEL.networkDevices.dimCityPlans[dc] = { nodeTypeId:'', splitterTypeIds:[], nodes:[], splitters:[], switches:[] };
   }
   const plan = MODEL.networkDevices.dimCityPlans[dc];
   if(!Array.isArray(plan.splitterTypeIds)) plan.splitterTypeIds = [];
   if(!Array.isArray(plan.nodes)) plan.nodes = [];
   if(!Array.isArray(plan.splitters)) plan.splitters = [];
+  if(!Array.isArray(plan.switches)) plan.switches = [];
   return plan;
 }
 function autoAssignDimCityNodes(dc, nodeTypeId){
@@ -2160,7 +2161,8 @@ function renderDimNetworkDevices(dc){
   const splitBody = `<div class="network-device-list">${splitterHtml || '<div class="device-list-empty">No splitters yet. Choose a splitter type and click Auto-calculate.</div>'}</div>`;
 
   return card({ key:`${dc}:nodes`, title:'Network nodes', icon:'network', meta:`${plural(plan.nodes.length,'node')} · ${plural(universes.length,'universe')}`, body:nodesBody, collapsed: !plan.nodes.length })
-       + card({ key:`${dc}:splitters`, title:'Splitters', icon:'cable', meta:`${plural(plan.splitters.length,'splitter')} · ${Number(nd.prefs.splitterSparePorts || 0)} spare outputs`, body:splitBody, collapsed: !plan.splitters.length });
+       + card({ key:`${dc}:splitters`, title:'Splitters', icon:'cable', meta:`${plural(plan.splitters.length,'splitter')} · ${Number(nd.prefs.splitterSparePorts || 0)} spare outputs`, body:splitBody, collapsed: !plan.splitters.length })
+       + (window.NetSwitches?.card(dc) || '');
 }
 function bindDimNetworkDevices(root, dc, rerender){
   const nodeSelect = root.querySelector('#dimNodeType');
@@ -2193,6 +2195,7 @@ function bindDimNetworkDevices(root, dc, rerender){
     inp.onchange = ()=>{ const s = getDimPlan(dc).splitters[Number(inp.dataset.splitterIndex)]; if(!s) return; s[inp.dataset.field] = inp.value.trim(); MODEL.ui.dirty = true; };
   });
   window.FentUI?.bindDevice(root, dc, rerender);
+  window.NetSwitches?.bind(root, dc, rerender);
   root.querySelectorAll('.uni-pool-chip').forEach(chip=> chip.addEventListener('dragstart', e=> e.dataTransfer.setData('text/plain', chip.dataset.uni || '')));
   root.querySelectorAll('.device-port.assignable[data-node-index]').forEach(port=>{
     port.onclick = e=>{ e.stopPropagation(); openPortUniversePicker(dc, Number(port.dataset.nodeIndex), Number(port.dataset.portIndex)); };

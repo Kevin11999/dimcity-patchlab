@@ -1051,3 +1051,8 @@ body.nav-mini .nav-empty{display:none}
 .netcable-line .nl-n{font-family:var(--mono,monospace);color:var(--text-3);min-width:62px}
 .netcable-line .nl-d{margin-left:auto;text-align:right;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .netcable-line.nl-empty{opacity:.45}
+.swp-strip{display:flex;flex-wrap:wrap;gap:3px;margin-top:10px;align-items:center}
+.swp{width:20px;height:20px;border-radius:3px;border:1px solid var(--border-strong);background:var(--bg-sunken);display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:var(--text-3)}
+.swp.on{background:color-mix(in srgb,var(--c,#4c9dff) 80%,#000);border-color:var(--c,#4c9dff);color:#fff;font-weight:700}
+.swp.sfp{border-radius:5px;width:24px}
+.swp-gap{width:10px}

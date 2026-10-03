@@ -96,7 +96,7 @@
     if(L.kinds.switchPorts && window.FentUI){   // label strip for the switch: port, device and VLAN colour of the FENT scheme
       for(const r of window.FentUI.portPlan(dc).rows){
         const v = window.Fent?.vlanById(r.vlans[0]);
-        out.push({ kind:'switchPort', dc, title:`${t('Port', 'Poort')} ${r.port}`, sub:`${r.device}${r.ethCount > 1 ? ` ETH${r.eth}` : ''}`, lines:[r.vlans.map(x => { const q = window.Fent?.vlanById(x); return q ? `${q.id} ${q.name}` : x; }).join(' + '), r.cable ? r.dest : (r.ips[0] || '')].filter(Boolean), color:v?.color || '#94a3b8', badge:r.mode === 'trunk' ? 'TRUNK' : '', copies:1 });
+        out.push({ kind:'switchPort', dc, title:`${r.sw ? `${r.sw} · ` : ''}${t('Port', 'Poort')} ${r.swPort || r.port}`, sub:`${r.device}${r.ethCount > 1 ? ` ETH${r.eth}` : ''}`, lines:[r.vlans.map(x => { const q = window.Fent?.vlanById(x); return q ? `${q.id} ${q.name}` : x; }).join(' + '), r.cable ? r.dest : (r.ips[0] || '')].filter(Boolean), color:v?.color || '#94a3b8', badge:r.mode === 'trunk' ? 'TRUNK' : '', copies:1 });
       }
     }
     if(L.kinds.qr){

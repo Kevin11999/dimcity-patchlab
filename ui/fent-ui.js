@@ -13,8 +13,9 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const cfg = () => { const nd = M().networkDevices; nd.prefs ||= {}; nd.prefs.fent ||= { on:false, group:'production', scan:false }; nd.prefs.fent.vlanMode ||= 'luminex'; return nd.prefs.fent; };
   const dimNo = dc => { const m = /(\d+)/.exec(String(dc)); return m ? Number(m[1]) : 1; };
-  const plan = dc => M().networkDevices?.dimCityPlans?.[dc] || { nodes:[], splitters:[] };
-  const typeOf = (kind, dev) => (M().networkDevices?.[kind === 'node' ? 'nodeTypes' : 'splitterTypes'] || []).find(x => x.id === dev.typeId) || {};
+  const plan = dc => M().networkDevices?.dimCityPlans?.[dc] || { nodes:[], splitters:[], switches:[] };
+  const TYPES = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes' }, LISTS = { node:'nodes', splitter:'splitters', switch:'switches' };
+  const typeOf = (kind, dev) => (M().networkDevices?.[TYPES[kind]] || []).find(x => x.id === dev.typeId) || {};
   const ethOf = (kind, dev) => kind === 'node' ? Math.min(2, Math.max(1, Number(typeOf(kind, dev).ethernetCount) || 1)) : 1;
   // devices with an address: nodes, and splitters that have (or can get) one
   const devices = dc => { const p = plan(dc); return [...p.nodes.map((dev, idx) => ({ kind:'node', idx, dev })), ...p.splitters.map((dev, idx) => ({ kind:'splitter', idx, dev })).filter(d => d.dev.ip || d.dev.ifaces?.length || typeOf('splitter', d.dev).defaultIp)]; };
@@ -49,7 +50,7 @@
   function bindDevice(root, dc, rerender){
     root.querySelectorAll('.fent-ifaces').forEach(box => {
       const [bdc, kind, idxS] = box.dataset.fent.split('|'); if(bdc !== dc) return;
-      const dev = (kind === 'node' ? plan(dc).nodes : plan(dc).splitters)[Number(idxS)]; if(!dev) return;
+      const dev = (plan(dc)[LISTS[kind]] || [])[Number(idxS)]; if(!dev) return;
       const eth = ethOf(kind, dev);
       box.querySelector('[data-add]').onclick = () => {
         const used = new Set((dev.ifaces || []).map(x => x.role)); const role = !used.has('lighting') ? 'lighting' : !used.has('scan') ? 'scan' : 'other';
@@ -81,6 +82,12 @@
       if(c.scan && host + 100 <= 250) dev.ifaces.push({ role:'scan', vlan:vs, ip:F().suggestRole('scan', c.group, no, host + 100), mask:F().MASK, eth:eth > 1 ? 2 : 1 });
       host++; n++;
     }
+    // switches are network equipment: management address from 1 to 10
+    (p.switches || []).forEach((sw, i) => {
+      if(i >= 10) return;
+      const vm = F().roleVlan('management', c.vlanMode);
+      sw.ip = F().suggestEquipment(vm, c.group, no, i + 1); sw.subnet = F().MASK; sw.ipRole = 'management'; sw.ipVlan = vm; sw.ifaces = sw.ifaces || []; n++;
+    });
     return { n, over };
   }
   async function applyAll(dcs){
@@ -104,16 +111,17 @@
     // after the nodes: the network cables (C) that come into the DimCity, one switch port per line
     let port = rows.length + 1;
     for(const c of (window.NetCables?.cables(dc) || [])) for(const l of c.lines) if(!l.empty) rows.push({ port:port++, device:`${c.id}.${l.port}`, eth:1, ethCount:1, mode:'access', vlans:l.vlan != null ? [l.vlan] : [], ips:[], dest:l.dest || '', cable:true });
+    window.NetSwitches?.assign(dc, rows);
     return { rows, cap:switchCapacity(dc) };
   }
   const vlanLabel = id => { const v = F().vlanById(id); return v ? `${v.id} ${v.name}` : String(id); };
   function portTable(dc){
     const { rows, cap } = portPlan(dc);
     if(!rows.length) return `<div class="subtle" style="padding:6px 0">${t('No addresses yet — give the nodes an address (or apply the FENT scheme) and the ports appear here.', 'Nog geen adressen — geef de nodes een adres (of pas het FENT-schema toe) en de poorten verschijnen hier.')}</div>`;
-    const over = cap.n && rows.length > cap.rj;
-    return `${cap.n ? `<div class="hint ${over ? 'fent-bad' : ''}">${over ? I('alert', 13) : I('info', 13)} ${rows.length} ${t('ports needed', 'poorten nodig')} · ${cap.rj} RJ45${cap.sfp ? ` + ${cap.sfp} SFP` : ''} ${t('on the switch(es) in the racks', 'op de switch(es) in de racks')}</div>` : `<div class="hint">${I('info', 13)} ${rows.length} ${t('ports needed — no switch in a rack of this DimCity yet', 'poorten nodig — nog geen switch in een rack van deze DimCity')}</div>`}
+    const sws = window.NetSwitches?.list(dc) || [], capAll = sws.reduce((n, s) => n + s.rj, 0), over = sws.length && rows.length > capAll;
+    return `${sws.length ? `<div class="hint ${over ? 'fent-bad' : ''}">${over ? I('alert', 13) : I('info', 13)} ${rows.length} ${t('ports needed', 'poorten nodig')} · ${capAll} RJ45 ${t('on', 'op')} ${sws.map(s => esc(s.label)).join(' + ')}</div>` : `<div class="hint">${I('info', 13)} ${rows.length} ${t('ports needed — add a switch to the DimCity (or put one in a rack) and the ports are handed out in order', 'poorten nodig — voeg een switch toe aan de DimCity (of zet er een in een rek) en de poorten worden op volgorde uitgedeeld')}</div>`}
       <table class="data-table fent-ports"><thead><tr><th>${t('Switch port', 'Switchpoort')}</th><th>${t('Device', 'Apparaat')}</th><th>${t('Mode', 'Modus')}</th><th>VLAN</th><th>${t('Addresses', 'Adressen')}</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><td><b>${r.port}</b></td><td>${esc(r.device)}${r.ethCount > 1 ? ` <span class="subtle">ETH${r.eth}</span>` : ''}</td><td>${r.mode === 'trunk' ? t('Trunk (tagged)', 'Trunk (tagged)') : t('Access (untagged)', 'Access (untagged)')}</td><td>${r.vlans.map(v => vlanChip(F().vlanById(v)) || esc(v)).join(' ') || '—'}</td><td class="mono">${r.cable ? esc(r.dest) : r.ips.map(esc).join(' · ')}</td></tr>`).join('')}</tbody></table>`;
+      ${rows.map(r => `<tr class="${r.over ? 'fent-bad' : ''}"><td><b>${r.sw ? `${esc(r.sw)} · ${r.swPort}` : (r.over ? '—' : r.port)}</b></td><td>${esc(r.device)}${r.ethCount > 1 ? ` <span class="subtle">ETH${r.eth}</span>` : ''}</td><td>${r.mode === 'trunk' ? t('Trunk (tagged)', 'Trunk (tagged)') : t('Access (untagged)', 'Access (untagged)')}</td><td>${r.vlans.map(v => vlanChip(F().vlanById(v)) || esc(v)).join(' ') || '—'}</td><td class="mono">${r.cable ? esc(r.dest) : r.ips.map(esc).join(' · ')}</td></tr>`).join('')}</tbody></table>`;
   }
 
   // ---- the card on the Network Planner page ----

@@ -214,7 +214,7 @@ function cardHtml(dc){
       ${chip('Node ports', s.nodePortsUsed, s.nodePorts, s.unfed)}
       ${chip('Lines', s.lines - s.unfed, s.lines, s.unfed)}
     </div>`;
-  const recs = `<ul class="rp-recs">${plan.recs.map(r => `<li class="${r.level}">${I(r.level === 'warn' ? 'alert' : r.level === 'ok' ? 'checkCircle' : 'info', 14)}<span>${esc(r.text)}</span></li>`).join('')}</ul>`;
+  const recs = `<ul class="rp-recs">${plan.recs.map(r => `<li class="${r.level}">${I(r.level === 'warn' ? 'alert' : r.level === 'ok' ? 'checkCircle' : 'info', 14)}<span>${esc(r.text)}</span>${r.fix ? `<button class="sm primary" data-rp-fix="${esc(r.fix.iid)}" data-dc="${esc(dc)}">Fix: stack ${esc(r.fix.label)}</button>` : ''}</li>`).join('')}</ul>`;
   const legend = [...owners.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric:true }))
     .map(([id, c]) => { const nodes = [...new Set(plan.lines.filter(l => l.owner === id && l.feed?.node).map(l => l.feed.node))]; return `<span class="rp-owner" style="--c:${c}"><i></i>${esc(id)}<em>${nodes.join(' + ')}</em></span>`; }).join('');
   const racks = plan.racks.map((R, ri) => `<div class="rp-rack">
@@ -250,6 +250,10 @@ function bind(root, dc, rerender){
     M().ui.cardCollapsed[`${dc}:racks`] = false;
     M().ui.dirty = true; rerender();
   };
+  root.querySelectorAll('[data-rp-fix]').forEach(b => b.onclick = () => {
+    const r = racksOf(dc).find(x => x.iid === b.dataset.rpFix); if(!r) return;
+    r.stack = true; window.PatchHistory?.label?.(`${dc}: racks stacked`); M().ui.dirty = true; rerender();
+  });
   const cr = root.querySelector('#rpCustom'); if(cr) cr.onclick = () => customRack(dc, rerender);
   root.querySelectorAll('[data-rp-stack]').forEach(c => c.onchange = () => {
     const r = racksOf(dc).find(x => x.iid === c.dataset.rpStack); if(!r) return;
@@ -404,4 +408,4 @@ function customRack(dc, done){
   };
 }
 
-window.RackPlan = { customRack, addLooseNode, cardHtml, bind, rackFace, nodePortsStrip, applyToNetworkPlan, assignHtml, bindAssign, adviceHtml, bindAdvice };
+window.RackPlan = { fixStack: (dc, iid) => { const r = racksOf(dc).find(x => x.iid === iid); if(r){ r.stack = true; M().ui.dirty = true; } }, customRack, addLooseNode, cardHtml, bind, rackFace, nodePortsStrip, applyToNetworkPlan, assignHtml, bindAssign, adviceHtml, bindAdvice };

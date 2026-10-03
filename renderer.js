@@ -1080,6 +1080,7 @@ function renderRight(){
   else if(view === 'TABLE') renderTableView();
   else if(view === 'NETWORK') renderNetworkView();
   else if(view === 'NET') window.NetworkPage?.render?.();
+  else if(view === 'TASKS') window.Tasks?.render?.();
   else if(view === 'FLOW') window.Flow?.render?.();
   else renderRightHome();
   updateChrome();
@@ -1158,6 +1159,7 @@ function renderRightHome(){
     : '<div class="empty" style="padding:24px"><p>No CSV files imported. Rows were added by hand.</p></div>';
 
   root.innerHTML = `<div class="stack">${kpis}
+    ${window.Tasks?.miniHtml?.() || ''}
     ${card({ key:'home-dims', title:'DimCities', icon:'layers', meta:plural(dims.length,'DimCity','DimCities'), body:dimTable, flush:true, collapsible:false })}
     <div class="grid-2">
       ${card({ key:'home-issues', title:'Validation', icon:'alert', meta: MODEL.issues.length ? `${MODEL.issues.length} total` : '', actions: MODEL.issues.length ? `<button class="sm ghost" data-nav-view="ISSUES">View all ${I('arrowRight',13)}</button>` : '', body:issuesBody, flush:true, collapsible:false })}

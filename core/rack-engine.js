@@ -251,7 +251,12 @@ export function computeRackPlan(M, dc){
     if(unfed){
       const per = num(nodeTypes[0]?.portCount, 8);
       const farFree = R.nodes.some(n => n.ports.some(p => !p) && unfedLines.some(l => !zoneOk(n.zone, l.zone)));
-      if(farFree) recs.push({ level:'warn', text:`${unfedLines.filter(l => l.zone != null).length || unfed} line${unfed > 1 ? 's have' : ' has'} no free node port in the same rack. LK and Veam cables are short and cannot go from one rack to another — put a node in that rack, or place the racks on top of each other (tick "stacked" on the upper rack). Only network cables run between racks.` });
+      let fix = null;
+      if(farFree){   // two racks next to each other, one with the lines, one with a free node port → "stack" the lower one on the upper
+        const zs = new Set(unfedLines.map(l => l.zone).filter(z => z != null));
+        for(const n of R.nodes) if(!fix && n.rack >= 0 && n.ports.some(p => !p) && !zs.has(n.zone)) for(const r of R.racks) if(zs.has(r.zone) && Math.abs(r.index - n.rack) === 1){ const top = Math.max(r.index, n.rack); fix = { type:'stack', iid:R.racks[top].placement.iid, label:`${R.racks[top].placement.name || R.racks[top].rack?.name || 'Rack'} → ${R.racks[top - 1].placement.name || R.racks[top - 1].rack?.name || 'rack above'}` }; break; }
+      }
+      if(farFree) recs.push({ level:'warn', text:`${unfedLines.filter(l => l.zone != null).length || unfed} line${unfed > 1 ? 's have' : ' has'} no free node port in the same rack. LK and Veam cables are short and cannot go from one rack to another — put a node in that rack, or place the racks on top of each other (tick "stacked" on the upper rack). Only network cables run between racks.`, fix });
       else recs.push({ level:'warn', text:`${unfed} line${unfed > 1 ? 's have' : ' has'} no node port → add ${Math.ceil(unfed / per)}× ${nodeTypes[0] ? typeName(nodeTypes[0]) : 'node'}${R.splitters.length ? '' : ', or a splitter for universes that are used more than once'}.` });
     }
     const lonely = R.nodes.filter(n => n.loose && !R.loose.some(d => (d.kind === 'lkSpider' || d.kind === 'vimSpider') && (!d.nodeIid || d.nodeIid === n.iid)));

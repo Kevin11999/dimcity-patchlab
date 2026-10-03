@@ -131,7 +131,7 @@ label.check{display:inline-flex;align-items:center;gap:8px;cursor:pointer;color:
 .switch input:checked + span::before{transform:translateX(13px)}
 
 /* ---------- App shell ---------- */
-.app{display:grid;grid-template-rows:var(--titlebar-h) minmax(0,1fr) var(--statusbar-h);height:100vh}
+.app{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:var(--titlebar-h) minmax(0,1fr) var(--statusbar-h);height:100vh}
 .titlebar{
   display:flex;align-items:center;gap:14px;padding:0 14px 0 16px;
   background:var(--surface);border-bottom:1px solid var(--border);
@@ -1088,7 +1088,7 @@ body.nav-mini .nav-empty{display:none}
   .toolbar button:not(.primary):not(#tbSave):not(#tbStickers) [data-icon],.toolbar button:not(.primary):not(#tbSave):not(#tbStickers) svg{font-size:14px}
   .toolbar .tb-search kbd{display:none}
 }
-@media (max-width:1380px){ .project-chip .meta{display:none} .toolbar #tbStickers,.toolbar #tbSave{font-size:0;gap:0;padding-left:9px;padding-right:9px} .toolbar #tbStickers svg,.toolbar #tbSave svg{font-size:14px} }
+@media (max-width:1500px){ .project-chip .meta{display:none} .toolbar #tbStickers,.toolbar #tbSave{font-size:0;gap:0;padding-left:9px;padding-right:9px} .toolbar #tbStickers svg,.toolbar #tbSave svg{font-size:14px} }
 
 /* ===== Setup wizard ===== */
 .su-body{grid-template-columns:320px minmax(0,1fr)}
@@ -1176,3 +1176,43 @@ body.view-flow .view{width:100%}
 .gl-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .gl-chip{font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid var(--border-strong);background:var(--surface-2,var(--surface))}
 .gl-chip.k-panel{border-color:#f2b33d88}.gl-chip.k-node{border-color:#4c9dff88}.gl-chip.k-splitter{border-color:#e05dd888}.gl-chip.k-switch{border-color:#35c47c88}
+
+/* Tasks page */
+.tk-next{display:flex;align-items:center;gap:18px;padding:20px 22px;border-radius:14px;border:1px solid var(--accent);background:linear-gradient(135deg,rgba(255,138,0,.14),rgba(255,138,0,.03));flex-wrap:wrap}
+.tk-next.ok{border-color:#35c47c;background:linear-gradient(135deg,rgba(53,196,124,.16),rgba(53,196,124,.03))}
+.tk-next-ic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:var(--accent);color:#1a1205;flex:none}
+.tk-next.ok .tk-next-ic{background:#35c47c}
+.tk-next-tx{flex:1;min-width:240px;display:flex;flex-direction:column;gap:3px}
+.tk-next-tx small{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.tk-next-tx b{font-size:19px}.tk-next-tx span{color:var(--text-2);font-size:13px;max-width:70ch}.tk-next-tx em{font-style:normal;color:var(--accent);font-size:12.5px}
+.tk-next-act{display:flex;gap:8px}.tk-next-act button{height:38px;padding:0 18px}
+.tk-pipe{display:flex;align-items:flex-start;gap:0;overflow-x:auto;padding:8px 2px 4px}
+.tk-node{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;width:128px;text-align:center;flex:none;padding:4px 2px;border-radius:10px}
+.tk-node:hover{background:var(--hover)}
+.tk-dot{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-weight:700;border:2px solid var(--border-strong);color:var(--text-2);background:var(--bg-sunken)}
+.tk-node.done .tk-dot{background:#35c47c;border-color:#35c47c;color:#06210f}
+.tk-node.now .tk-dot{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 4px rgba(255,138,0,.22)}
+.tk-node.skip .tk-dot{border-style:dashed}
+.tk-node b{font-size:12.5px;line-height:1.2}.tk-node em{font-style:normal;font-size:11px;color:var(--text-3);line-height:1.25}
+.tk-line{flex:1;min-width:14px;height:2px;background:var(--border-strong);margin-top:23px}
+.tk-matrix{display:flex;flex-direction:column;gap:6px;overflow-x:auto}
+.tk-mrow{display:grid;grid-template-columns:130px repeat(6,minmax(84px,1fr));gap:6px;align-items:center}
+.tk-mhead span{display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--text-3)}.tk-mhead small{font-size:10.5px;text-align:center}
+.tk-db{display:flex;align-items:center;gap:8px}.tk-db i{width:10px;height:10px;border-radius:3px}
+.tk-cell{height:42px;border-radius:9px;border:1px solid var(--border);display:grid;place-items:center;cursor:pointer;background:var(--bg-sunken);color:var(--text-3)}
+.tk-cell.done{background:rgba(53,196,124,.18);border-color:#35c47c88;color:#35c47c}
+.tk-cell.todo{background:rgba(255,138,0,.10);border-color:#ff8a0066;color:var(--accent)}
+.tk-cell.warn{background:rgba(242,179,61,.18);border-color:#f2b33d99;color:#f2b33d}
+.tk-cell.na{opacity:.4;cursor:default}
+.tk-cell:not(.na):hover{filter:brightness(1.25)}
+.tk-key{display:flex;gap:16px;margin-top:10px;font-size:11.5px;color:var(--text-3)}.tk-key i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid var(--border-strong)}
+.tk-key i.done{background:#35c47c55}.tk-key i.todo{background:#ff8a0044}.tk-key i.warn{background:#f2b33d66}
+.tk-checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.tk-check{all:unset;cursor:pointer;display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg-sunken)}
+.tk-check.done{opacity:.7}.tk-check.done svg{color:#35c47c}.tk-check b{display:block;font-size:13px}.tk-check em{display:block;font-style:normal;font-size:11.5px;color:var(--text-3)}
+.tk-mini{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.tk-mdots{display:flex;align-items:center}
+.tk-mdot{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-style:normal;font-weight:700;border:2px solid var(--border-strong);color:var(--text-3)}
+.tk-mdot.done{background:#35c47c;border-color:#35c47c;color:#06210f}.tk-mdot.now{border-color:var(--accent);color:var(--accent)}
+.tk-mline{width:14px;height:2px;background:var(--border-strong)}
+.tk-mtx{flex:1;min-width:200px;font-size:13px}.tk-mtx small{color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;font-size:10.5px;margin-right:6px}.tk-mtx span{color:var(--text-3)}

@@ -2127,6 +2127,7 @@ function renderDimNetworkDevices(dc){
         <label>IP address<input class="dimNodeField ipv4" data-node-index="${idx}" data-field="ip" value="${esc(n.ip || '')}" inputmode="numeric" placeholder="192.168.1.10"></label>
         <label>Subnet<input class="dimNodeField ipv4" data-node-index="${idx}" data-field="subnet" value="${esc(n.subnet || nt.subnet || '255.255.255.0')}" inputmode="numeric"></label>
       </div>
+      ${window.NodeLink?.selectHtml(dc, idx, n) || ''}
       ${window.FentUI?.deviceBlock(dc, 'node', idx, n) || ''}
       ${renderNodeInstanceFace(nt, n, idx, dc)}
     </div>`;
@@ -2184,6 +2185,7 @@ function bindDimNetworkDevices(root, dc, rerender){
     rerender();
   });
   on('#dimAddSplitter', ()=>{ addSplitterToDimCity(dc, splitterSelect?.value || ''); if(!MODEL.ui.cardCollapsed) MODEL.ui.cardCollapsed = {}; MODEL.ui.cardCollapsed[`${dc}:splitters`] = false; rerender(); });
+  window.NodeLink?.bind(root, rerender);
   root.querySelectorAll('.dimRemoveNode').forEach(btn=> btn.onclick = ()=>{ getDimPlan(dc).nodes.splice(Number(btn.dataset.nodeIndex),1); MODEL.ui.dirty = true; rerender(); });
   root.querySelectorAll('.dimRemoveSplitter').forEach(btn=> btn.onclick = ()=>{ getDimPlan(dc).splitters.splice(Number(btn.dataset.splitterIndex),1); MODEL.ui.dirty = true; rerender(); });
   root.querySelectorAll('.dimNodeField').forEach(inp=>{

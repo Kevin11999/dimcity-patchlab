@@ -29,6 +29,9 @@ Dezelfde handleiding zit in de app: druk op **?** of **F1**, of klik op **Help**
 - [Nodes, splitters & network](#network)
 - [Network page](#network-page)
 - [Setup wizard](#setup)
+- [Fibres](#fibres)
+- [Node names from the CSV](#node-names)
+- [20t, panels and half-width devices](#devices-ports)
 - [Signal flow](#flow)
 - [Report Builder (PDF)](#report)
 - [Stickers (Herma sheets)](#stickers)
@@ -323,10 +326,47 @@ The **Setup** button in the toolbar (also offered after an import, and under the
 2. **Network per DB** — VLAN numbering, FENT on or off, and a network switch for every DB.
 3. **Racks** — place racks or loose devices and apply the rack as network plan.
 4. **Couple the LKs** to the racks.
-5. **Couple the fibres** between the DBs, once (or mark "no fibres").
-6. **Check and output** — open the issues, the Signal Flow, the PDF or the stickers.
+5. **Link nodes to the CSV** — DMX lines named like "Node 401.1" (see [Node names](#node-names)).
+6. **Couple the fibres** between the DBs: auto-assign from your stock, or draw them (see [Fibres](#fibres)).
+7. **Check and output** — open the issues, the Signal Flow, the PDF or the stickers.
+
+Need more locations? Use **+ DB** or **+ FOH** (front of house, where the lighting desk stands) next to the DimCity chips in the Network and Racks steps. If you open the Rack Builder or the Device Builder from the wizard, Setup comes back on the same step when you close it.
 
 Each step shows a green check when it is done. **Skip** marks a step as skipped; **Start over** clears the skipped marks; **Stop** closes the wizard whenever you like. See [the videos](#videos) for a walk-through.
+
+<a id="fibres"></a>
+## Fibres
+
+Fibres connect the fibre ports of the switches, inside a location and between locations (DBs, FOH).
+
+### Cable types and stock
+- Make the cable types in the Device Builder (tab Cables): opticalCON, FiberFox, 4-core, singlemode, SFP patch. The length may have half metres, for example **7,5**.
+- On the Network page, tab **Fibres**, fill in how many of each cable you own (6× OC7,5, 6× OC250, 2× FF250 …). The table shows how many are used and how many are left. The short code on drawings and labels is the connector plus the length: OC250, FF250, OC7,5.
+
+### Auto-assign
+**Auto-assign fibres** chains the switches of one location with the short cable and links the locations with the long cable, as a ring or a chain. Free ports with the right connector go first (opticalCON cable on an opticalCON port). It stops when the stock is empty and tells you what is missing.
+
+### Fibre overview
+In the **Signal Flow**, choose **Fibres** under Show. Every location is a card on a circle with its switches and fibre ports (17, 18 … with their connector). Pick a cable at the bottom, click a free port and then the port at the other end to draw a fibre. Click a cable to select or delete it.
+
+### Switch ports with fibre connectors
+A switch type can name the connector of each fibre port. The Luminex GigaCore 20t has 4 etherCON ports on the front, ports 5–16 on a panel, ports 17–18 opticalCON DUO and ports 19–20 FiberFox DUO. The fibre ports are then called by those numbers on drawings, in the lists and on the stickers.
+
+<a id="node-names"></a>
+## Node names from the CSV
+
+A DMX line (a row without ID, with universe, destination and DimCity) can name the node and port it goes to: **Node 401.1**. The number works like V401: 401 is DB04, node 01; .1 is port 1.
+
+- In **Setup → Link nodes to the CSV** every name found is listed with the node of the plan it belongs to. **Link automatically** picks node 01 of DB04 for 401.
+- You can also choose the name on the node itself (Nodes & Splitters page, field *Name from the CSV*).
+- The universes of the lines are then put on the right ports of that node, and they stay there when you use the rack as network plan again.
+
+<a id="devices-ports"></a>
+## 20t, panels and half-width devices
+
+- **Switch types** can say how many ports sit on the front (*Ports on the front*), whether the copper ports are RJ45 or etherCON and which connector each fibre port has (*Fibre connector per port*). Ports on a panel are drawn on the panel of the rack. The standard library has the GigaCore 20t, a *GigaCore 20t panel* (ports 5–16, opticalCON 17–18, FiberFox 19–20) and a ready-made 3U set.
+- **Panel types** can have etherCON, opticalCON DUO and FiberFox DUO sockets with their first port number.
+- **Half-width devices**: set *Width in the rack* of a node to Half (the LumiNode 4 is). In the Rack Builder two half-width devices share one U, left and right (drag to the left or right half, or use the ⇄ button). *Blind plate ½* and *Fill gaps next to half-width devices* fill the rest with black plates. Racks in the Signal Flow, on the DimCity page and in the PDF show them the same way.
 
 <a id="flow"></a>
 ## Signal flow
@@ -470,6 +510,17 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.4.0 — 2026-10-04
+- Fibre overview in the Signal Flow (Show > Fibres): every location on a circle with its switches and fibre ports; draw fibres from port to port with a cable picked from your stock.
+- Fibre stock (how many of each cable you own) and **Auto-assign**: switches in one location are chained with the short cable, the locations are linked with the long one (ring or chain), using free ports with the right connector. Cable codes like OC250, FF250 and OC7,5 are used on drawings and labels.
+- Luminex GigaCore 20t: 4 etherCON on the front, ports 5-16 on a panel, 17-18 opticalCON DUO and 19-20 FiberFox DUO; switch types now describe their front ports and the connector of every fibre port, and panel types can have etherCON / opticalCON / FiberFox sockets. Standard library: GigaCore 20t panel and a 3U set.
+- Half-width devices (LumiNode 4) side by side in one U, with blind plates to fill the rest, in the Rack Builder, the Signal Flow, the DimCity page and the PDF.
+- FOH (front of house) and extra DBs can be added in Setup.
+- Setup returns to the same step after you close the Rack Builder or Device Builder, and the dropdowns keep your choice.
+- DMX lines with a destination like "Node 401.1" are linked to the ports of the node (new Setup step and a dropdown on the node).
+- Cable lengths may have half metres (7,5 m).
+- The demo show has a FOH, three switches with fibre ports in DB01, a ring of fibres and node names from the CSV.
+
 ### Version 0.3.3 — 2026-10-04
 - New **Network** page (own item in the sidebar): switches and ports, VLAN and addresses, fibres and an overview, per DimCity. The DimCity page only keeps a short summary with a link.
 - New **Setup** wizard (toolbar button, also offered after an import): six steps in order — import, network per DB, racks, couple the LKs, fibres, check and output. Each step shows whether it is done, can be skipped, and the whole wizard can be stopped or started over at any time.
@@ -544,6 +595,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 - [Nodes, splitters & netwerk](#network-nl)
 - [Pagina Netwerk](#network-page-nl)
 - [Setup-wizard](#setup-nl)
+- [Fibers](#fibres-nl)
+- [Nodenamen uit de CSV](#node-names-nl)
+- [20t, panelen en halve devices](#devices-ports-nl)
 - [Signaalstroom](#flow-nl)
 - [Rapportbouwer (PDF)](#report-nl)
 - [Stickers (Herma-vellen)](#stickers-nl)
@@ -838,10 +892,47 @@ De knop **Setup** in de werkbalk (ook aangeboden na een import, en in het menu B
 2. **Netwerk per DB** — VLAN-nummering, FENT aan of uit, en een netwerkswitch voor elke DB.
 3. **Racks** — plaats racks of losse apparaten en pas het rack toe als netwerkplan.
 4. **LK’s koppelen** aan de racks.
-5. **Fibers koppelen** tussen de DB’s, één keer (of markeer "geen fibers").
-6. **Controle en uitvoer** — open de problemen, de Signaalstroom, de PDF of de stickers.
+5. **Nodes aan de CSV koppelen** — DMX-regels met een naam als "Node 401.1" (zie [Nodenamen](#node-names-nl)).
+6. **Fibers koppelen** tussen de DB’s: automatisch uit je voorraad, of tekenen (zie [Fibers](#fibres-nl)).
+7. **Controle en uitvoer** — open de problemen, de Signaalstroom, de PDF of de stickers.
+
+Meer locaties nodig? Gebruik **+ DB** of **+ FOH** (front of house, waar de lichttafel staat) naast de DimCity-chips in de stappen Netwerk en Racks. Open je de Rack Builder of Device Builder vanuit de wizard, dan komt Setup bij sluiten terug op dezelfde stap.
 
 Elke stap krijgt een groen vinkje als hij klaar is. **Overslaan** markeert een stap als overgeslagen; **Opnieuw beginnen** wist de overgeslagen-markeringen; **Stop** sluit de wizard wanneer je wilt. Zie [de video’s](#videos-nl) voor een rondleiding.
+
+<a id="fibres-nl"></a>
+## Fibers
+
+Fibers verbinden de fiberpoorten van de switches, binnen een locatie en tussen locaties (DB’s, FOH).
+
+### Kabeltypes en voorraad
+- Maak de kabeltypes in de Device Builder (tab Kabels): opticalCON, FiberFox, 4-core, singlemode, SFP-patch. De lengte mag halve meters hebben, bijvoorbeeld **7,5**.
+- Vul op de pagina Netwerk, tab **Fibers**, in hoeveel je van elke kabel hebt (6× OC7,5, 6× OC250, 2× FF250 …). De tabel toont hoeveel er gebruikt en over zijn. De korte code op tekeningen en labels is de connector plus de lengte: OC250, FF250, OC7,5.
+
+### Automatisch koppelen
+**Fibers automatisch koppelen** zet de switches van één locatie achter elkaar met de korte kabel en verbindt de locaties met de lange kabel, als ring of ketting. Vrije poorten met de juiste connector gaan eerst (opticalCON-kabel op een opticalCON-poort). Het stopt als de voorraad op is en meldt wat er ontbreekt.
+
+### Fiber-overzicht
+Kies in de **Signaalstroom** onder Tonen voor **Fibers**. Elke locatie is een kaart op een cirkel met zijn switches en fiberpoorten (17, 18 … met hun connector). Kies onderaan een kabel, klik op een vrije poort en daarna op de poort aan de andere kant om een fiber te tekenen. Klik op een kabel om hem te selecteren of te verwijderen.
+
+### Switchpoorten met fiberconnectors
+Een switchtype kan de connector van elke fiberpoort benoemen. De Luminex GigaCore 20t heeft 4 etherCON-poorten op de voorkant, poort 5–16 op een paneel, poort 17–18 opticalCON DUO en poort 19–20 FiberFox DUO. De fiberpoorten heten dan zo op tekeningen, in lijsten en op de stickers.
+
+<a id="node-names-nl"></a>
+## Nodenamen uit de CSV
+
+Een DMX-regel (een regel zonder ID, met universe, bestemming en DimCity) kan de node en poort noemen waar hij heen gaat: **Node 401.1**. Het nummer werkt als V401: 401 is DB04, node 01; .1 is poort 1.
+
+- In **Setup → Nodes aan de CSV koppelen** staat elke gevonden naam met de node van het plan waar hij bij hoort. **Automatisch koppelen** kiest voor 401 node 01 van DB04.
+- Je kunt de naam ook op de node zelf kiezen (pagina Nodes & splitters, veld *Naam uit de CSV*).
+- De universes van de regels komen dan op de juiste poorten van die node, en blijven daar staan als je het rek opnieuw als netwerkplan gebruikt.
+
+<a id="devices-ports-nl"></a>
+## 20t, panelen en halve devices
+
+- **Switchtypes** kunnen aangeven hoeveel poorten op de voorkant zitten (*Ports on the front*), of de koperpoorten RJ45 of etherCON zijn en welke connector elke fiberpoort heeft (*Fibre connector per port*). Poorten op een paneel worden getekend op het paneel van het rek. De standaardbibliotheek heeft de GigaCore 20t, een *GigaCore 20t panel* (poort 5–16, opticalCON 17–18, FiberFox 19–20) en een kant-en-klare 3U-set.
+- **Paneeltypes** kunnen etherCON-, opticalCON DUO- en FiberFox DUO-aansluitingen hebben met hun eerste poortnummer.
+- **Halve devices**: zet *Width in the rack* van een node op Half (de LumiNode 4 is dat). In de Rack Builder delen twee halve devices één U, links en rechts (sleep naar de linker- of rechterhelft, of gebruik de knop ⇄). *Blind plate ½* en *Fill gaps next to half-width devices* vullen de rest met zwarte blindplaten. Racks in de Signaalstroom, op de DimCity-pagina en in de PDF tonen ze hetzelfde.
 
 <a id="flow-nl"></a>
 ## Signaalstroom
@@ -984,6 +1075,17 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.4.0 — 2026-10-04
+- Fiber-overzicht in de Signaalstroom (Tonen > Fibers): elke locatie op een cirkel met zijn switches en fiberpoorten; teken fibers van poort naar poort met een kabel uit je voorraad.
+- Fibervoorraad (hoeveel je van elke kabel hebt) en **Automatisch koppelen**: switches in één locatie worden achter elkaar gezet met de korte kabel, de locaties worden verbonden met de lange (ring of ketting), met vrije poorten met de juiste connector. Kabelcodes als OC250, FF250 en OC7,5 staan op tekeningen en labels.
+- Luminex GigaCore 20t: 4 etherCON op de voorkant, poort 5-16 op een paneel, 17-18 opticalCON DUO en 19-20 FiberFox DUO; switchtypes beschrijven nu hun voorpoorten en de connector van elke fiberpoort, en paneeltypes kunnen etherCON / opticalCON / FiberFox-aansluitingen hebben. Standaardbibliotheek: GigaCore 20t-paneel en een 3U-set.
+- Halve devices (LumiNode 4) naast elkaar in één U, met blindplaten voor de rest, in de Rack Builder, de Signaalstroom, de DimCity-pagina en de PDF.
+- FOH (front of house) en extra DB's toevoegen kan in Setup.
+- Setup komt terug op dezelfde stap als je de Rack Builder of Device Builder sluit, en de keuzelijsten houden je keuze.
+- DMX-regels met een bestemming als "Node 401.1" worden gekoppeld aan de poorten van de node (nieuwe Setup-stap en een keuzelijst op de node).
+- Kabellengtes mogen halve meters hebben (7,5 m).
+- De demo-show heeft een FOH, drie switches met fiberpoorten in DB01, een ring van fibers en nodenamen uit de CSV.
 
 ### Versie 0.3.3 — 2026-10-04
 - Nieuwe pagina **Netwerk** (eigen item in de zijbalk): switches en poorten, VLAN en adressen, fibers en een overzicht, per DimCity. De DimCity-pagina houdt alleen een korte samenvatting met een link.

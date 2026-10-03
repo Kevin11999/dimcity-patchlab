@@ -28,6 +28,8 @@ const ROWS = [
   ['C102', 1, 2, 'Truss 1 node'],
   // Loose DMX in DB01
   ['', '', 15, 'Hazer SL', 'DB01'], ['', '', 15, 'Hazer SR', 'DB01'],
+  // DMX lines that name the node and port they go to (DB02, node 01)
+  ['', '', 40, 'Node 201.1', 'DB02'], ['', '', 41, 'Node 201.2', 'DB02'],
   // DB02 — B-stage
   ['LK201', 1, 21, 'B truss SL'], ['LK201', 2, 21, 'B truss C'], ['LK201', 3, 21, 'B truss SR'], ['LK201', 4, 22, 'B floor'],
   ['V201', 1, 23, 'B upstage L'], ['V201', 2, 23, 'B upstage R'], ['V201', 3, 24, 'B LED strip'],
@@ -116,6 +118,7 @@ async function open({ silent=false } = {}){
   }
   M2.networkDevices.prefs.fent = { on:true, group:'production', scan:false, vlanMode:'luminex' };
   for(const dc of ['DB01', 'DB02', 'DB03', 'FOH']) window.FentUI?.applyDim?.(dc);
+  window.NodeLink?.autoLink?.();   // “Node 201.1” / “Node 201.2” go on ports 1 and 2 of node 01 of DB02
   // fibres: the three switches of DB01 are chained with the short cable, the locations form a ring with the long one
   window.Fibers?.autoAssign?.({ topology:'ring', intraType:'CABLE:DEMO-OC75', interType:'CABLE:DEMO-OC250' });
   App.fullRebuildAndRender();

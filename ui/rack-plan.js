@@ -250,6 +250,7 @@ function applyToNetworkPlan(dc, { quiet=false } = {}){
     return inst;
   });
   if(used[0]) plan.lastSplitterTypeId = used[0].type.id;
+  window.NodeLink?.reapply(dc, before);
   App.net.refreshDimDeviceIdentity(dc);
   if(M().networkDevices?.prefs?.fent?.on && plan.nodes.some(n => !(n.ifaces && n.ifaces.length))) window.FentUI?.applyDim?.(dc);
   M().ui.dirty = true;

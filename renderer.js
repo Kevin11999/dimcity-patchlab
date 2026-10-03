@@ -1060,6 +1060,7 @@ function renderRight(){
   else if(view === 'ISSUES') renderIssuesView();
   else if(view === 'TABLE') renderTableView();
   else if(view === 'NETWORK') renderNetworkView();
+  else if(view === 'NET') window.NetworkPage?.render?.();
   else if(view === 'FLOW') window.Flow?.render?.();
   else renderRightHome();
   updateChrome();
@@ -1227,8 +1228,8 @@ function renderNetworkView(){
   MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
   const nd = MODEL.networkDevices;
   pageHead({
-    eyebrow:'Project', title:'Network Planner',
-    sub:'Plan DMX nodes and splitters per DimCity. Device types are kept in reusable libraries.',
+    eyebrow:'Project', title:'Nodes & Splitters',
+    sub:'Plan DMX nodes and splitters per DimCity. Device types are kept in reusable libraries. Switches, VLANs and fibres are on the Network page.',
     actions:`<button data-cmd="deviceBuilder">${I('network',15)}Device Builder <span class="badge">${nd.nodeTypes.length + nd.splitterTypes.length + nd.switchTypes.length + nd.panelTypes.length}</span></button><button data-cmd="deviceBuilder" data-arg="rack">${I('grid',15)}Racks <span class="badge">${nd.rackTypes.length}</span></button>`
   });
   const dims = sortedDims();
@@ -1261,9 +1262,7 @@ function renderNetworkView(){
     </div>`;
   }).join('') || '<div class="device-list-empty">No DimCities yet.</div>';
 
-  $('#lkDetail').innerHTML = `<div class="stack">${prefs}${window.FentUI?.plannerCard() || ''}${window.Fibers?.card() || ''}${card({ key:'net-dims', title:'DimCities', icon:'layers', collapsible:false, body:rows })}</div>`;
-  window.FentUI?.bindPlanner($('#lkDetail'), renderNetworkView);
-  window.Fibers?.bind($('#lkDetail'), renderNetworkView);
+  $('#lkDetail').innerHTML = `<div class="stack">${prefs}${card({ key:'net-dims', title:'DimCities', icon:'layers', collapsible:false, body:rows })}</div>`;
 
   const root = $('#lkDetail');
   root.querySelector('#netPrefNodeSpare').oninput = e=>{ nd.prefs.nodeSparePorts = Math.max(0, Number(e.target.value||0)); MODEL.ui.dirty = true; };
@@ -2165,7 +2164,7 @@ function renderDimNetworkDevices(dc){
 
   return card({ key:`${dc}:nodes`, title:'Network nodes', icon:'network', meta:`${plural(plan.nodes.length,'node')} · ${plural(universes.length,'universe')}`, body:nodesBody, collapsed: !plan.nodes.length })
        + card({ key:`${dc}:splitters`, title:'Splitters', icon:'cable', meta:`${plural(plan.splitters.length,'splitter')} · ${Number(nd.prefs.splitterSparePorts || 0)} spare outputs`, body:splitBody, collapsed: !plan.splitters.length })
-       + (window.NetSwitches?.card(dc) || '');
+       + (window.NetworkPage?.summaryCard(dc) || '');
 }
 function bindDimNetworkDevices(root, dc, rerender){
   const nodeSelect = root.querySelector('#dimNodeType');
@@ -2283,6 +2282,8 @@ async function runCommand(cmd, arg){
     case 'libraryExport':   return window.Library?.exportFile?.();
     case 'libraryImport':   return window.Library?.importFile?.();
     case 'networkPlanner':  return navigate('NETWORK');
+    case 'network':         navigate('NET'); if(arg) window.NetworkPage?.render?.({ dc:arg }); return;
+    case 'setup':           return window.Setup?.open?.();
     case 'signalFlow':      return navigate('FLOW');
     case 'projectInfo':   return UI?.editProjectInfo?.();
     case 'rebuild':

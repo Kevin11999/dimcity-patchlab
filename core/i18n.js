@@ -7,7 +7,7 @@
 
 const NL = {
   // navigatie + titelbalk
-  'Project':'Project', 'Overview':'Overzicht', 'Validation':'Validatie', 'Patch List':'Patchlijst', 'Network Planner':'Netwerkplanner', 'Signal Flow':'Signaalstroom',
+  'Project':'Project', 'Overview':'Overzicht', 'Validation':'Validatie', 'Patch List':'Patchlijst', 'Network Planner':'Netwerkplanner', 'Nodes & Splitters':'Nodes & splitters', 'Network':'Netwerk', 'Nodes & Splitters':'Nodes & splitters', 'Signal Flow':'Signaalstroom',
   'DimCities':'DimCities', 'Search':'Zoeken', 'Import CSV':'CSV importeren', 'Edit Rows':'Regels bewerken', 'Recalculate':'Herberekenen',
   'Save':'Opslaan', 'Export PDF':'PDF exporteren', 'No project':'Geen project', 'Untitled project':'Naamloos project',
   'Not saved yet':'Nog niet opgeslagen', 'Saved':'Opgeslagen', '● Unsaved changes':'● Niet-opgeslagen wijzigingen', 'Unsaved changes':'Niet-opgeslagen wijzigingen',

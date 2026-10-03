@@ -83,7 +83,7 @@ const MENU_NL = {
   'History…':'Geschiedenis…', 'Find…':'Zoeken…', 'Cut':'Knippen', 'Copy':'Kopiëren', 'Paste':'Plakken', 'Select All':'Alles selecteren',
   'Edit Patch Rows…':'Patchregels bewerken…', 'Add LK…':'LK toevoegen…', 'Add Veam…':'Veam toevoegen…', 'View':'Weergave',
   'Project Overview':'Projectoverzicht', 'Validation':'Validatie', 'Patch List':'Patchlijst', 'Recalculate':'Herberekenen',
-  'Network':'Netwerk', 'Network Planner…':'Netwerkplanner…', 'Signal Flow…':'Signaalstroom…', 'Device Builder…':'Device Builder…', 'Rack Builder…':'Rack Builder…',
+  'Network':'Netwerk', 'Network…':'Netwerk…', 'Nodes & Splitters…':'Nodes & splitters…', 'Setup…':'Setup…', 'Signal Flow…':'Signaalstroom…', 'Device Builder…':'Device Builder…', 'Rack Builder…':'Rack Builder…',
   'Export Library…':'Bibliotheek exporteren…', 'Import Library…':'Bibliotheek importeren…', 'Show Library File':'Bibliotheekbestand tonen',
   'Help':'Help', 'Take the Tour':'Rondleiding', 'Keyboard Shortcuts':'Sneltoetsen', 'User Manual':'Handleiding', 'Take the Tour…':'Rondleiding…', 'Open Demo Show':'Demo-show openen', 'Festival Wrapped…':'Festival wrapped…', 'Send a Request…':'Een verzoek sturen…', "What's New":'Wat is er nieuw'
 };
@@ -170,7 +170,9 @@ function buildMenu(recent = lastRecent){
     {
       label: T('Network'),
       submenu: [
-        { label: T('Network Planner…'), click: () => send('networkPlanner') },
+        { label: T('Network…'), accelerator: 'CmdOrCtrl+5', click: () => send('network') },
+        { label: T('Nodes & Splitters…'), click: () => send('networkPlanner') },
+        { label: T('Setup…'), click: () => send('setup') },
         { label: T('Signal Flow…'), accelerator: 'CmdOrCtrl+4', click: () => send('signalFlow') },
         { type: 'separator' },
         { label: T('Device Builder…'), accelerator: 'CmdOrCtrl+Shift+D', click: () => send('deviceBuilder') },

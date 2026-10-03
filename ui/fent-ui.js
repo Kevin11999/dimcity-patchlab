@@ -40,7 +40,7 @@
         <input data-f="mask" value="${esc(x.mask || '')}" placeholder="${F().MASK}" inputmode="numeric" style="max-width:120px">
         ${eth > 1 ? `<select data-f="eth" title="${esc(t('Which RJ45 carries this address', 'Welke RJ45 dit adres draagt'))}"><option value="1" ${Number(x.eth) !== 2 ? 'selected' : ''}>ETH1</option><option value="2" ${Number(x.eth) === 2 ? 'selected' : ''}>ETH2</option></select>` : ''}
         <button class="sm ghost" data-rm title="${esc(t('Remove this address', 'Verwijder dit adres'))}">${I('x', 13)}</button></div>`).join('');
-    const warns = on ? F().checkAll(F().ifaces(dev, eth).map(x => ({ owner:dev.id || dev.name || kind, ip:x.ip, mask:x.mask, vlan:x.vlan, kind:'device' })), cfg().group).filter(w => w.code !== 'DUPLICATE') : [];
+    const warns = on ? F().checkAll(F().ifaces(dev, eth).map(x => ({ owner:dev.id || dev.name || kind, ip:x.ip, mask:x.mask, vlan:x.vlan, kind:kind === 'switch' ? 'equipment' : 'device' })), cfg().group).filter(w => w.code !== 'DUPLICATE') : [];
     return `<div class="fent-ifaces" data-fent="${esc(dc)}|${kind}|${idx}">
       <div class="fent-head"><span class="rb-label" style="margin:0">${t('Addresses', 'Adressen')}</span> ${first?.vlan ? vlanChip(first.vlan) : ''}
         <button class="sm" data-add>${I('plus', 13)}${t('Add address', 'Adres toevoegen')}</button></div>
@@ -125,7 +125,7 @@
   }
 
   // ---- the card on the Network Planner page ----
-  function plannerCard(){
+  function plannerCard(opts = {}){
     if(!F()) return '';
     const c = cfg(), dims = App.sortedDims();
     const sw = (k, on, label, hint) => `<label class="rb-row"><span>${label}${hint ? `<span class="hint" style="display:block;margin:2px 0 0">${hint}</span>` : ''}</span><span class="switch"><input type="checkbox" data-fent-sw="${k}" ${on ? 'checked' : ''}><span></span></span></label>`;
@@ -136,6 +136,7 @@
     if(c.on){
       const list = [];
       for(const dc of dims) for(const { kind, dev } of devices(dc)) for(const x of F().ifaces(dev, ethOf(kind, dev))) list.push({ owner:`${dc} · ${dev.id || dev.name || kind}`, ip:x.ip, mask:x.mask, vlan:x.vlan, kind:'device' });
+      for(const dc of dims) for(const sw of (window.NetSwitches?.list(dc) || [])) if(sw.source === 'plan') for(const x of F().ifaces(sw.dev, 1)) list.push({ owner:`${dc} · ${sw.label}`, ip:x.ip, mask:x.mask, vlan:x.vlan, kind:'equipment' });
       const issues = F().checkAll(list, c.group);
       body += `<div class="rb-group"><div class="rb-label">${t('Group and scheme', 'Groep en schema')}</div>
         <div class="segmented rb-full" data-fent-group><button data-v="production" class="${c.group === 'production' ? 'active' : ''}">${t('Production (101-199)', 'Productie (101-199)')}</button><button data-v="location" class="${c.group === 'location' ? 'active' : ''}">${t('Location (1-99)', 'Locatie (1-99)')}</button></div>
@@ -144,7 +145,7 @@
         <div class="hint" style="margin-top:8px">${t('Third byte = DimCity number (DB02 → 102 in production), last byte = device from 11. Network equipment (switches) uses 1-10. Set the VLAN IDs in your GigaCore groups to these numbers — Luminex defaults to group × 100.', 'Derde byte = DimCity-nummer (DB02 → 102 bij productie), laatste byte = apparaat vanaf 11. Netwerkapparatuur (switches) gebruikt 1-10. Zet de VLAN-ID\'s in je GigaCore-groepen op deze nummers — Luminex gebruikt standaard groep × 100.')}</div></div>
         <div class="rb-group"><div class="rb-label">${t('Check', 'Controle')}</div>${issues.length ? `<div class="fent-issues">${issues.map(w => `<div class="fent-i ${w.level}">${I(w.level === 'err' ? 'alert' : w.level === 'warn' ? 'alert' : 'info', 13)}<b>${esc(w.owner)}</b> ${esc(w.ip)} — ${esc(t(w.en, w.nl))}</div>`).join('')}</div>` : `<div class="status-ok">${I('checkCircle', 13)} ${t('All addresses fit the scheme.', 'Alle adressen passen in het schema.')}</div>`}</div>
         <div class="rb-group"><div class="rb-label">VLAN</div><table class="data-table fent-vlans"><thead><tr><th>ID</th><th>${t('Name', 'Naam')}</th><th>${t('Network', 'Netwerk')}</th><th>${t('Colour', 'Kleur')}</th></tr></thead><tbody>${F().vlanList(c.vlanMode).filter(v => !v.extension).map(v => `<tr><td>${v.id}</td><td><b>${esc(v.name)}</b> <span class="subtle">${esc(v.discipline)}</span></td><td class="mono">${v.net ? `${v.net} · ${F().MASK}` : (v.second ? `10.${v.second}.x.x · ${F().MASK}` : '—')}</td><td>${v.color ? `<span class="fent-sw" style="background:${v.color}"></span>${esc(v.colorName || '')} ${v.color}` : '—'}</td></tr>`).join('')}</tbody></table></div>
-        <div class="rb-group"><div class="rb-label">${t('Switch ports', 'Switchpoorten')}</div>${dims.map(dc => `<details class="rp-table" ${devices(dc).length ? 'open' : ''}><summary>${esc(dc)} <span class="subtle">${portPlan(dc).rows.length} ${t('ports', 'poorten')}</span></summary>${portTable(dc)}</details>`).join('')}</div>`;
+`;
     }
     return App.ui.card({ key:'net-fent', title:'FENT', icon:'network', meta:c.on ? (c.group === 'production' ? t('production', 'productie') : t('location', 'locatie')) : '', collapsible:false, body });
   }
@@ -155,5 +156,5 @@
     const ap = root.querySelector('[data-fent-apply]'); if(ap) ap.onclick = async () => { await applyAll(App.sortedDims()); rerender(); };
   }
 
-  window.FentUI = { deviceBlock, bindDevice, plannerCard, bindPlanner, portPlan, devices, applyAll };
+  window.FentUI = { deviceBlock, bindDevice, plannerCard, bindPlanner, portPlan, portTable, devices, applyAll, applyDim };
 })();

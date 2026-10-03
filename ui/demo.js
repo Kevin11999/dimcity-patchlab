@@ -23,6 +23,7 @@ const ROWS = [
   ['V105', 1, 13, 'Pyro truss'], ['V105', 2, 13, 'Pyro floor'],
   ['V106', 1, 14, 'Follow spot tower L'], ['V106', 2, 14, 'Follow spot tower R'],
   // Network cables (Cat): C101 = 4 lines, VLAN group in the third column (2 = VLAN 200, 3 = VLAN 300)
+  ['C201', 1, 2, 'B-stage desk'], ['C201', 2, 2, 'B-stage media server'], ['C301', 1, 2, 'FOH console'],
   ['C101', 1, 2, 'FOH desk'], ['C101', 2, 2, 'Media server'], ['C101', 3, 3, 'Lighting console B'], ['C101', 4, 1, 'Stage manager laptop'],
   ['C102', 1, 2, 'Truss 1 node'],
   // Loose DMX in DB01
@@ -87,7 +88,7 @@ async function open({ silent=false } = {}){
     { id:'CABLE:DEMO-FF', brand:'', name:'FiberFox 4-core singlemode', medium:'smf', cores:4, connA:'FiberFox', connB:'FiberFox', lengthM:50, articleKey:'', color:'#e05dd8' },
     { id:'CABLE:DEMO-SFP', brand:'', name:'SFP patch LC duplex', medium:'smf', cores:2, connA:'SFP (LC)', connB:'SFP (LC)', lengthM:3, articleKey:'', color:'#f2b33d' }
   ];
-  nd2.fiberLinks = [{ id:'F1', typeId:'CABLE:DEMO-OC4', a:{ dc:'DB01', sw:'R-SW1', sfp:1 }, b:{ dc:'DB02', sw:'R-SW1', sfp:1 }, note:'Stage to B-stage' }];
+  nd2.fiberLinks = [{ id:'F1', typeId:'CABLE:DEMO-OC4', a:{ dc:'DB01', sw:'DB01-SW1', sfp:1 }, b:{ dc:'DB02', sw:'DB02-SW1', sfp:1 }, note:'Stage to B-stage' }, { id:'F2', typeId:'CABLE:DEMO-FF', a:{ dc:'DB02', sw:'DB02-SW1', sfp:2 }, b:{ dc:'DB03', sw:'DB03-SW1', sfp:1 }, note:'B-stage to FOH' }];
   // 4. network plan from the rack patch
   App.hydrateDimOrigins(); App.recomputeVeamUseAndIssues(); App.recomputeUniverseStats();
   for(const dc of ['DB01', 'DB02', 'DB03']) window.RackPlan?.applyToNetworkPlan?.(dc, { quiet:true });
@@ -102,6 +103,10 @@ async function open({ silent=false } = {}){
   M2.ui.dirty = false;
   M2.ui.cardCollapsed = {};
   App.setMODEL(M2);
+  // a network switch in every DimCity (nodes first, then the Cat cables), addressed with the FENT scheme
+  for(const dc of ['DB01', 'DB02', 'DB03']){ const p = plan(dc); p.switches = [{ id:`${dc}-SW1`, name:`${dc} Luminex GigaCore 18t`, typeId:'SWITCH:LMX-GC18T', ip:'', subnet:'', ifaces:[] }]; }
+  M2.networkDevices.prefs.fent = { on:true, group:'production', scan:false, vlanMode:'luminex' };
+  for(const dc of ['DB01', 'DB02', 'DB03']) window.FentUI?.applyDim?.(dc);
   App.fullRebuildAndRender();
   window.PatchHistory?.reset?.();
   App.openEntity('DIM', 'DB01');

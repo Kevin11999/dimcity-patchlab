@@ -20,7 +20,7 @@
     (plan(dc).switches || []).forEach((sw, idx) => { const ty = types().find(x => x.id === sw.typeId) || {}; out.push({ source:'plan', idx, dev:sw, label:sw.id || `SW${idx + 1}`, type:ty, rj:Number(ty.portCount) || 0, sfp:Number(ty.sfpCount) || 0, where:'' }); });
     try {
       const P = window.RackEngine.computeRackPlan(M(), dc); let n = 0;
-      P.racks.forEach((R, ri) => { for(const it of (R.rack?.items || [])) if(it.kind === 'switch'){ const ty = types().find(x => x.id === it.typeId); if(!ty) continue; n++; out.push({ source:'rack', label:`R-SW${n}`, type:ty, rj:Number(ty.portCount) || 0, sfp:Number(ty.sfpCount) || 0, where:R.placement.name || R.rack?.name || `Rack ${ri + 1}` }); } });
+      P.racks.forEach((R, ri) => { for(const it of (R.rack?.items || [])) if(it.kind === 'switch'){ const ty = types().find(x => x.id === it.typeId); if(!ty) continue; n++; out.push({ source:'rack', rackTypeId:R.rack?.id, itemIid:it.iid, label:`R-SW${n}`, type:ty, rj:Number(ty.portCount) || 0, sfp:Number(ty.sfpCount) || 0, where:R.placement.name || R.rack?.name || `Rack ${ri + 1}` }); } });
     } catch {}
     return out;
   }
@@ -55,7 +55,7 @@
     const summary = `<div class="hint ${sws.length && need > cap ? 'fent-bad' : ''}" style="margin:8px 0">${sws.length && need > cap ? I('alert', 13) : I('info', 13)} ${need} ${t('ports needed', 'poorten nodig')} · ${cap} RJ45 ${t('available', 'beschikbaar')}. ${t('Nodes first (in node number order), then the network cables (C).', 'Eerst de nodes (op volgorde van nodenummer), dan de netwerkkabels (C).')}</div>`;
     const body = tools + (sws.length ? summary : '') + `<div class="network-device-list">${sws.map(s => {
       const ty = s.type, un = rows.filter(r => r.sw === s.label).length;
-      const head = `<div class="network-instance-head"><div><b>${esc(s.label)}</b> <span class="muted">${esc(s.dev?.name || '')}${s.where ? esc(` ${t('in', 'in')} ${s.where}`) : ''}</span><div class="subtle" style="font-size:12px">${esc(typeName(ty))} · ${s.rj} RJ45${s.sfp ? ` + ${s.sfp} SFP` : ''} · ${un}/${s.rj} ${t('used', 'gebruikt')}${s.source === 'rack' ? ` · ${t('from the rack', 'uit het rek')}` : ''}</div></div>${s.source === 'plan' ? `<button class="sm danger dimRemoveSwitch" data-i="${s.idx}">${I('trash', 13)}${t('Remove', 'Verwijderen')}</button>` : ''}</div>`;
+      const head = `<div class="network-instance-head"><div><b>${esc(s.label)}</b> <span class="muted">${esc(s.dev?.name || '')}${s.where ? esc(` ${t('in', 'in')} ${s.where}`) : ''}</span><div class="subtle" style="font-size:12px">${esc(typeName(ty))} · ${s.rj} RJ45${s.sfp ? ` + ${s.sfp} SFP` : ''} · ${un}/${s.rj} ${t('used', 'gebruikt')}${s.source === 'rack' ? ` · ${t('from the rack', 'uit het rek')}` : ''}</div></div>${s.source === 'plan' ? `<button class="sm danger dimRemoveSwitch" data-i="${s.idx}">${I('trash', 13)}${t('Remove', 'Verwijderen')}</button>` : `<button class="sm danger dimRemoveRackSwitch" data-rack="${esc(s.rackTypeId || '')}" data-iid="${esc(s.itemIid || '')}" title="${esc(t('This switch is part of a rack. Remove it from the rack.', 'Deze switch zit in een rek. Haal hem uit het rek.'))}">${I('trash', 13)}${t('Remove from rack', 'Uit rek halen')}</button>`}</div>`;
       const fields = s.source === 'plan' ? `<div class="network-instance-fields"><label>ID<input class="dimSwitchField" data-i="${s.idx}" data-field="id" value="${esc(s.dev.id || '')}"></label><label>${t('Name', 'Naam')}<input class="dimSwitchField" data-i="${s.idx}" data-field="name" value="${esc(s.dev.name || '')}"></label>
         <label>${t('IP address', 'IP-adres')}<input class="dimSwitchField" data-i="${s.idx}" data-field="ip" value="${esc(s.dev.ip || '')}" inputmode="numeric" placeholder="10.90.101.2"></label><label>Subnet<input class="dimSwitchField" data-i="${s.idx}" data-field="subnet" value="${esc(s.dev.subnet || ty.subnet || '255.255.255.0')}" inputmode="numeric"></label></div>${window.FentUI?.deviceBlock(dc, 'switch', s.idx, s.dev) || ''}` : '';
       return `<div class="network-instance switch-instance" style="--device-color:${esc(/^#[0-9a-f]{6}$/i.test(ty.color || '') ? ty.color : '#35c47c')}">${head}${fields}${portStrip(dc, s, rows)}</div>`;
@@ -71,6 +71,13 @@
       if(M().networkDevices?.prefs?.fent?.on && window.Fent){ const c = M().networkDevices.prefs.fent; sw.ip = window.Fent.suggestEquipment(window.Fent.roleVlan('management', c.vlanMode), c.group, (/(\d+)/.exec(dc) || [0, 1])[1], n); sw.subnet = window.Fent.MASK; sw.ipRole = 'management'; sw.ipVlan = window.Fent.roleVlan('management', c.vlanMode); }
       p.switches.push(sw); M().ui.dirty = true; rerender();
     };
+    root.querySelectorAll('.dimRemoveRackSwitch').forEach(b => b.onclick = async () => {
+      const rt = (M().networkDevices.rackTypes || []).find(r => r.id === b.dataset.rack); if(!rt) return;
+      const uses = Object.values(M().networkDevices.dimCityPlans || {}).reduce((n, p) => n + (p.racks || []).filter(r => r.rackId === rt.id).length, 0);
+      const ok = await App.ui.confirmDialog({ title:t('Remove the switch from the rack?', 'Switch uit het rek halen?'), message:t(`The switch is part of the rack “${rt.name || rt.id}”, which is placed ${uses}× in this show. It is removed from that rack everywhere (the other devices stay).`, `De switch zit in het rek “${rt.name || rt.id}”, dat ${uses}× in deze show is geplaatst. Hij wordt overal uit dat rek gehaald (de andere devices blijven).`), okLabel:t('Remove', 'Verwijderen'), danger:true });
+      if(!ok) return;
+      rt.items = (rt.items || []).filter(it => it.iid !== b.dataset.iid); M().ui.dirty = true; rerender();
+    });
     root.querySelectorAll('.dimRemoveSwitch').forEach(b => b.onclick = () => { plan(dc).switches.splice(Number(b.dataset.i), 1); M().ui.dirty = true; rerender(); });
     root.querySelectorAll('.dimSwitchField').forEach(inp => inp.onchange = () => { const sw = plan(dc).switches[Number(inp.dataset.i)]; if(!sw) return; sw[inp.dataset.field] = inp.value.trim(); M().ui.dirty = true; if(inp.dataset.field === 'ip' || inp.dataset.field === 'subnet') rerender(); });
   }

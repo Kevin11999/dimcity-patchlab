@@ -162,8 +162,8 @@ async function record(part, L) {
   await k.wait(400);
   await ctx.close(); await browser.close();
   const webm = fs.readdirSync(dir).find(f => f.endsWith('.webm'));
-  const mp4 = path.join(OUT, `${part.id}-${L}.mp4`);
-  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', path.join(dir, webm), '-c:v', 'libx264', '-preset', 'slow', '-crf', '30', '-pix_fmt', 'yuv420p', '-r', '20', '-vf', 'scale=1280:720', '-an', '-movflags', '+faststart', mp4]);
+  const mp4 = path.join(OUT, `${part.id}-${L}.webm`);
+  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', path.join(dir, webm), '-c:v', 'libvpx-vp9', '-crf', '38', '-b:v', '0', '-row-mt', '1', '-r', '20', '-vf', 'scale=1280:720', '-an', mp4]);
   console.log('  ', path.basename(mp4), (fs.statSync(mp4).size / 1048576).toFixed(2), 'MB');
   return mp4;
 }

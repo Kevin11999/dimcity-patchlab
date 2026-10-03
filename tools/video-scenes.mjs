@@ -95,10 +95,10 @@ export const PARTS = [
 
   { id: 'fibres', title: '6 · Fibres', prep: upTo(doAdvice, doNodes, doSwitches), steps: [
     { say: 'Step six: the fibres between the switches, inside a D B and between the D B\'s. First make your cable types in the Device Builder, on the Cables tab.', do: async k => { await k.ev(() => window.LKApp.runCommand('deviceBuilder', 'cable')); await k.wait(1800); } },
-    { say: 'OpticalCON, FiberFox or S F P patch cables, each with a length. Half metres are fine, like seven point five.', do: async k => { await k.wait(1200); await k.closeDialog(); } },
-    { say: 'On the Network page, on the Fibres tab, fill in how many of each cable you own.', do: async k => { await k.go('NET'); await k.click('#netTabs [data-tab=fibers]'); await k.wait(800); } },
+    { say: 'OpticalCON, FiberFox or S F P patch cables, each with a length. Half metres are fine, like seven point five.', do: async k => { await k.wait(1500); } },
+    { say: 'On the Network page, on the Fibres tab, fill in how many of each cable you own.', do: async k => { await k.closeDialog(); await k.go('NET'); await k.click('#netTabs [data-tab=fibers]'); await k.wait(800); } },
     { say: 'Auto-assign chains the switches inside a D B with the short cable, and links the D B\'s with the long cable, as a ring. It only uses ports with the right connector.', do: async k => { await k.click('#fibAuto'); await k.wait(1500); await k.ev(() => [...document.querySelectorAll('.modal-backdrop button')].filter(x => x.offsetParent).find(x => /^Assign$/i.test(x.textContent.trim()))?.click()); await k.wait(900); } },
-    { say: 'A cable only fits ports with the same connector: opticalCON cable on opticalCON ports, FiberFox on FiberFox. Other ports are dimmed.', do: async k => { await k.click('#fibView'); await k.wait(1200); await k.click('[data-type="CABLE:DEMO-FF250"]'); await k.wait(800); } },
+    { say: 'A cable only fits ports with the same connector: opticalCON cable on opticalCON ports, FiberFox on FiberFox. Other ports are dimmed.', do: async k => { await k.click('#fibView'); await k.wait(800); for (let i = 0; i < 3; i++) { await k.ev(() => document.querySelector('#fvIn')?.click()); await k.wait(250); } await k.wait(600); await k.click('[data-type="CABLE:DEMO-FF250"]'); await k.wait(800); } },
     { say: 'In the Signal Flow, under Show, choose Fibres. Every location is a card with its switches and fibre ports. Drag a switch by its name to place it next to another.', do: async k => {
         const b = await k.page.evaluate(() => { const r = document.querySelector('[data-swd="DB01|DB01-SW3"]')?.getBoundingClientRect(); return r ? { x: r.x + r.width / 2, y: r.y + 8 } : null; });
         if (b) { await k.page.mouse.move(b.x, b.y, { steps: 20 }); await k.page.mouse.down(); await k.page.mouse.move(b.x - 120, b.y + 60, { steps: 20 }); await k.page.mouse.move(b.x - 300, b.y + 80, { steps: 20 }); await k.page.mouse.up(); } await k.wait(800); } },
@@ -111,7 +111,7 @@ export const PARTS = [
     { say: 'The Show switch shows everything, only D M X, only the network, or only the fibres.', do: async k => { await k.click('#flLayer [data-v=dmx]'); await k.wait(900); await k.click('#flLayer [data-v=net]'); await k.wait(900); await k.click('#flLayer [data-v=all]'); } },
     { say: 'Blocks never overlap. Drag a rack or a block to arrange it, and the arrangement is saved per D B. Auto layout puts everything back.', do: async k => { await k.click('.fl-item[data-dc=DB01]'); await k.wait(1500); } },
     { say: 'New: a background picture, like a floor plan or a stage plot. Choose a picture, then set the opacity, the size and the position.', do: async k => { await k.page.setInputFiles('#bgFile', PLAN_IMAGE); await k.wait(1200); await k.click('#bgFit'); await k.wait(800); await k.ev(() => { const e = document.querySelector('#bgOp'); e.value = 55; e.dispatchEvent(new Event('input')); }); await k.wait(800); } },
-    { say: 'It can be one picture for all the views, or its own picture for each view. Fit to drawing makes it cover everything.', do: async k => { await k.hover('#bgShared'); await k.wait(1200); } }
+    { say: 'It can be one picture for all the views, or its own picture for each view. Fit to drawing makes it cover everything.', do: async k => { await k.hover('.fl-bgsec .switch'); await k.wait(1200); } }
   ] },
 
   { id: 'pdf', title: '8 · Check and the P D F', prep: upTo(doAdvice, doNodes, doSwitches, doFibres), steps: [

@@ -4,6 +4,24 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.4.1 — 2026-10-05
+
+- Luminex GigaCore 20t as a built-in 3U set, drawn like the real device (1U with display, knob and rear-port LEDs, etherCON 1-4, and the black panel with etherCON 5-16, opticalCON DUO 17-18 and FiberFox DUO 19-20). It can be placed in racks and chosen as a network switch in Setup; it cannot be changed in the Device Builder.
+- Setup > Network per DB: besides a switch you can place a rack that has a switch in it.
+- Fibres only fit ports with the same connector: opticalCON on opticalCON, FiberFox on FiberFox, SFP patch on SFP. Drawing, the form and Auto-assign all check it, and ports that do not fit are dimmed.
+- Fibre overview: the switches of a location can be dragged to another place (for example side by side), and so can the location cards; the arrangement is saved with the project.
+- Fibre overview: cables run in straight lines with right angles, end exactly on their port, and hop over each other with a small bridge where they cross.
+
+<details><summary>Nederlands</summary>
+
+- Luminex GigaCore 20t als ingebouwde 3U-set, getekend zoals het echte apparaat (1U met display, knop en rear-port-LED's, etherCON 1-4, en het zwarte paneel met etherCON 5-16, opticalCON DUO 17-18 en FiberFox DUO 19-20). Hij kan in racks worden geplaatst en in Setup als netwerkswitch worden gekozen; in de Device Builder is hij niet te wijzigen.
+- Setup > Netwerk per DB: naast een switch kun je een rek plaatsen waar een switch in zit.
+- Fibers passen alleen op poorten met dezelfde connector: opticalCON op opticalCON, FiberFox op FiberFox, SFP-patch op SFP. Tekenen, het formulier en Automatisch koppelen controleren dit, en poorten die niet passen worden gedimd.
+- Fiber-overzicht: de switches van een locatie zijn te verslepen naar een andere plek (bijvoorbeeld naast elkaar), en de locatiekaarten ook; de indeling wordt met het project opgeslagen.
+- Fiber-overzicht: kabels lopen in rechte lijnen met haakse hoeken, eindigen precies op hun poort en springen met een bruggetje over elkaar waar ze kruisen.
+
+</details>
+
 ## 0.4.0 — 2026-10-04
 
 - Fibre overview in the Signal Flow (Show > Fibres): every location on a circle with its switches and fibre ports; draw fibres from port to port with a cable picked from your stock.

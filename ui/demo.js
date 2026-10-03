@@ -91,8 +91,8 @@ async function open({ silent=false } = {}){
     { id:'CABLE:DEMO-FF250', brand:'', name:'FiberFox DUO 4-core singlemode', medium:'smf', cores:4, connA:'FiberFox', connB:'FiberFox', lengthM:250, articleKey:'', color:'#ff3b30' },
     { id:'CABLE:DEMO-SFP', brand:'', name:'SFP patch LC duplex', medium:'smf', cores:2, connA:'SFP (LC)', connB:'SFP (LC)', lengthM:3, articleKey:'', color:'#f2b33d' }
   ];
-  // the switch in the demo racks is a GigaCore 20t, so the fibre ports are opticalCON (17-18) and FiberFox (19-20)
-  for(const r of (nd2.rackTypes || [])) for(const it of (r.items || [])) if(it.kind === 'switch') it.typeId = 'SWITCH:LMX-GC20T';
+  // the switches of the demo are the GigaCore 20t 3U set (opticalCON 17-18, FiberFox 19-20): they sit next to the racks, not in them
+  for(const r of (nd2.rackTypes || [])){ const had = (r.items || []).filter(it => it.kind === 'switch'); if(!had.length) continue; r.items = r.items.filter(it => it.kind !== 'switch'); r.items.forEach(it => { it.u = Math.max(1, it.u - had.length); }); r.heightU = Math.max(1, r.heightU - had.length); }
   nd2.fiberStock = [{ typeId:'CABLE:DEMO-OC250', qty:6 }, { typeId:'CABLE:DEMO-OC75', qty:6 }, { typeId:'CABLE:DEMO-FF250', qty:2 }];
   nd2.fiberLinks = [];
   // 4. network plan from the rack patch
@@ -111,10 +111,10 @@ async function open({ silent=false } = {}){
   App.setMODEL(M2);
   // a network switch in every DimCity (nodes first, then the Cat cables), addressed with the FENT scheme
   App.addDimCity('FOH');
-  const swOf = (dc, k) => ({ id:`${dc}-SW${k}`, name:`${dc} Luminex GigaCore 20t`, typeId:'SWITCH:LMX-GC20T', ip:'', subnet:'', ifaces:[] });
+  const swOf = (dc, k) => ({ id:`${dc}-SW${k}`, name:`${dc} Luminex GigaCore 20t (3U set)`, typeId:'SWITCH:LMX-GC20T-3U', ip:'', subnet:'', ifaces:[] });
   for(const dc of ['DB01', 'DB02', 'DB03', 'FOH']){
-    const p = plan(dc), inRacks = (window.NetSwitches?.list(dc) || []).length;   // switches that sit in the racks of this DimCity
-    p.switches = (dc === 'DB01' || !inRacks) ? [swOf(dc, 1)] : [];
+    const p = plan(dc);
+    p.switches = dc === 'DB01' ? [swOf(dc, 1), swOf(dc, 2), swOf(dc, 3)] : [swOf(dc, 1)];
   }
   M2.networkDevices.prefs.fent = { on:true, group:'production', scan:false, vlanMode:'luminex' };
   for(const dc of ['DB01', 'DB02', 'DB03', 'FOH']) window.FentUI?.applyDim?.(dc);

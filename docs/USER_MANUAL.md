@@ -347,7 +347,7 @@ Fibres connect the fibre ports of the switches, inside a location and between lo
 **Auto-assign fibres** chains the switches of one location with the short cable and links the locations with the long cable, as a ring or a chain. Free ports with the right connector go first (opticalCON cable on an opticalCON port). It stops when the stock is empty and tells you what is missing.
 
 ### Fibre overview
-In the **Signal Flow**, choose **Fibres** under Show. Every location is a card on a circle with its switches and fibre ports (17, 18 … with their connector). Pick a cable at the bottom, click a free port and then the port at the other end to draw a fibre. Click a cable to select or delete it.
+In the **Signal Flow**, choose **Fibres** under Show. Every location is a card on a circle with its switches and fibre ports (17, 18 … with their connector). Drag a switch (by its name) to another place in the card, for example next to another switch, or drag the card itself. Pick a cable at the bottom, click a free port and then the port at the other end to draw a fibre. Cables run in straight lines and hop over each other with a bridge. A cable only fits ports with its own connector (opticalCON, FiberFox or SFP); other ports are dimmed. Click a cable to select or delete it.
 
 ### Switch ports with fibre connectors
 A switch type can name the connector of each fibre port. The Luminex GigaCore 20t has 4 etherCON ports on the front, ports 5–16 on a panel, ports 17–18 opticalCON DUO and ports 19–20 FiberFox DUO. The fibre ports are then called by those numbers on drawings, in the lists and on the stickers.
@@ -364,7 +364,7 @@ A DMX line (a row without ID, with universe, destination and DimCity) can name t
 <a id="devices-ports"></a>
 ## 20t, panels and half-width devices
 
-- **Switch types** can say how many ports sit on the front (*Ports on the front*), whether the copper ports are RJ45 or etherCON and which connector each fibre port has (*Fibre connector per port*). Ports on a panel are drawn on the panel of the rack. The standard library has the GigaCore 20t, a *GigaCore 20t panel* (ports 5–16, opticalCON 17–18, FiberFox 19–20) and a ready-made 3U set.
+- **Switch types** can say how many ports sit on the front (*Ports on the front*), whether the copper ports are RJ45 or etherCON and which connector each fibre port has (*Fibre connector per port*). Ports on a panel are drawn on the panel of the rack. The standard library has the GigaCore 20t and the **GigaCore 20t (3U set)**: a built-in special device drawn like the real set (1U with etherCON 1–4, black panel with etherCON 5–16, opticalCON DUO 17–18 and FiberFox DUO 19–20). It is not editable.
 - **Panel types** can have etherCON, opticalCON DUO and FiberFox DUO sockets with their first port number.
 - **Half-width devices**: set *Width in the rack* of a node to Half (the LumiNode 4 is). In the Rack Builder two half-width devices share one U, left and right (drag to the left or right half, or use the ⇄ button). *Blind plate ½* and *Fill gaps next to half-width devices* fill the rest with black plates. Racks in the Signal Flow, on the DimCity page and in the PDF show them the same way.
 
@@ -509,6 +509,13 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 
 <a id="whats-new"></a>
 ## What's new
+
+### Version 0.4.1 — 2026-10-05
+- Luminex GigaCore 20t as a built-in 3U set, drawn like the real device (1U with display, knob and rear-port LEDs, etherCON 1-4, and the black panel with etherCON 5-16, opticalCON DUO 17-18 and FiberFox DUO 19-20). It can be placed in racks and chosen as a network switch in Setup; it cannot be changed in the Device Builder.
+- Setup > Network per DB: besides a switch you can place a rack that has a switch in it.
+- Fibres only fit ports with the same connector: opticalCON on opticalCON, FiberFox on FiberFox, SFP patch on SFP. Drawing, the form and Auto-assign all check it, and ports that do not fit are dimmed.
+- Fibre overview: the switches of a location can be dragged to another place (for example side by side), and so can the location cards; the arrangement is saved with the project.
+- Fibre overview: cables run in straight lines with right angles, end exactly on their port, and hop over each other with a small bridge where they cross.
 
 ### Version 0.4.0 — 2026-10-04
 - Fibre overview in the Signal Flow (Show > Fibres): every location on a circle with its switches and fibre ports; draw fibres from port to port with a cable picked from your stock.
@@ -913,7 +920,7 @@ Fibers verbinden de fiberpoorten van de switches, binnen een locatie en tussen l
 **Fibers automatisch koppelen** zet de switches van één locatie achter elkaar met de korte kabel en verbindt de locaties met de lange kabel, als ring of ketting. Vrije poorten met de juiste connector gaan eerst (opticalCON-kabel op een opticalCON-poort). Het stopt als de voorraad op is en meldt wat er ontbreekt.
 
 ### Fiber-overzicht
-Kies in de **Signaalstroom** onder Tonen voor **Fibers**. Elke locatie is een kaart op een cirkel met zijn switches en fiberpoorten (17, 18 … met hun connector). Kies onderaan een kabel, klik op een vrije poort en daarna op de poort aan de andere kant om een fiber te tekenen. Klik op een kabel om hem te selecteren of te verwijderen.
+Kies in de **Signaalstroom** onder Tonen voor **Fibers**. Elke locatie is een kaart op een cirkel met zijn switches en fiberpoorten (17, 18 … met hun connector). Sleep een switch (aan zijn naam) naar een andere plek in de kaart, bijvoorbeeld naast een andere switch, of sleep de kaart zelf. Kies onderaan een kabel, klik op een vrije poort en daarna op de poort aan de andere kant om een fiber te tekenen. Kabels lopen in rechte lijnen en springen met een bruggetje over elkaar. Een kabel past alleen op poorten met zijn eigen connector (opticalCON, FiberFox of SFP); andere poorten worden gedimd. Klik op een kabel om hem te selecteren of te verwijderen.
 
 ### Switchpoorten met fiberconnectors
 Een switchtype kan de connector van elke fiberpoort benoemen. De Luminex GigaCore 20t heeft 4 etherCON-poorten op de voorkant, poort 5–16 op een paneel, poort 17–18 opticalCON DUO en poort 19–20 FiberFox DUO. De fiberpoorten heten dan zo op tekeningen, in lijsten en op de stickers.
@@ -930,7 +937,7 @@ Een DMX-regel (een regel zonder ID, met universe, bestemming en DimCity) kan de 
 <a id="devices-ports-nl"></a>
 ## 20t, panelen en halve devices
 
-- **Switchtypes** kunnen aangeven hoeveel poorten op de voorkant zitten (*Ports on the front*), of de koperpoorten RJ45 of etherCON zijn en welke connector elke fiberpoort heeft (*Fibre connector per port*). Poorten op een paneel worden getekend op het paneel van het rek. De standaardbibliotheek heeft de GigaCore 20t, een *GigaCore 20t panel* (poort 5–16, opticalCON 17–18, FiberFox 19–20) en een kant-en-klare 3U-set.
+- **Switchtypes** kunnen aangeven hoeveel poorten op de voorkant zitten (*Ports on the front*), of de koperpoorten RJ45 of etherCON zijn en welke connector elke fiberpoort heeft (*Fibre connector per port*). Poorten op een paneel worden getekend op het paneel van het rek. De standaardbibliotheek heeft de GigaCore 20t en de **GigaCore 20t (3U set)**: een ingebouwd speciaal device getekend zoals de echte set (1U met etherCON 1–4, zwart paneel met etherCON 5–16, opticalCON DUO 17–18 en FiberFox DUO 19–20). Hij is niet te bewerken.
 - **Paneeltypes** kunnen etherCON-, opticalCON DUO- en FiberFox DUO-aansluitingen hebben met hun eerste poortnummer.
 - **Halve devices**: zet *Width in the rack* van een node op Half (de LumiNode 4 is dat). In de Rack Builder delen twee halve devices één U, links en rechts (sleep naar de linker- of rechterhelft, of gebruik de knop ⇄). *Blind plate ½* en *Fill gaps next to half-width devices* vullen de rest met zwarte blindplaten. Racks in de Signaalstroom, op de DimCity-pagina en in de PDF tonen ze hetzelfde.
 
@@ -1075,6 +1082,13 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.4.1 — 2026-10-05
+- Luminex GigaCore 20t als ingebouwde 3U-set, getekend zoals het echte apparaat (1U met display, knop en rear-port-LED's, etherCON 1-4, en het zwarte paneel met etherCON 5-16, opticalCON DUO 17-18 en FiberFox DUO 19-20). Hij kan in racks worden geplaatst en in Setup als netwerkswitch worden gekozen; in de Device Builder is hij niet te wijzigen.
+- Setup > Netwerk per DB: naast een switch kun je een rek plaatsen waar een switch in zit.
+- Fibers passen alleen op poorten met dezelfde connector: opticalCON op opticalCON, FiberFox op FiberFox, SFP-patch op SFP. Tekenen, het formulier en Automatisch koppelen controleren dit, en poorten die niet passen worden gedimd.
+- Fiber-overzicht: de switches van een locatie zijn te verslepen naar een andere plek (bijvoorbeeld naast elkaar), en de locatiekaarten ook; de indeling wordt met het project opgeslagen.
+- Fiber-overzicht: kabels lopen in rechte lijnen met haakse hoeken, eindigen precies op hun poort en springen met een bruggetje over elkaar waar ze kruisen.
 
 ### Versie 0.4.0 — 2026-10-04
 - Fiber-overzicht in de Signaalstroom (Tonen > Fibers): elke locatie op een cirkel met zijn switches en fiberpoorten; teken fibers van poort naar poort met een kabel uit je voorraad.

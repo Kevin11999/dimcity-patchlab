@@ -1,6 +1,6 @@
 {
   "fileType": "patchlab-standard-library",
-  "version": 3,
+  "version": 4,
   "updatedAt": "2026-10-04",
   "notes": "Standard device types for Luminex and ELC Lighting. Port counts come from the manufacturers' product pages; check heights and port counts against the unit in your rack. Edit a type in the Device Builder to make it your own — it is then no longer overwritten by a library update.",
   "nodeTypes": [
@@ -281,10 +281,7 @@
       "subnet": "255.0.0.0",
       "heightU": 1,
       "color": "#35c47c",
-      "usageType": "touring: 4× etherCON on the front, ports 5-16 + fibre (17-18 opticalCON DUO, 19-20 FiberFox DUO) on a panel",
-      "jack": "etherCON",
-      "frontCount": 4,
-      "sfpConnectors": "opticalCON DUO, opticalCON DUO, FiberFox DUO, FiberFox DUO"
+      "usageType": "touring: 4× etherCON on the front, 8× RJ45 + 4× etherCON and 4× SFP+ on the rear"
     },
     {
       "id": "SWITCH:LMX-GC26I",
@@ -333,6 +330,22 @@
       "heightU": 1,
       "color": "#35c47c",
       "usageType": "16× 1G + 2× SFP"
+    },
+    {
+      "id": "SWITCH:LMX-GC20T-3U",
+      "brand": "Luminex",
+      "name": "GigaCore 20t (3U set)",
+      "portCount": 16,
+      "sfpCount": 4,
+      "jack": "etherCON",
+      "frontCount": 4,
+      "sfpConnectors": "opticalCON DUO, opticalCON DUO, FiberFox DUO, FiberFox DUO",
+      "defaultIp": "",
+      "subnet": "255.0.0.0",
+      "heightU": 3,
+      "color": "#35c47c",
+      "special": "gc20t",
+      "usageType": "3U set: GigaCore 20t with a panel — etherCON 1-4 on the 1U, etherCON 5-16, opticalCON DUO 17-18 and FiberFox DUO 19-20 on the black panel"
     }
   ],
   "splitterTypes": [
@@ -478,21 +491,6 @@
       "etherconCount": 8,
       "heightU": 1,
       "color": "#b18cff"
-    },
-    {
-      "id": "PANEL:LMX-GC20T",
-      "brand": "Luminex",
-      "name": "GigaCore 20t panel (ports 5-16 + fibre)",
-      "lkCount": 0,
-      "vimCount": 0,
-      "xlrCount": 0,
-      "etherconCount": 12,
-      "etherconFirst": 5,
-      "opticalConCount": 2,
-      "fiberfoxCount": 2,
-      "fibreFirst": 17,
-      "heightU": 2,
-      "color": "#b18cff"
     }
   ],
   "rackTypes": [
@@ -583,26 +581,6 @@
           "kind": "node",
           "typeId": "NODE:LMX-LN12",
           "u": 3
-        }
-      ]
-    },
-    {
-      "id": "RACK:STD-20T-SET",
-      "name": "GigaCore 20t set (3U)",
-      "articleKey": "",
-      "heightU": 3,
-      "items": [
-        {
-          "iid": "s20a",
-          "kind": "switch",
-          "typeId": "SWITCH:LMX-GC20T",
-          "u": 1
-        },
-        {
-          "iid": "s20b",
-          "kind": "panel",
-          "typeId": "PANEL:LMX-GC20T",
-          "u": 2
         }
       ]
     }

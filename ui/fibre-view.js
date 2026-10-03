@@ -11,71 +11,124 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const S = { type:null, pending:null, sel:null, zoom:1, tx:0, ty:0, fit:true, layout:null };
 
-  const CW = 270, HEAD = 30, SH = 66, GAP = 8, PW = 34, PH = 24;
+  const SWW = 270, CELLW = SWW + 12, HEAD = 30, SH = 66, CELLH = SH + 12, PW = 34, PH = 24, PAD = 8;
   const F = () => window.Fibers;
+  const store = () => { const m = M(); m.flow ||= { v:2, dir:'ltr', labels:{}, pos:{}, view:{} }; return (m.flow.fibre ||= { loc:{}, sw:{} }); };
 
   // ---- model -> geometry ----
+  // every location is a card; its switches sit in a grid (default: side by side) and can be dragged to another cell
   function build(){
-    const locs = [];
+    const locs = [], st = store();
     for(const dc of App.sortedDims()){
       const sws = (window.NetSwitches?.list(dc) || []).filter(s => s.sfp > 0 || s.rj > 0);
       if(sws.length) locs.push({ id:dc, dc, color:App.dimColor(dc), sws });
     }
-    // ends that are not a switch of the show: "other end" cards
     const known = new Set(locs.map(l => l.id));
     for(const l of F().all()) for(const e of [l.a, l.b]) if(e?.free && !known.has('~' + e.free)){ known.add('~' + e.free); locs.push({ id:'~' + e.free, dc:null, free:e.free, color:'#64748b', sws:[] }); }
-    const n = locs.length, R = n <= 1 ? 0 : n === 2 ? 0 : Math.max(300, 78 * n + 120);
+    for(const l of locs){
+      const used = new Set();
+      l.sws.forEach((s, i) => {   // saved cell, else the next free one in a row of three
+        const k = `${l.dc}|${s.label}`, c = st.sw[k];
+        if(c && !used.has(`${c.col},${c.row}`)){ s.col = c.col; s.row = c.row; }
+        else { let n = i; while(used.has(`${n % 3},${Math.floor(n / 3)}`)) n++; s.col = n % 3; s.row = Math.floor(n / 3); }
+        used.add(`${s.col},${s.row}`);
+      });
+      const cols = Math.max(1, ...l.sws.map(s => s.col + 1)), rows = Math.max(1, ...l.sws.map(s => s.row + 1));
+      l.cols = cols; l.rows = rows; l.w = PAD * 2 + cols * CELLW - 12; l.h = HEAD + rows * CELLH - 6 + PAD;
+    }
+    const n = locs.length;
+    const maxW = Math.max(300, ...locs.map(l => l.w)), maxH = Math.max(120, ...locs.map(l => l.h));
+    const rx = n <= 1 ? 0 : n === 2 ? maxW * .75 + 60 : Math.max(maxW * .9, 120 * n) + 120, ry = n <= 2 ? 0 : maxH * .9 + 100 + n * 20;
     locs.forEach((l, i) => {
-      l.h = HEAD + Math.max(1, l.sws.length) * (SH + GAP) + 6; l.w = CW;
-      if(n === 1){ l.x = -CW / 2; l.y = -l.h / 2; }
-      else if(n === 2){ l.x = (i ? 1 : -1) * 260 - CW / 2; l.y = -l.h / 2; }
-      else { const a = -Math.PI / 2 + (2 * Math.PI * i) / n; l.x = R * 1.25 * Math.cos(a) - CW / 2; l.y = R * Math.sin(a) - l.h / 2; }
+      const saved = st.loc[l.id];
+      if(saved){ l.x = saved.x; l.y = saved.y; return; }
+      if(n === 1){ l.x = -l.w / 2; l.y = -l.h / 2; }
+      else if(n === 2){ l.x = (i ? 1 : -1) * rx - l.w / 2; l.y = -l.h / 2; }
+      else { const a = -Math.PI / 2 + (2 * Math.PI * i) / n; l.x = rx * Math.cos(a) - l.w / 2; l.y = ry * Math.sin(a) - l.h / 2; }
     });
     const ports = new Map();   // `${dc}|${sw}|${n}` -> { x, y, loc, sw, n }
-    for(const l of locs) l.sws.forEach((s, si) => {
-      s.y = l.y + HEAD + si * (SH + GAP);
-      for(let k = 1; k <= s.sfp; k++) ports.set(`${l.dc}|${s.label}|${k}`, { x:l.x + 14 + (k - 1) * (PW + 4) + PW / 2, y:s.y + 48, loc:l, sw:s, n:k });
-    });
-    return { locs, ports, R };
+    for(const l of locs) for(const s of l.sws){
+      s.x = l.x + PAD + s.col * CELLW; s.y = l.y + HEAD + s.row * CELLH; s.w = SWW; s.h = SH;
+      for(let k = 1; k <= s.sfp; k++) ports.set(`${l.dc}|${s.label}|${k}`, { x:s.x + 14 + (k - 1) * (PW + 4) + PW / 2, y:s.y + 48, loc:l, sw:s, n:k });
+    }
+    return { locs, ports };
   }
   const keyOf = e => `${e.dc}|${e.sw}|${e.sfp}`;
 
-  function cableSvg(link, g, idx){
+  // ---- cables: straight lines with right angles; where one crosses another it hops over with a little bridge ----
+  function route(link, g, idx){
     const a = g.ports.get(keyOf(link.a || {})), b = g.ports.get(keyOf(link.b || {}));
-    if(!a || !b) return '';
-    const col = F().color(link), sel = S.sel === link.id;
-    let d, mx, my;
-    if(a.loc === b.loc){
-      const top = a.y <= b.y ? a : b, low = top === a ? b : a, lane = (idx % 3) * 4;
-      const xr = a.loc.x + CW + 22 + (idx % 4) * 9, y1 = top.y + PH / 2 + 6 + lane, y2 = low.y - PH / 2 - 6 - lane;
-      d = `M${top.x},${top.y + PH / 2} L${top.x},${y1} L${xr},${y1} L${xr},${y2} L${low.x},${y2} L${low.x},${low.y - PH / 2}`;
-      mx = xr; my = (y1 + y2) / 2;
+    if(!a || !b) return null;
+    const ca = a.loc, cb = b.loc, lane = (idx % 6) * 7;
+    const cyA = ca.y + ca.h / 2, cyB = cb.y + cb.h / 2;
+    let da = 'up', db = 'up';
+    if(ca !== cb){ if(cyB > cyA + 4){ da = 'down'; db = 'up'; } else if(cyB < cyA - 4){ da = 'up'; db = 'down'; } }
+    else if(a.sw !== b.sw){ da = db = 'up'; }
+    const ya = da === 'up' ? a.y - PH / 2 : a.y + PH / 2, yb = db === 'up' ? b.y - PH / 2 : b.y + PH / 2;
+    let yc;
+    if(da === db){
+      yc = da === 'up' ? Math.min(a.sw.y, b.sw.y, ca.y, cb.y) - 16 - lane : Math.max(a.sw.y + SH, b.sw.y + SH, ca.y + ca.h, cb.y + cb.h) + 16 + lane;
     } else {
-      const x1 = a.x, y1 = a.y - PH / 2, x2 = b.x, y2 = b.y - PH / 2;
-      const cx = (x1 + x2) / 2 * .55, cy = (y1 + y2) / 2 * .55 - 10;   // bend towards the middle of the circle
-      d = `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`;
-      mx = .25 * x1 + .5 * cx + .25 * x2; my = .25 * y1 + .5 * cy + .25 * y2;
+      const top = da === 'down' ? ca : cb, bot = da === 'down' ? cb : ca;   // the card the line leaves downwards, the card it enters from above
+      if(bot.y - (top.y + top.h) > 36) yc = (top.y + top.h + bot.y) / 2 + (lane - 17);
+      else { da = db = 'up'; yc = Math.min(a.sw.y, b.sw.y, ca.y, cb.y) - 16 - lane; }
     }
-    const label = F().code(link.typeId);
-    const w = label.length * 7 + 12;
-    return `<g class="fv-cable ${sel ? 'sel' : ''}" data-link="${esc(link.id)}" style="--c:${col}"><path class="fv-hit" d="${d}"/><path class="fv-line" d="${d}" stroke="${col}"/><rect x="${mx - w / 2}" y="${my - 9}" width="${w}" height="16" rx="4" fill="#0e1117" stroke="${col}"/><text x="${mx}" y="${my + 3}" text-anchor="middle" class="fv-code" fill="${col}">${esc(label)}</text><title>${esc(link.id)} · ${esc(F().typeName(F().typeOf(link.typeId)))} · ${esc(F().endLabel(link.a))} ⇄ ${esc(F().endLabel(link.b))}</title></g>`;
+    const pts = [[a.x, da === db ? (da === 'up' ? a.y - PH / 2 : a.y + PH / 2) : ya], [a.x, yc], [b.x, yc], [b.x, da === db ? (db === 'up' ? b.y - PH / 2 : b.y + PH / 2) : yb]];
+    return { link, pts, a, b };
+  }
+  // path text with a hop over every vertical line of another cable that a horizontal piece crosses
+  function pathOf(rt, all){
+    const R = 5; let d = `M${rt.pts[0][0]},${rt.pts[0][1]}`;
+    for(let i = 1; i < rt.pts.length; i++){
+      const [x1, y1] = rt.pts[i - 1], [x2, y2] = rt.pts[i];
+      if(y1 === y2 && x1 !== x2){
+        const dir = Math.sign(x2 - x1), hops = [];
+        for(const o of all) if(o !== rt) for(let j = 1; j < o.pts.length; j++){
+          const [ux1, uy1] = o.pts[j - 1], [ux2, uy2] = o.pts[j];
+          if(ux1 === ux2 && Math.min(uy1, uy2) + 3 < y1 && Math.max(uy1, uy2) - 3 > y1 && ux1 > Math.min(x1, x2) + R + 3 && ux1 < Math.max(x1, x2) - R - 3) hops.push(ux1);
+        }
+        hops.sort((p, q) => dir * (p - q));
+        for(const hx of hops) d += ` L${hx - dir * R},${y1} A${R},${R} 0 0 ${dir > 0 ? 1 : 0} ${hx + dir * R},${y1}`;
+        d += ` L${x2},${y2}`;
+      } else d += ` L${x2},${y2}`;
+    }
+    return d;
+  }
+  function hasHop(rt, all){
+    for(let i = 1; i < rt.pts.length; i++){ const [x1, y1] = rt.pts[i - 1], [x2, y2] = rt.pts[i]; if(y1 !== y2) continue;
+      for(const o of all) if(o !== rt) for(let j = 1; j < o.pts.length; j++){ const [ux1, uy1] = o.pts[j - 1], [ux2, uy2] = o.pts[j]; if(ux1 === ux2 && Math.min(uy1, uy2) + 3 < y1 && Math.max(uy1, uy2) - 3 > y1 && ux1 > Math.min(x1, x2) + 8 && ux1 < Math.max(x1, x2) - 8) return true; } }
+    return false;
+  }
+  function cablesSvg(g){
+    const routes = F().all().map((l, i) => route(l, g, i)).filter(Boolean);
+    const ordered = routes.slice().sort((p, q) => (hasHop(p, routes) ? 1 : 0) - (hasHop(q, routes) ? 1 : 0));   // cables that hop over others are drawn on top
+    return ordered.map(rt => {
+      const link = rt.link, col = F().color(link), sel = S.sel === link.id, d = pathOf(rt, routes);
+      // the label sits on the longest horizontal piece
+      let best = null; for(let i = 1; i < rt.pts.length; i++){ const [x1, y1] = rt.pts[i - 1], [x2, y2] = rt.pts[i]; if(y1 === y2 && (!best || Math.abs(x2 - x1) > best.len)) best = { len:Math.abs(x2 - x1), x:(x1 + x2) / 2, y:y1 }; }
+      best ||= { x:rt.pts[1][0], y:(rt.pts[0][1] + rt.pts[2][1]) / 2 };
+      const label = F().code(link.typeId), w = label.length * 7 + 12;
+      const dot = (p) => `<circle cx="${p[0]}" cy="${p[1]}" r="3.6" fill="${col}"/>`;
+      return `<g class="fv-cable ${sel ? 'sel' : ''}" data-link="${esc(link.id)}" style="--c:${col}"><path class="fv-hit" d="${d}"/><path class="fv-halo" d="${d}"/><path class="fv-line" d="${d}" stroke="${col}"/>${dot(rt.pts[0])}${dot(rt.pts[3])}<rect x="${best.x - w / 2}" y="${best.y - 9}" width="${w}" height="16" rx="4" fill="#0e1117" stroke="${col}"/><text x="${best.x}" y="${best.y + 3}" text-anchor="middle" class="fv-code" fill="${col}">${esc(label)}</text><title>${esc(link.id)} · ${esc(F().typeName(F().typeOf(link.typeId)))} · ${esc(F().endLabel(link.a))} ⇄ ${esc(F().endLabel(link.b))}</title></g>`;
+    }).join('');
   }
   function locSvg(l, usage){
-    let o = `<g class="fv-loc" style="--c:${l.color}"><rect x="${l.x}" y="${l.y}" width="${l.w}" height="${l.h}" rx="10" class="fv-card"/><rect x="${l.x}" y="${l.y}" width="5" height="${l.h}" rx="2" fill="${l.color}"/><text x="${l.x + 16}" y="${l.y + 20}" class="fv-title">${esc(l.free || l.dc)}</text>`;
+    let o = `<g class="fv-loc" style="--c:${l.color}"><rect x="${l.x}" y="${l.y}" width="${l.w}" height="${l.h}" rx="10" class="fv-card"/><rect x="${l.x}" y="${l.y}" width="5" height="${l.h}" rx="2" fill="${l.color}"/><rect class="fv-drag" data-loc="${esc(l.id)}" x="${l.x}" y="${l.y}" width="${l.w}" height="${HEAD - 4}" rx="8"/><text x="${l.x + 16}" y="${l.y + 20}" class="fv-title">${esc(l.free || l.dc)}</text>`;
     if(l.free) o += `<text x="${l.x + 16}" y="${l.y + 44}" class="fv-sub">${t('other end', 'andere kant')}</text>`;
     for(const s of l.sws){
       const SP = window.SwPorts, ty = s.type;
-      o += `<rect x="${l.x + 8}" y="${s.y}" width="${CW - 16}" height="${SH}" rx="6" class="fv-sw"/><text x="${l.x + 16}" y="${s.y + 16}" class="fv-swt">${esc(s.label)}</text><text x="${l.x + CW - 14}" y="${s.y + 16}" text-anchor="end" class="fv-sub">${esc([ty?.brand, ty?.name].filter(Boolean).join(' ').slice(0, 26))}</text>`;
+      o += `<g class="fv-swg" data-sw="${esc(l.dc + '|' + s.label)}"><rect x="${s.x}" y="${s.y}" width="${SWW}" height="${SH}" rx="6" class="fv-sw"/><rect class="fv-swdrag" data-swd="${esc(l.dc + '|' + s.label)}" x="${s.x}" y="${s.y}" width="${SWW}" height="22" rx="6"/><text x="${s.x + SWW - 8}" y="${s.y + 16}" text-anchor="end" class="fv-swt">${esc(s.label)}</text><title>${esc([ty?.brand, ty?.name].filter(Boolean).join(' '))}</title></g>`;
       const ps = [];
       for(let k = 1; k <= s.sfp; k++){
-        const px = l.x + 14 + (k - 1) * (PW + 4), py = s.y + 48 - PH / 2, key = `${l.dc}|${s.label}|${k}`, link = usage.get(key);
+        const px = s.x + 14 + (k - 1) * (PW + 4), py = s.y + 48 - PH / 2, key = `${l.dc}|${s.label}|${k}`, link = usage.get(key);
         const conn = SP.conn(ty, k), cls = SP.kindOf(conn), base = cls === 'oc' ? '#35a7ff' : cls === 'ff' ? '#ff4d4d' : '#94a3b8';
         const col = link ? F().color(link) : base, pend = S.pending === key;
-        ps.push(`<g class="fv-port ${link ? 'used' : 'free'} ${pend ? 'pend' : ''}" data-port="${esc(key)}" style="--c:${col}"><rect x="${px}" y="${py}" width="${PW}" height="${PH}" rx="5" fill="${link ? col : '#0b0d10'}" fill-opacity="${link ? .28 : 1}" stroke="${col}" stroke-width="${pend ? 3 : 1.6}"/><text x="${px + PW / 2}" y="${py + 11}" text-anchor="middle" class="fv-pn">${esc(SP.short(ty, k))}</text><text x="${px + PW / 2}" y="${py + 20}" text-anchor="middle" class="fv-pc">${esc(conn ? conn.replace(/ DUO| QUAD/i, '').slice(0, 7) : 'SFP')}</text><title>${esc(SP.label(ty, k))}${link ? ` · ${esc(link.id)} ${esc(F().code(link.typeId))} → ${esc(F().endLabel(keyOf(link.a) === key ? link.b : link.a))}` : ` · ${t('free', 'vrij')}`}</title></g>`);
+        const fitsNow = !S.type || !!link || F().fits(S.type, { dc:l.dc, sw:s.label, sfp:k }, null).ok;
+        ps.push(`<g class="fv-port ${link ? 'used' : 'free'} ${pend ? 'pend' : ''} ${fitsNow ? '' : 'nofit'}" data-port="${esc(key)}" style="--c:${col}"><rect x="${px}" y="${py}" width="${PW}" height="${PH}" rx="5" fill="${link ? col : '#0b0d10'}" fill-opacity="${link ? .28 : 1}" stroke="${col}" stroke-width="${pend ? 3 : 1.6}"/><text x="${px + PW / 2}" y="${py + 11}" text-anchor="middle" class="fv-pn">${esc(SP.short(ty, k))}</text><text x="${px + PW / 2}" y="${py + 20}" text-anchor="middle" class="fv-pc">${esc(conn ? conn.replace(/ DUO| QUAD/i, '').slice(0, 7) : 'SFP')}</text><title>${esc(SP.label(ty, k))}${link ? ` · ${esc(link.id)} ${esc(F().code(link.typeId))} → ${esc(F().endLabel(keyOf(link.a) === key ? link.b : link.a))}` : ` · ${t('free', 'vrij')}`}</title></g>`);
       }
       o += ps.join('');
-      if(!s.sfp) o += `<text x="${l.x + 16}" y="${s.y + 46}" class="fv-sub">${t('no fibre ports', 'geen fiberpoorten')}</text>`;
-      o += `<text x="${l.x + CW - 14}" y="${s.y + SH - 8}" text-anchor="end" class="fv-sub">${s.rj} ${t('copper', 'koper')}${s.sfp ? ` · ${s.sfp} ${t('fibre', 'fiber')}` : ''}</text>`;
+      if(!s.sfp) o += `<text x="${s.x + 8}" y="${s.y + 46}" class="fv-sub">${t('no fibre ports', 'geen fiberpoorten')}</text>`;
+      o += `<text x="${s.x + SWW - 8}" y="${s.y + SH - 22}" text-anchor="end" class="fv-sub">${esc([ty?.name].filter(Boolean).join(' ').slice(0, 24))}</text><text x="${s.x + SWW - 8}" y="${s.y + SH - 9}" text-anchor="end" class="fv-sub">${s.rj} ${t('copper', 'koper')}${s.sfp ? ` · ${s.sfp} ${t('fibre', 'fiber')}` : ''}</text>`;
     }
     return o + '</g>';
   }
@@ -87,7 +140,7 @@
     const g = build(); S.layout = g;
     const links = F().all();
     const usage = new Map(); for(const l of links) for(const e of [l.a, l.b]) if(e && !e.free) usage.set(keyOf(e), l);
-    const cables = links.map((l, i) => cableSvg(l, g, i)).join('');
+    const cables = cablesSvg(g);
     const sel = links.find(l => l.id === S.sel);
     const side = `<aside class="fl-side">
       <div class="fl-sec"><div class="rb-label">${t('Show', 'Tonen')}</div><div class="segmented rb-full" id="fvLayer"><button data-v="all">${t('All', 'Alles')}</button><button data-v="dmx">DMX</button><button data-v="net">${t('Network', 'Netwerk')}</button><button data-v="fibre" class="active">${t('Fibres', 'Fibers')}</button></div></div>
@@ -104,12 +157,12 @@
       <span class="fl-hint">${S.pending ? t('Now click the port at the other end · Esc = cancel', 'Klik nu op de poort aan de andere kant · Esc = annuleren') : t('Drag = move · wheel = zoom', 'Sleep = verschuiven · wiel = zoomen')}</span></div>`;
     const pal = `<div class="fv-pal"><span class="rb-label" style="margin:0 8px 0 0">${t('Cable', 'Kabel')}</span>${types.map(ty => { const left = F().leftOf(ty.id), q = F().qtyOf(ty.id);
       return `<button class="fv-chip ${S.type === ty.id ? 'on' : ''} ${left === 0 ? 'out' : ''}" data-type="${esc(ty.id)}" style="--c:${esc(ty.color || '#22c3d6')}"><i></i><b>${esc(F().code(ty.id))}</b><span>${q == null ? '' : `${left}/${q}`}</span></button>`; }).join('') || `<span class="subtle">${t('Make cable types in the Device Builder (Cables).', 'Maak kabeltypes in de Device Builder (Kabels).')}</span>`}</div>`;
-    const svg = `<svg id="fvSvg" xmlns="http://www.w3.org/2000/svg"><g id="fvView" transform="translate(${S.tx},${S.ty}) scale(${S.zoom})"><g>${g.locs.map(l => locSvg(l, usage)).join('')}</g><g>${cables}</g></g></svg>${g.locs.length ? '' : `<div class="empty fl-empty">${I('cable', 30)}<h3>${t('No switches yet', 'Nog geen switches')}</h3><p>${t('Add network switches to the DimCities first (Network page).', 'Voeg eerst netwerkswitches toe aan de DimCities (pagina Netwerk).')}</p></div>`}`;
+    const svg = `<svg id="fvSvg" xmlns="http://www.w3.org/2000/svg"><g id="fvView" transform="translate(${S.tx},${S.ty}) scale(${S.zoom})"><g>${g.locs.map(l => locSvg(l, usage)).join('')}</g><g id="fvCables">${cables}</g></g></svg>${g.locs.length ? '' : `<div class="empty fl-empty">${I('cable', 30)}<h3>${t('No switches yet', 'Nog geen switches')}</h3><p>${t('Add network switches to the DimCities first (Network page).', 'Voeg eerst netwerkswitches toe aan de DimCities (pagina Netwerk).')}</p></div>`}`;
     root.innerHTML = `<div class="fl-wrap">${side}<div class="fl-main">${bar}<div class="fl-canvas fv-canvas" id="fvCanvas">${svg}</div>${pal}</div></div>`;
     bind(root);
     if(S.fit){ S.fit = false; fit(); }
   }
-  function bounds(){ const L = S.layout?.locs || []; if(!L.length) return null; return { x0:Math.min(...L.map(l => l.x)) - 50, y0:Math.min(...L.map(l => l.y)) - 40, x1:Math.max(...L.map(l => l.x + l.w)) + 70, y1:Math.max(...L.map(l => l.y + l.h)) + 40 }; }
+  function bounds(){ const L = S.layout?.locs || []; if(!L.length) return null; return { x0:Math.min(...L.map(l => l.x)) - 60, y0:Math.min(...L.map(l => l.y)) - 90, x1:Math.max(...L.map(l => l.x + l.w)) + 70, y1:Math.max(...L.map(l => l.y + l.h)) + 90 }; }
   function apply(){ const v = document.getElementById('fvView'); if(v) v.setAttribute('transform', `translate(${S.tx},${S.ty}) scale(${S.zoom})`); }
   function fit(){
     const c = document.getElementById('fvCanvas'), b = bounds(); if(!c || !b) return;
@@ -119,6 +172,13 @@
   }
   function zoomAt(z, px, py){ z = Math.max(.2, Math.min(3, z)); S.tx = px - (px - S.tx) * (z / S.zoom); S.ty = py - (py - S.ty) * (z / S.zoom); S.zoom = z; apply(); }
 
+  // while a location card is dragged: redraw the drawing without losing the drag
+  function liveRedraw(root){
+    const v = root.querySelector('#fvView'); if(!v) return;
+    const g = build(); S.layout = g;
+    const usage = new Map(); for(const l of F().all()) for(const e of [l.a, l.b]) if(e && !e.free) usage.set(keyOf(e), l);
+    v.innerHTML = `<g>${g.locs.map(l => locSvg(l, usage)).join('')}</g><g id="fvCables">${cablesSvg(g)}</g>`;
+  }
   function bind(root){
     const again = () => render(root);
     const canvas = root.querySelector('#fvCanvas');
@@ -146,15 +206,44 @@
       if(S.pending === key){ S.pending = null; return again(); }
       if(F().leftOf(S.type) <= 0){ App.ui.toast(t('None of that cable left in stock', 'Van die kabel is er geen meer in voorraad'), 'err'); S.pending = null; return again(); }
       const [d1, s1, n1] = S.pending.split('|'), [d2, s2, n2] = key.split('|');
-      const l = F().addLink({ dc:d1, sw:s1, sfp:Number(n1) }, { dc:d2, sw:s2, sfp:Number(n2) }, S.type);
+      const ea = { dc:d1, sw:s1, sfp:Number(n1) }, eb = { dc:d2, sw:s2, sfp:Number(n2) }, fit = F().fits(S.type, ea, eb);
+      if(!fit.ok){ App.ui.toast(fit.why, 'err'); S.pending = null; return again(); }
+      const l = F().addLink(ea, eb, S.type);
       S.pending = null; S.sel = l.id; again();
     });
     root.querySelectorAll('.fv-cable').forEach(c => c.onclick = e => { e.stopPropagation(); S.sel = S.sel === c.dataset.link ? null : c.dataset.link; S.pending = null; again(); });
     // pan / zoom
     let drag = null;
-    canvas.onmousedown = e => { if(e.target.closest('.fv-port, .fv-cable')) return; drag = { x:e.clientX, y:e.clientY, tx:S.tx, ty:S.ty }; canvas.classList.add('grab'); };
-    window.onmousemove = e => { if(!drag) return; S.tx = drag.tx + e.clientX - drag.x; S.ty = drag.ty + e.clientY - drag.y; apply(); };
-    window.onmouseup = () => { drag = null; canvas.classList.remove('grab'); };
+    const toWorld = e => { const r = canvas.getBoundingClientRect(); return { x:(e.clientX - r.left - S.tx) / S.zoom, y:(e.clientY - r.top - S.ty) / S.zoom }; };
+    canvas.onmousedown = e => {
+      if(e.target.closest('.fv-port, .fv-cable')) return;
+      const sw = e.target.closest('.fv-swdrag'), card = e.target.closest('.fv-drag');
+      if(sw){ const loc = S.layout.locs.find(l => sw.dataset.swd.startsWith(l.dc + '|')); const s = loc?.sws.find(x => `${loc.dc}|${x.label}` === sw.dataset.swd); const w = toWorld(e); drag = { kind:'sw', key:sw.dataset.swd, loc, s, ox:w.x - s.x, oy:w.y - s.y, moved:false }; return; }
+      if(card){ const loc = S.layout.locs.find(l => l.id === card.dataset.loc); const w = toWorld(e); drag = { kind:'loc', loc, ox:w.x - loc.x, oy:w.y - loc.y, moved:false }; return; }
+      drag = { kind:'pan', x:e.clientX, y:e.clientY, tx:S.tx, ty:S.ty }; canvas.classList.add('grab');
+    };
+    window.onmousemove = e => {
+      if(!drag) return;
+      if(drag.kind === 'pan'){ S.tx = drag.tx + e.clientX - drag.x; S.ty = drag.ty + e.clientY - drag.y; apply(); return; }
+      const w = toWorld(e); drag.moved = true;
+      if(drag.kind === 'loc'){ drag.loc.x = w.x - drag.ox; drag.loc.y = w.y - drag.oy; drag.pos = { x:drag.loc.x, y:drag.loc.y }; drag.redraw = true; }
+      else { drag.dropX = w.x; drag.dropY = w.y; }
+      if(drag.kind === 'loc') liveRedraw(root);
+    };
+    window.onmouseup = e => {
+      const d = drag; drag = null; canvas.classList.remove('grab');
+      if(!d || d.kind === 'pan' || !d.moved) return;
+      const st = store();
+      if(d.kind === 'loc'){ st.loc[d.loc.id] = { x:Math.round(d.loc.x), y:Math.round(d.loc.y) }; }
+      else {
+        const l = d.loc, w = toWorld(e), col = Math.max(0, Math.min(3, Math.round((w.x - d.ox - l.x - PAD) / CELLW))), row = Math.max(0, Math.min(3, Math.round((w.y - d.oy - l.y - HEAD) / CELLH)));
+        const other = l.sws.find(x => x !== d.s && x.col === col && x.row === row);
+        if(other) st.sw[`${l.dc}|${other.label}`] = { col:d.s.col, row:d.s.row };
+        st.sw[d.key] = { col, row };
+        for(const x of l.sws) if(!st.sw[`${l.dc}|${x.label}`]) st.sw[`${l.dc}|${x.label}`] = { col:x.col, row:x.row };
+      }
+      M().ui.dirty = true; again();
+    };
     canvas.onwheel = e => { e.preventDefault(); const r = canvas.getBoundingClientRect(); zoomAt(S.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientX - r.left, e.clientY - r.top); };
     canvas.onclick = e => { if(!e.target.closest('.fv-port, .fv-cable') && (S.sel || S.pending)){ S.sel = null; S.pending = null; again(); } };
     document.onkeydown = e => { if(e.key === 'Escape' && (S.pending || S.sel)){ S.pending = null; S.sel = null; again(); } };

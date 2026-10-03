@@ -74,7 +74,7 @@ function buildGraph(dcs){
     const rackName = ri => P.racks[ri]?.placement.name || P.racks[ri]?.rack?.name || `Rack ${ri + 1}`;
     // one unit (a face with its ports) of a rack or of a loose device, as the Rack Builder draws it
     const unitOf = (it, ty, ri, blockId) => {
-      const u = { iid:it.iid, kind:it.kind, u:it.u || 1, hu:Math.max(1, Number(ty.heightU) || 1), name:typeName(ty), meta:KIND_NAME[it.kind] || it.kind, color:safeHex(ty.color, KIND_COLOR[it.kind]), badge:null, badgeColor:null, groups:[], lines:[], side:ty.width === 'half' ? (it.side || 'L') : null };
+      const u = { iid:it.iid, kind:it.kind, u:it.u || 1, hu:Math.max(1, Number(ty.heightU) || 1), name:typeName(ty), meta:KIND_NAME[it.kind] || it.kind, color:safeHex(ty.color, KIND_COLOR[it.kind]), badge:null, badgeColor:null, groups:[], lines:[], side:ty.width === 'half' ? (it.side || 'L') : null, special:ty.special || null };
       const grp = ps => { if(ps.length) u.groups.push(ps); };
       const inRack = x => ri < 0 ? x.loose : x.rack === ri;
       if(it.kind === 'node'){
@@ -103,6 +103,8 @@ function buildGraph(dcs){
         }
         for(const g of window.SwPorts.panelGroups(ty)) grp(g.items.map(x => pp(`st${g.sub || g.cls}${x.no}`, g.cls, x.no, null, { title:x.title })));
         grp(vs.map(v => { if(v.used) refs.set(`owner:${v.used.id}`, { block:blockId, port:`s${v.label}` }); return pp(`s${v.label}`, 'vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? owners.get(v.used.id) : null, { free:!v.used, owner:v.used?.id, title:`${v.label}: ${v.used ? v.used.id : t('free', 'vrij')}` }); }));
+      } else if(ty.special){
+        u.groups = [];   // the face is drawn as a picture of the real set
       } else {
         const SP = window.SwPorts, panels = ri >= 0 ? (P.racks[ri]?.rack?.items || []).filter(x => x.kind === 'panel').map(x => find('panelTypes', x.typeId)) : [];
         grp(Array.from({ length:SP.front(ty) }, (_, i) => pp(`r${i + 1}`, 'rj', i + 1, null, { title:`${t('Port', 'Poort')} ${i + 1}` })));
@@ -259,7 +261,7 @@ function buildGraph(dcs){
         const mine = swRows.filter(r => r.sw === sw.label), fib = fibUse(sw.label);
         if(!mine.length && !fib.size) continue;
         const rows = mine.map(r => port(`p${r.swPort}`, String(r.swPort), null, { dest:`${r.device}${r.ethCount > 1 && !r.cable ? ` ETH${r.eth}` : ''}`, tag:vlanTag(r.vlans[0]), tagColor:vlanColor(r.vlans[0]) }));
-        for(const [n, l] of [...fib.entries()].sort((a, b) => a[0] - b[0])){ const other = (l.a?.dc === dc && l.a?.sw === sw.label && Number(l.a?.sfp) === n) ? l.b : l.a; rows.push(port(`s${n}`, `SFP ${n}`, null, { dest:window.Fibers.endLabel(other), tag:l.id, tagColor:window.Fibers.color(l) })); }
+        for(const [n, l] of [...fib.entries()].sort((a, b) => a[0] - b[0])){ const other = (l.a?.dc === dc && l.a?.sw === sw.label && Number(l.a?.sfp) === n) ? l.b : l.a; rows.push(port(`s${n}`, window.SwPorts.label(sw.type, n), null, { dest:window.Fibers.endLabel(other), tag:l.id, tagColor:window.Fibers.color(l) })); }
         const ty = sw.type || {};
         add({ id:`${dc}|sw|${sw.label}`, kind:'switch', band:'net', dc, col:1, title:sw.label, sub:`${[ty.brand, ty.name].filter(Boolean).join(' ')}${sw.where ? ` · ${sw.where}` : ''}`, color:/^#[0-9a-f]{6}$/i.test(ty.color || '') ? ty.color : '#35c47c', rows });
       }
@@ -556,6 +558,7 @@ function deviceSvg(b, TH, print, selbox){
 }
 function unitFaceSvg(b, u, TH){
   const r = b.unitRect.get(u), { x, y, w, h } = r;
+  if(u.special) return `<g class="funit" data-unit="${esc(u.iid)}"><g transform="translate(${x},${y})">${window.SwPorts.gc20tShapes(w, h, { title:'GigaCore 20t' })}</g><title>${esc(u.name)}</title></g>`;
   if(u.blind) return `<g class="funit"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="#0b0c0e" stroke="#2b2f36"/><circle cx="${x + 9}" cy="${y + h * .3}" r="2.3" fill="${TH.screw}"/><circle cx="${x + w - 9}" cy="${y + h * .3}" r="2.3" fill="${TH.screw}"/><circle cx="${x + 9}" cy="${y + h * .72}" r="2.3" fill="${TH.screw}"/><circle cx="${x + w - 9}" cy="${y + h * .72}" r="2.3" fill="${TH.screw}"/></g>`;
   const screw = (cx, cy) => `<circle cx="${cx}" cy="${cy}" r="2.3" fill="${TH.screw}" stroke="${TH.screwRing}"/>`;
   const ear = ex => `<rect x="${ex}" y="${y}" width="${EAR}" height="${h}" fill="${TH.ear}"/>${screw(ex + EAR / 2, y + h * .28)}${screw(ex + EAR / 2, y + h * .72)}`;

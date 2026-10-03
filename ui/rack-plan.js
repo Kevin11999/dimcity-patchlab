@@ -47,6 +47,7 @@ function rackFace(plan, ri){
     if(it.kind === 'blind') return `<div class="rk-item static half half-${it.side || 'L'}" style="grid-row:${it.u} / span 1"><div class="ru ru-rack ru-blind" style="--hu:1"><span class="ru-ear"></span><div class="ru-body"></div><span class="ru-ear"></span></div></div>`;
     const key = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes', panel:'panelTypes' }[it.kind];
     const t = find(key, it.typeId); if(!t) return '';
+    if(t.special) return `<div class="rk-item static" style="grid-row:${it.u} / span ${Math.max(1, Number(t.heightU) || 3)}"><div class="ru ru-rack ru-special" style="--hu:${Math.max(1, Number(t.heightU) || 3)}">${window.SwPorts.gc20tSvg({ title:'GigaCore 20t' })}</div></div>`;
     let ports = '', badge = '';
     if(it.kind === 'node'){
       const n = nodeBy.get(it.iid);

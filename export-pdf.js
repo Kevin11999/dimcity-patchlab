@@ -344,6 +344,7 @@
       .pp.in{border-color:#2563eb}
       .pp.rj,.pp.sfp{border-radius:.5mm;border-width:.3mm;border-color:#475569;background:#f1f5f9;--ps:calc(var(--uh) * .55)}
       .pp.sfp{width:calc(var(--ps) * 1.4);flex-basis:calc(var(--ps) * 1.4)}
+      .pru-special{padding:0;display:block;background:#10131a}.pru-special .gc20t{display:block;width:100%;height:100%}
       .prk-half{width:50%}.prk-R{justify-self:end}.prk-L{justify-self:start}
       .prk-tag{display:inline-block;font-size:${fs*.68}px;font-weight:800;padding:0 .9mm;border-radius:.6mm;background:var(--c,#475569);color:#fff;line-height:1.5}
       /* signaalstroom-tekening */
@@ -516,6 +517,7 @@
       if(it.kind === 'blind') return `<div class="prk-it prk-half prk-${it.side === 'R' ? 'R' : 'L'}" style="grid-row:${it.u} / span 1"><div class="pru" style="--c:#000;background:#0b0c0e"></div></div>`;
       const key = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes', panel:'panelTypes' }[it.kind];
       const t = find(key, it.typeId); if(!t) return '';
+      if(t.special) return `<div class="prk-it" style="grid-row:${it.u} / span ${Math.max(1, Number(t.heightU) || 3)}"><div class="pru pru-special">${window.SwPorts.gc20tSvg({ title:'GigaCore 20t' }, 4.2)}</div></div>`;
       let ports = '', tag = '';
       if(it.kind === 'node'){
         const x = nodes.get(it.iid);

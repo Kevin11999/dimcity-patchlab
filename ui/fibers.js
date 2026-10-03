@@ -69,6 +69,7 @@
       if(!typeId){ App.ui.toast(t('Choose a cable type', 'Kies een kabeltype'), 'info'); return; }
       if(av === bv && av !== '*'){ App.ui.toast(t('End A and B are the same port', 'Uiteinde A en B zijn dezelfde poort'), 'err'); return; }
       const a = await endOf(av), b = await endOf(bv); if(!a || !b) return;
+      const fit = fits(typeId, a, b); if(!fit.ok){ App.ui.toast(fit.why, 'err'); return; }
       nd().fiberLinks.push({ id:nextId(), typeId, a, b, note:'' }); M().ui.dirty = true; rerender();
     };
     root.querySelectorAll('.fibRm').forEach(b => b.onclick = () => { nd().fiberLinks.splice(Number(b.dataset.i), 1); M().ui.dirty = true; rerender(); });
@@ -102,6 +103,17 @@
     return pre + fmtLen(ty.lengthM);
   }
   const connClass = c => /optical/i.test(c) ? 'oc' : /fiberfox/i.test(c) ? 'ff' : 'sfp';
+  // a cable only fits a port with the same connector: opticalCON on opticalCON, FiberFox on FiberFox, SFP patch on a plain SFP
+  const portClass = (e) => { const sw = swOf(e.dc, e.sw); return window.SwPorts.kindOf(window.SwPorts.conn(sw?.type, Number(e.sfp))); };
+  const CLS = { oc:'opticalCON', ff:'FiberFox', sfp:'SFP' };
+  function fits(typeId, a, b){
+    const ty = typeOf(typeId); if(!ty) return { ok:true };
+    const ca = connClass(ty.connA), cb = connClass(ty.connB || ty.connA);
+    const pa = a && !a.free ? portClass(a) : null, pb = b && !b.free ? portClass(b) : null;
+    const direct = (pa == null || pa === ca) && (pb == null || pb === cb), swapped = (pa == null || pa === cb) && (pb == null || pb === ca);
+    if(direct || swapped) return { ok:true };
+    return { ok:false, why:t(`${typeName(ty)} has ${CLS[ca]} connectors${cb !== ca ? ` / ${CLS[cb]}` : ''}, but the ports are ${CLS[pa] || '?'} and ${CLS[pb] || '?'}.`, `${typeName(ty)} heeft ${CLS[ca]}-connectoren${cb !== ca ? ` / ${CLS[cb]}` : ''}, maar de poorten zijn ${CLS[pa] || '?'} en ${CLS[pb] || '?'}.`) };
+  }
   function addLink(a, b, typeId, note = ''){
     const l = { id:nextId(), typeId, a, b, note }; nd().fiberLinks.push(l); M().ui.dirty = true; return l;
   }
@@ -111,8 +123,7 @@
     const used = new Set(taken); for(const l of all()) for(const e of ends(l)) if(e?.dc === dc && e.sw === swLabel) used.add(Number(e.sfp));
     const ok = [];
     for(let n = 1; n <= sw.sfp; n++) if(!used.has(n)) ok.push(n);
-    const pref = ok.find(n => window.SwPorts.kindOf(window.SwPorts.conn(sw.type, n)) === cls);
-    return pref ?? ok[0] ?? null;
+    return ok.find(n => window.SwPorts.kindOf(window.SwPorts.conn(sw.type, n)) === cls) ?? null;   // strictly the connector of the cable
   }
   // Auto-assign: switches in one location are chained with the short cable, locations are linked with the long cable (ring or chain).
   function autoAssign({ topology = 'ring', intraType, interType, dryRun = false } = {}){
@@ -180,5 +191,5 @@
     d.footer.querySelector('[data-a=ok]').onclick = () => { const r = autoAssign(get()); d.close(); App.ui.toast(`${r.made.length} ${t('fibres coupled', 'fibers gekoppeld')}${r.missing.length ? ` · ${r.missing.length} ${t('short in stock', 'tekort in voorraad')}` : ''}${r.noPort.length ? ` · ${r.noPort.length} ${t('no free port', 'geen vrije poort')}` : ''}`); done?.(); };
   }
 
-  window.Fibers = { all, links, usage, matrix, card, bind, typeOf, typeName, endLabel, portName, color, lenOf, freePorts, stock, qtyOf, usedOf, leftOf, setQty, code, connClass, addLink, autoAssign, suggestTypes, stockCard, bindStock, autoDialog, fmtLen };
+  window.Fibers = { fits, portClass, all, links, usage, matrix, card, bind, typeOf, typeName, endLabel, portName, color, lenOf, freePorts, stock, qtyOf, usedOf, leftOf, setQty, code, connClass, addLink, autoAssign, suggestTypes, stockCard, bindStock, autoDialog, fmtLen };
 })();

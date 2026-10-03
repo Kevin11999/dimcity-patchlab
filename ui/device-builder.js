@@ -144,6 +144,7 @@ function cableFace(t, size){
 }
 function unitFace(kind, t, size='md', opts = {}){
   if(kind === 'cable') return cableFace(t, size);
+  if(t?.special && window.SwPorts) return `<div class="ru ru-${size} ru-special" style="--hu:${Math.max(1, num(t.heightU, 3))}">${window.SwPorts.gc20tSvg({ title:'GigaCore 20t' })}</div>`;
   const hu = Math.max(1, num(t?.heightU, 1));
   return `<div class="ru ru-${size}" style="--c:${safeHex(t?.color, KINDS[kind].color)};--hu:${hu}">
     <span class="ru-ear"></span>
@@ -215,13 +216,14 @@ function editorHtml(kind){
     <div class="db-edit-head"><h3>${S.origId ? esc(typeName(saved) || saved.id) : `New ${K.one.toLowerCase()}`}</h3>
       ${used.length ? `<span class="subtle">Used in ${used.map(r => esc(r.name || r.id)).join(', ')}</span>` : ''}</div>
     ${libNote}
-    <div class="db-form">${FIELDS[kind].map(f => fieldHtml(f, t)).join('')}</div>
+    ${t.special ? `<div class="db-libnote">${I('info', 14)}<span>This is a built-in special device. It is drawn exactly like the real set and cannot be changed or built in the Device Builder; place it in a rack or choose it as a network switch.</span></div>
+    <div class="db-actions"><span style="flex:1"></span></div>` : `<div class="db-form">${FIELDS[kind].map(f => fieldHtml(f, t)).join('')}</div>
     <div class="db-actions">
       ${S.origId ? `<button class="danger" data-del>${I('trash', 14)}Delete</button><button data-dup>${I('copy', 14)}Duplicate</button>` : ''}
       <span style="flex:1"></span>
       <span class="subtle db-dirty" ${isDirty() ? '' : 'hidden'}>Unsaved changes</span>
       <button class="primary" data-save>${I('check', 14)}Save ${K.one}</button>
-    </div>`;
+    </div>`}`;
 }
 function renderDeviceTab(kind){
   const K = KINDS[kind], list = plist(K.key);
@@ -267,7 +269,7 @@ function bindDeviceTab(kind){
     card.onkeydown = e => { if(e.key === 'Enter') go(); };
   });
   body.querySelector('[data-new]').onclick = () => guardDiscard(() => { setDraft(kind, null); render(); body.querySelector('[data-f="brand"]')?.focus(); });
-  body.querySelector('[data-save]').onclick = () => saveType(kind);
+  const sv = body.querySelector('[data-save]'); if(sv) sv.onclick = () => saveType(kind);
   const dup = body.querySelector('[data-dup]');
   if(dup) dup.onclick = () => guardDiscard(() => {
     const src = findType(kind, S.origId);

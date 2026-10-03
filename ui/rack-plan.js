@@ -199,6 +199,7 @@ function cardHtml(dc){
       <label>Rack<select id="rpRackType" ${rackTypes.length ? '' : 'disabled'}>${opts || '<option>No racks yet</option>'}</select></label>
       <button id="rpPlace" ${rackTypes.length ? '' : 'disabled'}>${I('plus', 14)}Place rack</button>
       <button data-cmd="deviceBuilder" data-arg="rack">${I('rack', 14)}Rack Builder</button>
+      <button id="rpCustom" title="Build a rack of your own right here: choose the devices, no article key needed">${I('plus', 14)}Custom rack…</button>
       ${any ? `<button class="primary" id="rpApply" title="Create the network nodes and splitters of this DimCity from the rack patch">${I('check', 14)}Use as network plan</button>` : ''}
       ${any ? `<button id="rpPrint" title="Export a PDF with only the racks of this DimCity">${I('file', 14)}Print racks</button>` : ''}
     </div>`;
@@ -219,6 +220,7 @@ function cardHtml(dc){
   const racks = plan.racks.map((R, ri) => `<div class="rp-rack">
       <div class="rp-rack-head"><b>${esc(R.placement.name || R.rack?.name || R.placement.rackId)}</b><span class="subtle">${R.rack ? `${R.rack.heightU}U${R.rack.articleKey ? ` · ${esc(R.rack.articleKey)}` : ''}` : ''}</span>
         <input type="text" class="rp-name" data-rp="${esc(R.placement.iid)}" value="${esc(R.placement.name || '')}" placeholder="Name in this DimCity">
+        ${ri > 0 ? `<label class="rp-inline" title="Tick when this rack stands directly on the rack above it: the short LK / Veam cables can then reach the nodes of both racks. Between racks only network cables run."><input type="checkbox" data-rp-stack="${esc(R.placement.iid)}" ${R.placement.stack ? 'checked' : ''}> stacked on the rack above</label>` : ''}
         <button class="sm ghost" data-rp-remove="${esc(R.placement.iid)}" title="Remove from ${esc(dc)}">${I('trash', 13)}</button></div>
       <div class="rk-canvas compact">${rackFace(plan, ri)}</div></div>`).join('');
   const rowsSorted = plan.lines.slice().sort((a, b) => (a.feed ? 0 : 1) - (b.feed ? 0 : 1) || String(a.feed?.node || '').localeCompare(String(b.feed?.node || ''), undefined, { numeric:true }) || (a.feed?.port || 0) - (b.feed?.port || 0));
@@ -248,6 +250,13 @@ function bind(root, dc, rerender){
     M().ui.cardCollapsed[`${dc}:racks`] = false;
     M().ui.dirty = true; rerender();
   };
+  const cr = root.querySelector('#rpCustom'); if(cr) cr.onclick = () => customRack(dc, rerender);
+  root.querySelectorAll('[data-rp-stack]').forEach(c => c.onchange = () => {
+    const r = racksOf(dc).find(x => x.iid === c.dataset.rpStack); if(!r) return;
+    if(c.checked) r.stack = true; else delete r.stack;
+    window.PatchHistory?.label?.(`${dc}: rack stacking changed`);
+    M().ui.dirty = true; rerender();
+  });
   root.querySelectorAll('[data-rp-remove]').forEach(b => b.onclick = () => {
     const plan = App.net.getDimPlan(dc);
     window.PatchHistory?.label?.(`Removed rack from ${dc}`);
@@ -265,8 +274,11 @@ function bind(root, dc, rerender){
     if(kind === 'node'){
       const id = root.querySelector('#rpLooseType')?.value;
       const t = (M().networkDevices?.nodeTypes || []).find(x => x.id === id); if(!t) return;
-      item.typeId = t.id; item.name = '';
-      window.PatchHistory?.label?.(`Added loose ${typeName(t)} in ${dc}`);
+      addLooseNode(dc, t.id);
+      App.ui.toast('Loose node added with an LK spider — a node without a rack needs one');
+      if(!M().ui.cardCollapsed) M().ui.cardCollapsed = {};
+      M().ui.cardCollapsed[`${dc}:racks`] = false;
+      M().ui.dirty = true; rerender(); return;
     } else {
       // een nieuwe spin hangt standaard aan de laatst toegevoegde losse node
       const lastNode = looseOf(dc).filter(d => d.kind === 'node').pop();
@@ -337,4 +349,59 @@ function applyToNetworkPlan(dc, { quiet=false } = {}){
   if(!quiet) App.ui.toast(`${dc}: ${App.ui.plural(plan.nodes.length, 'node')}${plan.splitters.length ? ` and ${App.ui.plural(plan.splitters.length, 'splitter')}` : ''} taken from the rack`);
 }
 
-window.RackPlan = { cardHtml, bind, rackFace, nodePortsStrip, applyToNetworkPlan, assignHtml, bindAssign, adviceHtml, bindAdvice };
+// A loose node needs a spider to be fed (it has no panel): add it together with an LK spider
+function addLooseNode(dc, typeId){
+  const t = (M().networkDevices?.nodeTypes || []).find(x => x.id === typeId); if(!t) return null;
+  const list = looseOf(dc), node = { iid:newIid('ls'), kind:'node', typeId:t.id, name:'' };
+  list.push(node, { iid:newIid('ls'), kind:'lkSpider', nodeIid:node.iid });
+  window.PatchHistory?.label?.(`Added loose ${typeName(t)} with an LK spider in ${dc}`);
+  M().ui.dirty = true;
+  return node;
+}
+
+// ---- Custom rack: build a rack on the spot (no article key needed) from the devices of this show ----
+function customRack(dc, done){
+  const net = M().networkDevices || {};
+  const groups = [['panel', 'Panels (LK / Veam sockets)', net.panelTypes || []], ['node', 'DMX nodes', net.nodeTypes || []], ['splitter', 'Splitters', net.splitterTypes || []], ['switch', 'Switches', net.switchTypes || []]];
+  const nrs = (net.rackTypes || []).length + 1;
+  const rowsHtml = groups.map(([kind, label, list]) => list.length ? `<div class="rb-label" style="margin-top:10px">${esc(label)}</div>${list.map(ty => `<div class="cr-row"><span>${esc(typeName(ty))} <em class="subtle">${Number(ty.heightU) || 1}U${ty.width === 'half' ? ' · half' : ''}</em></span><input type="number" min="0" max="20" value="0" data-kind="${kind}" data-type="${esc(ty.id)}"></div>`).join('')}` : '').join('');
+  const d = App.ui.openDialog({ title:'Custom rack', subtitle:`A rack of your own for ${dc}: choose what goes in, PatchLab places it. No article key needed.`, width:'560px',
+    body:`<label class="field">Name<input type="text" id="crName" value="Custom rack ${nrs}"></label>
+      <label class="field">Height<select id="crH"><option value="0">Smallest that fits</option>${[2, 4, 6, 8, 10, 12, 16, 20, 24, 42].map(h => `<option value="${h}">${h}U</option>`).join('')}</select></label>
+      ${rowsHtml || '<div class="hint">No devices yet — build them in the Device Builder first.</div>'}
+      <div class="hint" id="crSum" style="margin-top:10px"></div>
+      <label class="rp-inline" style="margin-top:8px"><input type="checkbox" id="crStack"> Stacked on the rack above <span class="subtle">(LK / Veam cables can then reach the nodes of both racks)</span></label>`,
+    footer:`<button data-a="cancel">Cancel</button><button class="primary" data-a="ok">Build and place</button>` });
+  const count = () => [...d.body.querySelectorAll('input[data-kind]')].map(i => ({ kind:i.dataset.kind, ty:i.dataset.type, n:Math.max(0, Math.min(20, Number(i.value) || 0)) })).filter(x => x.n);
+  const hu = (kind, id) => { const ty = (net[{ panel:'panelTypes', node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes' }[kind]] || []).find(x => x.id === id); return { ty, h:Math.max(1, Number(ty?.heightU) || 1), half:ty?.width === 'half' }; };
+  const layout = () => {      // panels first, then nodes, splitters and switches; half-width devices share a row
+    const items = []; let u = 1, pendingHalf = null;
+    for(const [kind] of groups) for(const c of count().filter(x => x.kind === kind)) for(let k = 0; k < c.n; k++){
+      const { h, half } = hu(c.kind, c.ty);
+      if(half){
+        if(pendingHalf){ items.push({ iid:newIid('it'), kind:c.kind, typeId:c.ty, u:pendingHalf, side:'R' }); pendingHalf = null; }
+        else { items.push({ iid:newIid('it'), kind:c.kind, typeId:c.ty, u, side:'L' }); pendingHalf = u; u += h; }
+      } else { items.push({ iid:newIid('it'), kind:c.kind, typeId:c.ty, u }); u += h; }
+    }
+    return { items, used:u - 1 };
+  };
+  const sum = () => { const L = layout(); d.body.querySelector('#crSum').textContent = L.used ? `${L.used}U of devices${Number(d.body.querySelector('#crH').value) && L.used > Number(d.body.querySelector('#crH').value) ? ' — too much for this height' : ''}` : 'Pick at least one device.'; };
+  d.body.querySelectorAll('input[data-kind], #crH').forEach(i => i.oninput = i.onchange = sum); sum();
+  d.footer.querySelector('[data-a=cancel]').onclick = () => d.close();
+  d.footer.querySelector('[data-a=ok]').onclick = () => {
+    const L = layout(); if(!L.used){ App.ui.toast('Pick at least one device', 'info'); return; }
+    const picked = Number(d.body.querySelector('#crH').value) || 0;
+    if(picked && L.used > picked){ App.ui.toast(`That is ${L.used}U — choose a taller rack`, 'err'); return; }
+    const height = picked || [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 42].find(h => h >= L.used) || L.used;
+    const used = new Set((net.rackTypes ||= []).map(r => r.id)); let n = 1; while(used.has(`RACK:CUSTOM-${n}`)) n++;
+    const rack = { id:`RACK:CUSTOM-${n}`, name:d.body.querySelector('#crName').value.trim() || `Custom rack ${nrs}`, articleKey:'', custom:true, heightU:height, items:L.items };
+    net.rackTypes.push(rack);
+    window.Library?.put?.('rackTypes', rack);
+    const stack = d.body.querySelector('#crStack').checked && racksOf(dc).length > 0;
+    racksOf(dc).push({ iid:newIid('rk'), rackId:rack.id, name:'', ...(stack ? { stack:true } : {}) });
+    window.PatchHistory?.label?.(`Custom rack placed in ${dc}`);
+    M().ui.dirty = true; d.close(); App.ui.toast(`${rack.name} placed in ${dc}`); done?.();
+  };
+}
+
+window.RackPlan = { customRack, addLooseNode, cardHtml, bind, rackFace, nodePortsStrip, applyToNetworkPlan, assignHtml, bindAssign, adviceHtml, bindAdvice };

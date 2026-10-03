@@ -9,7 +9,7 @@
   const I = (n, s) => App.ui.icon(n, s);
   const M = () => App.getMODEL();
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-  const S = { type:null, pending:null, sel:null, zoom:1, tx:0, ty:0, fit:true, layout:null };
+  const S = { type:null, pending:null, sel:null, zoom:1, tx:0, ty:0, fit:true, layout:null, float:null };
 
   const SWW = 270, CELLW = SWW + 12, HEAD = 30, SH = 66, CELLH = SH + 12, PW = 34, PH = 24, PAD = 8;
   const F = () => window.Fibers;
@@ -49,6 +49,7 @@
     const ports = new Map();   // `${dc}|${sw}|${n}` -> { x, y, loc, sw, n }
     for(const l of locs) for(const s of l.sws){
       s.x = l.x + PAD + s.col * CELLW; s.y = l.y + HEAD + s.row * CELLH; s.w = SWW; s.h = SH;
+      if(S.float && S.float.key === `${l.dc}|${s.label}`){ s.x = S.float.x; s.y = S.float.y; }   // a switch being dragged follows the pointer, its cables with it
       for(let k = 1; k <= s.sfp; k++) ports.set(`${l.dc}|${s.label}|${k}`, { x:s.x + 14 + (k - 1) * (PW + 4) + PW / 2, y:s.y + 48, loc:l, sw:s, n:k });
     }
     return { locs, ports };
@@ -229,11 +230,11 @@
       if(drag.kind === 'pan'){ S.tx = drag.tx + e.clientX - drag.x; S.ty = drag.ty + e.clientY - drag.y; apply(); return; }
       const w = toWorld(e); drag.moved = true;
       if(drag.kind === 'loc'){ drag.loc.x = w.x - drag.ox; drag.loc.y = w.y - drag.oy; drag.pos = { x:drag.loc.x, y:drag.loc.y }; drag.redraw = true; }
-      else { drag.dropX = w.x; drag.dropY = w.y; }
-      if(drag.kind === 'loc') liveRedraw(root);
+      else { drag.dropX = w.x; drag.dropY = w.y; S.float = { key:drag.key, x:w.x - drag.ox, y:w.y - drag.oy }; }
+      liveRedraw(root);
     };
     window.onmouseup = e => {
-      const d = drag; drag = null; canvas.classList.remove('grab');
+      const d = drag; drag = null; S.float = null; canvas.classList.remove('grab');
       if(!d || d.kind === 'pan' || !d.moved) return;
       const st = store();
       if(d.kind === 'loc'){ st.loc[d.loc.id] = { x:Math.round(d.loc.x), y:Math.round(d.loc.y) }; }

@@ -18,6 +18,15 @@ function types(M){
   const find = (key, id) => (nd[key] || []).find(x => x.id === id) || null;
   return { nd, find };
 }
+// Racks that sit directly on top of each other (placement.stack = "on the rack above") form one zone: the short
+// LK / Veam / XLR cables reach inside a zone only. Between zones only network cables (Cat, fibre) run.
+// zone null = loose (a loose spider is a loose cable, it reaches every node).
+export const zoneOk = (a, b) => a == null || b == null || a === b;
+function zonesOf(M, dc){
+  const z = [];
+  placedRacks(M, dc).forEach((pl, i) => { z[i] = pl.stack && i > 0 ? z[i - 1] : i; });
+  return z;
+}
 export function placedRacks(M, dc){
   const plan = M.networkDevices?.dimCityPlans?.[dc];
   return Array.isArray(plan?.racks) ? plan.racks : [];
@@ -63,9 +72,10 @@ function resources(M, dc){
   const { find } = types(M);
   const nodes = [], splitters = [], groups = [], soloVims = [], racks = [];
   let lkNo = 0, vimNo = 0;
+  const zones = zonesOf(M, dc);
   placedRacks(M, dc).forEach((pl, ri) => {
     const rack = find('rackTypes', pl.rackId);
-    racks.push({ placement:pl, rack, index:ri });
+    racks.push({ placement:pl, rack, index:ri, zone:zones[ri] });
     if(!rack) return;
     const items = (rack.items || []).slice().sort((a, b) => (a.u - b.u) || ((a.side === 'R') - (b.side === 'R')));
     for(const it of items){
@@ -74,19 +84,19 @@ function resources(M, dc){
       if(!t) continue;
       if(it.kind === 'node'){
         const n = nodes.length;
-        nodes.push({ rack:ri, iid:it.iid, type:t, label:`N${n + 1}`, color:NODE_COLORS[n % NODE_COLORS.length], ports:Array.from({ length:Math.max(1, num(t.portCount, 8)) }, () => null) });
+        nodes.push({ rack:ri, zone:zones[ri], iid:it.iid, type:t, label:`N${n + 1}`, color:NODE_COLORS[n % NODE_COLORS.length], ports:Array.from({ length:Math.max(1, num(t.portCount, 8)) }, () => null) });
       } else if(it.kind === 'splitter'){
         const inputs = t.mode === 'AB' ? 2 : 1;
-        splitters.push({ rack:ri, iid:it.iid, type:t, label:`S${splitters.length + 1}`, inputs:[], maxInputs:inputs, outputs:Array.from({ length:Math.max(1, num(t.outputCount, 10)) }, () => null) });
+        splitters.push({ rack:ri, zone:zones[ri], iid:it.iid, type:t, label:`S${splitters.length + 1}`, inputs:[], maxInputs:inputs, outputs:Array.from({ length:Math.max(1, num(t.outputCount, 10)) }, () => null) });
       } else if(it.kind === 'panel'){
         const lk = num(t.lkCount), vim = num(t.vimCount);
         // Veam4-aansluitingen delen de lijnen van een LK-aansluiting (3 per LK); de rest is los
         const shared = Math.min(vim, lk * 3);
         for(let g = 0; g < lk; g++){
           lkNo++;
-          groups.push({ rack:ri, panel:typeName(t), iid:it.iid, label:`LK${lkNo}`, vims:[0, 1, 2].filter(k => g * 3 + k < shared).map(k => ({ label:`Veam${++vimNo}`, slot:k, used:null })), lk:null });
+          groups.push({ rack:ri, zone:zones[ri], panel:typeName(t), iid:it.iid, label:`LK${lkNo}`, vims:[0, 1, 2].filter(k => g * 3 + k < shared).map(k => ({ label:`Veam${++vimNo}`, slot:k, used:null, zone:zones[ri] })), lk:null });
         }
-        for(let k = shared; k < vim; k++) soloVims.push({ rack:ri, panel:typeName(t), iid:it.iid, label:`Veam${++vimNo}`, used:null });
+        for(let k = shared; k < vim; k++) soloVims.push({ rack:ri, zone:zones[ri], panel:typeName(t), iid:it.iid, label:`Veam${++vimNo}`, used:null });
       }
     }
   });
@@ -97,11 +107,11 @@ function resources(M, dc){
       const t = find('nodeTypes', d.typeId);
       if(!t){ loose.push({ ...d, missing:true }); continue; }
       const n = nodes.length;
-      nodes.push({ rack:-1, loose:true, iid:d.iid, type:t, name:d.name || '', label:`N${n + 1}`, color:NODE_COLORS[n % NODE_COLORS.length], ports:Array.from({ length:Math.max(1, num(t.portCount, 8)) }, () => null) });
+      nodes.push({ rack:-1, zone:'loose', loose:true, iid:d.iid, type:t, name:d.name || '', label:`N${n + 1}`, color:NODE_COLORS[n % NODE_COLORS.length], ports:Array.from({ length:Math.max(1, num(t.portCount, 8)) }, () => null) });
     } else if(d.kind === 'lkSpider'){
-      groups.push({ rack:-1, loose:true, panel:'Loose LK spider', iid:d.iid, nodeIid:d.nodeIid || null, label:`LK${++lkNo}`, vims:[], lk:null });
+      groups.push({ rack:-1, zone:null, loose:true, panel:'Loose LK spider', iid:d.iid, nodeIid:d.nodeIid || null, label:`LK${++lkNo}`, vims:[], lk:null });
     } else if(d.kind === 'vimSpider'){
-      soloVims.push({ rack:-1, loose:true, panel:'Loose Veam4 spider', iid:d.iid, nodeIid:d.nodeIid || null, label:`Veam${++vimNo}`, used:null });
+      soloVims.push({ rack:-1, zone:null, loose:true, panel:'Loose Veam4 spider', iid:d.iid, nodeIid:d.nodeIid || null, label:`Veam${++vimNo}`, used:null });
     }
     loose.push(d);
   }
@@ -119,7 +129,7 @@ export function computeRackPlan(M, dc){
   // Own choices per LK / Veam (plan.assign): 'auto' (default) | an exact socket label ('LK2', 'Veam3') | 'spider' (a loose spider) | 'none' (do not patch)
   const assign = M.networkDevices?.dimCityPlans?.[dc]?.assign || {};
   const skipped = [], badAssign = [];
-  const give = (need, socket, node) => { if(node) prefNode.set(need.id, node); need.lines.forEach(l => lines.push({ ...l, socket })); };
+  const give = (need, socket, node, zone = null) => { if(node) prefNode.set(need.id, node); need.lines.forEach(l => lines.push({ ...l, socket, zone })); };
 
   // 1. LK's op LK-aansluitingen: eerst de eigen keuzes, dan spinnen die aan een losse node hangen, dan de rekpanelen, dan losse spinnen
   const wanted = D.lkNeeds.filter(n => n.lines.length || n.slotUsed.some(Boolean));     // LK zonder data: niets aansluiten
@@ -130,7 +140,7 @@ export function computeRackPlan(M, dc){
     if(a === 'none'){ skipped.push(need.id); done.add(need.id); continue; }
     if(a === 'spider'){ noSocket.lk.push(need.id); give(need, 'Loose LK spider'); done.add(need.id); continue; }
     const g = R.groups.find(x => x.label === a && !x.lk);
-    if(g){ g.lk = need; give(need, g.label, g.nodeIid); done.add(need.id); }
+    if(g){ g.lk = need; give(need, g.label, g.nodeIid, g.zone); done.add(need.id); }
     else badAssign.push(`${need.id} → ${a}`);
   }
   const groupsInOrder = [...R.groups.filter(g => g.nodeIid && !g.lk), ...R.groups.filter(g => !g.nodeIid && !g.lk)];
@@ -138,7 +148,7 @@ export function computeRackPlan(M, dc){
   for(const need of wanted){
     if(done.has(need.id)) continue;
     const g = groupsInOrder[gi++];
-    if(g){ g.lk = need; give(need, g.label, g.nodeIid); }
+    if(g){ g.lk = need; give(need, g.label, g.nodeIid, g.zone); }
     else { noSocket.lk.push(need.id); give(need, 'Loose LK spider'); }
   }
   // 2. Losse Veams: eigen keuzes, dan vrije Veam4 naast een LK, dan losse Veam4, dan Veam4 van lege LK-groepen
@@ -153,13 +163,13 @@ export function computeRackPlan(M, dc){
     if(a === 'none'){ skipped.push(need.id); veDone.add(need.id); continue; }
     if(a === 'spider'){ noSocket.ve.push(need.id); give(need, 'Loose Veam4 spider'); veDone.add(need.id); continue; }
     const v = freeVims.find(x => x.label === a && !x.used);
-    if(v){ v.used = need; give(need, v.label, v.nodeIid); veDone.add(need.id); }
+    if(v){ v.used = need; give(need, v.label, v.nodeIid, v.zone); veDone.add(need.id); }
     else badAssign.push(`${need.id} → ${a}`);
   }
   for(const need of veWanted){
     if(veDone.has(need.id)) continue;
     const v = freeVims.find(x => !x.used);
-    if(v){ v.used = need; give(need, v.label, v.nodeIid); }
+    if(v){ v.used = need; give(need, v.label, v.nodeIid, v.zone); }
     else { noSocket.ve.push(need.id); give(need, 'Loose Veam4 spider'); }
   }
   D.loose.forEach(l => lines.push({ ...l, socket:'Direct (XLR)' }));
@@ -177,7 +187,7 @@ export function computeRackPlan(M, dc){
       if(needPorts <= totalPorts) break;
       const free = sp.outputs.filter(o => !o).length;
       if(sp.inputs.length >= sp.maxInputs || free < 2) continue;
-      const rest = ls.filter(l => !l.feed);
+      const rest = ls.filter(l => !l.feed && zoneOk(l.zone, sp.zone));
       if(rest.length < 2) break;
       const take = rest.slice(0, free);
       sp.inputs.push(u);
@@ -208,18 +218,20 @@ export function computeRackPlan(M, dc){
   const prefOf = u => prefNode.get(u[0].line?.owner) || null;
   const sortedUnits = [...units.values()].sort((x, y) => (prefOf(y) ? 1 : 0) - (prefOf(x) ? 1 : 0) || y.length - x.length);
   const rest = [];
+  const zoneOfF = f => f.splitter ? f.splitter.zone : f.line.zone;
   for(const u of sortedUnits){
-    const pref = prefOf(u);
-    const node = (pref && R.nodes.find(n => n.iid === pref && free(n) >= u.length)) || R.nodes.find(n => free(n) >= u.length);
+    const pref = prefOf(u), uz = zoneOfF(u[0]);
+    const node = (pref && R.nodes.find(n => n.iid === pref && free(n) >= u.length && zoneOk(n.zone, uz))) || R.nodes.find(n => free(n) >= u.length && zoneOk(n.zone, uz));
     if(node) u.sort((x, y) => (x.line?.port ?? 0) - (y.line?.port ?? 0)).forEach(f => put(node, f));
     else rest.push(...u);
   }
-  let unfed = 0;
+  let unfed = 0; const unfedLines = [];
   for(const f of rest){
     const pref = f.line ? prefNode.get(f.line.owner) : null;
-    const node = (pref && R.nodes.find(n => n.iid === pref && free(n) > 0)) || R.nodes.find(n => free(n) > 0);
+    const fz = zoneOfF(f);
+    const node = (pref && R.nodes.find(n => n.iid === pref && free(n) > 0 && zoneOk(n.zone, fz))) || R.nodes.find(n => free(n) > 0 && zoneOk(n.zone, fz));
     if(node) put(node, f);
-    else { unfed += f.splitter ? f.lines.length : 1; if(f.line) f.line.feed = null; else f.lines.forEach(l => l.feed = null); }
+    else { unfed += f.splitter ? f.lines.length : 1; (f.splitter ? f.lines : [f.line]).forEach(l => unfedLines.push(l)); if(f.line) f.line.feed = null; else f.lines.forEach(l => l.feed = null); }
   }
 
   // 4. Adviezen
@@ -238,8 +250,12 @@ export function computeRackPlan(M, dc){
     if(noSocket.ve.length) recs.push({ level:'warn', text:`${noSocket.ve.length} Veam${noSocket.ve.length > 1 ? 's have' : ' has'} no Veam4 socket (${noSocket.ve.join(', ')}) → add ${noSocket.ve.length > 1 ? `${noSocket.ve.length} loose Veam4 spiders` : 'a loose Veam4 spider'}.` });
     if(unfed){
       const per = num(nodeTypes[0]?.portCount, 8);
-      recs.push({ level:'warn', text:`${unfed} line${unfed > 1 ? 's have' : ' has'} no node port → add ${Math.ceil(unfed / per)}× ${nodeTypes[0] ? typeName(nodeTypes[0]) : 'node'}${R.splitters.length ? '' : ', or a splitter for universes that are used more than once'}.` });
+      const farFree = R.nodes.some(n => n.ports.some(p => !p) && unfedLines.some(l => !zoneOk(n.zone, l.zone)));
+      if(farFree) recs.push({ level:'warn', text:`${unfedLines.filter(l => l.zone != null).length || unfed} line${unfed > 1 ? 's have' : ' has'} no free node port in the same rack. LK and Veam cables are short and cannot go from one rack to another — put a node in that rack, or place the racks on top of each other (tick "stacked" on the upper rack). Only network cables run between racks.` });
+      else recs.push({ level:'warn', text:`${unfed} line${unfed > 1 ? 's have' : ' has'} no node port → add ${Math.ceil(unfed / per)}× ${nodeTypes[0] ? typeName(nodeTypes[0]) : 'node'}${R.splitters.length ? '' : ', or a splitter for universes that are used more than once'}.` });
     }
+    const lonely = R.nodes.filter(n => n.loose && !R.loose.some(d => (d.kind === 'lkSpider' || d.kind === 'vimSpider') && (!d.nodeIid || d.nodeIid === n.iid)));
+    if(lonely.length) recs.push({ level:'warn', text:`A node without a rack needs a loose LK spider or a loose Veam spider to be fed: ${lonely.map(n => n.label).join(', ')} ${lonely.length > 1 ? 'have' : 'has'} none → add one next to ${lonely.length > 1 ? 'each of them' : 'it'}.` });
     if(!R.nodes.length && lines.length) recs.push({ level:'warn', text:R.racks.length ? 'This rack has no DMX nodes.' : 'There is no DMX node yet — add a loose node or place a rack.' });
     const freePorts = totalPorts - usedPorts;
     if(freePorts > 0 && !unfed) recs.push({ level:'ok', text:`${freePorts} node port${freePorts > 1 ? 's' : ''} still free.` });
@@ -250,7 +266,7 @@ export function computeRackPlan(M, dc){
     if(!recs.some(r => r.level === 'warn') && lines.length) recs.unshift({ level:'ok', text:`Everything fits: ${lines.length} line${lines.length > 1 ? 's' : ''} patched on ${usedPorts} node port${usedPorts === 1 ? '' : 's'}.` });
   }
   return {
-    dc, skipped, badAssign, racks:R.racks, loose:R.loose, nodes:R.nodes, splitters:R.splitters, groups:R.groups, soloVims:R.soloVims, lines, recs,
+    dc, skipped, badAssign, lonely:R.nodes.filter(n => n.loose && !R.loose.some(d => (d.kind === 'lkSpider' || d.kind === 'vimSpider') && (!d.nodeIid || d.nodeIid === n.iid))), racks:R.racks, loose:R.loose, nodes:R.nodes, splitters:R.splitters, groups:R.groups, soloVims:R.soloVims, lines, recs,
     stats:{ lkSockets, lkUsed, vimSockets, vimUsed, nodePorts:totalPorts, nodePortsUsed:usedPorts, lines:lines.length, unfed,
       spiders:{ lk:noSocket.lk.length, vim:noSocket.ve.length } }
   };
@@ -270,4 +286,4 @@ export function ownerColors(plan){
   return out;
 }
 
-window.RackEngine = { computeRackPlan, placedRacks, looseDevices, hasRackPlan, ownerColors, demand, NODE_COLORS };
+window.RackEngine = { zoneOk, computeRackPlan, placedRacks, looseDevices, hasRackPlan, ownerColors, demand, NODE_COLORS };

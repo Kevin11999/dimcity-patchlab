@@ -124,5 +124,12 @@
     for(const d of devices) for(const p of portsOf(d.dev, d.ethCount)){ if(!p.ifs.length) continue; rows.push({ port:port++, device:d.label, eth:p.eth, ethCount:d.ethCount, mode:p.mode, vlans:p.vlans, ips:p.ifs.map(x => x.ip).filter(Boolean) }); }
     return rows;
   }
-  window.Fent = { VLANS, LUMINEX, vlanList, roleVlan, suggestRole, MASK, ROLES, GROUPS, isIp, vlanById, classify, suggest, suggestEquipment, checkIp, checkAll, ifaces, portsOf, switchPlan };
+  // The VLAN column of a C row: a GigaCore group number (1-20) or a VLAN ID (1, 200, 300 … or a FENT number)
+  function vlanFromColumn(v){
+    if(v == null || v === '') return null;
+    const n = Number(v); if(!Number.isFinite(n)) return null;
+    if(n >= 1 && n <= 20) return n === 1 ? 1 : n * 100;
+    return n;
+  }
+  window.Fent = { vlanFromColumn, VLANS, LUMINEX, vlanList, roleVlan, suggestRole, MASK, ROLES, GROUPS, isIp, vlanById, classify, suggest, suggestEquipment, checkIp, checkAll, ifaces, portsOf, switchPlan };
 })();

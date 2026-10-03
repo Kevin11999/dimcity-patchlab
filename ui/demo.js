@@ -22,6 +22,9 @@ const ROWS = [
   ['V104', 1, 11, 'LED wall L'], ['V104', 2, 11, 'LED wall R'], ['V104', 3, 12, 'Lasers SL'], ['V104', 4, 12, 'Lasers SR'],
   ['V105', 1, 13, 'Pyro truss'], ['V105', 2, 13, 'Pyro floor'],
   ['V106', 1, 14, 'Follow spot tower L'], ['V106', 2, 14, 'Follow spot tower R'],
+  // Network cables (Cat): C101 = 4 lines, VLAN group in the third column (2 = VLAN 200, 3 = VLAN 300)
+  ['C101', 1, 2, 'FOH desk'], ['C101', 2, 2, 'Media server'], ['C101', 3, 3, 'Lighting console B'], ['C101', 4, 1, 'Stage manager laptop'],
+  ['C102', 1, 2, 'Truss 1 node'],
   // Loose DMX in DB01
   ['', '', 15, 'Hazer SL', 'DB01'], ['', '', 15, 'Hazer SR', 'DB01'],
   // DB02 — B-stage

@@ -101,6 +101,9 @@
   }
   function portPlan(dc){
     const rows = F().switchPlan(devices(dc).map(({ kind, dev }) => ({ label:dev.id || dev.name || kind, ethCount:ethOf(kind, dev), dev })));
+    // after the nodes: the network cables (C) that come into the DimCity, one switch port per line
+    let port = rows.length + 1;
+    for(const c of (window.NetCables?.cables(dc) || [])) for(const l of c.lines) if(!l.empty) rows.push({ port:port++, device:`${c.id}.${l.port}`, eth:1, ethCount:1, mode:'access', vlans:l.vlan != null ? [l.vlan] : [], ips:[], dest:l.dest || '', cable:true });
     return { rows, cap:switchCapacity(dc) };
   }
   const vlanLabel = id => { const v = F().vlanById(id); return v ? `${v.id} ${v.name}` : String(id); };
@@ -110,7 +113,7 @@
     const over = cap.n && rows.length > cap.rj;
     return `${cap.n ? `<div class="hint ${over ? 'fent-bad' : ''}">${over ? I('alert', 13) : I('info', 13)} ${rows.length} ${t('ports needed', 'poorten nodig')} · ${cap.rj} RJ45${cap.sfp ? ` + ${cap.sfp} SFP` : ''} ${t('on the switch(es) in the racks', 'op de switch(es) in de racks')}</div>` : `<div class="hint">${I('info', 13)} ${rows.length} ${t('ports needed — no switch in a rack of this DimCity yet', 'poorten nodig — nog geen switch in een rack van deze DimCity')}</div>`}
       <table class="data-table fent-ports"><thead><tr><th>${t('Switch port', 'Switchpoort')}</th><th>${t('Device', 'Apparaat')}</th><th>${t('Mode', 'Modus')}</th><th>VLAN</th><th>${t('Addresses', 'Adressen')}</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><td><b>${r.port}</b></td><td>${esc(r.device)}${r.ethCount > 1 ? ` <span class="subtle">ETH${r.eth}</span>` : ''}</td><td>${r.mode === 'trunk' ? t('Trunk (tagged)', 'Trunk (tagged)') : t('Access (untagged)', 'Access (untagged)')}</td><td>${r.vlans.map(v => vlanChip(F().vlanById(v)) || esc(v)).join(' ') || '—'}</td><td class="mono">${r.ips.map(esc).join(' · ')}</td></tr>`).join('')}</tbody></table>`;
+      ${rows.map(r => `<tr><td><b>${r.port}</b></td><td>${esc(r.device)}${r.ethCount > 1 ? ` <span class="subtle">ETH${r.eth}</span>` : ''}</td><td>${r.mode === 'trunk' ? t('Trunk (tagged)', 'Trunk (tagged)') : t('Access (untagged)', 'Access (untagged)')}</td><td>${r.vlans.map(v => vlanChip(F().vlanById(v)) || esc(v)).join(' ') || '—'}</td><td class="mono">${r.cable ? esc(r.dest) : r.ips.map(esc).join(' · ')}</td></tr>`).join('')}</tbody></table>`;
   }
 
   // ---- the card on the Network Planner page ----

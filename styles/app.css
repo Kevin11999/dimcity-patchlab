@@ -1045,3 +1045,9 @@ body.nav-mini .nav-empty{display:none}
 .fent-vlans td,.fent-ports td{font-size:12.5px}
 .mono{font-family:var(--mono,monospace)}
 .fent-bad{color:var(--red)}
+.netcable{border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface-2);padding:8px 10px}
+.netcable-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.netcable-line{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:12.5px;border-top:1px solid var(--border)}
+.netcable-line .nl-n{font-family:var(--mono,monospace);color:var(--text-3);min-width:62px}
+.netcable-line .nl-d{margin-left:auto;text-align:right;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.netcable-line.nl-empty{opacity:.45}

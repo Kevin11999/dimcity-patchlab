@@ -108,6 +108,7 @@
     for (const L of (M.lines || [])) rows.push([ L.id, String(L.port ?? ''), (L.universe ?? ''), (L.dest ?? ''), '', '', ...src(L) ]);
     for (const V of (M.veamLines || [])) rows.push([ V.id, String(V.port ?? ''), (V.universe ?? ''), (V.dest ?? ''), '', '', ...src(V) ]);
     for (const D of (M.dmxLoose || [])) rows.push([ '', '', (D.universe ?? ''), (D.dest ?? ''), '', (D.dimcity ?? ''), ...src(D) ]);
+    for (const N of (M.netLines || [])) rows.push([ N.id, String(N.port ?? ''), (N.vlan ?? ''), (N.dest ?? ''), '', '', ...src(N) ]);
     // ongeldige rijen bewaren zodat ze later hersteld kunnen worden
     for (const r of (M.invalidRows || [])) rows.push(r.slice());
     for (const r of (M.conflictRows || [])) rows.push(r.slice());
@@ -405,6 +406,7 @@
       lines: [],
       veamLines: [],
       dmxLoose: [],
+      netLines: [],
       customRows: [],
       csvSources: [],
       dimColors: {},

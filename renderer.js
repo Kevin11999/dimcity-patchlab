@@ -129,6 +129,7 @@ function currentRows(M = MODEL){
   for (const L of (M.lines || [])) rows.push([ L.id, String(L.port ?? ''), (L.universe ?? ''), (L.dest ?? ''), '', '', ...src(L) ]);
   for (const V of (M.veamLines || [])) rows.push([ V.id, String(V.port ?? ''), (V.universe ?? ''), (V.dest ?? ''), '', '', ...src(V) ]);
   for (const D of (M.dmxLoose || [])) rows.push([ '', '', (D.universe ?? ''), (D.dest ?? ''), '', (D.dimcity ?? ''), ...src(D) ]);
+  for (const N of (M.netLines || [])) rows.push([ N.id, String(N.port ?? ''), (N.vlan ?? ''), (N.dest ?? ''), '', '', ...src(N) ]);
   for (const r of (M.invalidRows || [])) rows.push(r.slice());
   for (const r of (M.conflictRows || [])) rows.push(r.slice());
   return rows;
@@ -246,6 +247,7 @@ let MODEL = {
   lines: [],            // LK-lijnen (deduped)
   veamLines: [],        // Veam-lijnen (deduped)
   dmxLoose: [],         // ← losse DMX-lijnen [{universe, dest, dimcity, source}]
+  netLines: [],         // ← netwerkkabels C101.1 … [{id, port, vlan, dest, dimcity, source}]
   customRows: [],       // ← bewaarde Custom-rijen voor edit-ronde
   csvSources: [],       // imported CSV source files [{id,name,path,rows,importedAt,updatedAt}]
   dimColors: {},        // DimCity accent colors { DB01:'#4ea8ff' }
@@ -469,6 +471,7 @@ async function processRows(rows){
   const lkLines = [];
   const veLines = [];
   const dmxLoose = [];                 // << NIEUW
+  const netRaw = [];                   // netwerkkabels (Cat): C101 + poort 1-4, kolom 3 = VLAN-groep
   const issues = [];
   const veamPool = new Map();
   // Ongeldige rijen bewaren (niet weggooien), zodat ze vanuit Validation hersteld kunnen worden
@@ -514,6 +517,19 @@ async function processRows(rows){
         sourceId,
         sourceName
       });
+      continue;
+    }
+
+    // --- Netwerkkabel: C101 (poort in kolom 2) of C101.1 (poort achter de punt); C = Cat, 4 lijnen per kabel ---
+    const cm = id.match(/^C(\d+)(?:\.(\d+))?$/i);
+    if(cm){
+      const cid = `C${cm[1]}`, cdim = dimCityFromId(`V${cm[1]}`), cport = cm[2] != null ? parseInt(cm[2], 10) : port;
+      if(!cdim || !Number.isFinite(cport) || cport < 1 || cport > 4){
+        keepInvalid(r, {severity:'RED', code:'PORT_RANGE', dimcity:cdim, port:cport, message:`${id}${cm[2] == null ? ` port ${Number.isFinite(port) ? port : `“${portS}”`}` : ''} does not exist — a network cable (C) has lines 1–4`});
+        continue;
+      }
+      const vlan = window.Fent ? window.Fent.vlanFromColumn(universe) : universe;
+      netRaw.push({ id:cid, port:cport, vlan, dest:position || '', dimcity:cdim, status: position ? 'GREEN' : 'YELLOW', source:sourceName, sourceId, sourceName });
       continue;
     }
 
@@ -576,6 +592,7 @@ async function processRows(rows){
   }
 
   const d1 = dedup(lkLines); const d2 = dedup(veLines);
+  const netLines = []; { const seenNet = new Map(); for(const N of netRaw){ const k = `${N.id}#${N.port}`; const prev = seenNet.get(k); if(!prev){ seenNet.set(k, N); netLines.push(N); } else { prev.dest = prev.dest || N.dest; if(prev.vlan == null) prev.vlan = N.vlan; if(N.vlan != null && prev.vlan != null && N.vlan !== prev.vlan) issues.push({severity:'YELLOW', code:'NET_CONFLICT', dimcity:N.dimcity, message:`${N.id}.${N.port} is patched twice with different VLANs — the first one is kept`}); } } }
   issues.push(...d1.issues, ...d2.issues);
 
   // Groeperen
@@ -618,6 +635,7 @@ async function processRows(rows){
     if(!byDim.has(dc)) byDim.set(dc, { lks:new Set(), veams:new Set(), lines_total:0, filled:0, empty:0, red:0, yellow:0 });
     byDim.get(dc).veams.add(V.id);
   }
+  for(const N of netLines){ if(N.dimcity && !byDim.has(N.dimcity)) byDim.set(N.dimcity, emptyDimStats()); }
   // DimCities die alleen losse DMX hebben moeten ook bestaan (anders ontbreken ze in UI en PDF)
   for(const D of dmxLoose){
     if(D.dimcity && !byDim.has(D.dimcity)) byDim.set(D.dimcity, emptyDimStats());
@@ -643,6 +661,7 @@ async function processRows(rows){
     lines: d1.ded,
     veamLines: d2.ded,
     dmxLoose,                         // << NIEUW
+    netLines,
     customRows: MODEL.customRows || [],
     invalidRows,
     conflictRows,
@@ -963,7 +982,7 @@ function updateChrome(){
   const dirty = !!MODEL.ui?.dirty;
   const errs = (MODEL.issues||[]).filter(i=>i.severity==='RED').length;
   const warns = (MODEL.issues||[]).length - errs;
-  const rows = (MODEL.lines?.length||0) + (MODEL.veamLines?.length||0) + (MODEL.dmxLoose?.length||0);
+  const rows = (MODEL.lines?.length||0) + (MODEL.veamLines?.length||0) + (MODEL.dmxLoose?.length||0) + (MODEL.netLines?.length||0);
   const sig = [name, dirty, errs, warns, rows, MODEL.filePath, MODEL.byDim?.size, MODEL.byLK?.size, MODEL.byVeam?.size].join('|');
   if(sig === _chromeSig) return;
   _chromeSig = sig;
@@ -1181,9 +1200,10 @@ function renderRawRows(){
     .concat(MODEL.lines.map(L => ({ type:'LK', ...L })))
     .concat(MODEL.veamLines.map(V => ({ type:'Veam', ...V })))
     .concat((MODEL.dmxLoose || []).map(D => ({ type:'DMX', ...D })))
+    .concat((MODEL.netLines || []).map(N => ({ type:'C', ...N, universe:N.vlan })))
     .filter(R => !q || [R.type, R.id, R.port, R.universe, R.dest, R.dimcity, R.sourceName].some(v => String(v ?? '').toLowerCase().includes(q)));
   all.sort((a,b)=>{
-    const ord = x => x.type==='LK'?0 : x.type==='Veam'?1 : 2;
+    const ord = x => x.type==='LK'?0 : x.type==='Veam'?1 : x.type==='C'?2 : 3;
     if (ord(a)!==ord(b)) return ord(a)-ord(b);
     const ida=(a.id||''), idb=(b.id||'');
     if (ida!==idb) return ida.localeCompare(idb, undefined, {numeric:true});
@@ -1191,8 +1211,8 @@ function renderRawRows(){
   });
   const cnt = $('#rawCount'); if(cnt) cnt.textContent = `${all.length} row${all.length===1?'':'s'}`;
   tb.innerHTML = all.length ? all.map(R=>`<tr>
-      <td><span class="tag ${R.type==='LK'?'accent':R.type==='Veam'?'blue':''}">${R.type}</span></td>
-      <td>${R.id ? `<a data-open-kind="${R.type==='LK'?'LK':'VEAM'}" data-open-id="${esc(R.type==='LK'?normLK(R.id):R.id)}">${esc(R.id)}</a>` : '<span class="subtle">—</span>'}</td>
+      <td><span class="tag ${R.type==='LK'?'accent':R.type==='Veam'?'blue':R.type==='C'?'green':''}">${R.type}</span></td>
+      <td>${R.id ? (R.type==='C' ? esc(R.id) : `<a data-open-kind="${R.type==='LK'?'LK':'VEAM'}" data-open-id="${esc(R.type==='LK'?normLK(R.id):R.id)}">${esc(R.id)}</a>`) : '<span class="subtle">—</span>'}</td>
       <td class="num">${R.port ?? '—'}</td>
       <td class="num">${R.universe ?? ''}</td>
       <td>${esc(R.dest || '')}</td>
@@ -1476,6 +1496,7 @@ function renderDimCityDetail(dc){
     ${card({ key:`${dc}:uni`, title:'Universes', icon:'universe', meta:plural(uniCount,'universe'), body:`<div class="uni-overview-grid">${uniCards}</div>${renderInlineUniverseDetails(dc, focusU)}` })}
     ${card({ key:`${dc}:lk`, title:'LK blocks', icon:'box', meta:plural(lks.length,'block'), actions: lks.length ? `<button class="sm ghost" id="dimToggleAll">${anyOpen?'Collapse all':'Expand all'}</button>` : '', body:`<div class="hint" style="margin:-4px 0 10px">Click a block to edit its block type and Veam links.</div><div class="lk-card-grid">${lkCards}</div>` })}
     ${card({ key:`${dc}:veam`, title:'Veams', icon:'plug', meta:`${linked}/${veams.length} linked`, body:`<div class="lk-card-grid veams">${veamCards}</div>` })}
+    ${window.NetCables?.card(dc) || ''}
     ${dmx.length ? card({ key:`${dc}:dmx`, title:'Loose DMX', icon:'cable', meta:plural(dmx.length,'line'), body:dmxBody, flush:true }) : ''}
     ${window.RackPlan?.cardHtml?.(dc) || ''}
     ${renderDimNetworkDevices(dc)}

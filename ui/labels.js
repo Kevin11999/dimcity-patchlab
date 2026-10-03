@@ -27,7 +27,7 @@
 
   function defaults(){
     return { sheet:SHEETS[0].id, custom:{ w:48.26, h:25.4, cols:4, rows:11, left:8.48, top:8.8, gapX:0, gapY:0 },
-      kinds:{ cables:true, strips:true, nodePorts:false, devices:true, qr:false, switchPorts:false }, dcs:null, perDc:true, start:1, mono:false, outline:false,
+      kinds:{ cables:true, strips:true, nodePorts:false, devices:true, qr:false, switchPorts:false, netCables:true }, dcs:null, perDc:true, start:1, mono:false, outline:false,
       company:{ on:true, img:null }, show:{ on:true, img:null } };
   }
   function state(){
@@ -89,10 +89,14 @@
       for(const n of P.nodes) out.push({ kind:'device', dc, title:n.label, sub:typeName(n.type), lines:[n.loose ? (n.name || t('Loose node', 'Losse node')) : rackName(n.rack), dc], color:n.color, badge:n.label, copies:1 });
       for(const s of P.splitters) out.push({ kind:'device', dc, title:s.label, sub:typeName(s.type), lines:[rackName(s.rack), dc], color:s.feedColor || '#35c47c', badge:'', copies:1 });
     }
+    if(L.kinds.netCables && window.NetCables){   // Cat looms: one label per line, both ends, in the colour of its VLAN
+      for(const c of window.NetCables.cables(dc)) for(const l of c.lines){ if(l.empty) continue; const v = l.vlan != null ? window.Fent?.vlanById(l.vlan) : null;
+        out.push({ kind:'netCable', dc, title:`${c.id}.${l.port}`, sub:`${dc} · ${c.id}`, lines:[v ? `${v.id} ${v.name}` : '', l.dest].filter(Boolean), color:v?.color || '#94a3b8', badge:'', copies:2 }); }
+    }
     if(L.kinds.switchPorts && window.FentUI){   // label strip for the switch: port, device and VLAN colour of the FENT scheme
       for(const r of window.FentUI.portPlan(dc).rows){
         const v = window.Fent?.vlanById(r.vlans[0]);
-        out.push({ kind:'switchPort', dc, title:`${t('Port', 'Poort')} ${r.port}`, sub:`${r.device}${r.ethCount > 1 ? ` ETH${r.eth}` : ''}`, lines:[r.vlans.map(x => { const q = window.Fent?.vlanById(x); return q ? `${q.id} ${q.name}` : x; }).join(' + '), r.ips[0] || ''].filter(Boolean), color:v?.color || '#94a3b8', badge:r.mode === 'trunk' ? 'TRUNK' : '', copies:1 });
+        out.push({ kind:'switchPort', dc, title:`${t('Port', 'Poort')} ${r.port}`, sub:`${r.device}${r.ethCount > 1 ? ` ETH${r.eth}` : ''}`, lines:[r.vlans.map(x => { const q = window.Fent?.vlanById(x); return q ? `${q.id} ${q.name}` : x; }).join(' + '), r.cable ? r.dest : (r.ips[0] || '')].filter(Boolean), color:v?.color || '#94a3b8', badge:r.mode === 'trunk' ? 'TRUNK' : '', copies:1 });
       }
     }
     if(L.kinds.qr){
@@ -242,6 +246,7 @@
         ${sw('k:strips', L.kinds.strips, `${t('Panel connection labels', 'Aansluitlabels paneel')} <span class="subtle">${cnt.strips}</span>`, t('One per LK7-1 / Veam4 socket', 'Eén per LK7-1- / Veam4-aansluiting'))}
         ${sw('k:nodePorts', L.kinds.nodePorts, `${t('Node port labels', 'Nodepoort-labels')} <span class="subtle">${cnt.nodePorts}</span>`, t('Universe and where each port goes', 'Universe en waar elke poort heen gaat'))}
         ${sw('k:devices', L.kinds.devices, `${t('Racks, nodes, switches, splitters', 'Racks, nodes, switches, splitters')} <span class="subtle">${cnt.devices}</span>`)}
+        ${sw('k:netCables', L.kinds.netCables, `${t('Network cable labels', 'Netwerkkabel-labels')} <span class="subtle">${cnt.netCables}</span>`, t('C cables: one per line, both ends, in the VLAN colour', 'C-kabels: één per lijn, beide uiteinden, in de VLAN-kleur'))}
         ${sw('k:switchPorts', L.kinds.switchPorts, `${t('Switch port labels', 'Switchpoort-labels')} <span class="subtle">${cnt.switchPorts}</span>`, t('Port, device and VLAN (FENT colour) for the switch', 'Poort, apparaat en VLAN (FENT-kleur) voor de switch'))}
         ${sw('k:qr', L.kinds.qr, `${t('QR stickers', 'QR-stickers')} <span class="subtle">${cnt.qr}</span>`, t('QR code with the patch as plain text, one per LK / Veam / rack', 'QR-code met de patch als platte tekst, één per LK / Veam / rack'))}</div>
       <div class="rb-group"><div class="rb-label">${t('Images and look', 'Afbeeldingen en uiterlijk')}</div>

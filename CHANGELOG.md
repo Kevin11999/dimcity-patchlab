@@ -4,6 +4,28 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.3.3 — 2026-10-04
+
+- New **Network** page (own item in the sidebar): switches and ports, VLAN and addresses, fibres and an overview, per DimCity. The DimCity page only keeps a short summary with a link.
+- New **Setup** wizard (toolbar button, also offered after an import): six steps in order — import, network per DB, racks, couple the LKs, fibres, check and output. Each step shows whether it is done, can be skipped, and the whole wizard can be stopped or started over at any time.
+- Fibres are coupled on the Network page only; the Signal Flow displays them.
+- The demo show now has a network switch per DB with the nodes coupled in order, followed by the Cat cables (C rows) and two fibre links between the DBs.
+- Applying a rack as network plan keeps the IP addresses and VLANs you already filled in.
+- Video tutorials with subtitles (no sound) in Help: a complete tour and one short video each for Import, Network, Racks, Couple the LKs, Fibres, PDF and Stickers, in Dutch and English (Help > Video Tutorials).
+- Compact toolbar on narrower windows (icons only).
+
+<details><summary>Nederlands</summary>
+
+- Nieuwe pagina **Netwerk** (eigen item in de zijbalk): switches en poorten, VLAN en adressen, fibers en een overzicht, per DimCity. De DimCity-pagina houdt alleen een korte samenvatting met een link.
+- Nieuwe **Setup**-wizard (knop in de werkbalk, ook aangeboden na een import): zes stappen op volgorde — importeren, netwerk per DB, racks, LK's koppelen, fibers, controle en uitvoer. Elke stap laat zien of hij klaar is, kan worden overgeslagen, en de hele wizard kun je op elk moment stoppen of opnieuw starten.
+- Fibers koppel je alleen op de Netwerk-pagina; de Signaalstroom toont ze.
+- De demo-show heeft nu per DB een netwerkswitch met de nodes op volgorde gekoppeld, daarna de Cat-kabels (C-regels) en twee fiberverbindingen tussen de DB's.
+- Een rack toepassen als netwerkplan behoudt de IP-adressen en VLAN's die je al had ingevuld.
+- Video-uitleg met ondertiteling (zonder geluid) in Help: een complete rondleiding en per onderdeel een korte video — Importeren, Netwerk, Racks, LK's koppelen, Fibers, PDF en Stickers — in het Nederlands en Engels (Help > Video-uitleg).
+- Compacte werkbalk op smallere vensters (alleen pictogrammen).
+
+</details>
+
 ## 0.3.2 — 2026-10-03
 
 - Stickers on Herma A4 label sheets (laser printer): 4680 / 4690 / 4102 / 4112 and 4097 / 4232 / 4221, taken from the HERMA templates, plus custom sheets. Cable labels (both ends), panel connection labels, node ports, racks / nodes / switches / splitters and QR stickers, with company and show images, per DimCity, with a start position for part-used sheets and a calibration sheet.

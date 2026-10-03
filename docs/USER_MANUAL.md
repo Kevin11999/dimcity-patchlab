@@ -14,6 +14,7 @@ Dezelfde handleiding zit in de app: druk op **?** of **F1**, of klik op **Help**
 # User manual (English)
 
 - [Getting started](#getting-started)
+- [Videos](#videos)
 - [Importing a CSV](#import)
 - [Project overview](#overview)
 - [DimCity page](#dimcity)
@@ -25,7 +26,9 @@ Dezelfde handleiding zit in de app: druk op **?** of **F1**, of klik op **Help**
 - [Device Builder](#devices)
 - [Rack Builder](#rack-builder)
 - [Racks per DimCity](#racks)
-- [Network planner](#network)
+- [Nodes, splitters & network](#network)
+- [Network page](#network-page)
+- [Setup wizard](#setup)
 - [Signal flow](#flow)
 - [Report Builder (PDF)](#report)
 - [Stickers (Herma sheets)](#stickers)
@@ -67,6 +70,13 @@ Bottom-left, a small bar shows how complete the show is: project info, patch imp
 - **Cmd/Ctrl+K** searches everything: LKs, Veams, universes, locations, devices and commands.
 - **?** or the Help button opens this manual on the chapter that matches the page you are on.
 
+<a id="videos"></a>
+## Videos
+
+Short screen recordings with subtitles (no sound) show how the app works. Watch the **complete tour** first, or pick one part: Import, Network, Racks, Couple the LKs, Fibres, PDF or Stickers.
+
+The recordings use the Demo Show, so everything you see is also in the app when you open **Open Demo Show** on the welcome screen. The **Setup** button in the toolbar walks you through the same steps for your own project.
+
 <a id="import"></a>
 ## Importing a CSV
 
@@ -92,7 +102,7 @@ PatchLab detects which rows are real patch rows and skips the rest. Adjust with 
 - Rows that are not valid (for example a Veam on port 6, or the same port patched twice with different universes) are not thrown away: they appear on the [Validation](#validation) page with a Fix button and in **Edit Rows**.
 
 ### Network cables (C)
-A row whose ID starts with **C** is a **network cable** (Cat loom): `C101` is a cable of 4 lines for DimCity 01 (the number works like Veam V101). Give the line in the port column (1-4) or write it as `C101.1`. The third column holds the **VLAN**: a Luminex group number (2 = VLAN 200, 3 = VLAN 300 …, 1 = Management) or the VLAN ID itself. The fourth column is the location. A network cable can only be plugged into a network switch: see Network Planner.
+A row whose ID starts with **C** is a **network cable** (Cat loom): `C101` is a cable of 4 lines for DimCity 01 (the number works like Veam V101). Give the line in the port column (1-4) or write it as `C101.1`. The third column holds the **VLAN**: a Luminex group number (2 = VLAN 200, 3 = VLAN 300 …, 1 = Management) or the VLAN ID itself. The fourth column is the location. A network cable can only be plugged into a network switch: see the Network page.
 
 <a id="overview"></a>
 ## Project overview
@@ -115,7 +125,7 @@ Everything of one DimCity on one page. Cards can be collapsed with the chevron; 
 - **Veams** — the four ports of every Veam and whether it is linked to an LK; click to open it.
 - **Loose DMX** — DMX lines without an LK or Veam.
 - **Racks** — place racks and loose devices and let PatchLab patch everything onto sockets and node ports; see [Racks per DimCity](#racks).
-- **Network nodes / Splitters** — the network plan of this DimCity; see [Network planner](#network).
+- **Network nodes / Splitters** — the network plan of this DimCity; see [Nodes, splitters & network](#network).
 - **Patch rows** — every row of this DimCity as a table.
 
 **Color** changes the DimCity colour used in the sidebar and on the PDF. **Export** opens the Report Builder with only this DimCity selected.
@@ -214,7 +224,7 @@ Every type has a fixed key (NODE:01, PANEL:02…). Shows refer to it, so it cann
 The preview at the top shows the front face of the device with its ports as it will appear in a rack.
 
 ### Cables
-The tab **Cables** holds cable types: fibre (singlemode or multimode), SFP patch cables / DAC and copper Cat. Fill in the brand, the type (for example *opticalCON QUAD 4-core*), the number of cores, the connectors on both ends (opticalCON DUO / QUAD / ADVANCED, FiberFox, LC, SC, SFP …, or type your own), the length in metres, an article key and a colour. Cable types are saved in your library like the devices. They are used for the fibre links in the Network Planner.
+The tab **Cables** holds cable types: fibre (singlemode or multimode), SFP patch cables / DAC and copper Cat. Fill in the brand, the type (for example *opticalCON QUAD 4-core*), the number of cores, the connectors on both ends (opticalCON DUO / QUAD / ADVANCED, FiberFox, LC, SC, SFP …, or type your own), the length in metres, an article key and a colour. Cable types are saved in your library like the devices. They are used for the fibre links on the Network page.
 
 <a id="rack-builder"></a>
 ## Rack Builder
@@ -255,9 +265,9 @@ The **Racks** card on a DimCity page patches the LKs and Veams of that DimCity a
 - **Print racks** opens the Report Builder with the "Racks only" preset.
 
 <a id="network"></a>
-## Network planner
+## Nodes, splitters & network
 
-The network plan lists the DMX nodes and splitters of every DimCity with their IP addresses and universes. You find it on the **Network Planner** page (all DimCities) and in the **Network nodes** and **Splitters** cards of a DimCity.
+The network plan lists the DMX nodes and splitters of every DimCity with their IP addresses and universes. You find it on the **Nodes & Splitters** page (all DimCities) and in the **Network nodes** and **Splitters** cards of a DimCity. Switches, ports, VLANs and fibres live on the separate **Network** page; the **Setup** wizard (toolbar) walks through everything in order.
 
 ### Nodes
 - Choose a node type and click **Auto-assign nodes**: PatchLab fills the universes of the DimCity low to high over as many nodes as needed, keeping the **spare ports** from Settings free.
@@ -273,7 +283,7 @@ The quickest way to a complete plan is to build it from the rack patch: **Use as
 
 ### Several addresses per device and the FENT scheme
 - A node can have **more than one address**: use **Add address** on the node. This is for a device that is managed on one VLAN and sends or scans on another: a management address (VLAN 1090) and a lighting address (VLAN 1040), optionally a scan address (VLAN 1041). For a node with two RJ45 ports you choose which port (ETH1 or ETH2) carries which address; on a node with one port both addresses share it and the switch port becomes a trunk.
-- **FENT** (Framework Entertainment Netwerk Technologie v1.1) is the standard numbering for entertainment networks. Switch it on in the **FENT** card on the Network Planner page. All addresses are 10.x.x.x with mask 255.255.0.0; the second byte is the discipline (management 10.90, lighting 10.40); the third byte splits location (1-99) from production (101-199), here taken from the DimCity number (DB02 becomes 102 in production); the fourth byte is the device, from 11 (1-10 and 251-254 are for switches and routers).
+- **FENT** (Framework Entertainment Netwerk Technologie v1.1) is the standard numbering for entertainment networks. Switch it on in the **FENT** card on the Network page (tab VLAN & addresses). All addresses are 10.x.x.x with mask 255.255.0.0; the second byte is the discipline (management 10.90, lighting 10.40); the third byte splits location (1-99) from production (101-199), here taken from the DimCity number (DB02 becomes 102 in production); the fourth byte is the device, from 11 (1-10 and 251-254 are for switches and routers).
 - **Apply to all DimCities** gives every node a management and a lighting address in one go and replaces its current addresses. **Check** warns about duplicates, an address that belongs to another VLAN, DHCP ranges, reserved addresses and a mask other than 255.255.0.0.
 - The **Switch ports** list shows, per DimCity, which switch port each RJ45 of each device gets, access or trunk, and the VLAN colour from FENT. Export PDF prints it in the Network section, and Stickers can print a label per port. Set the VLAN IDs of your Luminex GigaCore groups to the FENT numbers; Luminex uses group × 100 by default.
 
@@ -282,6 +292,41 @@ The quickest way to a complete plan is to build it from the rack patch: **Use as
 - **Ports are handed out automatically**: first the RJ45 of the nodes, in node number order, then the lines of the network cables (C) that come into the DB. Per switch you see the ports; the colour is the VLAN of the port. If there are more ports needed than the switches have, the list shows it.
 - **VLAN numbering** works like the Luminex GigaCore groups: Management is VLAN 1, group 2 is VLAN 200, group 3 is VLAN 300 and so on (the colours are the ones of the GigaCore). In the FENT card you can switch to the FENT numbers (1090, 1040 …) instead.
 - **Fibre links**: make cable types in the Device Builder (tab *Cables*: opticalCON, FiberFox, 4-core, singlemode, SFP patch …), then connect the SFP ports of switches in the card *Fibre links*. This also connects DBs to each other. The switch shows which SFP carries which fibre, the PDF lists the fibres of each DimCity, and Stickers prints a label on both ends.
+
+<a id="network-page"></a>
+## Network page
+
+The **Network** page holds everything about the network, per DimCity. Pick the DimCity with the chips at the top, then one of four tabs:
+
+### Switches & ports
+- Add network switches to the DimCity (or place them in a rack). Every switch shows how many ports are used.
+- Ports are handed out in order: first the nodes in node-number order, then the network cables (C rows). A port carrying two VLANs becomes a trunk.
+- Print the port plan or switch-port stickers from here.
+
+### VLAN & addresses
+- Choose **Luminex** numbering (Management 1, group N = N × 100) or **FENT** (1090, 1040 …) and switch the FENT address scheme on or off.
+- One click addresses all nodes. Every device can have several addresses (management, lighting, scan), each on its own VLAN.
+
+### Fibres
+- Choose a cable type (opticalCON, FiberFox, 4-core, single-mode, SFP patch) and the two switch ports to couple. **Fibres are coupled here only**; the Signal Flow only shows them.
+- The matrix shows which SFP ports are used. Fibre labels can be printed as stickers.
+
+### Overview
+Per DimCity: nodes, switches, ports used, Cat lines, fibres and a status.
+
+<a id="setup"></a>
+## Setup wizard
+
+The **Setup** button in the toolbar (also offered after an import, and under the File menu) walks through a new project in the right order. Nothing is locked: take the steps in order or jump to any step.
+
+1. **Import the patch** — LK, Veam and C rows.
+2. **Network per DB** — VLAN numbering, FENT on or off, and a network switch for every DB.
+3. **Racks** — place racks or loose devices and apply the rack as network plan.
+4. **Couple the LKs** to the racks.
+5. **Couple the fibres** between the DBs, once (or mark "no fibres").
+6. **Check and output** — open the issues, the Signal Flow, the PDF or the stickers.
+
+Each step shows a green check when it is done. **Skip** marks a step as skipped; **Start over** clears the skipped marks; **Stop** closes the wizard whenever you like. See [the videos](#videos) for a walk-through.
 
 <a id="flow"></a>
 ## Signal flow
@@ -425,6 +470,15 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.3.3 — 2026-10-04
+- New **Network** page (own item in the sidebar): switches and ports, VLAN and addresses, fibres and an overview, per DimCity. The DimCity page only keeps a short summary with a link.
+- New **Setup** wizard (toolbar button, also offered after an import): six steps in order — import, network per DB, racks, couple the LKs, fibres, check and output. Each step shows whether it is done, can be skipped, and the whole wizard can be stopped or started over at any time.
+- Fibres are coupled on the Network page only; the Signal Flow displays them.
+- The demo show now has a network switch per DB with the nodes coupled in order, followed by the Cat cables (C rows) and two fibre links between the DBs.
+- Applying a rack as network plan keeps the IP addresses and VLANs you already filled in.
+- Video tutorials with subtitles (no sound) in Help: a complete tour and one short video each for Import, Network, Racks, Couple the LKs, Fibres, PDF and Stickers, in Dutch and English (Help > Video Tutorials).
+- Compact toolbar on narrower windows (icons only).
+
 ### Version 0.3.2 — 2026-10-03
 - Stickers on Herma A4 label sheets (laser printer): 4680 / 4690 / 4102 / 4112 and 4097 / 4232 / 4221, taken from the HERMA templates, plus custom sheets. Cable labels (both ends), panel connection labels, node ports, racks / nodes / switches / splitters and QR stickers, with company and show images, per DimCity, with a start position for part-used sheets and a calibration sheet.
 - Network cables: CSV rows C101 / C101.1 (a Cat loom of 4 lines, VLAN in the third column) for each DB, shown on the DimCity page, in the patch list, the PDF and as stickers.
@@ -475,6 +529,7 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 # Handleiding (Nederlands)
 
 - [Aan de slag](#getting-started-nl)
+- [Video’s](#videos-nl)
 - [CSV importeren](#import-nl)
 - [Projectoverzicht](#overview-nl)
 - [DimCity-pagina](#dimcity-nl)
@@ -486,7 +541,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 - [Device Builder](#devices-nl)
 - [Rack Builder](#rack-builder-nl)
 - [Racks per DimCity](#racks-nl)
-- [Netwerkplanner](#network-nl)
+- [Nodes, splitters & netwerk](#network-nl)
+- [Pagina Netwerk](#network-page-nl)
+- [Setup-wizard](#setup-nl)
 - [Signaalstroom](#flow-nl)
 - [Rapportbouwer (PDF)](#report-nl)
 - [Stickers (Herma-vellen)](#stickers-nl)
@@ -522,11 +579,18 @@ Automatisch opslaan, back-ups en crashherstel stel je in bij [Instellingen](#set
 Linksonder toont een kleine balk hoe compleet de show is: projectinfo, patch geïmporteerd, geen fouten, regels compleet, Veams gekoppeld, racks gepatcht, netwerkplan, PDF-indeling, opgeslagen. Klik erop voor de checklist; elk open punt springt naar de plek waar je het oplost.
 
 ### Waar vind je wat
-- **Zijbalk**: projectoverzicht, validatie, patchlijst, netwerkplanner en elke DimCity met zijn LK's en Veams.
+- **Zijbalk**: projectoverzicht, validatie, patchlijst, nodes & splitters, netwerk, signaalstroom en elke DimCity met zijn LK's en Veams.
 - **Werkbalk**: CSV importeren, Rijen bewerken, Herberekenen, Opslaan, PDF exporteren, Help en Request.
 - Het pijltje bovenaan de zijbalk klapt hem in tot alleen iconen (en weer uit); PatchLab onthoudt dat.
 - **Cmd/Ctrl+K** zoekt in alles: LK's, Veams, universes, locaties, devices en opdrachten.
 - **?** of de Help-knop opent deze handleiding op het hoofdstuk dat bij je huidige pagina hoort.
+
+<a id="videos-nl"></a>
+## Video’s
+
+Korte schermopnames met ondertiteling (zonder geluid) laten zien hoe de app werkt. Kijk eerst de **complete rondleiding**, of kies een onderdeel: Importeren, Netwerk, Racks, LK’s koppelen, Fibers, PDF of Stickers.
+
+De opnames gebruiken de Demo-show; alles wat je ziet kun je dus zelf nadoen via **Demo-show openen** op het welkomstscherm. De knop **Setup** in de werkbalk loopt dezelfde stappen met je door voor je eigen project.
 
 <a id="import-nl"></a>
 ## CSV importeren
@@ -553,7 +617,7 @@ PatchLab herkent welke regels echte patchregels zijn en slaat de rest over. Pas 
 - Regels die niet kloppen (bijvoorbeeld een Veam op poort 6, of dezelfde poort twee keer met een andere universe) worden niet weggegooid: ze staan op de pagina [Validatie](#validation-nl) met een knop Oplossen en in **Rijen bewerken**.
 
 ### Netwerkkabels (C)
-Een regel waarvan het ID met **C** begint is een **netwerkkabel** (Cat-loom): `C101` is een kabel van 4 lijnen voor DimCity 01 (het nummer werkt als bij een Veam V101). Zet de lijn in de poortkolom (1-4) of schrijf `C101.1`. De derde kolom bevat het **VLAN**: een Luminex-groepnummer (2 = VLAN 200, 3 = VLAN 300 …, 1 = Management) of het VLAN-ID zelf. De vierde kolom is de locatie. Een netwerkkabel kan alleen in een netwerkswitch: zie Netwerkplanner.
+Een regel waarvan het ID met **C** begint is een **netwerkkabel** (Cat-loom): `C101` is een kabel van 4 lijnen voor DimCity 01 (het nummer werkt als bij een Veam V101). Zet de lijn in de poortkolom (1-4) of schrijf `C101.1`. De derde kolom bevat het **VLAN**: een Luminex-groepnummer (2 = VLAN 200, 3 = VLAN 300 …, 1 = Management) of het VLAN-ID zelf. De vierde kolom is de locatie. Een netwerkkabel kan alleen in een netwerkswitch: zie de pagina Netwerk.
 
 <a id="overview-nl"></a>
 ## Projectoverzicht
@@ -576,7 +640,7 @@ Alles van één DimCity op één pagina. Kaarten klap je in met het pijltje; Pat
 - **Veams** — de vier poorten van elke Veam en of hij aan een LK gekoppeld is; klik om hem te openen.
 - **Losse DMX** — DMX-lijnen zonder LK of Veam.
 - **Racks** — plaats racks en losse apparaten en laat PatchLab alles op aansluitingen en nodepoorten patchen; zie [Racks per DimCity](#racks-nl).
-- **Netwerknodes / Splitters** — het netwerkplan van deze DimCity; zie [Netwerkplanner](#network-nl).
+- **Netwerknodes / Splitters** — het netwerkplan van deze DimCity; zie [Nodes, splitters & netwerk](#network-nl).
 - **Patchregels** — elke regel van deze DimCity als tabel.
 
 **Kleur** wijzigt de DimCity-kleur in de zijbalk en op de PDF. **Exporteren** opent de Rapportbouwer met alleen deze DimCity geselecteerd.
@@ -675,7 +739,7 @@ Elk type heeft een vaste sleutel (NODE:01, PANEL:02…). Shows verwijzen ernaar,
 Het voorbeeld bovenin toont de voorkant van het device met zijn poorten, zoals het in een rek verschijnt.
 
 ### Kabels
-Het tabblad **Kabels** bevat kabeltypes: fiber (singlemode of multimode), SFP-patchkabels / DAC en koper Cat. Vul het merk, het type (bijvoorbeeld *opticalCON QUAD 4-core*), het aantal cores, de connectors aan beide kanten (opticalCON DUO / QUAD / ADVANCED, FiberFox, LC, SC, SFP …, of typ je eigen), de lengte in meters, een artikelcode en een kleur in. Kabeltypes worden net als de apparaten in je bibliotheek bewaard. Ze worden gebruikt voor de fiberverbindingen in de Netwerkplanner.
+Het tabblad **Kabels** bevat kabeltypes: fiber (singlemode of multimode), SFP-patchkabels / DAC en koper Cat. Vul het merk, het type (bijvoorbeeld *opticalCON QUAD 4-core*), het aantal cores, de connectors aan beide kanten (opticalCON DUO / QUAD / ADVANCED, FiberFox, LC, SC, SFP …, of typ je eigen), de lengte in meters, een artikelcode en een kleur in. Kabeltypes worden net als de apparaten in je bibliotheek bewaard. Ze worden gebruikt voor de fiberverbindingen op de pagina Netwerk.
 
 <a id="rack-builder-nl"></a>
 ## Rack Builder
@@ -716,9 +780,9 @@ De kaart **Racks** op een DimCity-pagina patcht de LK's en Veams van die DimCity
 - **Racks printen** opent de Rapportbouwer met de voorinstelling "Alleen racks".
 
 <a id="network-nl"></a>
-## Netwerkplanner
+## Nodes, splitters & netwerk
 
-Het netwerkplan somt de DMX-nodes en splitters van elke DimCity op met hun IP-adressen en universes. Je vindt het op de pagina **Netwerkplanner** (alle DimCities) en in de kaarten **Netwerknodes** en **Splitters** van een DimCity.
+Het netwerkplan somt de DMX-nodes en splitters van elke DimCity op met hun IP-adressen en universes. Je vindt het op de pagina **Nodes & splitters** (alle DimCities) en in de kaarten **Netwerknodes** en **Splitters** van een DimCity. Switches, poorten, VLAN’s en fibers staan op de aparte pagina **Netwerk**; de **Setup**-wizard (werkbalk) loopt alles op volgorde met je door.
 
 ### Nodes
 - Kies een nodetype en klik op **Nodes automatisch toewijzen**: PatchLab vult de universes van de DimCity van laag naar hoog over zoveel nodes als nodig, en houdt de **reservepoorten** uit Instellingen vrij.
@@ -734,7 +798,7 @@ De snelste weg naar een compleet plan is het uit de rack-patch opbouwen: **Gebru
 
 ### Meerdere adressen per apparaat en het FENT-schema
 - Een node kan **meer dan één adres** hebben: gebruik **Adres toevoegen** bij de node. Dat is voor een apparaat dat op het ene VLAN wordt beheerd en op een ander VLAN data stuurt of scant: een beheeradres (VLAN 1090) en een lichtadres (VLAN 1040), eventueel een scanadres (VLAN 1041). Bij een node met twee RJ45-poorten kies je welke poort (ETH1 of ETH2) welk adres draagt; bij een node met één poort delen beide adressen die poort en wordt de switchpoort een trunk.
-- **FENT** (Framework Entertainment Netwerk Technologie v1.1) is de standaardnummering voor entertainmentnetwerken. Zet het aan in de kaart **FENT** op de Netwerkplanner-pagina. Alle adressen zijn 10.x.x.x met masker 255.255.0.0; de tweede byte is de discipline (beheer 10.90, licht 10.40); de derde byte scheidt locatie (1-99) van productie (101-199), hier afgeleid van het DimCity-nummer (DB02 wordt 102 bij productie); de vierde byte is het apparaat, vanaf 11 (1-10 en 251-254 zijn voor switches en routers).
+- **FENT** (Framework Entertainment Netwerk Technologie v1.1) is de standaardnummering voor entertainmentnetwerken. Zet het aan in de kaart **FENT** op de pagina Netwerk (tabblad VLAN & adressen). Alle adressen zijn 10.x.x.x met masker 255.255.0.0; de tweede byte is de discipline (beheer 10.90, licht 10.40); de derde byte scheidt locatie (1-99) van productie (101-199), hier afgeleid van het DimCity-nummer (DB02 wordt 102 bij productie); de vierde byte is het apparaat, vanaf 11 (1-10 en 251-254 zijn voor switches en routers).
 - **Toepassen op alle DimCities** geeft elke node in één keer een beheer- en een lichtadres en vervangt zijn huidige adressen. **Controle** waarschuwt voor dubbele adressen, een adres dat bij een ander VLAN hoort, DHCP-reeksen, gereserveerde adressen en een ander masker dan 255.255.0.0.
 - De lijst **Switchpoorten** toont per DimCity welke switchpoort elke RJ45 van elk apparaat krijgt, access of trunk, en de VLAN-kleur uit FENT. Export PDF print hem in de sectie Netwerk, en Stickers kan per poort een label printen. Zet de VLAN-ID's van je Luminex GigaCore-groepen op de FENT-nummers; Luminex gebruikt standaard groep × 100.
 
@@ -743,6 +807,41 @@ De snelste weg naar een compleet plan is het uit de rack-patch opbouwen: **Gebru
 - **Poorten worden automatisch uitgedeeld**: eerst de RJ45 van de nodes, op volgorde van nodenummer, daarna de lijnen van de netwerkkabels (C) die de DB binnenkomen. Per switch zie je de poorten; de kleur is het VLAN van de poort. Als er meer poorten nodig zijn dan de switches hebben, toont de lijst dat.
 - **VLAN-nummering** werkt zoals de Luminex GigaCore-groepen: Management is VLAN 1, groep 2 is VLAN 200, groep 3 is VLAN 300 enzovoort (de kleuren zijn die van de GigaCore). In de kaart FENT kun je overschakelen naar de FENT-nummers (1090, 1040 …).
 - **Fiberverbindingen**: maak kabeltypes in de Device Builder (tab *Kabels*: opticalCON, FiberFox, 4-core, singlemode, SFP-patch …) en verbind daarna de SFP-poorten van switches in de kaart *Fiberverbindingen*. Zo koppel je ook DB's aan elkaar. De switch toont welke SFP welke fiber draagt, de PDF toont de fibers van elke DimCity en Stickers print een label op beide uiteinden.
+
+<a id="network-page-nl"></a>
+## Pagina Netwerk
+
+De pagina **Netwerk** bevat alles over het netwerk, per DimCity. Kies de DimCity met de chips bovenaan, daarna een van de vier tabbladen:
+
+### Switches & poorten
+- Voeg netwerkswitches toe aan de DimCity (of plaats ze in een rack). Elke switch toont hoeveel poorten in gebruik zijn.
+- Poorten worden op volgorde uitgedeeld: eerst de nodes op nodenummer, daarna de netwerkkabels (C-regels). Een poort met twee VLAN’s wordt een trunk.
+- Print vanaf hier het poortplan of switchpoort-stickers.
+
+### VLAN & adressen
+- Kies **Luminex**-nummering (Management 1, groep N = N × 100) of **FENT** (1090, 1040 …) en zet het FENT-adresschema aan of uit.
+- Eén klik adresseert alle nodes. Elk apparaat kan meerdere adressen hebben (management, licht, scan), elk op een eigen VLAN.
+
+### Fibers
+- Kies een kabeltype (opticalCON, FiberFox, 4-core, single-mode, SFP-patch) en de twee switchpoorten die je koppelt. **Fibers koppel je alleen hier**; de Signaalstroom toont ze alleen.
+- De matrix toont welke SFP-poorten bezet zijn. Fiberlabels print je als stickers.
+
+### Overzicht
+Per DimCity: nodes, switches, gebruikte poorten, Cat-lijnen, fibers en een status.
+
+<a id="setup-nl"></a>
+## Setup-wizard
+
+De knop **Setup** in de werkbalk (ook aangeboden na een import, en in het menu Bestand) loopt een nieuw project in de juiste volgorde door. Niets zit vast: neem de stappen op volgorde of spring naar elke stap.
+
+1. **Patch importeren** — LK-, Veam- en C-regels.
+2. **Netwerk per DB** — VLAN-nummering, FENT aan of uit, en een netwerkswitch voor elke DB.
+3. **Racks** — plaats racks of losse apparaten en pas het rack toe als netwerkplan.
+4. **LK’s koppelen** aan de racks.
+5. **Fibers koppelen** tussen de DB’s, één keer (of markeer "geen fibers").
+6. **Controle en uitvoer** — open de problemen, de Signaalstroom, de PDF of de stickers.
+
+Elke stap krijgt een groen vinkje als hij klaar is. **Overslaan** markeert een stap als overgeslagen; **Opnieuw beginnen** wist de overgeslagen-markeringen; **Stop** sluit de wizard wanneer je wilt. Zie [de video’s](#videos-nl) voor een rondleiding.
 
 <a id="flow-nl"></a>
 ## Signaalstroom
@@ -885,6 +984,15 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.3.3 — 2026-10-04
+- Nieuwe pagina **Netwerk** (eigen item in de zijbalk): switches en poorten, VLAN en adressen, fibers en een overzicht, per DimCity. De DimCity-pagina houdt alleen een korte samenvatting met een link.
+- Nieuwe **Setup**-wizard (knop in de werkbalk, ook aangeboden na een import): zes stappen op volgorde — importeren, netwerk per DB, racks, LK's koppelen, fibers, controle en uitvoer. Elke stap laat zien of hij klaar is, kan worden overgeslagen, en de hele wizard kun je op elk moment stoppen of opnieuw starten.
+- Fibers koppel je alleen op de Netwerk-pagina; de Signaalstroom toont ze.
+- De demo-show heeft nu per DB een netwerkswitch met de nodes op volgorde gekoppeld, daarna de Cat-kabels (C-regels) en twee fiberverbindingen tussen de DB's.
+- Een rack toepassen als netwerkplan behoudt de IP-adressen en VLAN's die je al had ingevuld.
+- Video-uitleg met ondertiteling (zonder geluid) in Help: een complete rondleiding en per onderdeel een korte video — Importeren, Netwerk, Racks, LK's koppelen, Fibers, PDF en Stickers — in het Nederlands en Engels (Help > Video-uitleg).
+- Compacte werkbalk op smallere vensters (alleen pictogrammen).
 
 ### Versie 0.3.2 — 2026-10-03
 - Stickers op Herma A4-etikettenvellen (laserprinter): 4680 / 4690 / 4102 / 4112 en 4097 / 4232 / 4221, overgenomen uit de HERMA-sjablonen, plus eigen vellen. Kabellabels (beide uiteinden), aansluitlabels paneel, nodepoorten, racks / nodes / switches / splitters en QR-stickers, met bedrijfs- en showafbeelding, per DimCity, met een startpositie voor deels gebruikte vellen en een kalibratieblad.

@@ -83,7 +83,7 @@ const MENU_NL = {
   'History…':'Geschiedenis…', 'Find…':'Zoeken…', 'Cut':'Knippen', 'Copy':'Kopiëren', 'Paste':'Plakken', 'Select All':'Alles selecteren',
   'Edit Patch Rows…':'Patchregels bewerken…', 'Add LK…':'LK toevoegen…', 'Add Veam…':'Veam toevoegen…', 'View':'Weergave',
   'Project Overview':'Projectoverzicht', 'Validation':'Validatie', 'Patch List':'Patchlijst', 'Recalculate':'Herberekenen',
-  'Network':'Netwerk', 'Network…':'Netwerk…', 'Nodes & Splitters…':'Nodes & splitters…', 'Setup…':'Setup…', 'Signal Flow…':'Signaalstroom…', 'Device Builder…':'Device Builder…', 'Rack Builder…':'Rack Builder…',
+  'Network':'Netwerk', 'Network…':'Netwerk…', 'Nodes & Splitters…':'Nodes & splitters…', 'Setup…':'Setup…', 'Video Tutorials…':'Video-uitleg…', 'Signal Flow…':'Signaalstroom…', 'Device Builder…':'Device Builder…', 'Rack Builder…':'Rack Builder…',
   'Export Library…':'Bibliotheek exporteren…', 'Import Library…':'Bibliotheek importeren…', 'Show Library File':'Bibliotheekbestand tonen',
   'Help':'Help', 'Take the Tour':'Rondleiding', 'Keyboard Shortcuts':'Sneltoetsen', 'User Manual':'Handleiding', 'Take the Tour…':'Rondleiding…', 'Open Demo Show':'Demo-show openen', 'Festival Wrapped…':'Festival wrapped…', 'Send a Request…':'Een verzoek sturen…', "What's New":'Wat is er nieuw'
 };
@@ -188,6 +188,7 @@ function buildMenu(recent = lastRecent){
       label: T('Help'),
       submenu: [
         { label: T('User Manual'), accelerator: 'F1', click: () => send('help') },
+        { label: T('Video Tutorials…'), click: () => send('help', 'videos') },
         { label: T('Send a Request…'), click: () => send('request') },
         { label: T("What's New"), click: () => send('help', 'whats-new') },
         { type: 'separator' },

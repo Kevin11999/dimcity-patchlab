@@ -88,8 +88,28 @@ function renderArticle(){
   art.innerHTML = `<h3>${I(c.icon, 18)}${esc(c.title[L])}</h3>${Man.toHtml(c[L], { esc, link })}
     <div class="help-foot"><span class="subtle">${t('Something missing or wrong in this chapter?', 'Mist er iets of klopt er iets niet in dit hoofdstuk?')}</span><button class="sm" data-h="req">${I('message', 13)}${t('Send a request', 'Verzoek sturen')}</button></div>`;
   art.scrollTop = 0;
+  if(c.id === 'videos') videoPlayer(art);
   art.querySelectorAll('[data-ch]').forEach(a => a.onclick = () => { current = Man.CHAPTERS.find(x => x.id === a.dataset.ch) || current; renderToc(); renderArticle(); });
   art.querySelector('[data-h=req]').onclick = () => openRequest({ about:c.title[L] });
+}
+// ---- Videos (assets/videos/<part>-<lang>.mp4, made by tools/make-videos.mjs) ----
+const PARTS = ['import', 'network', 'racks', 'lks', 'fibers', 'pdf', 'stickers'];
+const VIDEOS = [
+  ['full', 'Complete tour', 'Complete rondleiding'], ['import', '1 · Import', '1 · Importeren'], ['network', '2 · Network', '2 · Netwerk'],
+  ['racks', '3 · Racks', '3 · Racks'], ['lks', '4 · Couple the LKs', '4 · LK’s koppelen'], ['fibers', '5 · Fibres', '5 · Fibers'],
+  ['pdf', '6 · PDF', '6 · PDF'], ['stickers', '7 · Stickers', '7 · Stickers'],
+];
+let videoId = 'full';
+function videoPlayer(art, auto = false){
+  const L = lang();
+  const box = document.createElement('div'); box.className = 'help-videos';
+  box.innerHTML = `<video class="help-video" controls preload="metadata" src="assets/videos/${videoId === 'full' ? PARTS[0] : videoId}-${L}.mp4" ${auto ? 'autoplay' : ''}></video>
+    <div class="help-vlist">${VIDEOS.map(([id, en, nl]) => `<button class="sm ${id === videoId ? 'primary' : 'ghost'}" data-vid="${id}">${I('play', 13)}${esc(t(en, nl))}</button>`).join('')}</div>
+    <div class="subtle" style="margin-top:6px">${t('Subtitles only — no sound.', 'Alleen ondertiteling — geen geluid.')}</div>`;
+  const h = art.querySelector('h3'); h.after(box);
+  box.querySelectorAll('[data-vid]').forEach(b => b.onclick = () => { videoId = b.dataset.vid; box.remove(); videoPlayer(art, true); });
+  if(videoId === 'full'){ const v = box.querySelector('video'); let i = 0; v.onended = () => { if(++i < PARTS.length){ v.src = `assets/videos/${PARTS[i]}-${L}.mp4`; v.play(); } }; }
+  box.querySelector('video').onerror = () => { box.querySelector('video').replaceWith(Object.assign(document.createElement('div'), { className: 'subtle', textContent: t('This video is not available in this build.', 'Deze video is niet beschikbaar in deze versie.') })); };
 }
 function renderSearch(){
   const Man = window.Manual, L = lang(), art = panel.querySelector('.help-article');

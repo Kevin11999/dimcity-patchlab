@@ -1,0 +1,51 @@
+[
+ {
+  "id": "import",
+  "title": {
+   "en": "1 · Import",
+   "nl": "1 · Importeren"
+  }
+ },
+ {
+  "id": "network",
+  "title": {
+   "en": "2 · Network",
+   "nl": "2 · Netwerk"
+  }
+ },
+ {
+  "id": "racks",
+  "title": {
+   "en": "3 · Racks",
+   "nl": "3 · Racks"
+  }
+ },
+ {
+  "id": "lks",
+  "title": {
+   "en": "4 · Couple LKs",
+   "nl": "4 · LK’s koppelen"
+  }
+ },
+ {
+  "id": "fibers",
+  "title": {
+   "en": "5 · Fibres",
+   "nl": "5 · Fibers"
+  }
+ },
+ {
+  "id": "pdf",
+  "title": {
+   "en": "6 · PDF",
+   "nl": "6 · PDF"
+  }
+ },
+ {
+  "id": "stickers",
+  "title": {
+   "en": "7 · Stickers",
+   "nl": "7 · Stickers"
+  }
+ }
+]

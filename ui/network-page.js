@@ -36,7 +36,7 @@
 
   function dcBar(){
     const dims = App.sortedDims(); if(!S.dc || !dims.includes(S.dc)) S.dc = dims[0] || null;
-    return `<div class="rb-chips" style="margin:0 0 12px">${dims.map(d => `<label class="rb-chip ${S.dc === d ? 'on' : ''}"><input type="radio" name="netdc" data-netdc="${esc(d)}" ${S.dc === d ? 'checked' : ''}><i class="dot" style="background:${App.dimColor(d)}"></i>${esc(d)}</label>`).join('')}</div>`;
+    return `<div class="rb-chips" style="margin:0 0 12px">${dims.map(d => `<label class="rb-chip ${S.dc === d ? 'on' : ''}"><input type="radio" name="netdc" data-netdc="${esc(d)}" ${S.dc === d ? 'checked' : ''}><i class="dot" style="background:${App.dimColor(d)}"></i>${esc(d)}</label>`).join('')}<button class="sm ghost" data-cmd="addDb">${I('plus', 12)} DB</button>${dims.includes('FOH') ? '' : `<button class="sm ghost" data-cmd="addFoh">${I('plus', 12)} FOH</button>`}</div>`;
   }
   function portsTab(){
     const dc = S.dc; if(!dc) return `<div class="empty"><p>${t('Import a patch first.', 'Importeer eerst een patch.')}</p></div>`;

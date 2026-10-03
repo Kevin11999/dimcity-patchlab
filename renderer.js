@@ -2279,6 +2279,15 @@ async function runCommand(cmd, arg){
     case 'csvSources':    return showCsvSourcesModal();
     case 'editCsv':       return window.CsvEditor?.open?.();
     case 'exportPdf':     return window.PdfExport?.open?.();
+    case 'addDb':         return newLocation(nextDbName());
+    case 'addFoh':        return newLocation('FOH');
+    case 'addLocation': {
+      const d = openDialog({ title:'Add a location', width:'380px', body:'<label class="field">Name<input id="locName" type="text" maxlength="12" placeholder="DB05, FOH, STAGE…"></label><div class="subtle" style="margin-top:6px">A DB, FOH (front of house) or any other place with its own racks and network switches.</div>', footer:'<button data-a="c">Cancel</button><button class="primary" data-a="ok">Add</button>' });
+      const inp = d.body.querySelector('#locName'); setTimeout(()=> inp.focus(), 30);
+      const ok = ()=>{ const r = newLocation(inp.value, true); if(r) d.close(); };
+      d.footer.querySelector('[data-a=c]').onclick = ()=> d.close(); d.footer.querySelector('[data-a=ok]').onclick = ok; inp.onkeydown = e=>{ if(e.key === 'Enter') ok(); };
+      return;
+    }
     case 'addLK':         return showToolsModal('LK');
     case 'addVeam':       return showToolsModal('VEAM');
     case 'deviceBuilder':   return window.DeviceBuilder?.open?.(arg);
@@ -2336,6 +2345,10 @@ bindClick('btnRebuild',    ()=> runCommand('rebuild'));
 bindClick('tbSave',        ()=> runCommand('save'));
 bindClick('btnCsvEdit',    ()=> runCommand('editCsv'));
 bindClick('navAddMenu',    e=> showMenu(e.currentTarget, [
+  { label:'Add DB (next number)', icon:'layers', run:()=> runCommand('addDb') },
+  { label:'Add FOH (front of house)', icon:'layers', run:()=> runCommand('addFoh') },
+  { label:'Add location with a name…', icon:'layers', run:()=> runCommand('addLocation') },
+  '-',
   { label:'Add LK…', icon:'box', run:()=> runCommand('addLK') },
   { label:'Add Veam…', icon:'plug', run:()=> runCommand('addVeam') },
   '-',
@@ -2387,6 +2400,13 @@ function addDimCity(raw){
   MODEL.ui.dirty = true;
   ensureDimColors();
   return { ok:true, id };
+}
+function newLocation(name, keepOpen){
+  const r = addDimCity(name);
+  if(!r.ok){ toast(r.error, 'err'); return false; }
+  renderAll(); openEntity('DIM', r.id);
+  toast(`${r.id} added — place a rack or add a network switch (Setup, or the Network page).`);
+  return true;
 }
 function nextDbName(){
   const nums = sortedDims().map(d => /^DB(\d+)$/.exec(d)).filter(Boolean).map(m => Number(m[1]));

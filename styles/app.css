@@ -1153,3 +1153,7 @@ body.view-flow .view{width:100%}
 .fv-line{stroke-linecap:butt}
 .fv-drag,.fv-swdrag{fill:transparent;cursor:move}
 .fv-port.nofit{opacity:.3}
+
+.flbg-thumb{height:70px;border-radius:8px;border:1px solid var(--border);background:#000 center/contain no-repeat;margin:4px 0 8px}
+.flbg-row{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--text-2);margin:6px 0}.flbg-row input{width:100%}
+.flbg-btns{display:flex;gap:6px;margin-top:6px}

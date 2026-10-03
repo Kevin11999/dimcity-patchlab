@@ -467,7 +467,7 @@ De snelste weg naar een compleet plan is het uit de rack-patch opbouwen: **Gebru
 - Print the port plan or switch-port stickers from here.
 
 ## VLAN & addresses
-- Choose **Luminex** numbering (Management 1, group N = N × 100) or **FENT** (1090, 1040 …) and switch the FENT address scheme on or off.
+- Choose **Luminex** numbering (Management 1, group N = N × 100) or **FENT** (1090, 1040 …) and switch the FENT address scheme on or off. You can rename every VLAN in the VLAN table.
 - One click addresses all nodes. Every device can have several addresses (management, lighting, scan), each on its own VLAN.
 
 ## Fibres
@@ -484,7 +484,7 @@ Per DimCity: nodes, switches, ports used, Cat lines, fibres and a status.`,
 - Print vanaf hier het poortplan of switchpoort-stickers.
 
 ## VLAN & adressen
-- Kies **Luminex**-nummering (Management 1, groep N = N × 100) of **FENT** (1090, 1040 …) en zet het FENT-adresschema aan of uit.
+- Kies **Luminex**-nummering (Management 1, groep N = N × 100) of **FENT** (1090, 1040 …) en zet het FENT-adresschema aan of uit. Elk VLAN kun je in de VLAN-tabel hernoemen.
 - Eén klik adresseert alle nodes. Elk apparaat kan meerdere adressen hebben (management, licht, scan), elk op een eigen VLAN.
 
 ## Fibers
@@ -828,6 +828,17 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // Release notes per version, newest first. `npm run manual` turns this into CHANGELOG.md and the
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
+  {
+    version:'0.4.3', date:'2026-10-05',
+    en:[
+      'Background picture in the Signal Flow (floor plan, stage plot …): choose a picture, set opacity, size and position. It can be one picture for every view or its own picture for Everything, DMX, Network and Fibres (switch: Same picture on every view). It zooms and pans with the drawing, is saved with the project and is also in the saved image and the PDF.',
+      'VLAN names can be changed: on the Network page, tab VLAN & addresses, type a new name in the VLAN table (empty = standard name). The new name is used everywhere (port plan, stickers, PDF).'
+    ],
+    nl:[
+      'Achtergrondafbeelding in de Signaalstroom (plattegrond, stageplot …): kies een afbeelding en stel doorzichtigheid, grootte en positie in. Het kan één afbeelding voor elke weergave zijn of een eigen afbeelding voor Alles, DMX, Netwerk en Fibers (schakelaar: Zelfde afbeelding op elke weergave). Hij zoomt en schuift mee met de tekening, wordt met het project opgeslagen en staat ook in de opgeslagen afbeelding en de PDF.',
+      'VLAN-namen kun je aanpassen: op de pagina Netwerk, tab VLAN & adressen, typ een nieuwe naam in de VLAN-tabel (leeg = standaardnaam). De nieuwe naam wordt overal gebruikt (poortplan, stickers, PDF).'
+    ]
+  },
   {
     version:'0.4.2', date:'2026-10-05',
     en:[

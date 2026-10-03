@@ -307,7 +307,7 @@ The **Network** page holds everything about the network, per DimCity. Pick the D
 - Print the port plan or switch-port stickers from here.
 
 ### VLAN & addresses
-- Choose **Luminex** numbering (Management 1, group N = N × 100) or **FENT** (1090, 1040 …) and switch the FENT address scheme on or off.
+- Choose **Luminex** numbering (Management 1, group N = N × 100) or **FENT** (1090, 1040 …) and switch the FENT address scheme on or off. You can rename every VLAN in the VLAN table.
 - One click addresses all nodes. Every device can have several addresses (management, lighting, scan), each on its own VLAN.
 
 ### Fibres
@@ -509,6 +509,10 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 
 <a id="whats-new"></a>
 ## What's new
+
+### Version 0.4.3 — 2026-10-05
+- Background picture in the Signal Flow (floor plan, stage plot …): choose a picture, set opacity, size and position. It can be one picture for every view or its own picture for Everything, DMX, Network and Fibres (switch: Same picture on every view). It zooms and pans with the drawing, is saved with the project and is also in the saved image and the PDF.
+- VLAN names can be changed: on the Network page, tab VLAN & addresses, type a new name in the VLAN table (empty = standard name). The new name is used everywhere (port plan, stickers, PDF).
 
 ### Version 0.4.2 — 2026-10-05
 - Add a location anywhere: the + next to DimCities in the sidebar now has Add DB (next number), Add FOH (front of house) and Add location with a name; the Network page has + DB and + FOH next to the DimCity chips (as Setup already had).
@@ -885,7 +889,7 @@ De pagina **Netwerk** bevat alles over het netwerk, per DimCity. Kies de DimCity
 - Print vanaf hier het poortplan of switchpoort-stickers.
 
 ### VLAN & adressen
-- Kies **Luminex**-nummering (Management 1, groep N = N × 100) of **FENT** (1090, 1040 …) en zet het FENT-adresschema aan of uit.
+- Kies **Luminex**-nummering (Management 1, groep N = N × 100) of **FENT** (1090, 1040 …) en zet het FENT-adresschema aan of uit. Elk VLAN kun je in de VLAN-tabel hernoemen.
 - Eén klik adresseert alle nodes. Elk apparaat kan meerdere adressen hebben (management, licht, scan), elk op een eigen VLAN.
 
 ### Fibers
@@ -1087,6 +1091,10 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.4.3 — 2026-10-05
+- Achtergrondafbeelding in de Signaalstroom (plattegrond, stageplot …): kies een afbeelding en stel doorzichtigheid, grootte en positie in. Het kan één afbeelding voor elke weergave zijn of een eigen afbeelding voor Alles, DMX, Netwerk en Fibers (schakelaar: Zelfde afbeelding op elke weergave). Hij zoomt en schuift mee met de tekening, wordt met het project opgeslagen en staat ook in de opgeslagen afbeelding en de PDF.
+- VLAN-namen kun je aanpassen: op de pagina Netwerk, tab VLAN & adressen, typ een nieuwe naam in de VLAN-tabel (leeg = standaardnaam). De nieuwe naam wordt overal gebruikt (poortplan, stickers, PDF).
 
 ### Versie 0.4.2 — 2026-10-05
 - Een locatie toevoegen kan overal: de + naast DimCities in de zijbalk heeft nu DB toevoegen (volgend nummer), FOH toevoegen (front of house) en Locatie met een naam toevoegen; de pagina Netwerk heeft + DB en + FOH naast de DimCity-chips (zoals Setup al had).

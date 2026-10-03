@@ -146,6 +146,7 @@
       <div class="fl-sec"><div class="rb-label">${t('Show', 'Tonen')}</div><div class="segmented rb-full" id="fvLayer"><button data-v="all">${t('All', 'Alles')}</button><button data-v="dmx">DMX</button><button data-v="net">${t('Network', 'Netwerk')}</button><button data-v="fibre" class="active">${t('Fibres', 'Fibers')}</button></div></div>
       <div class="fl-sec"><div class="rb-label">${t('Fibres', 'Fibers')} <span class="subtle">${links.length}</span></div>
         ${links.map(l => `<button class="fl-item fv-li ${S.sel === l.id ? 'on' : ''}" data-pick="${esc(l.id)}"><i class="dot" style="background:${F().color(l)}"></i><span>${esc(l.id)} · ${esc(F().code(l.typeId))}</span><em>${esc((l.a?.dc || l.a?.free || '') + ' ⇄ ' + (l.b?.dc || l.b?.free || ''))}</em></button>`).join('') || `<div class="subtle" style="font-size:12.5px">${t('No fibres yet — draw one or use Auto-assign.', 'Nog geen fibers — teken er een of gebruik Automatisch koppelen.')}</div>`}</div>
+      ${window.FlowBg ? window.FlowBg.sectionHtml('fibre') : ''}
       <div class="fl-sec"><div class="hint">${I('info', 13)} ${t('Pick a cable below, click a free port, then click the port at the other end. Click a cable to select or delete it.', 'Kies hieronder een kabel, klik op een vrije poort en daarna op de poort aan de andere kant. Klik op een kabel om hem te selecteren of te verwijderen.')}</div></div>
     </aside>`;
     const bar = `<div class="fl-bar">
@@ -157,7 +158,7 @@
       <span class="fl-hint">${S.pending ? t('Now click the port at the other end · Esc = cancel', 'Klik nu op de poort aan de andere kant · Esc = annuleren') : t('Drag = move · wheel = zoom', 'Sleep = verschuiven · wiel = zoomen')}</span></div>`;
     const pal = `<div class="fv-pal"><span class="rb-label" style="margin:0 8px 0 0">${t('Cable', 'Kabel')}</span>${types.map(ty => { const left = F().leftOf(ty.id), q = F().qtyOf(ty.id);
       return `<button class="fv-chip ${S.type === ty.id ? 'on' : ''} ${left === 0 ? 'out' : ''}" data-type="${esc(ty.id)}" style="--c:${esc(ty.color || '#22c3d6')}"><i></i><b>${esc(F().code(ty.id))}</b><span>${q == null ? '' : `${left}/${q}`}</span></button>`; }).join('') || `<span class="subtle">${t('Make cable types in the Device Builder (Cables).', 'Maak kabeltypes in de Device Builder (Kabels).')}</span>`}</div>`;
-    const svg = `<svg id="fvSvg" xmlns="http://www.w3.org/2000/svg"><g id="fvView" transform="translate(${S.tx},${S.ty}) scale(${S.zoom})"><g>${g.locs.map(l => locSvg(l, usage)).join('')}</g><g id="fvCables">${cables}</g></g></svg>${g.locs.length ? '' : `<div class="empty fl-empty">${I('cable', 30)}<h3>${t('No switches yet', 'Nog geen switches')}</h3><p>${t('Add network switches to the DimCities first (Network page).', 'Voeg eerst netwerkswitches toe aan de DimCities (pagina Netwerk).')}</p></div>`}`;
+    const svg = `<svg id="fvSvg" xmlns="http://www.w3.org/2000/svg"><g id="fvView" transform="translate(${S.tx},${S.ty}) scale(${S.zoom})"><g id="fvBg">${window.FlowBg ? window.FlowBg.svg('fibre', (() => { const b = bounds(); return b ? { minX:b.x0, minY:b.y0, maxX:b.x1, maxY:b.y1 } : null; })()) : ''}</g><g>${g.locs.map(l => locSvg(l, usage)).join('')}</g><g id="fvCables">${cables}</g></g></svg>${g.locs.length ? '' : `<div class="empty fl-empty">${I('cable', 30)}<h3>${t('No switches yet', 'Nog geen switches')}</h3><p>${t('Add network switches to the DimCities first (Network page).', 'Voeg eerst netwerkswitches toe aan de DimCities (pagina Netwerk).')}</p></div>`}`;
     root.innerHTML = `<div class="fl-wrap">${side}<div class="fl-main">${bar}<div class="fl-canvas fv-canvas" id="fvCanvas">${svg}</div>${pal}</div></div>`;
     bind(root);
     if(S.fit){ S.fit = false; fit(); }
@@ -183,6 +184,7 @@
     const again = () => render(root);
     const canvas = root.querySelector('#fvCanvas');
     root.querySelectorAll('#fvLayer button').forEach(b => b.onclick = () => window.Flow.setLayer(b.dataset.v));
+    window.FlowBg?.bind(root, 'fibre', () => again());
     root.querySelectorAll('[data-type]').forEach(b => b.onclick = () => { S.type = b.dataset.type; again(); });
     root.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => { S.sel = S.sel === b.dataset.pick ? null : b.dataset.pick; again(); });
     root.querySelector('#fvIn').onclick = () => { const r = canvas.getBoundingClientRect(); zoomAt(S.zoom * 1.25, r.width / 2, r.height / 2); };

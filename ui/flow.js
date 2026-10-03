@@ -610,7 +610,7 @@ function standaloneSvg(dcs, layer = 'all'){
   const css = `svg{font-family:Helvetica,Arial,sans-serif}.fe{fill:none;opacity:.95;stroke-linecap:round}.c-lk{stroke-width:6}.c-veam{stroke-width:4}.c-patch{stroke-width:2.5}.c-dmx{stroke-width:2}.c-cat{stroke-width:2.8}.c-fiber{stroke-width:4.5}.fe-inner{display:none}.fb-selbox{fill:none;stroke:none}.fb-bg{fill:#fff;stroke:#334155}.fb-t{font-size:12px;font-weight:600;fill:#0f172a}.fb-id{font-weight:400;fill:#64748b}.fb-s{font-size:10.5px;fill:#64748b}.fp rect{fill:#f1f5f9}.fp-n{font-family:Menlo,Consolas,monospace;font-size:10px;fill:#64748b}.fp-u{font-size:10.5px;font-weight:600;fill:#0f172a}.fp-d{font-size:9.5px;fill:#334155}.fp-g{font-size:9.5px;font-weight:600;fill:#64748b;text-transform:uppercase}.fl-band-t{font-size:13px;font-weight:700;fill:#0f172a}.fl-band-s{font-size:10.5px;fill:#64748b}.fl-band line{stroke:#cbd5e1}`;
   const w = bb.maxX - bb.minX, h = bb.maxY - bb.minY;
   const body = `${bandsSvg(graph, dcs)}<g>${edgesSvg(graph, byId, true)}</g><g>${graph.blocks.map(b => blockSvg(b, THEME.print, true)).join('')}</g>`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${bb.minX} ${bb.minY} ${w} ${h}" width="${w}" height="${h}"><style>${css}</style><rect x="${bb.minX}" y="${bb.minY}" width="${w}" height="${h}" fill="#fff"/>${defsSvg().replace('context-stroke', '#334155')}${body}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${bb.minX} ${bb.minY} ${w} ${h}" width="${w}" height="${h}"><style>${css}</style><rect x="${bb.minX}" y="${bb.minY}" width="${w}" height="${h}" fill="#fff"/>${window.FlowBg ? window.FlowBg.imageSvg(layer, { minX:bb.minX, minY:bb.minY, maxX:bb.maxX, maxY:bb.maxY }) : ''}${defsSvg().replace('context-stroke', '#334155')}${body}</svg>`;
   const lk = graph.blocks.filter(b => b.kind === 'lk').length, ve = graph.blocks.filter(b => b.kind === 'veam').length, racks = graph.blocks.filter(b => b.kind === 'rack').length;
   return { svg, w, h, lk, veams:ve, racks, lines:graph.lines.size };
 }
@@ -642,6 +642,7 @@ function render(){
       <button class="fl-item ${S.dc === 'ALL' ? 'on' : ''}" data-dc="ALL">${I('layers', 14)}<span>${t('All DimCities', 'Alle DimCities')}</span><em>${dims.length}</em></button>
       ${dims.map(dc => `<button class="fl-item ${S.dc === dc ? 'on' : ''}" data-dc="${esc(dc)}"><i class="dot" style="background:${App.dimColor(dc)}"></i><span>${esc(dc)}</span><em>${m.byDim.get(dc)?.lks?.size || 0} LK</em></button>`).join('')}</div>
     <div class="fl-sec"><div class="rb-label">${t('Show', 'Tonen')}</div><div class="segmented rb-full" id="flLayer"><button data-v="all" class="${S.layer === 'all' ? 'active' : ''}">${t('All', 'Alles')}</button><button data-v="dmx" class="${S.layer === 'dmx' ? 'active' : ''}">DMX</button><button data-v="net" class="${S.layer === 'net' ? 'active' : ''}">${t('Network', 'Netwerk')}</button><button data-v="fibre">${t('Fibres', 'Fibers')}</button></div></div>
+    ${window.FlowBg ? window.FlowBg.sectionHtml(S.layer) : ''}
     <div class="fl-sec"><div class="rb-label">${t('Universes', 'Universes')} <span class="subtle">${uniList.length}</span></div>
       <div class="fl-unis">${uniList.map(u => `<button class="fl-uni ${S.pin?.uni === u ? 'pinned' : ''}" data-uni="${u}" style="--u:${uniHue(u)}"><b>U${u}</b><span>${unis.get(u)}</span></button>`).join('') || `<div class="subtle" style="padding:4px 8px">${t('No universes patched', 'Geen universes gepatcht')}</div>`}</div></div>
     <div class="fl-sec"><div class="rb-label">${t('Nodes', 'Nodes')}</div>${graph.nodes.map(n => `<div class="fl-node"><i style="background:${n.color}"></i><span>${esc(n.title)}</span><em title="${esc(n.where)}">${esc(n.where)}</em></div>`).join('') || `<div class="subtle" style="padding:4px 8px">${t('Place a rack or loose node first', 'Plaats eerst een rek of losse node')}</div>`}</div>
@@ -661,7 +662,7 @@ function render(){
     <button class="sm" id="flSave" title="${esc(t('Save the drawing as an SVG image', 'Sla de tekening op als SVG-afbeelding'))}">${I('download', 14)}${t('Save image', 'Afbeelding opslaan')}</button>
     <span class="fl-hint">${t('Hover = follow · click = pin · Esc = release · drag = move', 'Beweeg = volgen · klik = vastzetten · Esc = loslaten · sleep = verplaatsen')}</span></div>`;
   for(const b of graph.blocks) b.graphEdges = graph.edges;
-  const svg = `<svg id="flSvg" xmlns="http://www.w3.org/2000/svg">${defsSvg()}<g id="flView" transform="translate(${S.tx},${S.ty}) scale(${S.zoom})"><g id="flBands">${bandsSvg(graph, dcs)}</g><g id="flEdges">${edgesSvg(graph, byId, false)}</g><g id="flBlocks">${graph.blocks.map(b => blockSvg(b, THEME.app, false)).join('')}</g></g></svg><div class="fl-marquee" id="flMarquee" hidden></div>`;
+  const svg = `<svg id="flSvg" xmlns="http://www.w3.org/2000/svg">${defsSvg()}<g id="flView" transform="translate(${S.tx},${S.ty}) scale(${S.zoom})"><g id="flBg">${window.FlowBg ? window.FlowBg.svg(S.layer, (() => { const b = bounds(graph); return b ? { minX:b.minX, minY:b.minY, maxX:b.maxX, maxY:b.maxY } : null; })()) : ''}</g><g id="flBands">${bandsSvg(graph, dcs)}</g><g id="flEdges">${edgesSvg(graph, byId, false)}</g><g id="flBlocks">${graph.blocks.map(b => blockSvg(b, THEME.app, false)).join('')}</g></g></svg><div class="fl-marquee" id="flMarquee" hidden></div>`;
   const empty = graph.edges.length ? '' : `<div class="empty fl-empty">${I('cable', 30)}<h3>${t('Nothing to draw yet', 'Nog niets te tekenen')}</h3><p>${t('Import a patch and place a rack or loose node in a DimCity; the flow appears here.', 'Importeer een patch en plaats een rek of losse node in een DimCity; de stroom verschijnt hier.')}</p></div>`;
   root.innerHTML = `<div class="fl-wrap">${side}<div class="fl-main">${bar}<div class="fl-canvas tool-${S.tool}" id="flCanvas">${svg}${empty}</div></div></div>`;
   bind(root, graph, byId);
@@ -718,6 +719,7 @@ function bind(root, graph, byId){
   root.querySelectorAll('[data-dc]').forEach(b => b.onclick = () => { S.dc = b.dataset.dc; S.pin = null; S.sel.clear(); render(); });
   const spc = root.querySelector('#flSpacing'); if(spc){ spc.oninput = () => { root.querySelector('#flSpVal').textContent = `${spc.value}%`; }; spc.onchange = () => { f.spacing = Number(spc.value) / 100; M().ui.dirty = true; S.fitNext = true; render(); }; }
   root.querySelectorAll('#flLayer button').forEach(b => b.onclick = () => setLayer(b.dataset.v));
+  window.FlowBg?.bind(root, S.layer, () => render());
   root.querySelectorAll('#flTool button').forEach(b => b.onclick = () => setTool(b.dataset.tool));
   root.querySelector('#flZoomIn').onclick = () => zoomCenter(S.zoom * 1.25);
   root.querySelector('#flZoomOut').onclick = () => zoomCenter(S.zoom / 1.25);

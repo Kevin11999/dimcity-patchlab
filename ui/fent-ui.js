@@ -144,12 +144,19 @@
         <div style="display:flex;gap:8px;margin-top:10px"><button class="primary" data-fent-apply>${I('check', 14)}${t('Apply to all DimCities', 'Toepassen op alle DimCities')}</button></div>
         <div class="hint" style="margin-top:8px">${t('Third byte = DimCity number (DB02 → 102 in production), last byte = device from 11. Network equipment (switches) uses 1-10. Set the VLAN IDs in your GigaCore groups to these numbers — Luminex defaults to group × 100.', 'Derde byte = DimCity-nummer (DB02 → 102 bij productie), laatste byte = apparaat vanaf 11. Netwerkapparatuur (switches) gebruikt 1-10. Zet de VLAN-ID\'s in je GigaCore-groepen op deze nummers — Luminex gebruikt standaard groep × 100.')}</div></div>
         <div class="rb-group"><div class="rb-label">${t('Check', 'Controle')}</div>${issues.length ? `<div class="fent-issues">${issues.map(w => `<div class="fent-i ${w.level}">${I(w.level === 'err' ? 'alert' : w.level === 'warn' ? 'alert' : 'info', 13)}<b>${esc(w.owner)}</b> ${esc(w.ip)} — ${esc(t(w.en, w.nl))}</div>`).join('')}</div>` : `<div class="status-ok">${I('checkCircle', 13)} ${t('All addresses fit the scheme.', 'Alle adressen passen in het schema.')}</div>`}</div>
-        <div class="rb-group"><div class="rb-label">VLAN</div><table class="data-table fent-vlans"><thead><tr><th>ID</th><th>${t('Name', 'Naam')}</th><th>${t('Network', 'Netwerk')}</th><th>${t('Colour', 'Kleur')}</th></tr></thead><tbody>${F().vlanList(c.vlanMode).filter(v => !v.extension).map(v => `<tr><td>${v.id}</td><td><b>${esc(v.name)}</b> <span class="subtle">${esc(v.discipline)}</span></td><td class="mono">${v.net ? `${v.net} · ${F().MASK}` : (v.second ? `10.${v.second}.x.x · ${F().MASK}` : '—')}</td><td>${v.color ? `<span class="fent-sw" style="background:${v.color}"></span>${esc(v.colorName || '')} ${v.color}` : '—'}</td></tr>`).join('')}</tbody></table></div>
+        <div class="rb-group"><div class="rb-label">VLAN</div><table class="data-table fent-vlans"><thead><tr><th>ID</th><th>${t('Name', 'Naam')}</th><th>${t('Network', 'Netwerk')}</th><th>${t('Colour', 'Kleur')}</th></tr></thead><tbody>${F().vlanList(c.vlanMode).filter(v => !v.extension).map(v => `<tr><td>${v.id}</td><td><input type="text" class="vlanName" data-vlan="${v.id}" maxlength="24" value="${esc(v.name)}" placeholder="${esc(v.stdName || v.name)}" title="${esc(t('Rename this VLAN (empty = standard name)', 'Hernoem dit VLAN (leeg = standaardnaam)'))}" style="width:150px"> <span class="subtle">${esc(v.discipline || '')}</span></td><td class="mono">${v.net ? `${v.net} · ${F().MASK}` : (v.second ? `10.${v.second}.x.x · ${F().MASK}` : '—')}</td><td>${v.color ? `<span class="fent-sw" style="background:${v.color}"></span>${esc(v.colorName || '')} ${v.color}` : '—'}</td></tr>`).join('')}</tbody></table></div>
 `;
     }
     return App.ui.card({ key:'net-fent', title:'FENT', icon:'network', meta:c.on ? (c.group === 'production' ? t('production', 'productie') : t('location', 'locatie')) : '', collapsible:false, body });
   }
   function bindPlanner(root, rerender){
+    root.querySelectorAll('.vlanName').forEach(i => i.onchange = () => {
+      const c = cfg(); c.vlanNames ||= {};
+      const std = (F().LUMINEX.concat(F().VLANS).find(v => v.id === Number(i.dataset.vlan)) || {}).name;
+      const val = i.value.trim();
+      if(!val || val === std) delete c.vlanNames[i.dataset.vlan]; else c.vlanNames[i.dataset.vlan] = val;
+      M().ui.dirty = true; rerender();
+    });
     root.querySelectorAll('[data-fent-sw]').forEach(i => i.onchange = () => { cfg()[i.dataset.fentSw] = i.checked; M().ui.dirty = true; rerender(); });
     root.querySelectorAll('[data-fent-mode] button').forEach(b => b.onclick = () => { cfg().vlanMode = b.dataset.v; M().ui.dirty = true; rerender(); });
     root.querySelectorAll('[data-fent-group] button').forEach(b => b.onclick = () => { cfg().group = b.dataset.v; M().ui.dirty = true; rerender(); });

@@ -29,11 +29,22 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        // TEST signing only: one fixed key kept in the repository so every APK built by CI is
+        // signed the same way and installs as an update over the previous one. Anyone with the
+        // repository can sign an app with it, so it must never be used for a store release.
+        // Replace it with a private key (key.properties, not committed) before publishing.
+        create("test") {
+            storeFile = file("test-release.keystore")
+            storePassword = "patchlabtest"
+            keyAlias = "patchlab-test"
+            keyPassword = "patchlabtest"
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("test")
         }
     }
 }

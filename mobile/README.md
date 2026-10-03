@@ -14,6 +14,23 @@ difference. Details and assumptions: [docs/PROTOCOLS.md](docs/PROTOCOLS.md).
 Platform notes (iOS multicast entitlement, Android multicast lock):
 [docs/PLATFORM.md](docs/PLATFORM.md).
 
+## Install on Android (test build)
+
+1. Get the APK: GitHub → Actions → *Mobile* → latest run → **Artifacts** → `PatchLab-RDM-apk`
+   (a zip with the `.apk`), or, for builds from `main` and manual runs, the **Releases**
+   page (pre-release `mobile-v…`). Open the link in the phone's browser while logged in to GitHub.
+2. Open the `.apk`. Android asks to allow *install unknown apps* for the browser: allow it for this once.
+3. Put the phone on the same Wi-Fi as the node **and in the node's IP range** (Luminex / ELC
+   default to 2.x.x.x or 10.x.x.x with mask 255.0.0.0): set a static Wi-Fi IP such as 2.0.0.200.
+4. No node at hand? Settings → **Demo mode** starts a simulated node in the app.
+
+Needs Android 7 (API 24) or newer. Builds are signed with a fixed *test* key kept in the
+repository (`android/app/test-release.keystore`), so each new build installs as an update over the
+previous one. Anyone with the repository can sign with it: replace it with a private key before
+any store release.
+
+Build it yourself: `flutter build apk --release` (needs the Android SDK and JDK 17+).
+
 ## Flow
 
 1. **Nodes** – ArtPoll broadcast; list with name, IP, ports and the

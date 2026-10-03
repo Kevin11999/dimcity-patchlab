@@ -1,4 +1,8 @@
-# Analyzes and tests the mobile app (mobile/) on every change to it.
+# Analyzes and tests the mobile app (mobile/) on every change to it, builds the Android APK
+# and attaches it to the run (Actions -> run -> Artifacts). Pushes to main and manual runs also
+# publish the APK as a GitHub *pre-release* "mobile-v<version>-b<run>", so it can be downloaded
+# from the Releases page on a phone. A pre-release never counts as "latest", so the desktop
+# app's update check (which reads /releases/latest) is not affected.
 name: Mobile
 
 on:
@@ -7,6 +11,9 @@ on:
   pull_request:
     paths: ['mobile/**', '.github/workflows/mobile.yml']
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   test:
@@ -25,3 +32,46 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+
+  android:
+    name: Android APK
+    needs: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.6
+          cache: true
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - id: v
+        run: |
+          V=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          cp build/app/outputs/flutter-apk/app-release.apk "PatchLab-RDM-$V-b${{ github.run_number }}.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PatchLab-RDM-apk
+          path: mobile/PatchLab-RDM-*.apk
+      - name: Publish as pre-release
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mobile-v${{ steps.v.outputs.version }}-b${{ github.run_number }}
+          name: PatchLab RDM ${{ steps.v.outputs.version }} (Android test build ${{ github.run_number }})
+          prerelease: true
+          target_commitish: ${{ github.sha }}
+          files: mobile/PatchLab-RDM-*.apk
+          body: |
+            Android test build of the PatchLab RDM phone app (nl.dimcity.patchlab.rdm).
+            Download the .apk on the phone, open it and allow "install unknown apps" for the browser when asked.
+            Builds are signed with the same test key, so a newer build installs over an older one.

@@ -30,6 +30,10 @@ jobs:
           echo "version=$V" >> "$GITHUB_OUTPUT"
           if gh release view "v$V" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then echo "exists=true" >> "$GITHUB_OUTPUT"; echo "Release v$V already exists — nothing to do"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
 
+      - name: Every release needs a changelog entry (becomes the release notes)
+        if: steps.v.outputs.exists == 'false'
+        run: mkdir -p dist && node scripts/build-manual.mjs ${{ steps.v.outputs.version }} > /dev/null
+
   build:
     name: Build ${{ matrix.os }}
     needs: version

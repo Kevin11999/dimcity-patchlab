@@ -57,7 +57,10 @@ Android app. Reasons for this choice over Swift + Kotlin or React Native:
 * The installer (Inno Setup, `windows/installer/patchlab_rdm.iss`) ships the three Visual C++ runtime DLLs
   next to the exe, so a clean machine needs no separate download. It is **not code-signed**; for a
   signed build add a code-signing certificate to the workflow.
-* Layout: on a wide window the phone layout stays in a centred 760 px column.
+* Lamps on the cable (LLRP): the multicast group is joined on every adapter, link-local addresses included, and
+  probes leave through every adapter. The installer's firewall rule (inbound UDP, all profiles) covers the multicast
+  replies; a cable without internet is classified *Public* by Windows.
+* Layout: on a wide window the phone layout stays in a centred 820 px column.
 
 ## Network
 

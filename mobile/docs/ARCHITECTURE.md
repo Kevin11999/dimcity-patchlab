@@ -1,18 +1,20 @@
 # Architecture
 
 ```text
-UI (lib/ui)            NodesScreen → NodeScreen → PortScreen → AlignScreen → ModeScreen
-                       → AddressScreen → OverviewScreen; FixtureScreen; SettingsScreen
+UI (lib/ui)            HomeShell: LampsScreen | NodesScreen → NodeScreen → PortScreen
+                       FixtureListPane → AlignScreen → ModeScreen → AddressScreen → OverviewScreen;
+                       FixtureScreen; SettingsScreen
       │ ListenableBuilder
 App (lib/app)          Settings (prefs)   AppBackend (nodes, Program, routeFor)   PortSession (flow per port)
       │
-Services (lib/services) ArtNetService ── ArtNetRdmTransport ─┐
+Services (lib/services) LlrpService ── LampsTransport ───────────┐
+                        ArtNetService ── ArtNetRdmTransport ─┤
                         RdmnetService / BrokerConnection ── RdmnetTransport ─┤→ RdmClient (GET/SET, retries)
                         sim/FakeArtNetNode (tests + demo)                    ┘
       │
 Core (lib/core)        artnet/ rdm/ rdmnet/ addressing/ – pure codecs and calculations
       │
-Net (lib/net)          RawUdpSocket, LocalNetwork, MulticastLock
+Net (lib/net)          RawUdpSocket, MemoryUdpHub (demo, tests), LocalNetwork, MulticastLock
 ```
 
 * **Core** has no Flutter or socket code; everything is unit-tested with
@@ -26,5 +28,6 @@ Net (lib/net)          RawUdpSocket, LocalNetwork, MulticastLock
 * **PortSession** is one state machine per opened port: discovery →
   details → align (identify one at a time) → modes per type → plan
   (`computePlan`) → send + verify + retry.
-* **Demo mode** starts `FakeArtNetNode` on the loopback interface; the app
-  talks to it over the very same UDP path as to a real node.
+* **Demo mode** puts the app's sockets on a `MemoryUdpHub` (an in-memory network with unicast, broadcast
+  and multicast) with a simulated node (`FakeArtNetNode`) and a simulated lamp row (`FakeRdmnetLamps`). The
+  services run unchanged; no operating system socket, adapter or firewall is involved.

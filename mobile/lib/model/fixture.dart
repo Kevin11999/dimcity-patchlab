@@ -66,7 +66,14 @@ class Fixture {
     return '${p.label} ($footprint ch)';
   }
 
+  /// Second line under the name: the mode, with the model in front when the lamp has its own name.
+  String get detailLine => label.isEmpty ? modeLabel : '${type.model.isEmpty ? type.label : type.model}  ·  $modeLabel';
+
   bool get hasAddress => address >= 1 && address <= 512;
+
+  /// A lamp with DMX channels. A node, gateway or console that answers on the same cable has none
+  /// and is listed but never addressed.
+  bool get hasDmx => info.dmxFootprint > 0 || info.personalityCount > 0;
 
   void applyMode(int newPersonality) {
     personality = newPersonality;

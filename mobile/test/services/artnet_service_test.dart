@@ -121,7 +121,7 @@ void main() {
     final transport = ArtNetRdmTransport(service, info, const PortAddress(0, 0, 1));
     final client = RdmClient(transport, timeout: const Duration(milliseconds: 300), retries: 1);
     final flaky = node.ports[1].fixtures[2];
-    expect(flaky.failSetAddressOnce, isTrue);
+    expect(flaky.dropSetAddress, 1);
     await client.setStartAddress(flaky.uid, 100);
     expect(flaky.address, 100);
     expect(node.log.any((l) => l.startsWith('dropped SET address')), isTrue);

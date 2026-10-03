@@ -1,7 +1,35 @@
 # Protocols: how the app reaches the fixtures
 
+Three routes, from easiest to most involved: **LLRP** straight to RDMnet lamps (section 0), **RDM over Art-Net**
+behind a node (sections 1 and 2) and **RDMnet through a broker** (section 3).
+
 This document records what was researched for the RDM part and which
 assumptions are built into the code. Read it before testing on real nodes.
+
+## 0. Lamps straight on the cable: LLRP (the Lamps tab)
+
+RDMnet lamps need no node. The app uses **LLRP**, the *Low Level Recovery Protocol* of ANSI E1.33, which every
+RDMnet component must answer and which needs no configuration at all (`lib/core/rdmnet/llrp.dart`,
+`lib/services/llrp_service.dart`):
+
+* **Probe**: a Probe Request to the multicast group 239.255.250.133 on UDP 5569, UID range 0 to FFFF:FFFFFFFF.
+  Every component answers with a Probe Reply (UID, MAC, component type) to 239.255.250.134 after a random delay of
+  up to 1.5 s. The next probe lists the UIDs already known (up to 200) so those stay quiet; probing stops when a
+  round finds nothing new. Only RPT *devices* are listed as lamps; brokers and controllers are ignored.
+* **RDM**: an LLRP RDM Command PDU (vector 0xCC, the RDM message from the sub-start code) to the lamp's CID, answered the
+  same way. All RDM the app needs (DEVICE_INFO, personalities, DMX_START_ADDRESS, IDENTIFY_DEVICE, DEVICE_LABEL,
+  sensors, RESET_DEVICE) goes this way, through the same `RdmClient` as the other routes.
+* **No IP setup**: with no DHCP server both the laptop and the lamps fall back to link-local addresses (169.254.x.x),
+  and multicast works there. The app joins the LLRP group on **every** adapter and sends each probe out of every
+  adapter (IP_MULTICAST_IF), because a laptop has several and the operating system would pick one.
+  Windows needs up to a minute after plugging in before the adapter has its address.
+* Components that answer but have no DMX channels (a node, a console) are listed dimmed and never addressed.
+
+**Assumption to verify on real lamps.** The standard requires LLRP targets to answer a minimal set of RDM parameters
+(SUPPORTED_PARAMETERS, DEVICE_INFO, labels, IDENTIFY_DEVICE and the E1.33 network parameters). Whether a lamp also
+answers DMX_START_ADDRESS and DMX_PERSONALITY over LLRP depends on its firmware; libraries such as ETC's RDMnet route
+LLRP commands to the same handler as normal ones, so most lamps do. If a lamp is found but does not answer, the fix is
+a broker, see below.
 
 ## 1. Node discovery and port configuration: Art-Net 4
 
@@ -83,7 +111,7 @@ So on today's Luminex and ELC nodes the Art-Net route also serves sACN
 ports. The app therefore always tries **Art-Net RDM first**, on the port's
 Art-Net Port-Address, whatever protocol the port outputs.
 
-## 3. RDMnet, ANSI E1.33 (route 2)
+## 3. RDMnet through a broker, ANSI E1.33 (route 2 for nodes)
 
 Implemented as the second route for nodes that do not answer ArtRdm and do
 speak RDMnet (future firmware, other brands). Code: `lib/core/rdmnet/`,
@@ -122,7 +150,9 @@ are unit-tested against the standard's byte layouts (see `test/core/rdmnet_test.
 the broker / RPT flow has not run against a real broker yet. ETC's open
 RDMnet broker (<https://github.com/ETCLabs/RDMnet>) is the obvious test target.
 
-## 4. Choosing the route per port
+## 4. Choosing the route
+
+The **Lamps** tab always uses LLRP (section 0). For a DMX port on the **Nodes** tab:
 
 `AppBackend.routeFor`:
 

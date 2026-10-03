@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../core/addressing/address_plan.dart';
+import '../core/rdm/rdm_constants.dart';
 import '../core/rdm/rdm_params.dart';
+import '../l10n/strings.dart';
 import '../core/uid.dart';
 import '../model/fixture.dart';
 import '../model/node.dart';
@@ -20,14 +22,22 @@ class SendState {
   final String? message;
 }
 
-/// Everything that happens on one port: discovery, align, modes, addressing,
-/// sending and verifying. One instance per opened port.
+/// Everything that happens on one line of fixtures: discovery, align, modes,
+/// addressing, sending and verifying. One instance per opened DMX port of a node,
+/// or one for the lamps on the cable ([PortSession.lamps]).
 class PortSession extends ChangeNotifier {
-  PortSession(this.backend, this.node, this.port);
+  PortSession(this.backend, {required this.routeBuilder, this.initialUniverse = 1});
+
+  /// The fixtures behind one DMX port of a node.
+  factory PortSession.forPort(AppBackend backend, Node node, NodePort port) =>
+      PortSession(backend, routeBuilder: () => backend.routeFor(node, port), initialUniverse: port.displayUniverse);
+
+  /// The RDMnet lamps directly on the cable (LLRP): no node, no broker, no IP setup.
+  factory PortSession.lamps(AppBackend backend) => PortSession(backend, routeBuilder: backend.lampsRoute);
 
   final AppBackend backend;
-  final Node node;
-  final NodePort port;
+  final PortRoute? Function() routeBuilder;
+  final int initialUniverse;
 
   SessionPhase phase = SessionPhase.idle;
   String? error;
@@ -39,6 +49,9 @@ class PortSession extends ChangeNotifier {
   final Map<String, FixtureType> types = <String, FixtureType>{};
   int detailIndex = 0;
 
+  /// How many fixtures discovery found in total (for the progress bar while details are read).
+  int expectedCount = 0;
+
   // Align
   final List<Fixture> placed = <Fixture>[];
   final List<Fixture> queue = <Fixture>[];
@@ -48,7 +61,7 @@ class PortSession extends ChangeNotifier {
   // Modes and addressing
   final Map<String, int> modeByType = <String, int>{};
   int startAddress = 1;
-  late int startUniverse = port.displayUniverse;
+  late int startUniverse = initialUniverse;
   final Set<String> wrapBefore = <String>{};
 
   // Sending
@@ -66,9 +79,9 @@ class PortSession extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   Future<void> discover() async {
-    final route = backend.routeFor(node, port);
+    final route = routeBuilder();
     if (route == null) {
-      error = 'No RDM route for this port';
+      error = 'No network connection to the lamps';
       phase = SessionPhase.idle;
       _notify();
       return;
@@ -108,6 +121,7 @@ class PortSession extends ChangeNotifier {
       return;
     }
     routeName = transport.routeName;
+    expectedCount = uids.length;
     final c = RdmClient(transport);
     client = c;
     phase = SessionPhase.loadingDetails;
@@ -129,8 +143,18 @@ class PortSession extends ChangeNotifier {
         error = e.message;
       }
     }
+    fixtures.sort((a, b) {
+      final t = a.type.label.compareTo(b.type.label);
+      return t != 0 ? t : a.uid.compareTo(b.uid);
+    });
     phase = SessionPhase.ready;
     _notify();
+  }
+
+  /// Position of a type in the order of discovery: the UI gives every type its own colour.
+  int typeIndex(FixtureType type) {
+    final i = types.keys.toList().indexOf(type.key);
+    return i < 0 ? 0 : i;
   }
 
   FixtureType _typeFor(int manufacturerId, int modelId, String manufacturer, String model) {
@@ -220,7 +244,7 @@ class PortSession extends ChangeNotifier {
     placed.clear();
     queue
       ..clear()
-      ..addAll(fixtures);
+      ..addAll(fixtures.where((f) => f.hasDmx));
     alignDone = false;
     phase = SessionPhase.aligning;
     await _blink(queue.firstOrNull);
@@ -298,7 +322,7 @@ class PortSession extends ChangeNotifier {
   void useDiscoveryOrder() {
     placed
       ..clear()
-      ..addAll(fixtures);
+      ..addAll(fixtures.where((f) => f.hasDmx));
     queue.clear();
     alignDone = true;
   }
@@ -308,7 +332,7 @@ class PortSession extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   /// The fixtures to address, in the aligned order.
-  List<Fixture> get ordered => placed.isEmpty ? fixtures : placed;
+  List<Fixture> get ordered => placed.isEmpty ? fixtures.where((f) => f.hasDmx).toList() : placed;
 
   /// Types in use, with their fixture counts, in order of first appearance.
   List<(FixtureType, int)> get typesInUse {
@@ -437,7 +461,7 @@ class PortSession extends ChangeNotifier {
           sendState[f.uid] = SendState(SendStatus.failed, 'address ${info.dmxStartAddress} / mode ${info.currentPersonality}');
         }
       } on RdmException catch (err) {
-        sendState[f.uid] = SendState(SendStatus.failed, err.message);
+        sendState[f.uid] = SendState(SendStatus.failed, _friendly(err));
       }
       _notify();
     }
@@ -446,6 +470,16 @@ class PortSession extends ChangeNotifier {
   }
 
   Future<void> retry(Fixture f) => send(only: {f.uid});
+
+  /// The retry for every lamp that failed, the others stay as they are.
+  Future<void> retryFailed() => send(only: {for (final e in sendState.entries) if (e.value.status == SendStatus.failed) e.key});
+
+  /// A short message for the person at the lamps instead of the protocol detail.
+  static String _friendly(RdmException e) {
+    if (e is RdmTimeoutException) return t('err.timeout');
+    if (e is RdmNackException) return t('err.nack', {'reason': NackReason.describe(e.reason)});
+    return e.message;
+  }
 
   bool get allVerified => plan.entries.isNotEmpty && plan.entries.every((e) => sendState[fixtureById(e.fixture.id)!.uid]?.status == SendStatus.verified);
 

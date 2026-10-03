@@ -1,18 +1,14 @@
 # DimCity PatchLab RDM (mobile)
 
-Native app (Flutter) for Android, iPhone and **Windows** for the lighting technician on site:
-find Luminex / ELC nodes on the Wi-Fi, see and program their ports, run RDM
-discovery per port, align the fixtures by making them blink one by one,
-choose a mode per fixture type, let the app calculate every address, send
-and verify, retry per fixture. Rename, inspect (hours, temperature, software)
-and reset a fixture.
+Native app (Flutter) for Windows, Android and iPhone for the lighting technician on site: plug in a row of
+RDMnet lamps and address them, or go through an Art-Net / sACN node (Luminex, ELC). The app finds the lamps, makes
+them blink one by one so you set the order, lets you choose a mode per lamp type, calculates every address, sends and
+verifies it, and offers a retry per lamp. It also renames, inspects (hours, temperature, software) and resets a lamp.
 
-RDM runs over **Art-Net** (ArtRdm; also for ports that output sACN, which is
-what LumiNode and dmXLAN do) and over **RDMnet** (E1.33: LLRP, broker, RPT,
-E1.37-7 endpoints) as the second route. The technician does not see the
-difference. Details and assumptions: [docs/PROTOCOLS.md](docs/PROTOCOLS.md).
-Platform notes (iOS multicast entitlement, Android multicast lock):
-[docs/PLATFORM.md](docs/PLATFORM.md).
+The lamps on a cable are reached with **LLRP** (RDMnet, no configuration). Behind a node RDM runs over **Art-Net**
+(ArtRdm, also for ports that output sACN, which is what LumiNode and dmXLAN do) or over **RDMnet** through a broker. The
+technician does not see the difference. Details and assumptions: [docs/PROTOCOLS.md](docs/PROTOCOLS.md).
+Platform notes (Windows, iOS multicast entitlement, Android multicast lock): [docs/PLATFORM.md](docs/PLATFORM.md).
 
 ## Install on Windows (test build)
 
@@ -23,10 +19,12 @@ Platform notes (iOS multicast entitlement, Android multicast lock):
    click **More info**, then **Run anyway**.
 3. The installer adds a Start menu shortcut (and optionally a desktop icon) and a Windows Firewall rule that lets
    the app receive Art-Net replies (UDP, all network profiles). Without it the node list stays empty.
-4. Connect the laptop to the node's network, by cable or Wi-Fi, **in the node's IP range** (Luminex / ELC default to
-   2.x.x.x or 10.x.x.x with mask 255.0.0.0): give that network adapter a fixed IP such as 2.0.0.200.
-   The app looks on every network adapter of the laptop. The *This device* line shows them, with `~` before the
-   prefix when Windows did not tell the real mask and the app guessed it from the address.
+4. **Lamps (RDMnet)**: plug the lamps' network cable into the laptop and open the app. Nothing to set. Wait for
+   Windows to recognise the network (up to a minute); if the cable has no DHCP server both sides use 169.254.x.x.
+   **Nodes (Art-Net)**: connect the laptop to the node's network, by cable or Wi-Fi, **in the node's IP range**
+   (Luminex / ELC default to 2.x.x.x or 10.x.x.x with mask 255.0.0.0): give that adapter a fixed IP such as
+   2.0.0.200. The app looks on every adapter. The *This device* line shows them, with `~` before the prefix when
+   Windows did not tell the real mask and the app guessed it from the address.
 5. No node at hand? Settings → **Demo mode**.
 
 Needs Windows 10 or 11, 64-bit. The Visual C++ runtime is included in the installer. Uninstall through
@@ -51,31 +49,33 @@ any store release.
 
 Build it yourself: `flutter build apk --release --target-platform android-arm64 --split-per-abi` (needs the Android SDK and JDK 17+).
 
-## Flow
+## The easy way: lamps on the cable
 
-1. **Nodes** – ArtPoll broadcast; list with name, IP, ports and the
-   Art-Net / RDMnet badges. Own IP / subnet on top; a node in another IP
-   range is marked and explained.
-2. **Ports** – universe, Art-Net / sACN, RDM on / off per port. Nothing is
-   sent until **Program**; the node's ArtPollReply confirms or the app says
-   exactly which field it did not take over.
-3. **Discovery** – tap a port: ArtTodControl flush, ArtTodRequest, then
-   DEVICE_INFO, model, manufacturer, label and personalities per fixture.
-4. **Align** – one unplaced fixture blinks (IDENTIFY_DEVICE); **Align**
-   puts it on the next position, **Skip** tries another one, **Step back**
-   undoes; the order can be dragged afterwards.
-5. **Modes and addresses** – one mode per fixture *type*; start address;
-   every next address = previous + footprint. A fixture that no longer fits
-   in the universe stops the plan and asks: next universe on 1, or adjust.
-   Overview, **Send**, then every fixture is read back; a failed one gets its
-   own **Retry**.
-6. **Fixture** – rename (DEVICE_LABEL), info (DEVICE_HOURS, LAMP_HOURS,
-   SENSOR_VALUE temperature, SOFTWARE_VERSION_LABEL), reset with confirmation.
+1. Plug the network cable of the lamp row into the laptop. No node, no router, no IP setting.
+2. Open the app. The **Lamps** tab searches by itself and lists every lamp with its name, mode and address.
+3. **Start addressing**: the lamps blink one at a time, you press **Align** when it is the next one in the row
+   (**Skip** tries another one, the arrow steps back, drag to change the order afterwards).
+4. One **mode** per lamp type, a **start address**, and the app calculates every next address
+   (previous address + channels of the previous lamp). A lamp that no longer fits in the 512 channels stops the plan
+   and asks: next universe on 1, or adjust. A bar shows how the 512 channels are filled.
+5. **Send**: every lamp is read back and marked verified; a lamp that does not take it gets its own retry.
+6. Tap a lamp for the rest: rename, identify, set address or mode, info (hours, temperature, software), reset.
 
-**Demo mode** (Settings, or the button on an empty node list) starts a
-simulated 8-port node inside the app with the fixtures from the example
-(2× ProWash 300, 1× MiniSpot 60 on port 1), so the whole flow can be tried
-without hardware.
+It works because RDMnet lamps answer **LLRP** (ANSI E1.33): a multicast search that needs nothing configured. Two
+devices on one cable both fall back to link-local addresses (169.254.x.x) and find each other.
+See [docs/PROTOCOLS.md](docs/PROTOCOLS.md).
+
+**Demo mode** (Settings, or the button when no lamps are found) simulates a row of eight lamps and a node, all inside
+the app on an in-memory network, so the flow can be tried without hardware and without any network.
+
+## The other way: nodes
+
+The **Nodes** tab is for Art-Net / sACN nodes (Luminex, ELC) with DMX ports and RDM behind them:
+
+1. **Nodes**: ArtPoll broadcast; name, IP, ports. Own IP / subnet on top; a node in another IP range is marked.
+2. **Ports**: universe, Art-Net / sACN, RDM on / off per port. Nothing is sent until **Program**; the node's
+   ArtPollReply confirms, or the app says exactly which field it did not take over.
+3. Tap a port: RDM discovery (ArtTodControl / ArtTodRequest), then the same list and the same addressing steps as above.
 
 ## Layout
 
@@ -84,16 +84,18 @@ lib/core/        pure Dart protocol layer, no Flutter
   bytes.dart, uid.dart
   rdm/           E1.20 message codec, PIDs, parameter codecs (E1.37-7, E1.33 too)
   artnet/        ArtPoll, ArtPollReply, ArtAddress, ArtTodRequest/Data/Control, ArtRdm
-  rdmnet/        ACN root layer, Broker protocol, RPT, LLRP
+  rdmnet/        ACN root layer, Broker protocol, RPT, LLRP codecs
   addressing/    the address calculation (start, footprints, 512 limit, wrap)
-lib/net/         UDP socket wrapper, own IP / subnet, Android multicast lock
-lib/services/    ArtNetService, RdmClient (ACK_TIMER / ACK_OVERFLOW / NACK / retries),
-                 RdmnetService + BrokerConnection, simulated node (sim/)
+lib/net/         UDP sockets (real and in-memory), own IP / subnet, Android multicast lock
+lib/services/    LlrpService + LampsTransport (the lamps on the cable), ArtNetService, RdmClient
+                 (ACK_TIMER / ACK_OVERFLOW / NACK / retries), RdmnetService + BrokerConnection,
+                 simulated node and lamps (sim/)
 lib/model/       Node / NodePort, Fixture / FixtureType
 lib/app/         Settings, AppBackend (merges Art-Net + RDMnet nodes, Program), PortSession (the flow)
-lib/ui/          one screen per step
+lib/ui/          theme, shared widgets, one screen per step (Lamps tab, wizard, fixture, Nodes tab)
 lib/l10n/        Dutch (default) and English texts
-test/            codec tests, loopback tests against the simulated node, the full flow
+test/            codec tests, tests against the simulated node and lamps, the full flow through the UI;
+                 `SCREENSHOTS=dir flutter test test/screenshots` renders every screen to PNG
 ```
 
 ## Developing

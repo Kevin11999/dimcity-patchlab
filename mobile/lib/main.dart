@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'app/backend.dart';
 import 'app/settings.dart';
 import 'l10n/strings.dart';
-import 'ui/nodes_screen.dart';
+import 'ui/home_shell.dart';
 import 'ui/theme.dart';
 
 Future<void> main() async {
@@ -33,16 +33,16 @@ class _PatchLabAppState extends State<PatchLabApp> {
         valueListenable: L10n.language,
         builder: (context, lang, _) => MaterialApp(
           title: t('app.title'),
-          theme: buildTheme(Brightness.light),
-          darkTheme: buildTheme(Brightness.dark),
+          theme: buildTheme(),
+          darkTheme: buildTheme(),
           themeMode: ThemeMode.dark,
           debugShowCheckedModeBanner: false,
           // On a wide window (laptop) keep the phone layout in a centred column.
           builder: (context, child) => ColoredBox(
             color: Theme.of(context).scaffoldBackgroundColor,
-            child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 760), child: child)),
+            child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 820), child: child)),
           ),
-          home: NodesScreen(backend: widget.backend, settings: widget.settings),
+          home: HomeShell(backend: widget.backend, settings: widget.settings),
         ),
       );
 }

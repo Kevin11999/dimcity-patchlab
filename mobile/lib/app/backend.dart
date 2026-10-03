@@ -1,15 +1,20 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import '../core/artnet/artnet.dart';
 import '../model/node.dart';
+import '../net/memory_udp.dart';
 import '../net/multicast_lock.dart';
 import '../net/network_info.dart';
+import '../net/udp.dart';
 import '../services/artnet_service.dart';
+import '../services/llrp_service.dart';
 import '../services/rdm_client.dart';
 import '../services/rdmnet_service.dart';
 import '../services/sim/fake_artnet_node.dart';
+import '../services/sim/fake_lamps.dart';
 import 'settings.dart';
 
 /// One RDM route to the fixtures on a port, with the alternative route
@@ -44,32 +49,35 @@ class PortEdit {
   bool get changed => address != port.address || protocol != port.protocol || rdmEnabled != port.rdmEnabled;
 }
 
-/// Owns the network services and the node list. Nodes come from Art-Net
-/// (ArtPollReply) and from RDMnet (LLRP + broker); the same physical node is
-/// merged on IP or MAC address.
+/// Owns the network services, the node list and the lamps on the cable.
+///
+/// Two ways to reach fixtures:
+///  * **Lamps**: RDMnet lamps directly on the cable. Found with LLRP (multicast, no broker,
+///    no IP setup), see [lampsRoute].
+///  * **Nodes**: Art-Net / RDMnet nodes with DMX ports. Found with ArtPoll and a broker; the same
+///    physical node is merged on IP or MAC address.
+///
+/// In demo mode all of it runs on an in-memory network ([MemoryUdpHub]): no operating system
+/// sockets, adapters or firewall are involved.
 class AppBackend extends ChangeNotifier {
-  AppBackend(this.settings, {this.artnetPort = ArtNet.port, this.enableRdmnet = true, this.useBroadcast = true});
+  AppBackend(this.settings);
 
   final Settings settings;
 
-  /// UDP port of the Art-Net socket (tests use an ephemeral port).
-  final int artnetPort;
-
-  /// RDMnet discovery (mDNS / LLRP / broker) on or off.
-  final bool enableRdmnet;
-
-  /// Broadcast ArtPoll on or off (tests only poll the simulated node).
-  final bool useBroadcast;
-
   ArtNetService? artnet;
   RdmnetService? rdmnet;
+  LlrpService? llrp;
   BrokerConnection? broker;
-  FakeArtNetNode? demoNode;
   LocalNetwork network = const LocalNetwork();
+
+  // Demo.
+  MemoryUdpHub? hub;
+  FakeArtNetNode? demoNode;
+  FakeRdmnetLamps? demoLamps;
 
   final List<Node> nodes = <Node>[];
   final List<RdmnetBrokerInfo> brokers = <RdmnetBrokerInfo>[];
-  List<LlrpComponent> llrpComponents = <LlrpComponent>[];
+  List<LlrpDevice> llrpDevices = <LlrpDevice>[];
   List<RdmnetGateway> gateways = <RdmnetGateway>[];
 
   bool started = false;
@@ -79,44 +87,102 @@ class AppBackend extends ChangeNotifier {
   Timer? _rebuildTimer;
   StreamSubscription<void>? _nodesSub;
 
+  bool get isDemo => hub != null;
+
+  /// Opens the sockets. Safe to call again; does nothing when already started.
   Future<void> start() async {
     if (started) return;
+    error = null;
     await MulticastLock.acquire();
+    if (settings.demoMode) {
+      await _openDemo();
+    } else {
+      await _openReal();
+    }
+    _nodesSub = artnet?.nodesChanged.listen((_) => _scheduleRebuild());
+    started = true;
+    notifyListeners();
+  }
+
+  Future<void> _openReal() async {
     network = await LocalNetwork.detect();
     try {
-      artnet = await ArtNetService.open(controllerUid: settings.controllerUid, port: artnetPort);
+      artnet = await ArtNetService.open(controllerUid: settings.controllerUid);
+      artnet!.broadcastTargets.addAll(network.broadcastTargets);
+      if (settings.extraBroadcast.isNotEmpty) artnet!.broadcastTargets.add(settings.extraBroadcast);
     } catch (e) {
       error = 'Art-Net socket: $e';
-      notifyListeners();
-      return;
     }
-    if (!useBroadcast) artnet!.broadcastTargets.clear();
-    if (useBroadcast) artnet!.broadcastTargets.addAll(network.broadcastTargets);
-    if (settings.extraBroadcast.isNotEmpty && useBroadcast) artnet!.broadcastTargets.add(settings.extraBroadcast);
-    _nodesSub = artnet!.nodesChanged.listen((_) => _scheduleRebuild());
-    if (enableRdmnet) rdmnet = RdmnetService(cid: settings.cid, controllerUid: settings.controllerUid);
-    started = true;
-    if (settings.demoMode) await startDemo();
-    notifyListeners();
+    rdmnet = RdmnetService(cid: settings.cid, controllerUid: settings.controllerUid);
+    llrp = LlrpService(
+      socketFactory: RawUdpSocket.open,
+      cid: settings.cid,
+      controllerUid: settings.controllerUid,
+      localIps: _realLocalIps,
+    );
   }
 
-  Future<void> startDemo() async {
-    if (demoNode != null || artnet == null) return;
+  /// Every IPv4 address of this device, link-local (169.254.x.x) included: two devices on one
+  /// cable have nothing else.
+  static Future<List<String>> _realLocalIps() async {
+    try {
+      final ifs = await NetworkInterface.list(type: InternetAddressType.IPv4, includeLoopback: false, includeLinkLocal: true);
+      return [for (final i in ifs) for (final a in i.addresses) if (!a.isLoopback) a.address];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static const _demoArtNetIp = '2.0.0.200';
+  static const _demoLampsIp = '169.254.10.1';
+
+  Future<void> _openDemo() async {
+    final h = MemoryUdpHub();
+    hub = h;
+    network = const LocalNetwork(addresses: [LocalAddress(_demoArtNetIp, '255.0.0.0', interfaceName: 'demo')], source: 'demo');
+    artnet = ArtNetService(h.open(ip: _demoArtNetIp, port: ArtNet.port), controllerUid: settings.controllerUid);
     final node = buildDemoNode();
-    await node.start(port: 0);
+    await node.start(socket: h.open(ip: '2.0.0.1', port: ArtNet.port));
     demoNode = node;
-    artnet!.unicastTargets['127.0.0.1'] = node.port;
-    notifyListeners();
+    demoLamps = FakeRdmnetLamps(h, buildDemoLamps())..start();
+    llrp = LlrpService(
+      socketFactory: h.factoryFor(_demoLampsIp),
+      cid: settings.cid,
+      controllerUid: settings.controllerUid,
+      localIps: () async => const [_demoLampsIp],
+    );
   }
 
-  Future<void> stopDemo() async {
-    final node = demoNode;
-    if (node == null) return;
+  /// Closes everything. [start] opens it again (after the demo mode was switched).
+  Future<void> stop() async {
+    _rebuildTimer?.cancel();
+    await _nodesSub?.cancel();
+    _nodesSub = null;
+    broker?.close();
+    broker = null;
+    artnet?.dispose();
+    artnet = null;
+    llrp?.close();
+    llrp = null;
+    rdmnet = null;
+    await demoNode?.stop();
     demoNode = null;
-    artnet?.unicastTargets.remove('127.0.0.1');
-    artnet?.nodes.remove('127.0.0.1');
-    await node.stop();
-    _rebuildNodes();
+    demoLamps?.stop();
+    demoLamps = null;
+    hub = null;
+    nodes.clear();
+    brokers.clear();
+    llrpDevices = <LlrpDevice>[];
+    gateways = <RdmnetGateway>[];
+    rdmnetStatus = null;
+    started = false;
+  }
+
+  /// Switches demo mode on or off and restarts the network services.
+  Future<void> setDemo(bool on) async {
+    settings.demoMode = on;
+    await stop();
+    await start();
   }
 
   void _scheduleRebuild() {
@@ -124,7 +190,13 @@ class AppBackend extends ChangeNotifier {
     _rebuildTimer = Timer(const Duration(milliseconds: 150), _rebuildNodes);
   }
 
-  /// Polls the network and refreshes the node list.
+  /// The lamps on the cable: RDMnet devices found with LLRP, addressed without a node or a broker.
+  PortRoute? lampsRoute() {
+    final l = llrp;
+    return l == null ? null : PortRoute(primary: LampsTransport(l));
+  }
+
+  /// Polls the network and refreshes the node list (Art-Net nodes and RDMnet gateways).
   Future<void> scan({Duration wait = const Duration(milliseconds: 2500)}) async {
     if (!started) await start();
     final a = artnet;
@@ -132,8 +204,6 @@ class AppBackend extends ChangeNotifier {
     scanning = true;
     error = null;
     notifyListeners();
-    if (settings.demoMode && demoNode == null) await startDemo();
-    if (!settings.demoMode && demoNode != null) await stopDemo();
     a.poll();
     final rdmnetDone = _scanRdmnet();
     await Future<void>.delayed(const Duration(milliseconds: 600));
@@ -147,7 +217,8 @@ class AppBackend extends ChangeNotifier {
 
   Future<void> _scanRdmnet() async {
     final r = rdmnet;
-    if (r == null) return;
+    final l = llrp;
+    if (r == null || l == null) return;
     try {
       brokers.clear();
       final manual = settings.manualBrokerAddress;
@@ -156,17 +227,20 @@ class AppBackend extends ChangeNotifier {
       }
       final found = await r.discoverBrokers(timeout: const Duration(seconds: 2));
       brokers.addAll(found.where((b) => b.scope == settings.rdmnetScope));
-      llrpComponents = await r.llrpProbe(timeout: const Duration(milliseconds: 1500), rounds: 1);
-      // A node that knows its broker (static config) is a broker candidate too.
-      for (final c in llrpComponents) {
+      llrpDevices = await l.probe(maxRounds: 2, roundTimeout: const Duration(milliseconds: 1500));
+      // A component that knows its broker (static configuration) names it in COMPONENT_SCOPE.
+      for (final c in llrpDevices.where((c) => c.isBroker || (brokers.isEmpty && c.isDevice)).take(5)) {
+        c.scope = await l.readScope(c);
         final s = c.scope;
         if (s != null && s.staticIpv4 != null && s.staticPort > 0 && s.scope == settings.rdmnetScope) {
           if (!brokers.any((b) => b.host == s.staticIpv4 && b.port == s.staticPort)) {
             brokers.add(RdmnetBrokerInfo(host: s.staticIpv4!, port: s.staticPort, scope: s.scope, name: 'static'));
           }
         }
-        if (c.isBroker && !brokers.any((b) => b.host == c.ip)) {
-          // Broker found by LLRP without DNS-SD: its port is unknown, mDNS or manual entry is needed.
+      }
+      for (final c in llrpDevices.where((c) => c.isBroker)) {
+        if (!brokers.any((b) => b.host == c.ip)) {
+          // A broker found by LLRP without DNS-SD: its port is unknown, mDNS or manual entry is needed.
           rdmnetStatus = 'LLRP: broker at ${c.ip}, port unknown (use mDNS or enter it by hand)';
         }
       }
@@ -190,7 +264,7 @@ class AppBackend extends ChangeNotifier {
       }
       final conn = broker;
       if (conn != null && conn.connected) {
-        gateways = await conn.loadGateways(llrp: llrpComponents);
+        gateways = await conn.loadGateways(llrp: llrpDevices);
       }
     } catch (e) {
       rdmnetStatus = 'RDMnet: $e';
@@ -359,11 +433,7 @@ class AppBackend extends ChangeNotifier {
 
   @override
   void dispose() {
-    _rebuildTimer?.cancel();
-    unawaited(_nodesSub?.cancel());
-    broker?.close();
-    artnet?.dispose();
-    unawaited(demoNode?.stop());
+    unawaited(stop());
     unawaited(MulticastLock.release());
     super.dispose();
   }

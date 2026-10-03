@@ -54,14 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               value: s.demoMode,
               title: Text(t('set.demo')),
               subtitle: Text(t('set.demo.hint')),
-              onChanged: (v) async {
-                s.demoMode = v;
-                if (v) {
-                  await widget.backend.startDemo();
-                } else {
-                  await widget.backend.stopDemo();
-                }
-              },
+              onChanged: (v) => widget.backend.setDemo(v),
             ),
             const Divider(),
             Text(t('set.rdmnet'), style: Theme.of(context).textTheme.titleSmall),

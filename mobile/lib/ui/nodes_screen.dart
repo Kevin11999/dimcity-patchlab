@@ -6,6 +6,7 @@ import '../l10n/strings.dart';
 import '../model/node.dart';
 import 'node_screen.dart';
 import 'settings_screen.dart';
+import 'theme.dart';
 import 'widgets.dart';
 
 /// Step 1: the nodes on the network, with the IP-range check.
@@ -26,7 +27,7 @@ class _NodesScreenState extends State<NodesScreen> {
   }
 
   Future<void> _startDemo() async {
-    widget.settings.demoMode = true;
+    await widget.backend.setDemo(true);
     await widget.backend.scan();
   }
 
@@ -61,29 +62,26 @@ class _NodesScreenState extends State<NodesScreen> {
               children: [
                 NoticeCard(
                   net.known ? t('nodes.myip', {'ip': net.describe}) : t('nodes.myip.unknown'),
-                  icon: Icons.phone_iphone,
+                  icon: Icons.lan_outlined,
                 ),
                 if (b.error != null) WarningCard(b.error!),
+                if (widget.settings.demoMode) NoticeCard(t('lamps.demo.on'), icon: Icons.science_outlined, iconColor: Pal.amber),
                 if (b.rdmnetStatus != null) NoticeCard(b.rdmnetStatus!, icon: Icons.hub_outlined),
                 for (final n in outside)
                   WarningCard(t('nodes.subnet.warning', {'name': n.name, 'ip': n.ip ?? '?', 'own': net.describe})),
-                if (b.nodes.isEmpty && !b.scanning) ...[
-                  Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      children: [
-                        const Icon(Icons.router_outlined, size: 56),
-                        const SizedBox(height: 12),
-                        Text(t('nodes.none'), style: Theme.of(context).textTheme.titleMedium),
-                        const SizedBox(height: 8),
-                        Text(t('nodes.none.hint'), textAlign: TextAlign.center),
-                        const SizedBox(height: 16),
-                        if (!widget.settings.demoMode)
-                          OutlinedButton.icon(onPressed: _startDemo, icon: const Icon(Icons.science_outlined), label: Text(t('nodes.demo'))),
+                if (b.nodes.isEmpty && !b.scanning)
+                  StateHero(
+                    icon: Icons.router_outlined,
+                    title: t('nodes.none'),
+                    body: t('nodes.none.hint'),
+                    color: Pal.muted,
+                    children: [
+                      if (!widget.settings.demoMode) ...[
+                        const SizedBox(height: 18),
+                        OutlinedButton.icon(onPressed: _startDemo, icon: const Icon(Icons.science_outlined), label: Text(t('nodes.demo'))),
                       ],
-                    ),
+                    ],
                   ),
-                ],
                 for (final n in b.nodes) _NodeTile(node: n, onTap: () => _open(n)),
                 if (b.nodes.isNotEmpty)
                   Padding(padding: const EdgeInsets.all(16), child: Text(t('nodes.help'), style: Theme.of(context).textTheme.bodySmall)),

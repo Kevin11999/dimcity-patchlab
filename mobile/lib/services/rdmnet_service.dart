@@ -6,14 +6,12 @@ import 'package:multicast_dns/multicast_dns.dart';
 
 import '../core/rdm/rdm_constants.dart';
 import '../core/rdm/rdm_packet.dart';
-import '../core/rdm/rdm_params.dart';
 import '../core/rdmnet/acn.dart';
 import '../core/rdmnet/broker.dart';
-import '../core/rdmnet/llrp.dart';
 import '../core/rdmnet/rpt.dart';
 import '../core/uid.dart';
-import '../net/udp.dart';
 import 'rdm_client.dart';
+import 'llrp_service.dart';
 import 'stream_utils.dart';
 
 /// A broker found with DNS-SD (_rdmnet._tcp) or entered by hand.
@@ -32,21 +30,6 @@ class RdmnetBrokerInfo {
 
   @override
   String toString() => '$host:$port ($scope)';
-}
-
-/// An RDMnet component found with LLRP: the node itself (RPT device), a broker or a controller.
-class LlrpComponent {
-  LlrpComponent({required this.cid, required this.uid, required this.hardwareAddress, required this.componentType, required this.ip, this.scope});
-
-  final Cid cid;
-  final Uid uid;
-  final String hardwareAddress;
-  final int componentType;
-  final String ip;
-  ComponentScope? scope;
-
-  bool get isDevice => componentType == Llrp.componentRptDevice;
-  bool get isBroker => componentType == Llrp.componentBroker;
 }
 
 class GatewayEndpoint {
@@ -79,7 +62,6 @@ class RdmnetService {
 
   final Cid cid;
   final Uid controllerUid;
-  int _llrpTransaction = 0;
 
   /// Browses DNS-SD for brokers. [timeout] bounds the whole browse.
   Future<List<RdmnetBrokerInfo>> discoverBrokers({Duration timeout = const Duration(seconds: 3)}) async {
@@ -124,72 +106,6 @@ class RdmnetService {
       client.stop();
     }
     return found.values.toList();
-  }
-
-  /// Sends LLRP probe requests and collects the components that answer.
-  /// Also reads COMPONENT_SCOPE of RPT devices, which names their broker.
-  Future<List<LlrpComponent>> llrpProbe({Duration timeout = const Duration(seconds: 2), int rounds = 2, bool readScope = true}) async {
-    final out = <String, LlrpComponent>{};
-    UdpSocket socket;
-    try {
-      socket = await RawUdpSocket.bind(Llrp.port, multicastGroups: [Llrp.responseAddress]);
-    } on SocketException {
-      return const [];
-    }
-    try {
-      for (var round = 0; round < rounds; round++) {
-        final tn = ++_llrpTransaction;
-        final probe = Llrp.probeRequest(senderCid: cid, transaction: tn, knownUids: out.values.map((c) => c.uid).toList());
-        socket.send(probe, InternetAddress(Llrp.requestAddress), Llrp.port);
-        final replies = await collectDuring<Datagram>(socket.datagrams, (d) => true, timeout);
-        for (final d in replies) {
-          final m = Llrp.decode(d.data);
-          if (m is LlrpProbeReply && m.destCid == cid) {
-            out[m.senderCid.toString()] = LlrpComponent(
-              cid: m.senderCid,
-              uid: m.uid,
-              hardwareAddress: m.hardwareAddress,
-              componentType: m.componentType,
-              ip: d.address.address,
-            );
-          }
-        }
-      }
-      if (readScope) {
-        for (final c in out.values.where((c) => c.isDevice || c.isBroker)) {
-          c.scope = await _llrpGetScope(socket, c);
-        }
-      }
-    } finally {
-      socket.close();
-    }
-    return out.values.toList();
-  }
-
-  Future<ComponentScope?> _llrpGetScope(UdpSocket socket, LlrpComponent c) async {
-    final tn = ++_llrpTransaction;
-    final req = RdmPacket(
-      destination: c.uid,
-      source: controllerUid,
-      transactionNumber: tn & 0xFF,
-      commandClass: Rdm.getCommand,
-      pid: Pid.componentScope,
-      data: ComponentScope.request(1),
-    );
-    final f = firstMatching<Datagram>(socket.datagrams, (d) {
-      final m = Llrp.decode(d.data);
-      return m is LlrpRdmCommand && m.destCid == cid && m.transaction == tn && m.packet.pid == Pid.componentScope;
-    }, const Duration(seconds: 2));
-    socket.send(Llrp.rdmCommand(senderCid: cid, destCid: c.cid, transaction: tn, packet: req), InternetAddress(Llrp.requestAddress), Llrp.port);
-    final d = await f;
-    if (d == null) return null;
-    final m = Llrp.decode(d.data) as LlrpRdmCommand;
-    if (!m.packet.isAck) return null;
-    try {
-      return ComponentScope.decode(m.packet.data);
-    } on FormatException {
-      return null;
-    }
   }
 
   /// Opens a broker connection (handshake included).
@@ -357,7 +273,7 @@ class BrokerConnection {
   }
 
   /// Reads every RPT device's endpoints, universes and responders.
-  Future<List<RdmnetGateway>> loadGateways({List<LlrpComponent> llrp = const []}) async {
+  Future<List<RdmnetGateway>> loadGateways({List<LlrpDevice> llrp = const []}) async {
     final out = <RdmnetGateway>[];
     for (final entry in devices) {
       final g = RdmnetGateway(entry: entry, connection: this);

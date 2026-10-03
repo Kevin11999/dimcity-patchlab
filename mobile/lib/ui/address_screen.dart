@@ -5,10 +5,11 @@ import '../app/port_session.dart';
 import '../core/addressing/address_plan.dart';
 import '../l10n/strings.dart';
 import 'overview_screen.dart';
+import 'theme.dart';
 import 'widgets.dart';
 
-/// Step 5b: start address; the app calculates every next address and stops
-/// at the fixture that no longer fits in the universe.
+/// Step 3: start address; the app calculates every next address and stops at the
+/// fixture that no longer fits in the universe.
 class AddressScreen extends StatefulWidget {
   const AddressScreen({super.key, required this.session});
   final PortSession session;
@@ -41,7 +42,7 @@ class _AddressScreenState extends State<AddressScreen> {
     final wrap = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.warning_amber_rounded),
+        icon: const Icon(Icons.warning_amber_rounded, color: Pal.amber, size: 32),
         title: Text(t('addr.overflow.title', {'name': o.fixture.name})),
         content: Text(t('addr.overflow.body', {'name': o.fixture.name, 'fp': o.footprint, 'start': o.wouldStart, 'end': o.wouldEnd, 'u': o.universe})),
         actions: [
@@ -66,12 +67,17 @@ class _AddressScreenState extends State<AddressScreen> {
               if (mounted && s.plan.overflow?.fixture.id == overflow.fixture.id) _askOverflow(overflow);
             });
           }
-          final scheme = Theme.of(context).colorScheme;
+          final byUniverse = <int, List<PlanEntry>>{};
+          for (final e in plan.entries) {
+            byUniverse.putIfAbsent(e.universe, () => []).add(e);
+          }
           return Scaffold(
-            appBar: AppBar(title: Text(t('addr.title'))),
-            bottomNavigationBar: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            appBar: AppBar(title: Text(t('addr.title')), bottom: const StepHeader(2)),
+            bottomNavigationBar: Container(
+              decoration: const BoxDecoration(color: Pal.surface, border: Border(top: BorderSide(color: Pal.line))),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: SafeArea(
+                top: false,
                 child: FilledButton.icon(
                   onPressed: plan.complete
                       ? () {
@@ -85,10 +91,10 @@ class _AddressScreenState extends State<AddressScreen> {
               ),
             ),
             body: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.only(top: 6, bottom: 20),
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
                   child: Row(
                     children: [
                       Expanded(
@@ -96,16 +102,19 @@ class _AddressScreenState extends State<AddressScreen> {
                           controller: _start,
                           keyboardType: TextInputType.number,
                           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                           decoration: InputDecoration(labelText: t('addr.start'), errorText: plan.error != null && plan.error!.contains('start') ? t('addr.invalid') : null),
                           onChanged: (_) => _apply(),
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Expanded(
+                      SizedBox(
+                        width: 130,
                         child: TextField(
                           controller: _universe,
                           keyboardType: TextInputType.number,
                           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                           decoration: InputDecoration(labelText: t('addr.universe')),
                           onChanged: (_) => _apply(),
                         ),
@@ -113,25 +122,22 @@ class _AddressScreenState extends State<AddressScreen> {
                     ],
                   ),
                 ),
-                Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: Text(t('addr.rule'), style: Theme.of(context).textTheme.bodySmall)),
+                Padding(padding: const EdgeInsets.fromLTRB(20, 10, 20, 0), child: Text(t('addr.rule'), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Pal.muted))),
                 if (plan.error != null && !plan.error!.contains('start')) WarningCard(t('addr.error.mode')),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: Text(t('addr.plan'), style: Theme.of(context).textTheme.titleSmall),
-                ),
-                for (var i = 0; i < plan.entries.length; i++) _entry(i, plan.entries[i], scheme),
+                for (final entry in byUniverse.entries) _universeCard(context, s, entry.key, entry.value),
                 if (overflow != null)
                   Card(
-                    color: scheme.errorContainer,
+                    color: Theme.of(context).colorScheme.errorContainer,
                     child: Padding(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(t('addr.overflow.pending', {'name': overflow.fixture.name, 'u': overflow.universe, 'start': overflow.wouldStart, 'end': overflow.wouldEnd})),
-                          const SizedBox(height: 8),
+                          Row(children: [const Icon(Icons.warning_amber_rounded, color: Pal.amber), const SizedBox(width: 10), Expanded(child: Text(t('addr.overflow.pending', {'name': overflow.fixture.name, 'u': overflow.universe, 'start': overflow.wouldStart, 'end': overflow.wouldEnd})))]),
+                          const SizedBox(height: 12),
                           Wrap(
                             spacing: 8,
+                            runSpacing: 8,
                             children: [
                               FilledButton(onPressed: () => s.wrapAt(overflow.fixture.id), child: Text(t('addr.overflow.wrap'))),
                               OutlinedButton(onPressed: () => FocusScope.of(context).requestFocus(FocusNode()), child: Text(t('addr.overflow.adjust'))),
@@ -146,6 +152,7 @@ class _AddressScreenState extends State<AddressScreen> {
                     NoticeCard(
                       t('addr.overflow.hint', {'name': s.fixtureById(id)!.displayName, 'u': plan.entries.where((e) => e.fixture.id == id).firstOrNull?.universe ?? '?'}),
                       icon: Icons.call_split,
+                      iconColor: Pal.amber,
                       action: TextButton(onPressed: () => s.unwrap(id), child: Text(t('addr.unwrap'))),
                     ),
               ],
@@ -154,20 +161,61 @@ class _AddressScreenState extends State<AddressScreen> {
         },
       );
 
-  Widget _entry(int i, PlanEntry e, ColorScheme scheme) {
-    final s = widget.session;
+  Widget _universeCard(BuildContext context, PortSession s, int universe, List<PlanEntry> entries) {
+    final used = entries.fold<int>(0, (n, e) => n + e.footprint);
+    final segments = [
+      for (final e in entries)
+        UniverseSegment(start: e.address, end: e.lastChannel, color: Pal.typeColor(s.typeIndex(s.fixtureById(e.fixture.id)!.type))),
+    ];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(child: Text(t('addr.universe.title', {'u': universe}), style: Theme.of(context).textTheme.titleMedium)),
+                Text(t('addr.channels.used', {'used': used}), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Pal.muted)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            UniverseBar(segments: segments),
+            const SizedBox(height: 6),
+            for (var i = 0; i < entries.length; i++) _entry(context, s, i, entries[i]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _entry(BuildContext context, PortSession s, int i, PlanEntry e) {
     final f = s.fixtureById(e.fixture.id);
+    final color = f == null ? Pal.muted : Pal.typeColor(s.typeIndex(f.type));
     final wrapped = s.effectiveWraps.contains(e.fixture.id);
-    return ListTile(
-      leading: CircleAvatar(radius: 14, child: Text('${i + 1}')),
-      title: Text(e.fixture.name),
-      subtitle: Text(f == null ? '' : '${f.type.label} · ${e.footprint} ch'),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
         children: [
-          Text('${e.address}–${e.lastChannel}', style: Theme.of(context).textTheme.titleMedium),
-          Text('U${e.universe}${wrapped ? ' · ${t('addr.wrapped')}' : ''}', style: Theme.of(context).textTheme.bodySmall),
+          Container(width: 6, height: 38, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(e.fixture.name, style: Theme.of(context).textTheme.titleSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text('${f?.type.label ?? ''}  ·  ${e.footprint} ch${wrapped ? '  ·  ${t('addr.wrapped')}' : ''}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Pal.muted)),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              AddressBadge(e.address, color: color),
+              const SizedBox(height: 2),
+              Text('${e.address}–${e.lastChannel}', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Pal.muted)),
+            ],
+          ),
         ],
       ),
     );

@@ -4,27 +4,28 @@ import 'package:patchlab_rdm/app/port_session.dart';
 import 'package:patchlab_rdm/app/settings.dart';
 import 'package:patchlab_rdm/model/node.dart';
 
-/// The whole flow of the specification against the simulated node, over
-/// real loopback UDP: scan → ports → Program → discovery → align → modes →
-/// addresses (1, 9, 25) → overflow → send → verify → retry.
+/// The Nodes route (Art-Net node with DMX ports) against the simulated node on the in-memory
+/// network: scan → ports → Program → discovery → align → modes → addresses (1, 9, 25) → overflow →
+/// send → verify → retry.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late AppBackend backend;
 
   setUp(() async {
-    backend = AppBackend(Settings.memory(demoMode: true), artnetPort: 0, enableRdmnet: false, useBroadcast: false);
+    backend = AppBackend(Settings.memory(demoMode: true));
     await backend.start();
     await backend.scan(wait: const Duration(milliseconds: 800));
   });
 
-  tearDown(() {
-    backend.dispose();
+  tearDown(() async {
+    await backend.stop();
   });
 
-  Node demo() => backend.nodes.singleWhere((n) => n.ip == '127.0.0.1');
+  Node demo() => backend.nodes.singleWhere((n) => n.ip == '2.0.0.1');
 
   test('scan lists the demo node with its ports and protocols', () {
     final n = demo();
+    expect(backend.isDemo, isTrue);
     expect(n.viaArtNet, isTrue);
     expect(n.inSubnet, isTrue);
     expect(n.ports.length, 8);
@@ -59,7 +60,7 @@ void main() {
 
   test('discovery, align, modes, the 1 / 9 / 25 example, send and verify', () async {
     final n = demo();
-    final session = PortSession(backend, n, n.ports[0]);
+    final session = PortSession.forPort(backend, n, n.ports[0]);
     await session.discover();
     expect(session.error, isNull);
     expect(session.phase, SessionPhase.ready);
@@ -70,28 +71,31 @@ void main() {
     expect(byName.keys, containsAll(['Wash 1', 'Spot 1', 'Wash 2']));
     expect(byName['Spot 1']!.modeLabel, 'Extended (16 ch)');
 
-    // Align: Wash 1, then skip Spot 1 once, align Wash 2, step back, align Wash 2 and Spot 1.
+    // Align. The queue starts in order of type, then UID; "place" skips until the wanted lamp blinks.
     await session.startAlign();
-    expect(session.current, isNotNull);
     expect(session.current!.identifying, isTrue);
-    // Put the queue in a known order: Wash 1, Spot 1, Wash 2 (discovery order is by UID).
-    expect(session.queue.map((f) => f.label), ['Wash 1', 'Spot 1', 'Wash 2']);
-    await session.alignCurrent(); // Wash 1
+    Future<void> place(String label) async {
+      var guard = 0;
+      while (session.current!.label != label && guard++ < 5) {
+        await session.skipCurrent();
+      }
+      expect(session.current!.label, label);
+      await session.alignCurrent();
+    }
+
+    await place('Wash 1');
     expect(session.placed.map((f) => f.label), ['Wash 1']);
-    expect(session.current!.label, 'Spot 1');
-    await session.skipCurrent(); // Spot 1 → back of the queue
-    expect(session.current!.label, 'Wash 2');
-    await session.alignCurrent(); // Wash 2
-    expect(session.placed.map((f) => f.label), ['Wash 1', 'Wash 2']);
+    await place('Wash 2');
     await session.stepBack(); // undo Wash 2
     expect(session.placed.map((f) => f.label), ['Wash 1']);
     expect(session.current!.label, 'Wash 2');
     await session.alignCurrent(); // Wash 2 again
-    await session.alignCurrent(); // Spot 1
+    await place('Spot 1');
     expect(session.alignDone, isTrue);
     expect(session.current, isNull);
     expect(session.fixtures.every((f) => !f.identifying), isTrue);
     // Manual reorder afterwards: Wash 1, Spot 1, Wash 2.
+    expect(session.placed.map((f) => f.label), ['Wash 1', 'Wash 2', 'Spot 1']);
     session.reorderPlaced(2, 1);
     expect(session.placed.map((f) => f.label), ['Wash 1', 'Spot 1', 'Wash 2']);
 
@@ -145,7 +149,7 @@ void main() {
 
   test('a fixture that does not answer shows as failed and can be retried alone', () async {
     final n = demo();
-    final session = PortSession(backend, n, n.ports[1]);
+    final session = PortSession.forPort(backend, n, n.ports[1]);
     await session.discover();
     expect(session.fixtures.length, 5);
     session.useDiscoveryOrder();
@@ -154,17 +158,10 @@ void main() {
     session.setStart(address: 1, universe: 2);
     expect(session.plan.complete, isTrue);
     session.goToOverview();
-    // Let every RDM request fail for one fixture by dropping everything while it is sent.
-    final victim = session.ordered[2];
-    backend.demoNode!.dropRate = 0.0;
-    session.client = session.client; // keep
-    // Make the client's retries short for the test.
-    final fast = session.client!;
-    final sendFuture = session.send();
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    await sendFuture;
+    await session.send();
     expect(session.allVerified, isTrue, reason: 'first run: the dropped SET is retried by the client');
     // Now force a failure: drop all traffic and retry only the victim.
+    final victim = session.ordered[2];
     backend.demoNode!.dropRate = 1.0;
     await session.retry(victim);
     expect(session.sendState[victim.uid]!.status, SendStatus.failed);
@@ -174,7 +171,6 @@ void main() {
     await session.retry(victim);
     expect(session.sendState[victim.uid]!.status, SendStatus.verified);
     expect(session.allVerified, isTrue);
-    expect(fast, same(session.client));
     session.dispose();
   }, timeout: const Timeout(Duration(minutes: 2)));
 }

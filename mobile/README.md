@@ -24,12 +24,12 @@ Platform notes (iOS multicast entitlement, Android multicast lock):
    default to 2.x.x.x or 10.x.x.x with mask 255.0.0.0): set a static Wi-Fi IP such as 2.0.0.200.
 4. No node at hand? Settings → **Demo mode** starts a simulated node in the app.
 
-Needs Android 7 (API 24) or newer. Builds are signed with a fixed *test* key kept in the
+Needs Android 7 (API 24) or newer and a 64-bit (arm64) phone, which is every phone of the last years. Builds are signed with a fixed *test* key kept in the
 repository (`android/app/test-release.keystore`), so each new build installs as an update over the
 previous one. Anyone with the repository can sign with it: replace it with a private key before
 any store release.
 
-Build it yourself: `flutter build apk --release` (needs the Android SDK and JDK 17+).
+Build it yourself: `flutter build apk --release --target-platform android-arm64 --split-per-abi` (needs the Android SDK and JDK 17+).
 
 ## Flow
 

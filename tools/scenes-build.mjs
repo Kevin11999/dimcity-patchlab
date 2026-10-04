@@ -1,4 +1,4 @@
-// Series 1 — "Build a show": one project, from the imported patch to the finished P D F and the stickers, in nine parts.
+// Series 1 — "Build a show": one project, from the imported patch to the finished P D F and the stickers, in ten parts.
 import { PLAN_IMAGE, doAdvice, doNodes, doSwitches, doFibres, upTo } from './scenes-common.mjs';
 
 export const BUILD = [
@@ -81,16 +81,27 @@ export const BUILD = [
     { say: 'It can be one picture for all the views, or its own picture for each view. Fit to drawing makes it cover everything.', do: async k => { await k.hover('.fl-bgsec .switch'); await k.wait(1200); } }
   ] },
 
-  { id: 'build-8-check', title: '8 · Check and the PDF', prep: upTo(doAdvice, doNodes, doSwitches, doFibres), steps: [
-    { say: 'Step seven: check and output. Look at the Tasks page first. When every square is green, the show is complete.', do: async k => { await k.go('TASKS'); await k.hover('.tk-matrix'); await k.wait(900); } },
-    { say: 'The last step of Setup lists the open issues, and links to the Signal Flow, the P D F and the stickers.', do: async k => { await k.click('#tbSetup'); await k.click('[data-go=check]'); await k.wait(1000); await k.click('#suStop'); } },
-    { say: 'Export P D F opens the report builder. Choose the sections: the patch, the racks, the signal flow, the network, the switch ports and the fibre links.', do: async k => { await k.click('#fileExportPdf'); await k.wait(2200); } },
-    { say: 'New: the QR codes section. Every D B gets QR codes that hold the whole D B as text, and the first page can carry one for the whole system.', do: async k => { await k.ev(() => document.querySelector('[data-on="qr"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })); await k.wait(700); await k.click('label:has([data-on="qr"]), .rb-sec:has([data-on="qr"]) .switch'); await k.wait(1500); await k.ev(() => { for (const f of document.querySelectorAll('iframe')) { try { f.contentDocument.querySelector('.qrgrid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} } }); await k.wait(1500); } },
-    { say: 'A live preview shows every page before you export. Then export, and you have the report, ready to print or to send.', do: async k => { await k.wait(2800); } }
+  { id: 'build-8-check', title: '8 · Check the plan', prep: upTo(doAdvice, doNodes, doSwitches, doFibres), steps: [
+    { say: 'Step seven of ten: check the plan. This is the last look at the plan on paper, before we touch the real devices. Look at the Tasks page first. When every square is green, the plan is complete.', do: async k => { await k.go('TASKS'); await k.hover('.tk-matrix'); await k.wait(900); } },
+    { say: 'In Setup, the check step lists the open issues, and links to the Signal Flow. Every step explains itself in three lines: what it is, what you do, and what comes next.', do: async k => { await k.click('#tbSetup'); await k.click('[data-go=check]'); await k.wait(2200); await k.click('#suStop'); } }
   ] },
 
-  { id: 'build-9-print', title: '9 · Stickers', prep: upTo(doAdvice, doNodes, doSwitches, doFibres), steps: [
-    { say: 'The last step is printing. Stickers makes labels for Herma laser sheets: cable labels, panel strips, node ports, devices, switch ports, fibres and network cables.', do: async k => { await k.click('#tbStickers'); await k.wait(1500); } },
+  { id: 'build-9-align', title: '9 · Align the devices and send the configuration', prep: upTo(doAdvice, doNodes, doSwitches, doFibres), steps: [
+    { say: 'Steps eight and nine: the real devices. Open the Align tool from the Tasks page, or from Setup. Your devices must be switched on and connected to this computer.', do: async k => { await k.go('TASKS'); await k.scrollTo('[data-cmd="align"]'); await k.click('[data-cmd="align"]'); await k.wait(1200); } },
+    { say: 'Find searches the network for every Lumi Node and every Giga Core. It takes a few seconds.', do: async k => { await k.click('#alFind'); await k.wait(3800); } },
+    { say: 'Now align. One device blinks: a Giga Core blinks its screen and port lights, a Lumi Node its L E D\'s. Go to the device that is blinking.', do: async k => { await k.ev(() => { for (const d of window.NetConfig.state.dev.values()) d.link = null; }); await k.click('[data-alphase=align]'); await k.wait(2200); await k.hover('.al-now'); await k.wait(1200); } },
+    { say: 'Press its place in the plan, for example D B one, switch one. The link is made, and the next device starts to blink. Orange is the suggestion.', do: async k => { await k.click('.al-item.guess'); await k.wait(1500); await k.click('.al-item.guess'); await k.wait(1500); await k.click('.al-item.guess'); await k.wait(1200); } },
+    { say: 'You can skip a device, or undo the last link. When every device has its place, go on to send.', do: async k => { await k.ev(() => { document.querySelector('#alMain').scrollIntoView(); }); await k.hover('#alSkip'); await k.wait(1500); } },
+    { say: 'Fill in from the plan puts the names, the V L A N\'s, the port names and the universes on the devices. Nothing is sent yet.', do: async k => { await k.ev(() => { for (const d of window.NetConfig.state.dev.values()) if (!d.link) { const it = window.NetConfig.planItems().find(x => x.kind === (d.kind === 'gigacore' ? 'sw' : 'nd') && x.ip === d.ip); if (it) d.link = it.id; } }); await k.click('[data-alphase=send]'); await k.wait(900); await k.click('#alFill'); await k.wait(3000); } },
+    { say: 'Send config shows every single change for every device, and nothing happens until you confirm. Changing an I P address makes a device move, so do that on a new network.', do: async k => { await k.click('#alSend'); await k.wait(3200); } },
+    { say: 'After sending, every device is read back and checked, so you know it really has the new settings.', do: async k => { await k.click('.modal-backdrop button[data-act=ok]'); await k.wait(6500); } }
+  ] },
+
+  { id: 'build-10-print', title: '10 · The P D F and the stickers', prep: upTo(doAdvice, doNodes, doSwitches, doFibres), steps: [
+    { say: 'The last step: print and share. Export P D F opens the report builder. Choose the sections: the patch, the racks, the signal flow, the network, the switch ports and the fibre links.', do: async k => { await k.click('#fileExportPdf'); await k.wait(2200); } },
+    { say: 'The Q R codes section gives every D B a Q R code that holds the whole D B as text, and the first page can carry one for the whole system.', do: async k => { await k.ev(() => document.querySelector('[data-on="qr"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })); await k.wait(700); await k.click('label:has([data-on="qr"]), .rb-sec:has([data-on="qr"]) .switch'); await k.wait(1500); await k.ev(() => { for (const f of document.querySelectorAll('iframe')) { try { f.contentDocument.querySelector('.qrgrid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} } }); await k.wait(1500); } },
+    { say: 'A live preview shows every page before you export. Then export, and you have the report, ready to print or to send.', do: async k => { await k.wait(2800); } },
+    { say: 'Stickers makes labels for Herma laser sheets: cable labels, panel strips, node ports, devices, switch ports, fibres and network cables.', do: async k => { await k.closeDialog(); await k.click('#tbStickers'); await k.wait(1500); } },
     { say: 'Pick the Herma sheet, the D B, and what to print. The preview matches the sheet exactly, so you see what the printer will do.', do: async k => { await k.wait(2200); } },
     { say: 'Switch on D B info Q R, and every D B gets stickers with a Q R code that holds everything about that D B. The system Q R does the same for the whole show.', do: async k => { await k.ev(() => document.querySelector('label.rb-row:has([data-sw="k:qrDb"])')?.scrollIntoView({ block: 'center', behavior: 'smooth' })); await k.wait(600); await k.click('label.rb-row:has([data-sw="k:qrDb"])'); await k.wait(1800); } },
     { say: 'A calibration sheet checks that your printer puts every label where the template says. And that is the whole workflow, from the C S V file to the printed show.', do: async k => { await k.hover('#lbCal'); await k.wait(2200); } }

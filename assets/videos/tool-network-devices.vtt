@@ -1,33 +1,33 @@
 WEBVTT
 
 1
-00:00:00.798 --> 00:00:10.641
-PatchLab can find the Art-Net nodes on the network, and send them the configuration from your plan. Open the Tasks page, and click Devices on the network.
+00:00:00.786 --> 00:00:12.933
+Network Config holds all your Lumi Nodes and Giga Core switches on one page. Open it from the Tasks page. The Align tool next to it is for setting up many devices in one go.
 
 2
-00:00:10.951 --> 00:00:20.709
-Choose how the universe numbers are counted. Luminex shows universe one where Art-Net says zero, so the default is one less. Then scan the network.
+00:00:13.236 --> 00:00:21.329
+Discover devices looks at the whole network and lists every Lumi Node and Giga Core. Each one is linked to its place in the plan.
 
 3
-00:00:21.016 --> 00:00:31.158
-Every node that answers is listed with its address and name. PatchLab matches it to a node of your plan, by IP address, by name, or by MAC address.
+00:00:21.648 --> 00:00:28.419
+Open a switch. Its ports are tiles, as on the front panel, each with its number, name and VLAN.
 
 4
-00:00:31.467 --> 00:00:40.414
-The status says what differs: the name, the universe of a port, or the address. This node still has its factory name and the wrong universes.
+00:00:28.726 --> 00:00:37.779
+To set VLAN's, pick a VLAN as the brush, then click ports or drag over them. They get that VLAN, like in Araneo.
 
 5
-00:00:40.723 --> 00:00:47.302
-Tick the nodes you want to configure. Changing the IP address is a separate tick, because the node moves.
+00:00:38.080 --> 00:00:43.805
+Click a port without a brush to change its name, its VLAN, the P o E and the speed.
 
 6
-00:00:47.614 --> 00:00:53.553
-Press send. You see exactly what will change on every node, and nothing happens until you confirm.
+00:00:44.107 --> 00:00:54.078
+All settings lists everything the device lets you change, in sections, with a search box. A column header has an all button to set one value on every row.
 
 7
-00:00:53.864 --> 00:01:00.443
-After sending, PatchLab scans again and checks the result, so you know the node really has the new settings.
+00:00:54.377 --> 00:01:04.220
+Send to other devices copies your changes, or whole sections, to as many devices of the same kind as you tick. Only the differences are prepared.
 
 8
-00:01:00.753 --> 00:01:09.252
-For switches, the second tab checks that each planned address answers, and makes a sheet with port, device and VLAN for every switch.
+00:01:04.526 --> 00:01:12.726
+Apply shows every call before anything is sent. Nothing changes until you confirm, and afterwards the device is read back.

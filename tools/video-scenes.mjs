@@ -1,5 +1,5 @@
 // All tutorial scripts: what is said and what is done in the app while it is said.
-//   Series 1 "Build a show"  (scenes-build.mjs)  — one project from the imported patch to the finished P D F, in nine parts
+//   Series 1 "Build a show"  (scenes-build.mjs)  — one project from the imported patch to the finished P D F, in ten parts
 //   Series 2 "Tool guides"   (scenes-tools.mjs)  — one short video per tool
 import { OVERLAY } from './scenes-common.mjs';
 import { BUILD } from './scenes-build.mjs';

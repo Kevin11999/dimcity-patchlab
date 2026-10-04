@@ -166,6 +166,13 @@ class ArtNetService {
 
   /// Adapter addresses that could not be used, with the reason.
   final Map<String, String> interfaceErrors = <String, String>{};
+
+  /// Addresses the system lists but will not let a socket bind to: an adapter without link (cable out, virtual or
+  /// Wi-Fi Direct adapters), or an address that is still being checked. Windows says "requested address is not valid in
+  /// its context" (10049). Not an error of ours, and tried again on every search.
+  final Map<String, String> notReady = <String, String>{};
+
+  static bool _addressNotUsable(Object e) => RegExp(r'10049|not valid in its context|cannot assign requested address|EADDRNOTAVAIL|errno = (49|99)\b', caseSensitive: false).hasMatch('$e');
   final Map<int, DateTime> _recent = <int, DateTime>{};
   int pollsSent = 0;
   int repliesSeen = 0;
@@ -305,10 +312,19 @@ class ArtNetService {
         final socket = await factory(a.ip, ArtNet.port);
         _ifaces[a.ip] = _Iface(a, socket, socket.datagrams.listen(_onDatagram));
         interfaceErrors.remove(a.ip);
+        notReady.remove(a.ip);
       } catch (e) {
-        interfaceErrors[a.ip] = e.toString();
+        if (_addressNotUsable(e)) {
+          notReady[a.ip] = a.interfaceName;
+          interfaceErrors.remove(a.ip);
+        } else {
+          interfaceErrors[a.ip] = e.toString();
+        }
       }
     }
+    // Addresses that are gone from the list are no longer "not ready" either.
+    notReady.removeWhere((ip, _) => !wantedIps.contains(ip));
+    interfaceErrors.removeWhere((ip, _) => !wantedIps.contains(ip));
   }
 
   /// This address is in a subnet of one of our adapters (or the service has no adapter list: everything is local).
@@ -475,6 +491,9 @@ class ArtNetService {
     }
     for (final e in interfaceErrors.entries) {
       b.writeln('  adapter ${e.key} unusable: ${e.value}');
+    }
+    for (final e in notReady.entries) {
+      b.writeln('  adapter ${e.value} ${e.key}: the system lists this address but it cannot be used (no link, or still being set up)');
     }
     b.writeln('  datagrams from others on port 6454: $datagramsSeen${received.isEmpty ? '' : ', the last ones:'}');
     for (final r in received.reversed.take(15).toList().reversed) {

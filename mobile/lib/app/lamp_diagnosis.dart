@@ -38,6 +38,15 @@ List<DiagCheck> diagnoseLamps({
   if (artnet != null && artnet.interfaceErrors.isNotEmpty) {
     out.add(DiagCheck(CheckLevel.warn, 'diag.artnet.iface', {'list': artnet.interfaceErrors.entries.map((e) => '${e.key}: ${e.value}').join('; ')}));
   }
+  if (artnet != null && artnetError == null && artnet.interfaces != null) {
+    final ready = artnet.localAddresses;
+    if (ready.isEmpty && artnet.notReady.isNotEmpty) {
+      // Adapters are listed but none can be used: usually no cable, no link.
+      out.add(DiagCheck(CheckLevel.bad, 'diag.noready', {'list': artnet.notReady.entries.map((e) => '${e.value} ${e.key}').join(', ')}));
+    } else if (ready.isNotEmpty) {
+      out.add(DiagCheck(CheckLevel.ok, 'diag.ready', {'list': ready.map((a) => '${a.interfaceName.isEmpty ? '' : '${a.interfaceName} '}${a.ip}').join(', ')}));
+    }
+  }
   for (final s in llrp?.stats ?? const <AdapterStats>[]) {
     if (s.sendFailures > 0) {
       out.add(DiagCheck(CheckLevel.bad, 'diag.send', {'adapter': '${s.info.name} ${s.info.ip}', 'e': s.error ?? ''}));

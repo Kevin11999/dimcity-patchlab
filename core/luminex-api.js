@@ -126,6 +126,11 @@ export function trunkInfo(cur, tid){
 export function trunkMissing(cur, tid, ports){
   return ports.map(n => cur.ports.find(p => p.port_number === n)).filter(p => !p || p.member_of?.type !== 'trunk' || p.member_of.id !== tid).map(p => ({ port: p?.port_number, says: p ? JSON.stringify(p.member_of ?? null) : 'no such port' }));
 }
+// which of these VLANs does the trunk not carry (according to the switch)?
+export function trunkMissingVlans(cur, tid, vids){
+  const ti = trunkInfo(cur, tid); if(!ti) return vids.slice();
+  const have = new Set(ti.vlans); return vids.filter(v => !have.has(v));
+}
 // the other documented way into a trunk: each port's own group membership
 export const trunkFallbackOps = (tid, ports) => ports.map(n => ({ method: 'PUT', path: `/api/ports/port/${n}/member_of`, body: { type: 'trunk', id: tid }, text: `Port ${n}: member of trunk ${tid} (port by port)`, kind: 'config' }));
 
@@ -142,7 +147,7 @@ export function gigacoreTrunkPlan(cur, tid, untaggedVid){
 // edits = [{ port, legend?, member?:{type,id}, poe?:bool, speed?:'auto'|'1gbps fdx'… }] -> calls, only for what differs
 export function gigacorePortPlan(cur, edits){
   const ops = [], notes = [], rows = portRows(cur), trunkIn = new Map(), trunkOut = new Map();
-  const add = (method, path, body, text) => ops.push({ method, path, body, text, kind: 'config' });
+  const add = (method, path, body, text, _kind, extra = {}) => ops.push({ method, path, body, text, kind: 'config', ...extra });
   // a member given as { type:'vid', vid, name, color } means "the group of this VLAN" — made first when the switch does not have it yet
   const used = new Set(cur.groups.map(g => g.group_id)), made = new Map();
   for(const e of edits) if(e.member?.type === 'vid'){
@@ -163,13 +168,15 @@ export function gigacorePortPlan(cur, edits){
         add('POST', '/api/groups/group', { group_id: id, name: nm, vid, ...(col ? { color: col } : {}) }, `New group ${id}: VLAN ${vid} “${nm}”`); }
       return made.get(vid); };
     if(pre && !f.own){
-      // the switch's own trunk: it carries every group (VLAN) by itself, so only the VLANs of the plan that are missing have to be made
-      for(const vid of f.vids || []) idOf(vid);
-      for(const e of fib) e.member = { type: 'trunk', id: pre.trunk_id, name: pre.name };
+      // the switch's own trunk (named ISL on a real GigaCore). It carries the groups listed in it: the built-in ones, but NOT the groups made later, so those are added to it
+      const ref = trunkRefMode(cur), ids = (f.vids || []).map(v => ({ v, id: idOf(v) }));
+      const have = new Set(pre.groups || []), add2 = ids.map(x => (ref === 'vid' ? x.v : x.id)).filter(x => !have.has(x));
+      if(add2.length) add('PUT', `/api/trunks/trunk/${pre.trunk_id}/groups`, [...(pre.groups || []), ...add2].sort((a, b) => a - b), `Trunk “${pre.name}”: also carry ${ref === 'vid' ? 'VLAN' : 'group'} ${add2.join(', ')}`, undefined, { soft: true, trunkGroups: true });
+      for(const e of fib) e.member = { type: 'trunk', id: pre.trunk_id, name: pre.name, needVids: f.vids || [] };
     } else {
       const ref = trunkRefMode(cur);                           // does a trunk list group numbers or VLAN ids?
       const vids = [...new Set([...(f.vids || []), ...cur.trunks.filter(t => t.name === tn).flatMap(t => (t.groups || []).map(id => ref === 'vid' ? id : cur.groups.find(g => g.group_id === id)?.vid).filter(v => v != null))])];
-      const list = vids.map(v => (ref === 'vid' ? (idOf(v), v) : idOf(v))).sort((a, b) => a - b), untagged = f.mgmtVid != null && vids.includes(f.mgmtVid) ? (ref === 'vid' ? f.mgmtVid : idOf(f.mgmtVid)) : 0;
+      const list = vids.map(v => (ref === 'vid' ? (idOf(v), v) : idOf(v))).sort((a, b) => a - b), untagged = pre ? (pre.untagged_group ?? 0) : (f.mgmtVid != null && vids.includes(f.mgmtVid) ? (ref === 'vid' ? f.mgmtVid : idOf(f.mgmtVid)) : 0);       // the same untagged VLAN as the switch's own trunk, so the switch stays reachable
       const have = cur.trunks.find(t => t.name === tn); let tid;
       if(have){ tid = have.trunk_id;
         if(!same([...(have.groups || [])].sort((a, b) => a - b), list)) add('PUT', `/api/trunks/trunk/${tid}/groups`, list, `Trunk “${tn}”: ${ref === 'vid' ? 'VLANs' : 'groups'} → ${list.join(',')}`);
@@ -200,7 +207,8 @@ export function gigacorePortPlan(cur, edits){
   for(const [tid, list] of trunkIn){
     const tr = cur.trunks.find(t => t.trunk_id === tid), keep = rows.filter(r => r.member?.type === 'trunk' && r.member.id === tid && !(trunkOut.get(tid) || []).includes(r.port)).map(r => r.port);
     const all = [...new Set([...keep, ...list])].sort((a, b) => a - b);
-    add('PUT', '/api/trunks/assign_ports', { id: tid, ports: all }, `Trunk “${tr?.name || 'Fibre'}”: ports ${all.join(', ')}`);
+    const nv = edits.find(e => e.member?.type === 'trunk' && e.member.id === tid)?.member?.needVids;
+    add('PUT', '/api/trunks/assign_ports', { id: tid, ports: all }, `Trunk “${tr?.name || 'Fibre'}”: ports ${all.join(', ')}`, undefined, { needVids: nv || [] });
   }
   return { ops, notes };
 }

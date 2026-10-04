@@ -9,7 +9,7 @@ export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12
   const st = {
     device: { name, model: 'GigaCore 12t', api_version: '1.5.0' },
     groups: [{ group_id: 1, name: 'Default', vid: 1, color: '#808080', predefined: true }, { group_id: 2, name: 'Management', vid: 10, color: '#2266cc', predefined: true }],
-    trunks: [{ trunk_id: 1, name: 'Trunk', predefined: true, color: '#ffffff', groups: [1, 2], untagged_group: 0 }], mode, state: 'groups', eink: { present: !!eink, mode: 'standard', show_ip: true, show_qr: false, invert: false, shot: WHITE_PNG, custom: null, preview: null, up: null },
+    trunks: [{ trunk_id: 1, name: 'ISL', predefined: true, color: '#999999', groups: [1, 2], untagged_group: 1 }], mode, state: 'groups', eink: { present: !!eink, mode: 'standard', show_ip: true, show_qr: false, invert: false, shot: WHITE_PNG, custom: null, preview: null, up: null },
     ports: Array.from({ length: ports }, (_, i) => ({ port_number: i + 1, legend: '', member_of: { type: 'group', id: 1 }, type: i >= ports - 2 ? 'sfp' : 'rj45', enabled: true, link_speed: { mode: 'auto', speed: ['all'] } })),
     poe: Array.from({ length: Math.min(8, ports - 2) }, (_, i) => ({ port_number: i + 1, enabled: true })),
     ip: { mode: 'dhcp', ip_address: ip, prefix_length: 24, default_gateway: '0.0.0.0' },
@@ -43,7 +43,6 @@ export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12
     if(path === '/api/device/name' && method === 'PUT'){ if(!/^[a-zA-Z0-9\-_ ]*$/.test(body)) throw err(400, 'name pattern'); st.device.name = body; return body; }
     if(path === '/api/groups/group' && method === 'POST'){
       if(st.groups.some(g => g.group_id === body.group_id || g.vid === body.vid)) throw err(409, 'duplicate group');
-      st.trunks.filter(t => t.predefined).forEach(t => t.groups.push(body.group_id));       // the predefined trunk carries every group
       if(body.name && body.name.length > 31) throw err(400, 'name too long'); st.groups.push({ color: '#808080', ...clone(body) }); return body;
     }
     if(path === '/api/interface/set_state' && method === 'PUT'){ if(!/^(dark_mode|groups|rlinkx|multilinkx|poe|milan|all_(red|green|blue|white|cyan|magenta|yellow|black))$/.test(body?.state)) throw err(400, 'state'); st.state = body.state; return null; }
@@ -63,7 +62,7 @@ export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12
       return null;
     }
     if((m = path.match(/^\/api\/trunks\/trunk\/(\d+)\/(groups|untagged_group)$/)) && method === 'PUT'){
-      const t = st.trunks.find(x => x.trunk_id === +m[1]); if(!t) throw err(404, 'trunk'); t[m[2]] = body; return body;
+      const t = st.trunks.find(x => x.trunk_id === +m[1]); if(!t) throw err(404, 'trunk'); if(t.predefined && st.lockIsl && m[2] === 'groups') throw err(403, 'predefined trunk groups are read-only'); t[m[2]] = body; return body;
     }
     if((m = path.match(/^\/api\/ports\/port\/(\d+)\/(legend|member_of)$/)) && method === 'PUT'){
       const p = st.ports.find(x => x.port_number === +m[1]); if(!p) throw err(404, 'port');

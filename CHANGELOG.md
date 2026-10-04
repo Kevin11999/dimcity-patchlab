@@ -4,6 +4,20 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.7.4 — 2026-10-04
+
+- Trunk fixed after looking at a real GigaCore 20t: its built-in trunk (ISL) only carries the built-in VLAN groups, so a VLAN group made from the plan (like 1090) was missing on the fibre. PatchLab now adds the groups of the plan to that trunk, leaves its untagged VLAN alone, checks afterwards that the trunk really carries every VLAN, and otherwise uses a trunk of its own.
+- The lights: the port lights follow the group colours only in the "groups" front-panel state, so the rainbow switches to it and back, and there are buttons Ports show group colours and Lights off.
+- The link of a port is shown green unless it is down.
+
+<details><summary>Nederlands</summary>
+
+- Trunk gerepareerd na het bekijken van een echte GigaCore 20t: zijn ingebouwde trunk (ISL) bevat alleen de ingebouwde VLAN-groepen, dus een VLAN-groep uit het plan (zoals 1090) ontbrak op de fibre. PatchLab voegt de groepen uit het plan nu aan die trunk toe, laat de untagged VLAN ervan met rust, controleert achteraf dat de trunk echt elke VLAN draagt en gebruikt anders een eigen trunk.
+- De lampjes: de poortlampjes volgen de groepskleuren alleen in de voorpaneelstand "groups", dus de regenboog zet het daarop en weer terug, en er zijn knoppen Poorten tonen groepskleuren en Lampjes uit.
+- De link van een poort is groen tenzij hij down is.
+
+</details>
+
 ## 0.7.3 — 2026-10-04
 
 - Trunk checked after every change: when the switch answers ok to "assign ports to a trunk" but a port is not in the trunk, PatchLab tries the other documented way (port by port), logs what the switch reports for each port and tells you if it still did not work.

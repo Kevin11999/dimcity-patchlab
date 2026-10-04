@@ -1081,6 +1081,7 @@ function renderRight(){
   else if(view === 'NETWORK') renderNetworkView();
   else if(view === 'NET') window.NetworkPage?.render?.();
   else if(view === 'TASKS') window.Tasks?.render?.();
+  else if(view === 'NETCONFIG') window.NetConfig?.render?.();
   else if(view === 'FLOW') window.Flow?.render?.();
   else renderRightHome();
   updateChrome();
@@ -2352,7 +2353,7 @@ async function runCommand(cmd, arg){
     case 'help':          return window.Help?.open?.(arg);
     case 'demo':          return window.Demo?.open?.();
     case 'exchange':      return window.Exchange?.open?.();
-    case 'netDevices':    return window.NetDev?.open?.();
+    case 'netDevices':    return navigate('NETCONFIG');
     case 'wrapped':       return window.Fun?.wrapped?.();
     case 'stickers':      return window.Labels?.open?.(arg ? { dcs:[arg] } : {});
     case 'shareFlow':     return window.Fun?.shareFlow?.();

@@ -4,6 +4,22 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.7.0 — 2026-10-04
+
+- New page Network Config: all your LumiNodes and GigaCore switches on one page. Discover finds them at once over the web API (the whole network of this computer, or a range you type), links each to a switch or node of the plan and reads it.
+- Switches fold open into their ports. Pick a VLAN and click or drag over ports to give them that VLAN, like in Araneo; click a port for its name, PoE and speed; fibre ports go into the Fibre trunk. A VLAN of the plan the switch does not have yet is made for you.
+- LumiNodes fold open into their DMX ports: pick a universe and click ports (the next click can give the next universe), and name the ports. New inputs are sACN. Everything is sent after a preview of every call, per device or all at once, and read back to check.
+- The devices are called LumiNode and GigaCore, no longer Art-Net node; recognition and writing follow how the nodes really answer (software version call, IO 100000 = port 1, the whole IO sent back with rdm_universe, the output connected to its process block). The old dialog Devices on the network is replaced by this page.
+
+<details><summary>Nederlands</summary>
+
+- Nieuwe pagina Netwerkconfig: al je LumiNodes en GigaCore-switches op één pagina. Ontdekken vindt ze in één keer via de web-API (het hele netwerk van deze computer, of een bereik dat je typt), koppelt elk aan een switch of node uit het plan en leest hem uit.
+- Switches klappen open tot hun poorten. Kies een VLAN en klik of sleep over poorten om ze dat VLAN te geven, zoals in Araneo; klik op een poort voor naam, PoE en snelheid; fibre-poorten gaan in de trunk Fibre. Een VLAN uit het plan dat de switch nog niet heeft wordt voor je aangemaakt.
+- LumiNodes klappen open tot hun DMX-poorten: kies een universe en klik op poorten (de volgende klik kan het volgende universe geven) en geef de poorten een naam. Nieuwe ingangen zijn sACN. Alles wordt gestuurd na een voorbeeld van elke aanroep, per apparaat of allemaal tegelijk, en teruggelezen ter controle.
+- De apparaten heten LumiNode en GigaCore, niet meer Art-Net-node; herkennen en schrijven volgen hoe de nodes echt antwoorden (aanroep van de softwareversie, IO 100000 = poort 1, de hele IO teruggestuurd met rdm_universe, de uitgang aan zijn process block gekoppeld). Het oude venster Apparaten op het netwerk is vervangen door deze pagina.
+
+</details>
+
 ## 0.6.2 — 2026-10-04
 
 - Discover: one overview of all Luminex switches and nodes on the network (scan of the networks of this computer or a range you type, plus Art-Net nodes), each linked to a switch or node of the plan automatically on IP address and then on name, with a button to open it.

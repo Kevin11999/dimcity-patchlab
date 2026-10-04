@@ -44,28 +44,49 @@ export function expandRanges(text, max = 1024){
   return [...out].slice(0, max);
 }
 
-// Ask every address whether it is a LumiNode / LumiCore (GET /api/deviceinfo) or a GigaCore (GET /api/device).
-// A device that wants a password answers 401: it is listed as a Luminex-style web API, kind "unknown", needs login.
-export async function luminexScan({ ips = [], user, pass, https: useTls, timeoutMs = 1500, concurrency = 48 } = {}, onProgress){
-  const list = (ips || []).filter(x => /^\d{1,3}(\.\d{1,3}){3}$/.test(x)).slice(0, 2048), found = [];
-  let i = 0, done = 0;
+// Find LumiNodes / LumiCores and GigaCores. Step 1: which addresses have port 80 open (fast, many at once).
+// Step 2: ask those — GET /api/software/version with a "current" field is a LumiNode / LumiCore, GET /api/device with a model is a GigaCore.
+// A device that asks for a login answers 401: listed as "unknown", login needed. Things with port 80 open that are neither (routers, printers) are left out.
+export async function luminexScan({ ips = [], user, pass, https: useTls, timeoutMs = 1500, tcpMs = 600, concurrency = 400 } = {}){
+  const net = await import('node:net');
+  const list = (ips || []).filter(x => /^\d{1,3}(\.\d{1,3}){3}$/.test(x)).slice(0, 65536), open = [];
+  let i = 0;
+  const probePort = ip => new Promise(res => {
+    const sock = net.connect({ host: ip, port: useTls ? 443 : 80 }); let done = false;
+    const end = ok => { if(done) return; done = true; sock.destroy(); res(ok); };
+    sock.setTimeout(tcpMs); sock.on('connect', () => end(true)); sock.on('timeout', () => end(false)); sock.on('error', () => end(false));
+  });
+  const w1 = async () => { while(i < list.length){ const ip = list[i++]; if(await probePort(ip)) open.push(ip); } };
+  await Promise.all(Array.from({ length: Math.min(concurrency, list.length || 1) }, w1));
+  const found = []; let k = 0;
   const one = async ip => {
     const base = { ip, user, pass, https: useTls, timeoutMs };
     let auth = false;
-    try { const d = await luminexHttp({ ...base, path: '/api/deviceinfo' }); if(d && typeof d === 'object' && (d.short_name != null || d.long_name != null)) return found.push({ ip, kind: 'lumi', name: d.short_name || '', longName: d.long_name || '', model: '', auth: false }); }
-    catch(e) { if(e.status === 401) auth = true; else if(!e.status) return; }
-    try { const d = await luminexHttp({ ...base, path: '/api/device' }); if(d && typeof d === 'object' && (d.model != null || d.name != null)) return found.push({ ip, kind: 'gigacore', name: d.name || '', longName: d.description || '', model: d.model || '', mac: d.mac_address || '', auth: false }); }
-    catch(e) { if(e.status === 401) auth = true; }
-    if(auth) found.push({ ip, kind: 'unknown', name: '', longName: '', model: '', auth: true });
+    try {
+      const v = await luminexHttp({ ...base, path: '/api/software/version' });
+      if(v && typeof v === 'object' && v.current != null){
+        let info = {}; try { info = (await luminexHttp({ ...base, path: '/api/deviceinfo' })) || {}; } catch {}
+        return found.push({ ip, kind: 'lumi', name: info.short_name || '', longName: info.long_name || '', model: '', version: String(v.current), auth: false });
+      }
+    } catch(e) { if(e.status === 401) auth = true; }
+    try {
+      const d = await luminexHttp({ ...base, path: '/api/device' });
+      if(d && typeof d === 'object' && (d.model != null || d.name != null)) return found.push({ ip, kind: 'gigacore', name: d.name || '', longName: d.description || '', model: d.model || '', mac: d.mac_address || '', version: '', auth: false });
+    } catch(e) { if(e.status === 401) auth = true; }
+    if(auth) found.push({ ip, kind: 'unknown', name: '', longName: '', model: '', version: '', auth: true });
   };
-  const worker = async () => { while(i < list.length){ const ip = list[i++]; try { await one(ip); } catch {} onProgress?.(++done, list.length); } };
-  await Promise.all(Array.from({ length: Math.min(concurrency, list.length || 1) }, worker));
-  return found.sort((a, b) => a.ip.split('.').reduce((n, o) => n * 256 + +o, 0) - b.ip.split('.').reduce((n, o) => n * 256 + +o, 0));
+  const w2 = async () => { while(k < open.length){ const ip = open[k++]; try { await one(ip); } catch {} } };
+  await Promise.all(Array.from({ length: Math.min(32, open.length || 1) }, w2));
+  const n = a => a.split('.').reduce((x, o) => x * 256 + +o, 0);
+  return found.sort((a, b) => n(a.ip) - n(b.ip));
 }
 
-// the /24 around every address of this computer (not loopback)
+// the networks this computer is in (whole subnet up to a /16; anything wider or narrower than that becomes the /24 around the address)
 export async function localRanges(){
   const os = await import('node:os'), out = [];
-  for(const list of Object.values(os.networkInterfaces())) for(const a of list || []) if(a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.')) out.push(a.address.split('.').slice(0, 3).join('.') + '.0/24');
+  for(const list of Object.values(os.networkInterfaces())) for(const a of list || []) if(a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.')){
+    const bits = a.netmask ? a.netmask.split('.').reduce((n, o) => n + (Number(o) >>> 0).toString(2).replace(/0/g, '').length, 0) : 24;
+    out.push(bits >= 16 && bits <= 30 ? `${a.address}/${bits}` : a.address.split('.').slice(0, 3).join('.') + '.0/24');
+  }
   return [...new Set(out)];
 }

@@ -1,0 +1,348 @@
+// ui/netconfig.js — the Network config page: every LumiNode and GigaCore switch on one page.
+//   · Discover finds them all at once (HTTP: LumiNode / LumiCore and GigaCore generation 2) and links each to a switch or node of the plan.
+//   · A switch folds open into its ports: pick a VLAN (the brush), click or drag over ports and they get that VLAN. Name, PoE and speed per port.
+//   · A LumiNode folds open into its DMX ports: pick a universe, click a port. Name per port.
+//   · Nothing is sent while you paint. "Apply" shows every call first, sends after you confirm, and reads the device back.
+// The logic that compares and builds the calls is core/luminex-api.js; outside the desktop app simulated devices answer (core/luminex-sim.js).
+(function(){
+  'use strict';
+  const App = new Proxy({}, { get: (_, k) => window.LKApp?.[k] });
+  const lang = () => (window.I18n?.language === 'nl' ? 'nl' : 'en');
+  const t = (en, nl) => (lang() === 'nl' ? nl : en);
+  const I = (n, s) => App.ui.icon(n, s);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const ipNum = ip => String(ip).split('.').reduce((n, o) => n * 256 + (+o || 0), 0);
+  const ipOk = ip => /^\d{1,3}(\.\d{1,3}){3}$/.test(String(ip || '').trim());
+  const C = { user:'admin', pass:'', https:false, ranges:'', withIp:false, slot:'', proto:'sacn', offset:-1, found:null, busy:false, err:'', info:'', dev:new Map(), open:new Set(), simDevs:null, drag:null };
+  let api = null, simm = null, root = null;
+  const load = async () => { if(!api){ const b = document.baseURI; api = await import(new URL('./core/luminex-api.js', b).href); simm = await import(new URL('./core/luminex-sim.js', b).href); } };
+  const real = () => !!window.app?.luminexHttp;
+  const FENT = () => window.Fent;
+  const clone = x => JSON.parse(JSON.stringify(x));
+
+  // ---------- transport: the real network (main process) or simulated devices ----------
+  function simNet(){
+    if(C.simDevs) return C.simDevs;
+    const L = []; let k = 0;
+    for(const dc of App.sortedDims()){
+      for(const s of (window.NetSwitches?.list(dc) || [])) if(s.dev?.ip) L.push({ kind:'gigacore', dev:simm.gigacoreSim({ name:`GigaCore ${++k}`, ip:s.dev.ip, ports:Math.max(4, s.rj + s.sfp) }) });
+      for(const n of (App.net.getDimPlan(dc).nodes || [])) if(n.ip){ const u = Array.isArray(n.universes) ? n.universes : []; L.push({ kind:'lumi', dev:simm.lumiNodeSim({ short:'LumiNode', long:'factory default', ip:n.ip, outputs:Math.max(4, Math.ceil((u.length || 4) / 4) * 4), universes:Array.from({ length:16 }, (_, j) => j), klass:'sacn' }) }); }
+    }
+    L.push({ kind:'gigacore', dev:simm.gigacoreSim({ name:'GigaCore 12t', ip:'10.90.250.5', ports:12 }) }, { kind:'lumi', dev:simm.lumiNodeSim({ short:'LumiNode 12', long:'factory default', ip:'10.90.250.9', outputs:4, klass:'sacn' }) });
+    return (C.simDevs = L);
+  }
+  const simIp = d => (d.kind === 'gigacore' ? d.dev.state.ip.ip_address : d.dev.state.ip.ipaddress);
+  function transport(ip){
+    if(real()) return (method, path, body) => window.app.luminexHttp({ ip, method, path, body, user:C.user, pass:C.pass, https:C.https });
+    return async (method, path, body) => { const d = simNet().find(x => simIp(x) === ip); await new Promise(r => setTimeout(r, 20)); if(!d) throw new Error('Timeout — no answer from ' + ip); return d.dev.h(method, path, body); };
+  }
+
+  // ---------- the plan ----------
+  const swList = () => App.sortedDims().flatMap(dc => (window.NetSwitches?.list(dc) || []).map(s => ({ id:`sw:${dc}|${s.label}`, kind:'sw', dc, s, label:s.label, ip:s.dev?.ip })));
+  const ndList = () => App.sortedDims().flatMap(dc => (App.net.getDimPlan(dc).nodes || []).map((inst, i) => ({ id:`nd:${dc}#${i}`, kind:'nd', dc, inst, label:inst.id || `Node ${i + 1}`, ip:inst.ip })));
+  const planItems = () => [...swList(), ...ndList()];
+  const planOf = d => planItems().find(x => x.id === d.link) || null;
+  const mgmtVid = s => { try { return s?.dev?.ip ? (FENT().classify(s.dev.ip)?.vlan?.id ?? null) : null; } catch { return null; } };
+  const vlansOf = (dc, label) => { const set = new Set(); for(const r of (window.FentUI?.portPlan(dc).rows || [])) if(r.sw === label) (r.vlans || []).forEach(v => set.add(Number(v))); const m = mgmtVid(swList().find(x => x.dc === dc && x.label === label)?.s); if(m != null) set.add(m); return set; };
+  function wantSwitch(it){
+    const dc = it.dc, s = it.s, rows = (window.FentUI?.portPlan(dc).rows || []).filter(r => r.sw === s.label && r.swPort), vset = vlansOf(dc, s.label), ports = [], fibre = [];
+    for(const r of rows){ const v = (r.vlans || []).map(Number)[0]; ports.push({ port:r.swPort, vid:Number.isFinite(v) ? v : null, legend:String(r.device ?? '') }); }
+    for(const l of (window.Fibers?.links(dc) || [])) for(const [me, other] of [[l.a, l.b], [l.b, l.a]]){
+      if(!me || me.free || me.dc !== dc || me.sw !== s.label) continue;
+      fibre.push(window.SwPorts?.no(s.type, Number(me.sfp)) ?? (s.rj + Number(me.sfp)));
+      if(other && !other.free && other.sw) vlansOf(other.dc, other.sw).forEach(v => vset.add(v));
+    }
+    const groups = [...vset].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean).map(v => ({ vid:v.id, name:v.name, color:v.color }));
+    return { name:s.dev?.id || s.label, ip:s.dev?.ip ? { address:s.dev.ip, mask:s.dev.subnet || '255.255.255.0', gateway:s.dev.gateway || '' } : null, ports, fibre, groups, mgmt:mgmtVid(s) };
+  }
+  function wantNode(it){
+    const inst = it.inst, u = Array.isArray(inst.universes) ? inst.universes : [];
+    return { shortName:inst.id, longName:inst.name, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || '255.255.255.0', gateway:inst.gateway || '' } : null,
+      universes:u.map(x => (x == null || x === '' ? null : Number(x))), portNames:u.map((x, j) => (x == null || x === '' ? null : `${inst.id || 'N'}.${j + 1}`)) };
+  }
+  const projectVlans = () => { const set = new Set(); for(const it of swList()) vlansOf(it.dc, it.s.label).forEach(v => set.add(v)); return [...set].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean); };
+
+  // ---------- one device ----------
+  const D = ip => C.dev.get(ip);
+  function mk(f){ return { ip:f.ip, kind:f.kind, name:f.name || '', longName:f.longName || '', model:f.model || '', version:f.version || '', auth:!!f.auth, link:null, cur:null, E:new Map(), dev:{}, brush:null, sel:null, busy:false, err:'', note:'', verified:false, step:1 }; }
+  const isSw = d => d.kind === 'gigacore';
+  const ports = d => (isSw(d) ? api.portRows(d.cur) : d.cur.ports);
+  // what the ports look like with the pending changes on top
+  function swTile(d, r){
+    const e = d.E.get(r.port) || {}, cur = d.cur;
+    let vid = r.vid, trunk = r.member?.type === 'trunk', color = null, label = r.groupName;
+    const m = e.member;
+    if(m){ if(m.type === 'vid'){ vid = m.vid; trunk = false; } else if(m.type === 'fibre' || m.type === 'trunk'){ trunk = true; vid = null; } else if(m.type === 'group'){ const g = cur.groups.find(x => x.group_id === m.id); vid = g?.vid ?? null; trunk = false; } }
+    if(!trunk){ const g = cur.groups.find(x => x.vid === vid); const pv = FENT()?.vlanById?.(vid); color = g?.color || pv?.color || '#64748b'; label = g?.name || pv?.name || (vid != null ? `VLAN ${vid}` : ''); }
+    else { color = '#38bdf8'; label = t('Trunk', 'Trunk'); }
+    return { vid, trunk, color, label, legend:e.legend ?? r.legend, poe:e.poe ?? r.poe, speed:e.speed ?? r.speed, changed:d.E.has(r.port) && Object.keys(e).length > 0 };
+  }
+  const swBrushes = d => {
+    const have = new Map(d.cur.groups.filter(g => g.vid != null).map(g => [g.vid, { vid:g.vid, name:g.name, color:g.color }]));
+    for(const v of projectVlans()) if(!have.has(v.id)) have.set(v.id, { vid:v.id, name:v.name, color:v.color, isNew:true });
+    return [...have.values()].sort((a, b) => a.vid - b.vid);
+  };
+  const fibreMember = d => {
+    const it = planOf(d), w = it?.kind === 'sw' ? wantSwitch(it) : null;
+    const vids = w ? w.groups.map(g => g.vid) : d.cur.groups.map(g => g.vid).filter(v => v != null);
+    return { type:'fibre', vids, mgmtVid:w?.mgmt ?? null, groups:w ? w.groups : swBrushes(d) };
+  };
+  function applyBrush(d, port){
+    const b = d.brush; if(!b) return false;
+    const e = d.E.get(port) || {};
+    if(isSw(d)){ e.member = b.type === 'fibre' ? fibreMember(d) : { type:'vid', vid:b.vid, name:b.name, color:b.color }; }
+    else { if(b.universe == null) return false; e.universe = b.universe; if(b.auto) b.universe = Math.min(63999, b.universe + 1); }
+    d.E.set(port, e); return true;
+  }
+
+  // ---------- calls ----------
+  function opsOf(d){
+    if(!d.cur) return { ops:[], notes:[] };
+    const ops = [], notes = [];
+    if(isSw(d)){
+      const edits = [...d.E.entries()].map(([port, v]) => ({ port, ...clone(v) }));
+      const p = api.gigacorePortPlan(d.cur, edits); ops.push(...p.ops); notes.push(...p.notes);
+      const dp = api.gigacoreDevicePlan(d.cur, { name:d.dev.name ?? d.cur.device?.name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || '255.255.255.0', gateway:d.dev.gateway || '' } : null }, { withIp:!!d.dev.ip });
+      ops.push(...dp.ops); notes.push(...dp.notes);
+    } else {
+      const n = d.cur.ports.length, uni = Array(n).fill(null), nm = Array(n).fill(null);
+      for(const [i, e] of d.E){ if(e.universe != null) uni[i] = e.universe; if(e.name != null) nm[i] = e.name; }
+      const p = api.lumiPlan(d.cur, { shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || '255.255.255.0', gateway:d.dev.gateway || '' } : null, universes:uni, portNames:nm }, { withIp:!!d.dev.ip, artnetOffset:C.offset, protocol:C.proto });
+      ops.push(...p.ops); notes.push(...p.notes);
+    }
+    return { ops, notes };
+  }
+  const changeCount = d => opsOf(d).ops.length;
+  // fill what the plan wants into the pending changes (nothing is sent)
+  function fillFromPlan(d){
+    const it = planOf(d); if(!it || !d.cur) return false;
+    if(isSw(d) && it.kind === 'sw'){
+      const w = wantSwitch(it);
+      for(const p of w.ports){ if(!d.cur.ports.some(x => x.port_number === p.port)) continue; const e = d.E.get(p.port) || {}; e.legend = String(p.legend).slice(0, 16); const g = w.groups.find(x => x.vid === p.vid); if(g) e.member = { type:'vid', vid:g.vid, name:g.name, color:g.color }; d.E.set(p.port, e); }
+      if(w.fibre.length){ const fm = { type:'fibre', vids:w.groups.map(g => g.vid), mgmtVid:w.mgmt, groups:w.groups }; for(const no of w.fibre) if(d.cur.ports.some(x => x.port_number === no)){ const e = d.E.get(no) || {}; e.member = clone(fm); d.E.set(no, e); } }
+      if(w.name && w.name !== d.cur.device?.name) d.dev.name = w.name;
+      if(C.withIp && w.ip?.address && w.ip.address !== d.cur.ip?.ip_address) Object.assign(d.dev, { ip:w.ip.address, mask:w.ip.mask, gateway:w.ip.gateway });
+      return true;
+    }
+    if(!isSw(d) && it.kind === 'nd'){
+      const w = wantNode(it);
+      w.universes.forEach((u, j) => { if(j >= d.cur.ports.length) return; const e = d.E.get(j) || {}; if(u != null) e.universe = u; if(w.portNames[j]) e.name = w.portNames[j]; d.E.set(j, e); });
+      if(w.shortName && w.shortName !== d.cur.info?.short_name) d.dev.shortName = String(w.shortName).slice(0, 17);
+      if(w.longName && w.longName !== d.cur.info?.long_name) d.dev.longName = String(w.longName).slice(0, 63);
+      if(C.withIp && w.ip?.address && w.ip.address !== d.cur.ip?.ipaddress) Object.assign(d.dev, { ip:w.ip.address, mask:w.ip.mask, gateway:w.ip.gateway });
+      return true;
+    }
+    return false;
+  }
+
+  // ---------- actions ----------
+  async function readDev(d, keepEdits){
+    d.busy = true; d.err = ''; d.verified = false;
+    try { await load(); const h = transport(d.ip); d.cur = isSw(d) ? await api.gigacoreRead(h) : await api.lumiRead(h);
+      if(!keepEdits){ d.E = new Map(); d.dev = {}; }
+      if(isSw(d)){ d.name = d.cur.device?.name || d.name; d.model = d.cur.device?.model || d.model; } else { d.name = d.cur.info?.short_name || d.name; d.longName = d.cur.info?.long_name || ''; d.version = d.cur.version || d.version; }
+    } catch(x) { d.cur = null; d.err = String(x.message || x); if(/401/.test(d.err)) d.auth = true; }
+    d.busy = false;
+  }
+  async function pool(list, n, fn){ let i = 0; await Promise.all(Array.from({ length:Math.min(n, list.length) }, async () => { while(i < list.length){ const x = list[i++]; try { await fn(x); } catch {} } })); }
+  function autoLink(){
+    const items = planItems(), taken = new Set([...C.dev.values()].map(d => d.link).filter(Boolean));
+    for(const d of C.dev.values()){
+      if(d.link || d.kind === 'unknown') continue;
+      const want = isSw(d) ? 'sw' : 'nd', nm = `${d.name} ${d.longName}`.toLowerCase();
+      const it = items.find(x => x.kind === want && !taken.has(x.id) && x.ip === d.ip) || items.find(x => x.kind === want && !taken.has(x.id) && nm.trim() && String(x.label).length > 1 && nm.includes(String(x.label).toLowerCase()));
+      if(it){ d.link = it.id; taken.add(it.id); }
+    }
+  }
+  async function discover(){
+    C.busy = true; C.err = ''; C.info = ''; paint();
+    try {
+      let list;
+      if(real()){
+        if(!window.app.luminexScan) throw new Error(t('This version of the app cannot scan.', 'Deze versie van de app kan niet scannen.'));
+        const r = await window.app.luminexScan({ ranges:C.ranges, user:C.user, pass:C.pass, https:C.https }); list = r.devices || [];
+        C.info = `${r.count} ${t('addresses checked', 'adressen gecontroleerd')} · ${r.ranges}`;
+      } else {
+        await load(); await new Promise(r => setTimeout(r, 500));
+        list = simNet().map(x => { const info = x.kind === 'gigacore' ? x.dev.state.device : x.dev.state.info; return x.kind === 'gigacore' ? { ip:simIp(x), kind:'gigacore', name:info.name, model:info.model } : { ip:simIp(x), kind:'lumi', name:info.short_name, longName:info.long_name, version:'v2.9.1' }; });
+        C.info = t('Simulated network', 'Gesimuleerd netwerk');
+      }
+      const old = C.dev; C.dev = new Map();
+      for(const f of list){ const prev = old.get(f.ip); C.dev.set(f.ip, prev && prev.kind === f.kind ? Object.assign(prev, { name:prev.name || f.name, auth:!!f.auth }) : mk(f)); }
+      C.found = [...C.dev.keys()]; autoLink();
+      C.busy = false; paint();
+      await pool([...C.dev.values()].filter(d => d.kind !== 'unknown' && !d.cur), 4, async d => { await readDev(d); paint(); });
+    } catch(x) { C.err = String(x.message || x); }
+    C.busy = false; paint();
+  }
+  async function applyDevs(devs){
+    const todo = devs.map(d => ({ d, ...opsOf(d) })).filter(x => x.ops.length);
+    if(!todo.length) return;
+    const html = todo.map(({ d, ops }) => `<h4 style="margin:10px 0 4px">${esc(d.name || d.model)} <span class="subtle">${esc(d.ip)}</span></h4><ol>${ops.map(o => `<li>${esc(o.text)}<div class="subtle" style="font-size:11px;font-family:monospace">${esc(o.method)} ${esc(o.path)}</div></li>`).join('')}</ol>${ops.some(o => o.kind === 'ip') ? `<p class="su-warn">${t('The IP address changes last; the device then answers on the new address.', 'Het IP-adres verandert als laatste; het apparaat antwoordt daarna op het nieuwe adres.')}</p>` : ''}`).join('');
+    const ok = await App.ui.confirmDialog({ title:`${t('Send', 'Sturen')} ${todo.reduce((n, x) => n + x.ops.length, 0)} ${t('changes to', 'wijzigingen naar')} ${todo.length} ${t('devices?', 'apparaten?')}`, okLabel:t('Send', 'Sturen'), html:true, width:'600px',
+      message:`<div style="max-height:360px;overflow:auto"><p>${real() ? t('This changes the live configuration of these devices. Check that the show is not running on them.', 'Dit verandert de actieve configuratie van deze apparaten. Controleer dat de show er niet op draait.') : t('Simulated devices — nothing real is changed.', 'Gesimuleerde apparaten — er wordt niets echts veranderd.')}</p>${html}</div>` });
+    if(!ok) return;
+    let failed = 0;
+    for(const { d, ops } of todo){
+      d.busy = true; d.err = ''; paint();
+      try {
+        await load(); const h = transport(d.ip); await api.runOps(h, ops);
+        if(isSw(d) && Number(C.slot) >= 1 && Number(C.slot) <= 20) await h('PUT', `/api/config/profiles/${Number(C.slot)}/save`);
+        const ipOp = ops.find(o => o.kind === 'ip'); if(ipOp){ d.ip = d.dev.ip; if(real()) await new Promise(r => setTimeout(r, 2500)); }
+        d.E = new Map(); d.dev = {}; await readDev(d); d.verified = !d.err && changeCount(d) === 0;
+      } catch(x) { failed++; d.err = t(`Stopped after an error: ${x.message || x}. Read the device again to see what was applied.`, `Gestopt door een fout: ${x.message || x}. Lees het apparaat opnieuw uit om te zien wat is toegepast.`); }
+      d.busy = false; paint();
+    }
+    window.PatchHistory?.label?.(t('Configuration sent to Luminex devices', 'Configuratie naar Luminex-apparaten gestuurd'));
+    App.ui.toast(failed ? `${failed} ${t('failed', 'mislukt')}` : `${todo.length} ${t('devices configured and checked', 'apparaten ingesteld en gecontroleerd')}`, failed ? 'err' : 'ok');
+  }
+
+  // ---------- drawing ----------
+  const linkLabel = it => `${it.kind === 'sw' ? 'Switch' : 'LumiNode'} · ${it.label} (${it.dc})`;
+  function swTileHtml(d, r){
+    const v = swTile(d, r), sel = d.sel === r.port;
+    return `<button class="nc-port ${v.changed ? 'chg' : ''} ${sel ? 'sel' : ''} ${v.trunk ? 'trunk' : ''}" data-port="${r.port}" style="--pc:${esc(v.color)}" title="${esc(`${r.port} · ${v.legend || '—'} · ${v.label}`)}"><span class="nc-no">${r.port}</span>${v.poe ? `<span class="nc-poe">${I('plug', 10)}</span>` : ''}<span class="nc-nm">${esc(v.legend || '')}</span><span class="nc-vl">${esc(v.vid != null ? v.vid : v.trunk ? '⇄' : '')}</span></button>`;
+  }
+  function ndTileHtml(d, p){
+    const e = d.E.get(p.index) || {}, uni = e.universe != null ? e.universe : (p.universe == null ? null : p.klass === 'sacn' ? p.universe : p.universe - C.offset), sel = d.sel === p.index;
+    return `<button class="nc-port nd ${e.universe != null || e.name != null ? 'chg' : ''} ${sel ? 'sel' : ''} ${!p.understood && !p.freeBlock ? 'dead' : ''}" data-port="${p.index}" style="--pc:${uni == null ? '#64748b' : `hsl(${(uni * 47) % 360} 55% 48%)`}" title="${esc(`DMX ${p.index + 1}${p.understood || p.freeBlock ? '' : ' — ' + t('set-up not recognised', 'opzet niet herkend')}`)}"><span class="nc-no">${p.index + 1}</span><span class="nc-nm">${esc(e.name ?? p.name ?? '')}</span><span class="nc-vl">${uni == null ? '–' : uni}</span></button>`;
+  }
+  function detailHtml(d){
+    const idx = d.sel; if(idx == null) return `<div class="subtle nc-det">${isSw(d) ? t('Pick a VLAN and click ports, or click a port to edit it.', 'Kies een VLAN en klik op poorten, of klik op een poort om hem aan te passen.') : t('Pick a universe and click ports, or click a port to edit it.', 'Kies een universe en klik op poorten, of klik op een poort om hem aan te passen.')}</div>`;
+    if(isSw(d)){
+      const r = api.portRows(d.cur).find(x => x.port === idx); if(!r) return '';
+      const v = swTile(d, r), brushes = swBrushes(d);
+      const cur = v.trunk ? 'fibre' : v.vid != null ? `vid:${v.vid}` : '';
+      return `<div class="nc-det"><b>${t('Port', 'Poort')} ${r.port}</b> <span class="subtle">${esc(r.type)}${r.link != null ? ` · ${esc(typeof r.link === 'object' ? JSON.stringify(r.link) : r.link)}` : ''}</span>
+        <label>${t('Name', 'Naam')}<input data-f="legend" maxlength="16" value="${esc(v.legend)}"></label>
+        <label>VLAN<select data-f="member"><option value="" ${cur ? '' : 'selected'}>—</option>${brushes.map(b => `<option value="vid:${b.vid}" ${cur === `vid:${b.vid}` ? 'selected' : ''}>${b.vid} · ${esc(b.name)}${b.isNew ? ` (${t('new', 'nieuw')})` : ''}</option>`).join('')}<option value="fibre" ${cur === 'fibre' ? 'selected' : ''}>${t('Trunk (fibre)', 'Trunk (fibre)')}</option></select></label>
+        ${v.poe == null ? '' : `<label>PoE<span><input type="checkbox" data-f="poe" ${v.poe ? 'checked' : ''}> ${t('on', 'aan')}</span></label>`}
+        <label>${t('Speed', 'Snelheid')}<select data-f="speed">${api.SPEEDS.map(s => `<option value="${esc(s)}" ${s === v.speed ? 'selected' : ''}>${esc(s === 'auto' ? 'Auto' : s)}</option>`).join('')}</select></label></div>`;
+    }
+    const p = d.cur.ports[idx]; if(!p) return ''; const e = d.E.get(idx) || {};
+    const uni = e.universe != null ? e.universe : (p.universe == null ? '' : p.klass === 'sacn' ? p.universe : p.universe - C.offset);
+    return `<div class="nc-det"><b>DMX ${idx + 1}</b> <span class="subtle">${esc(p.klass === 'sacn' ? 'sACN' : p.klass === 'artnet' ? 'Art-Net' : t('no input', 'geen ingang'))}</span>
+      <label>${t('Name', 'Naam')}<input data-f="name" maxlength="64" value="${esc(e.name ?? p.name ?? '')}"></label>
+      <label>Universe<input data-f="universe" type="number" min="0" max="63999" value="${esc(uni)}" style="width:90px"></label>
+      ${!p.understood && !p.freeBlock ? `<span class="su-warn">${t('The set-up of this port is not recognised, universes are not changed.', 'De opzet van deze poort wordt niet herkend, universes worden niet gewijzigd.')}</span>` : ''}</div>`;
+  }
+  function brushBar(d){
+    if(isSw(d)){
+      const b = d.brush;
+      return `<div class="nc-brush"><span class="subtle">${t('Pick a VLAN, then click or drag over ports', 'Kies een VLAN, klik of sleep dan over poorten')}:</span>${swBrushes(d).map(x => `<button class="nc-chip ${b?.vid === x.vid && b.type === 'vid' ? 'on' : ''}" data-brush="vid:${x.vid}" style="--pc:${esc(x.color || '#64748b')}"><i></i>${x.vid} ${esc(x.name)}${x.isNew ? ' +' : ''}</button>`).join('')}<button class="nc-chip ${b?.type === 'fibre' ? 'on' : ''}" data-brush="fibre" style="--pc:#38bdf8"><i></i>${t('Trunk (fibre)', 'Trunk (fibre)')}</button>${b ? `<button class="nc-chip x" data-brush="">${I('x', 11)} ${t('no brush', 'geen kwast')}</button>` : ''}</div>`;
+    }
+    const b = d.brush || {};
+    return `<div class="nc-brush"><span class="subtle">${t('Pick a universe, then click ports', 'Kies een universe, klik dan op poorten')}:</span><input type="number" min="0" max="63999" data-uni value="${esc(b.universe ?? '')}" placeholder="1" style="width:90px"><label class="nc-chk"><input type="checkbox" data-auto ${b.auto !== false ? 'checked' : ''}> ${t('next port gets the next universe', 'volgende poort krijgt het volgende universe')}</label>${b.universe != null ? `<button class="nc-chip x" data-brush="">${I('x', 11)} ${t('no brush', 'geen kwast')}</button>` : ''}</div>`;
+  }
+  function cardHtml(d){
+    const it = planOf(d), open = C.open.has(d.ip), n = d.cur ? changeCount(d) : 0;
+    const ico = d.kind === 'gigacore' ? 'switchDev' : 'network';
+    const status = d.busy ? `<span class="tag">${t('working…', 'bezig…')}</span>` : d.err ? `<span class="tag red" title="${esc(d.err)}">${t('error', 'fout')}</span>` : d.kind === 'unknown' ? `<span class="tag yellow">${t('login needed', 'login nodig')}</span>` : !d.cur ? `<span class="tag">${t('not read', 'niet gelezen')}</span>` : n ? `<span class="tag yellow">${n} ${t('changes', 'wijzigingen')}</span>` : d.verified ? `<span class="tag green">${t('sent and checked', 'verstuurd en gecontroleerd')}</span>` : `<span class="tag green">${t('up to date', 'actueel')}</span>`;
+    const opts = planItems().filter(x => x.kind === (isSw(d) ? 'sw' : 'nd') && (x.id === d.link || ![...C.dev.values()].some(o => o.link === x.id)));
+    const head = `<div class="nc-head" data-toggle="${esc(d.ip)}"><span class="nc-chev ${open ? 'open' : ''}">${I('chevronRight', 14)}</span><span class="nc-ic ${d.kind}">${I(ico, 18)}</span>
+      <span class="nc-title"><b>${esc(d.name || d.model || d.ip)}</b><small>${esc(d.ip)} · ${esc(d.kind === 'gigacore' ? (d.model || 'GigaCore') : `LumiNode${d.version ? ' ' + d.version : ''}`)}${d.cur ? ` · ${isSw(d) ? d.cur.ports.length + ' ' + t('ports', 'poorten') : d.cur.ports.length + ' DMX'}` : ''}</small></span>
+      ${d.kind === 'unknown' ? '' : `<select class="nc-link" data-link="${esc(d.ip)}" title="${t('Which switch or node of the plan this is', 'Welke switch of node uit het plan dit is')}"><option value="">${t('not linked to the plan', 'niet gekoppeld aan het plan')}</option>${opts.map(x => `<option value="${esc(x.id)}" ${x.id === d.link ? 'selected' : ''}>${esc(linkLabel(x))}</option>`).join('')}</select>`}
+      ${status}</div>`;
+    if(!open) return `<div class="nc-card">${head}</div>`;
+    let body = '';
+    if(d.kind === 'unknown') body = `<div class="nc-body"><div class="subtle">${t('This device asks for a login. Fill in the user name and password above and discover again.', 'Dit apparaat vraagt om een login. Vul gebruikersnaam en wachtwoord hierboven in en ontdek opnieuw.')}</div></div>`;
+    else if(!d.cur) body = `<div class="nc-body">${d.err ? `<div class="su-warn">${esc(d.err)}</div>` : ''}<button data-read="${esc(d.ip)}" ${d.busy ? 'disabled' : ''}>${I('refresh', 13)}${t('Read the device', 'Apparaat uitlezen')}</button></div>`;
+    else {
+      const o = opsOf(d), f = d.dev;
+      const grid = isSw(d)
+        ? `<div class="nc-grid">${api.portRows(d.cur).map(r => swTileHtml(d, r)).join('')}</div>`
+        : `<div class="nc-grid nd">${d.cur.ports.map(p => ndTileHtml(d, p)).join('')}</div>`;
+      const devFields = isSw(d)
+        ? `<label>${t('Name', 'Naam')}<input data-df="name" value="${esc(f.name ?? d.cur.device?.name ?? '')}" maxlength="64"></label><label>IP<input data-df="ip" value="${esc(f.ip ?? d.cur.ip?.ip_address ?? '')}" style="width:130px"></label>`
+        : `<label>${t('Name', 'Naam')}<input data-df="shortName" value="${esc(f.shortName ?? d.cur.info?.short_name ?? '')}" maxlength="17"></label><label>${t('Long name', 'Lange naam')}<input data-df="longName" value="${esc(f.longName ?? d.cur.info?.long_name ?? '')}" maxlength="63"></label><label>IP<input data-df="ip" value="${esc(f.ip ?? d.cur.ip?.ipaddress ?? '')}" style="width:130px"></label>`;
+      body = `<div class="nc-body">${d.err ? `<div class="su-warn">${esc(d.err)}</div>` : ''}
+        <div class="nc-row">${devFields}<span style="flex:1"></span>${it ? `<button data-fill="${esc(d.ip)}">${t('Fill from the plan', 'Invullen uit het plan')}</button>` : ''}<button data-read="${esc(d.ip)}">${I('refresh', 13)}${t('Read again', 'Opnieuw lezen')}</button></div>
+        ${f.ip && f.ip !== (isSw(d) ? d.cur.ip?.ip_address : d.cur.ip?.ipaddress) ? `<div class="su-warn">${t('The IP address changes when you apply; the device then moves to the new address.', 'Het IP-adres verandert bij het toepassen; het apparaat verhuist dan naar het nieuwe adres.')}</div>` : ''}
+        ${brushBar(d)}${grid}${detailHtml(d)}
+        ${o.notes.map(x => `<div class="subtle" style="font-size:12px">${I('info', 12)} ${esc(x)}</div>`).join('')}
+        <div class="nc-row"><span class="subtle">${n} ${t('changes waiting', 'wijzigingen wachten')}</span><span style="flex:1"></span><button data-undo="${esc(d.ip)}" ${d.E.size || Object.keys(f).length ? '' : 'disabled'}>${t('Undo my changes', 'Mijn wijzigingen ongedaan maken')}</button><button class="primary" data-apply="${esc(d.ip)}" ${n && !d.busy ? '' : 'disabled'}>${t('Apply…', 'Toepassen…')}</button></div></div>`;
+    }
+    return `<div class="nc-card open">${head}${body}</div>`;
+  }
+  function paint(){
+    if(App.getMODEL?.()?.ui?.view !== 'NETCONFIG') return;       // never draw over another page
+    if(!root || !root.isConnected) root = App.$('#lkDetail'); if(!root) return;
+    const sc = App.$('#mainScroll'), top = sc ? sc.scrollTop : 0;
+    const devs = [...C.dev.values()].sort((a, b) => (a.kind === 'gigacore' ? 0 : a.kind === 'lumi' ? 1 : 2) - (b.kind === 'gigacore' ? 0 : b.kind === 'lumi' ? 1 : 2) || ipNum(a.ip) - ipNum(b.ip));
+    const total = devs.reduce((n, d) => n + (d.cur ? changeCount(d) : 0), 0);
+    const missing = planItems().filter(x => !devs.some(d => d.link === x.id));
+    const nSw = devs.filter(d => d.kind === 'gigacore').length, nNd = devs.filter(d => d.kind === 'lumi').length, nUn = devs.filter(d => d.kind === 'unknown').length;
+    App.pageHead?.({ eyebrow:t('Network', 'Netwerk'), title:t('Network config', 'Netwerkconfig'), sub:t('All your LumiNodes and GigaCore switches on one page: discover them, paint the VLANs and universes, apply.', 'Al je LumiNodes en GigaCore-switches op één pagina: ontdek ze, schilder de VLAN’s en universes, pas toe.'),
+      actions:`<button class="primary" id="ncDisc" ${C.busy ? 'disabled' : ''}>${I('search', 15)}${C.busy ? t('Searching…', 'Zoeken…') : C.found ? t('Discover again', 'Opnieuw ontdekken') : t('Discover devices', 'Apparaten ontdekken')}</button>` });
+    root.innerHTML = `<div class="stack nc">
+      <details class="nc-conn" ${C.found ? '' : 'open'}><summary>${I('sliders', 14)} ${t('Connection', 'Verbinding')} <span class="subtle">${esc(C.user)}${C.ranges ? ' · ' + esc(C.ranges) : ''}</span></summary>
+        <div class="nc-row"><label>${t('User name', 'Gebruikersnaam')}<input id="ncUser" value="${esc(C.user)}" style="width:110px" autocomplete="off"></label><label>${t('Password', 'Wachtwoord')}<input id="ncPass" type="password" value="${esc(C.pass)}" style="width:110px" autocomplete="off"></label>
+          <label class="nc-chk"><input type="checkbox" id="ncTls" ${C.https ? 'checked' : ''}> https</label>
+          <label>${t('Where to look', 'Waar zoeken')}<input id="ncRanges" value="${esc(C.ranges)}" placeholder="${t('empty = the networks of this computer', 'leeg = de netwerken van deze computer')}" style="width:300px"></label></div>
+        <div class="nc-row"><label>${t('Inputs that are made', 'Ingangen die worden gemaakt')}<select id="ncProto"><option value="sacn" ${C.proto === 'sacn' ? 'selected' : ''}>sACN</option><option value="artnet" ${C.proto === 'artnet' ? 'selected' : ''}>Art-Net</option></select></label>
+          <label>${t('Art-Net numbering', 'Art-Net-nummering')}<select id="ncOff"><option value="-1" ${C.offset === -1 ? 'selected' : ''}>${t('universe 1 = Art-Net 0', 'universe 1 = Art-Net 0')}</option><option value="0" ${C.offset === 0 ? 'selected' : ''}>${t('same number', 'zelfde nummer')}</option></select></label>
+          <label>${t('Save switch in profile slot', 'Bewaar switch in profielslot')}<input id="ncSlot" value="${esc(C.slot)}" placeholder="–" style="width:60px"></label>
+          <label class="nc-chk"><input type="checkbox" id="ncIp" ${C.withIp ? 'checked' : ''}> ${t('“Fill from the plan” also sets the IP address', '“Invullen uit het plan” zet ook het IP-adres')}</label></div>
+        <div class="subtle" style="font-size:12px">${t('Examples to look: 192.168.40.0/24 · 10.90.101.20-60 · 192.168.1.10. Leave empty to search the whole network of this computer (up to a /16, about 15 seconds).', 'Voorbeelden: 192.168.40.0/24 · 10.90.101.20-60 · 192.168.1.10. Leeg laten doorzoekt het hele netwerk van deze computer (tot een /16, ongeveer 15 seconden).')}</div>
+        ${real() ? '' : `<div class="hint nd-sim">${I('info', 13)} ${t('Simulated devices — one pretend device on every planned address, so you can try this out. In the desktop app the real devices answer.', 'Gesimuleerde apparaten — één nepapparaat op elk gepland adres, zodat je dit kunt uitproberen. In de desktop-app antwoorden de echte apparaten.')}</div>`}</details>
+      ${C.err ? `<div class="su-warn">${esc(C.err)}</div>` : ''}
+      ${C.found ? `<div class="nc-bar"><span><b>${nSw}</b> GigaCore · <b>${nNd}</b> LumiNode${nUn ? ` · <b>${nUn}</b> ${t('need a login', 'vragen een login')}` : ''}${C.info ? ` <span class="subtle">· ${esc(C.info)}</span>` : ''}</span><span style="flex:1"></span>
+        <button id="ncFillAll">${t('Fill all from the plan', 'Alles invullen uit het plan')}</button><button id="ncReadAll">${I('refresh', 13)}${t('Read all', 'Alles lezen')}</button><button class="primary" id="ncApplyAll" ${total ? '' : 'disabled'}>${t('Apply all', 'Alles toepassen')} (${total})…</button></div>
+        ${devs.length ? devs.map(cardHtml).join('') : `<div class="subtle" style="margin:14px 0">${t('Nothing answered. Check the cable and the address range, and fill in the user name and password if the devices ask for a login.', 'Niets antwoordde. Controleer de kabel en het adresbereik, en vul gebruikersnaam en wachtwoord in als de apparaten om een login vragen.')}</div>`}
+        ${missing.length ? `<details class="nc-missing"><summary>${missing.length} ${t('items of the plan have no device yet', 'onderdelen uit het plan hebben nog geen apparaat')}</summary><div class="subtle">${missing.map(x => `${esc(linkLabel(x))}${x.ip ? ` · ${esc(x.ip)}` : ''}`).join('<br>')}</div></details>` : ''}`
+        : `<div class="nc-empty">${I('search', 30)}<b>${t('Find your devices', 'Vind je apparaten')}</b><span>${t('Press Discover to list every LumiNode and GigaCore switch on the network at once. Each one is linked to a switch or node of your plan.', 'Druk op Ontdekken om elke LumiNode en GigaCore-switch op het netwerk in één keer te tonen. Elk apparaat wordt gekoppeld aan een switch of node uit je plan.')}</span></div>`}
+    </div>`;
+    if(sc) sc.scrollTop = top;
+    bind();
+  }
+  function tileUpdate(d, port){
+    const el = root.querySelector(`.nc-port[data-port="${port}"]`); if(!el) return;
+    const html = isSw(d) ? swTileHtml(d, api.portRows(d.cur).find(r => r.port === port)) : ndTileHtml(d, d.cur.ports[port]);
+    const tmp = document.createElement('div'); tmp.innerHTML = html; el.replaceWith(tmp.firstElementChild);
+  }
+  function bind(){
+    const q = s => root.querySelector(s), qa = s => root.querySelectorAll(s), devOf = el => D(el.closest('[data-ip]')?.dataset.ip || el.dataset.ip);
+    q('#ncDisc') ; const disc = document.querySelector('#ncDisc'); if(disc) disc.onclick = discover;
+    const bindVal = (id, fn) => { const e = q(id); if(e) e.onchange = ev => fn(ev.target); };
+    bindVal('#ncUser', e => { C.user = e.value; }); bindVal('#ncPass', e => { C.pass = e.value; }); bindVal('#ncTls', e => { C.https = e.checked; }); bindVal('#ncRanges', e => { C.ranges = e.value.trim(); });
+    bindVal('#ncProto', e => { C.proto = e.value; paint(); }); bindVal('#ncOff', e => { C.offset = Number(e.value); paint(); }); bindVal('#ncSlot', e => { C.slot = e.value.trim(); }); bindVal('#ncIp', e => { C.withIp = e.checked; });
+    if(q('#ncReadAll')) q('#ncReadAll').onclick = async () => { await pool([...C.dev.values()].filter(d => d.kind !== 'unknown'), 4, async d => { await readDev(d); paint(); }); };
+    if(q('#ncFillAll')) q('#ncFillAll').onclick = () => { let n = 0; for(const d of C.dev.values()) if(fillFromPlan(d)) n++; paint(); App.ui.toast(`${n} ${t('devices filled from the plan — nothing is sent yet', 'apparaten ingevuld uit het plan — er is nog niets gestuurd')}`, 'info'); };
+    if(q('#ncApplyAll')) q('#ncApplyAll').onclick = () => applyDevs([...C.dev.values()].filter(d => d.cur));
+    qa('[data-toggle]').forEach(h => h.onclick = ev => { if(ev.target.closest('select,button,input')) return; const ip = h.dataset.toggle; C.open.has(ip) ? C.open.delete(ip) : C.open.add(ip); const d = D(ip); if(C.open.has(ip) && d && !d.cur && d.kind !== 'unknown' && !d.busy) readDev(d).then(paint); paint(); });
+    qa('select[data-link]').forEach(s => s.onchange = () => { const d = D(s.dataset.link); d.link = s.value || null; paint(); });
+    qa('[data-read]').forEach(b => b.onclick = async () => { const d = D(b.dataset.read); await readDev(d); paint(); });
+    qa('[data-fill]').forEach(b => b.onclick = () => { const d = D(b.dataset.fill); fillFromPlan(d); paint(); });
+    qa('[data-undo]').forEach(b => b.onclick = () => { const d = D(b.dataset.undo); d.E = new Map(); d.dev = {}; paint(); });
+    qa('[data-apply]').forEach(b => b.onclick = () => applyDevs([D(b.dataset.apply)]));
+    qa('[data-df]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const k = i.dataset.df, v = i.value.trim(); d.dev[k] = v; if(k === 'ip' && !ipOk(v)) delete d.dev.ip; if(k === 'ip' && d.dev.ip && !d.dev.mask) d.dev.mask = planOf(d)?.s?.dev?.subnet || planOf(d)?.inst?.subnet || '255.255.255.0'; paint(); });
+    // brushes
+    qa('[data-brush]').forEach(b => b.onclick = () => { const d = D(b.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const v = b.dataset.brush; if(!v) d.brush = null; else if(v === 'fibre') d.brush = { type:'fibre' }; else { const x = swBrushes(d).find(y => y.vid === Number(v.split(':')[1])); d.brush = { type:'vid', ...x }; } paint(); });
+    qa('[data-uni]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const n = i.value === '' ? null : Math.max(0, Math.min(63999, Math.round(Number(i.value)))); d.brush = { ...(d.brush || {}), universe:n, auto:d.brush?.auto !== false }; paint(); });
+    qa('[data-auto]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.brush = { ...(d.brush || {}), auto:i.checked }; });
+    // ports: click = paint with the brush (or select), drag = paint a row of ports
+    qa('.nc-grid').forEach(g => {
+      const dev = () => D(g.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle), noOf = el => Number(el.closest('.nc-port')?.dataset.port);
+      g.onmousedown = ev => { const el = ev.target.closest('.nc-port'); if(!el) return; ev.preventDefault(); const d = dev(), p = noOf(el); if(d.brush && applyBrush(d, p)){ C.drag = d; d.sel = p; tileUpdate(d, p); } else { d.sel = p; paint(); } };
+      g.onmouseover = ev => { if(C.drag && !(ev.buttons & 1)){ endDrag(); return; } const el = ev.target.closest('.nc-port'); if(!el || !C.drag || C.drag !== dev()) return; const d = C.drag, p = noOf(el); if(applyBrush(d, p)) tileUpdate(d, p); };
+    });
+    // detail panel
+    qa('.nc-det [data-f]').forEach(i => i.onchange = () => {
+      const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle), p = d.sel, f = i.dataset.f, e = d.E.get(p) || {};
+      if(f === 'legend' || f === 'name') e[f] = i.value; else if(f === 'poe') e.poe = i.checked; else if(f === 'speed') e.speed = i.value;
+      else if(f === 'universe'){ if(i.value === '') delete e.universe; else e.universe = Math.max(0, Math.min(63999, Math.round(Number(i.value)))); }
+      else if(f === 'member'){ if(!i.value) delete e.member; else if(i.value === 'fibre') e.member = fibreMember(d); else { const x = swBrushes(d).find(y => y.vid === Number(i.value.split(':')[1])); e.member = { type:'vid', vid:x.vid, name:x.name, color:x.color }; } }
+      if(Object.keys(e).length) d.E.set(p, e); else d.E.delete(p);
+      paint();
+    });
+  }
+  const endDrag = () => { if(C.drag){ C.drag = null; paint(); } };
+  document.addEventListener('mouseup', endDrag, true); document.addEventListener('pointerup', endDrag, true); window.addEventListener('blur', endDrag);
+
+  async function render(){
+    root = App.$('#lkDetail'); if(!root) return;
+    await load().catch(() => {});
+    paint();
+  }
+  window.NetConfig = { render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D };
+})();

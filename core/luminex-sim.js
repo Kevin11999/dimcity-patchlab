@@ -64,18 +64,19 @@ export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12
   return { kind: 'gigacore', state: st, h };
 }
 
-export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192.168.1.60', outputs = 4, universes = [0, 1, 2, 3] } = {}){
+export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192.168.1.60', outputs = 4, universes = [0, 1, 2, 3], klass = 'artnet', version = 'v2.9.1' } = {}){
   const st = { info: { ID: 0, colors: [], short_name: short, long_name: long }, ip: { ipaddress: ip, netmask: '255.255.255.0', gateway: '0.0.0.0' }, ios: [], blocks: [], log: [] };
   let nextIo = 1;
   for(let i = 0; i < outputs; i++){
-    const inp = { id: nextIo++, io_class: 'artnet', io_type: 'input', universe: universes[i] ?? i, name: `In ${i + 1}`, duplicate_ios: [] };
-    const out = { id: nextIo++, io_class: 'dmx', io_type: 'output', port_number: i, name: `Out ${i + 1}` };
+    const inp = { id: nextIo++, io_class: klass, io_type: 'input', universe: universes[i] ?? i, name: `In ${i + 1}`, duplicate_ios: [] };
+    const out = { id: 100000 + i, io_class: 'dmx', io_type: 'output', port_number: i, name: `Out ${i + 1}`, rdm: false, interweaving: false, adaptive_discovery: false, rdm_universe: -1 };
     st.ios.push(inp, out); st.blocks.push({ id: i, name: `PB ${i + 1}`, inputs: { 0: inp.id }, outputs: { 0: out.id } });
   }
   const h = async (method, path, body) => {
     st.log.push(`${method} ${path}`);
     let m;
     if(method === 'GET'){
+      if(path === '/api/software/version') return { current: version, minimum: 'v2.0.0', alternate: null };
       if(path === '/api/deviceinfo') return clone(st.info);
       if(path === '/api/ipsettings') return clone(st.ip);
       if(path === '/api/IO') return clone(st.ios);
@@ -87,9 +88,11 @@ export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192
     if((m = path.match(/^\/api\/IO\/(\d+)$/)) && method === 'PUT'){
       const i = st.ios.findIndex(x => x.id === +m[1]); if(i < 0) throw err(404, 'io');
       if(body.io_class === 'artnet' && (body.universe < 0 || body.universe > 32767)) throw err(400, 'universe range');
+      if(body.io_class === 'dmx' && body.rdm_universe == null) throw err(422, 'rdm_universe: Missing data for required field');
       st.ios[i] = { ...clone(body), id: +m[1] }; return st.ios[i];
     }
     if(path === '/api/IO' && method === 'POST'){ const io = { ...clone(body), id: nextIo++ }; st.ios.push(io); return { ...io, index: io.id }; }
+    if((m = path.match(/^\/api\/processblock\/(\d+)\/output$/)) && method === 'PUT'){ const b = st.blocks.find(x => x.id === +m[1]); if(!b) throw err(404, 'block'); if(!st.ios.some(x => x.id === body.io_id)) throw err(400, 'unknown io'); const k = Object.keys(b.outputs).length; b.outputs[k] = body.io_id; return body; }
     if((m = path.match(/^\/api\/processblock\/(\d+)\/input\/(\d+)$/)) && method === 'PUT'){
       const b = st.blocks.find(x => x.id === +m[1]); if(!b) throw err(404, 'block');
       if(!st.ios.some(x => x.id === body.io_id)) throw err(400, 'unknown io'); b.inputs[m[2]] = body.io_id; return body;

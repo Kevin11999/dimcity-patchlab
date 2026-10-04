@@ -32,7 +32,7 @@ Dezelfde handleiding zit in de app: druk op **?** of **F1**, of klik op **Help**
 - [Tasks](#tasks)
 - [QR codes](#qr)
 - [Exchange with Lightwright and Vectorworks](#exchange)
-- [Devices on the network](#netdev)
+- [Network config](#netdev)
 - [Fibres](#fibres)
 - [Node names from the CSV](#node-names)
 - [20t, panels and half-width devices](#devices-ports)
@@ -386,36 +386,28 @@ The patch can go to Lightwright or Vectorworks (Spotlight) and come back, throug
 This is a file exchange on the standard field names, not a live connection; map the columns when you import in the other program.
 
 <a id="netdev"></a>
-## Devices on the network
+## Network config
 
-PatchLab can find Art-Net nodes (Luminex LumiNode, ELC and others) on the network and send them the configuration from your plan. Open it from the **Tasks** page (**Devices on the network**).
+The page **Network Config** (left menu, or the Tasks page) holds all your LumiNodes and GigaCore switches on one page. You discover them, set the VLANs of the switch ports and the universes of the DMX ports by clicking, and send it.
 
-1. **Scan the network.** Every node that answers is listed with its IP address, MAC, names and ports.
-2. PatchLab **matches** each one with a node of your plan by IP address, by name or by MAC. You can change the match.
-3. The status shows what differs: the name, the universe of a port, or the address.
-4. Tick the nodes and press **Send**. You see exactly what will change; nothing is sent until you confirm. Changing the IP address is a separate tick, because the node moves.
-5. PatchLab scans again and checks that the node now has the new settings.
+### Discover
+Press **Discover devices**. PatchLab looks at the whole network of this computer (up to a /16, about 15 seconds), or at the range you type in **Connection** (for example "192.168.40.0/24" or "10.90.101.20-60"). It recognises a LumiNode / LumiCore by its web API (the software version) and a GigaCore (generation 2) by its device information, and leaves everything else alone. Fill in the user name and password under **Connection** if web authentication is on; a device that asks for a login is listed as "login needed". All devices are found at once, linked to a switch or node of the plan (automatically on IP address, then on name; change it with the list on the card) and read.
 
-Universe numbering: Luminex shows universe 1 where Art-Net says 0, so the default is one less; choose "same number" if your nodes count differently.
+### A switch
+Click a switch to open it. You see its ports as tiles, as on the front panel, each with its number, name and VLAN, in the colour of the VLAN.
+- **Paint:** pick a VLAN in the row above the ports (the brush), then click ports or drag over them. They get that VLAN. The chip **Trunk (fibre)** makes a port part of the trunk "Fibre", which carries the VLANs of the plan with the management VLAN untagged.
+- **One port:** click a port without a brush to change its name (16 characters), VLAN, PoE (only ports with PoE) and speed (Auto, 1 Gbps, 100 / 10 Mbps).
+- A VLAN of the plan that the switch does not have yet is marked with a plus; its group is made when you apply.
+- **Fill from the plan** puts the names (from the port plan) and VLANs of the plan on the ports, the fibre ports in the trunk and the device name. The IP address is only changed if you set that in Connection or type it yourself.
+Painted ports have an orange border; nothing is sent yet.
 
-### Luminex GigaCore switches and LumiNode over their web API
-**Discover (first tab):** press **Discover devices** and PatchLab asks every address of the networks of this computer (or the range you type, for example "10.90.101.0/24" or "10.90.101.20-60") whether it is a Luminex switch or node, and adds the Art-Net nodes. You get one overview with address, type and name. Each device is **linked** to a switch or node of the plan, automatically on IP address and then on name; change it in the list. A link makes that address the "Address now" of the switch or node. **Open switch / Open node** takes you to its tab to read and send. Devices that ask for a login show up as "login needed": fill in the user name and password and discover again.
+### A LumiNode
+Click a node to open it. You see its DMX ports with name and universe. Type a universe in the brush, click a port, and the port gets it; with "next port gets the next universe" the next click gives the next number. New inputs are sACN (or Art-Net, set in Connection). Per port you can change the name; the node keeps its own firmware rules (the name is written on the port, the universe on the input that feeds it through its process block). A port whose set-up is not recognised, or whose input is shared with another port, is left alone and explained.
 
-The tabs **LumiNode (HTTP)** and **Switches** talk to the devices through the HTTP APIs that Luminex documents (GigaCore generation 2 WebApi 1.5, LumiNode/LumiCore WebApi 2.8). Fill in the user name and password of the device, then for each switch or node:
+### Apply
+**Apply…** on a card, or **Apply all** at the top, shows every call per device (method and path) before anything is sent. After you confirm they are made one by one; it stops at the first error. Then the device is read again and checked against what you asked. Changing the IP address always comes last. Optionally a switch configuration is saved in a profile slot (Connection). It works on GigaCore generation 2 and LumiNode / LumiCore; generation 1 switches are not covered.
 
-1. **Read.** The address now is the one in your plan; if the device still has another address (factory setting), type that one. PatchLab reads the device.
-2. PatchLab shows what differs from the plan, one line per change.
-3. **Send…** shows every call it will make (method and path). After you confirm, the calls are made one by one; it stops at the first error. Then the device is read again and checked against the plan.
-
-**Switches (GigaCore gen 2):** a group per VLAN of the plan (name and colour), every port in the group of its device, the ports named after the device (16 characters at most), the device name, and the fibre ports in a trunk "Fibre" that carries these VLANs with the management VLAN untagged, so the switch stays reachable over the fibre. Built-in groups keep their name. The IP address is only changed if you tick it, and is done last. The change is made on the running configuration; fill in a profile slot to save it there too. Nothing else on the switch is touched. Generation 1 switches are not covered.
-
-**Ports… (per port):** on every switch row the button **Ports…** opens a table of all ports. Per port you can change the name, the VLAN / group (also a VLAN of the plan that the switch does not have yet — that group is made first), PoE on or off (only ports with PoE) and the speed (Auto, 1 Gbps, 100 / 10 Mbps full or half). Changed rows are shaded, **Fill names and VLANs from the plan** fills the plan values, and only the changed ports are sent after you confirm. The switch is read again afterwards. Do not fix the speed of a fibre port or of the port your laptop is on.
-
-**LumiNode (HTTP):** the short and long name, the IP address (only if ticked) and the universe of every DMX output, in port order. PatchLab follows each output through its process block to the input that feeds it. An output whose input is shared with another block, or whose set-up is not recognised, is left alone and explained. Universe numbering follows the setting on the Nodes tab; new inputs are Art-Net or sACN as you choose.
-
-The group "Check which switches answer / configuration sheet" keeps the simple reachability check and the sheet with port, device and VLAN per switch.
-
-Outside the desktop app a simulated network is used so you can try it out.
+Outside the desktop app simulated devices answer so you can try it out.
 
 <a id="fibres"></a>
 ## Fibres
@@ -593,6 +585,12 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.7.0 — 2026-10-04
+- New page Network Config: all your LumiNodes and GigaCore switches on one page. Discover finds them at once over the web API (the whole network of this computer, or a range you type), links each to a switch or node of the plan and reads it.
+- Switches fold open into their ports. Pick a VLAN and click or drag over ports to give them that VLAN, like in Araneo; click a port for its name, PoE and speed; fibre ports go into the Fibre trunk. A VLAN of the plan the switch does not have yet is made for you.
+- LumiNodes fold open into their DMX ports: pick a universe and click ports (the next click can give the next universe), and name the ports. New inputs are sACN. Everything is sent after a preview of every call, per device or all at once, and read back to check.
+- The devices are called LumiNode and GigaCore, no longer Art-Net node; recognition and writing follow how the nodes really answer (software version call, IO 100000 = port 1, the whole IO sent back with rdm_universe, the output connected to its process block). The old dialog Devices on the network is replaced by this page.
+
 ### Version 0.6.2 — 2026-10-04
 - Discover: one overview of all Luminex switches and nodes on the network (scan of the networks of this computer or a range you type, plus Art-Net nodes), each linked to a switch or node of the plan automatically on IP address and then on name, with a button to open it.
 - GigaCore switches, port by port: the button Ports… on a switch opens a table where you set for every port its name, its VLAN / group (a VLAN of the plan the switch does not have yet is made for you), PoE on or off and the speed. Changed rows are shaded, only the changed ports are sent, and the switch is read back to check.
@@ -738,7 +736,7 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 - [Taken](#tasks-nl)
 - [QR-codes](#qr-nl)
 - [Uitwisselen met Lightwright en Vectorworks](#exchange-nl)
-- [Apparaten op het netwerk](#netdev-nl)
+- [Netwerkconfig](#netdev-nl)
 - [Fibers](#fibres-nl)
 - [Nodenamen uit de CSV](#node-names-nl)
 - [20t, panelen en halve devices](#devices-ports-nl)
@@ -1092,36 +1090,28 @@ De patch kan naar Lightwright of Vectorworks (Spotlight) en terugkomen, via best
 Dit is een bestandsuitwisseling op de standaard veldnamen, geen live koppeling; wijs de kolommen toe als je in het andere programma importeert.
 
 <a id="netdev-nl"></a>
-## Apparaten op het netwerk
+## Netwerkconfig
 
-PatchLab kan Art-Net-nodes (Luminex LumiNode, ELC en andere) op het netwerk vinden en ze de configuratie uit je plan sturen. Open het vanaf de pagina **Taken** (**Apparaten op het netwerk**).
+De pagina **Netwerkconfig** (linkermenu, of de pagina Taken) bevat al je LumiNodes en GigaCore-switches op één pagina. Je ontdekt ze, stelt door te klikken de VLAN's van de switchpoorten en de universes van de DMX-poorten in en stuurt het.
 
-1. **Scan het netwerk.** Elke node die antwoordt staat in de lijst met IP-adres, MAC, namen en poorten.
-2. PatchLab **koppelt** elke node aan een node uit je plan op IP-adres, naam of MAC. Je kunt de koppeling aanpassen.
-3. De status laat zien wat verschilt: de naam, het universe van een poort of het adres.
-4. Vink de nodes aan en druk op **Sturen**. Je ziet precies wat er verandert; er wordt niets gestuurd zonder jouw bevestiging. Het IP-adres veranderen is een apart vinkje, want de node verhuist.
-5. PatchLab scant opnieuw en controleert of de node nu de nieuwe instellingen heeft.
+### Ontdekken
+Druk op **Apparaten ontdekken**. PatchLab kijkt in het hele netwerk van deze computer (tot een /16, ongeveer 15 seconden), of in het bereik dat je bij **Verbinding** invult (bijvoorbeeld "192.168.40.0/24" of "10.90.101.20-60"). Een LumiNode / LumiCore wordt herkend aan zijn web-API (de softwareversie) en een GigaCore (generatie 2) aan zijn apparaatinformatie; al het andere blijft ongemoeid. Vul onder **Verbinding** de gebruikersnaam en het wachtwoord in als webauthenticatie aanstaat; een apparaat dat om een login vraagt staat er als "login nodig". Alle apparaten worden in één keer gevonden, gekoppeld aan een switch of node uit het plan (automatisch op IP-adres, daarna op naam; pas het aan met de lijst op de kaart) en uitgelezen.
 
-Universe-nummering: Luminex toont universe 1 waar Art-Net 0 zegt, dus de standaard is één lager; kies "zelfde nummer" als je nodes anders tellen.
+### Een switch
+Klik op een switch om hem open te klappen. Je ziet de poorten als tegels, zoals op het voorpaneel, elk met nummer, naam en VLAN, in de kleur van het VLAN.
+- **Schilderen:** kies een VLAN in de rij boven de poorten (de kwast) en klik op poorten of sleep eroverheen. Ze krijgen dat VLAN. Het chip **Trunk (fibre)** maakt een poort deel van de trunk "Fibre", die de VLAN's van het plan voert met het beheer-VLAN untagged.
+- **Eén poort:** klik zonder kwast op een poort om naam (16 tekens), VLAN, PoE (alleen poorten met PoE) en snelheid (Auto, 1 Gbps, 100 / 10 Mbps) te veranderen.
+- Een VLAN uit het plan dat de switch nog niet heeft staat met een plusje; de groep wordt aangemaakt bij het toepassen.
+- **Invullen uit het plan** zet de namen (uit het poortplan) en VLAN's van het plan op de poorten, de fibre-poorten in de trunk en de apparaatnaam. Het IP-adres verandert alleen als je dat bij Verbinding aanzet of zelf intypt.
+Geschilderde poorten hebben een oranje rand; er is nog niets gestuurd.
 
-### Luminex GigaCore-switches en LumiNode via hun web-API
-**Ontdekken (eerste tabblad):** druk op **Apparaten ontdekken** en PatchLab vraagt elk adres van de netwerken van deze computer (of het bereik dat je typt, bijvoorbeeld "10.90.101.0/24" of "10.90.101.20-60") of het een Luminex-switch of -node is, en voegt de Art-Net-nodes toe. Je krijgt één overzicht met adres, type en naam. Elk apparaat wordt **gekoppeld** aan een switch of node uit het plan, automatisch op IP-adres en daarna op naam; pas het aan in de lijst. Een koppeling maakt dat adres het "Adres nu" van de switch of node. **Open switch / Open node** brengt je naar het tabblad om uit te lezen en te sturen. Apparaten die om een login vragen staan er als "login nodig": vul gebruikersnaam en wachtwoord in en ontdek opnieuw.
+### Een LumiNode
+Klik op een node om hem open te klappen. Je ziet de DMX-poorten met naam en universe. Typ een universe in de kwast, klik op een poort en de poort krijgt het; met "volgende poort krijgt het volgende universe" geeft de volgende klik het volgende nummer. Nieuwe ingangen zijn sACN (of Art-Net, in te stellen bij Verbinding). Per poort kun je de naam veranderen; de node houdt zijn eigen firmwareregels aan (de naam staat op de poort, het universe op de ingang die hem via zijn process block voedt). Een poort waarvan de opzet niet herkend wordt, of waarvan de ingang gedeeld is met een andere poort, blijft ongemoeid en wordt uitgelegd.
 
-De tabbladen **LumiNode (HTTP)** en **Switches** praten met de apparaten via de HTTP-API's die Luminex documenteert (GigaCore generatie 2 WebApi 1.5, LumiNode/LumiCore WebApi 2.8). Vul de gebruikersnaam en het wachtwoord van het apparaat in en doe dan per switch of node:
+### Toepassen
+**Toepassen…** op een kaart, of **Alles toepassen** bovenaan, toont per apparaat elke aanroep (methode en pad) voordat er iets gestuurd wordt. Na je bevestiging gebeuren ze een voor een; bij de eerste fout stopt het. Daarna wordt het apparaat opnieuw uitgelezen en vergeleken met wat je vroeg. Het IP-adres veranderen gebeurt altijd als laatste. Optioneel wordt een switchconfiguratie in een profielslot bewaard (Verbinding). Het werkt op GigaCore generatie 2 en LumiNode / LumiCore; generatie 1-switches vallen erbuiten.
 
-1. **Uitlezen.** Het adres nu is dat uit je plan; heeft het apparaat nog een ander adres (fabrieksinstelling), typ dan dat adres. PatchLab leest het apparaat uit.
-2. PatchLab toont wat verschilt van het plan, één regel per wijziging.
-3. **Sturen…** toont elke aanroep die gedaan wordt (methode en pad). Na je bevestiging gebeuren de aanroepen een voor een; bij de eerste fout stopt het. Daarna wordt het apparaat opnieuw uitgelezen en met het plan vergeleken.
-
-**Switches (GigaCore gen 2):** een groep per VLAN van het plan (naam en kleur), elke poort in de groep van zijn apparaat, de poorten genoemd naar het apparaat (maximaal 16 tekens), de apparaatnaam, en de fibre-poorten in een trunk "Fibre" met deze VLAN's en het beheer-VLAN untagged, zodat de switch via de fibre bereikbaar blijft. Ingebouwde groepen houden hun naam. Het IP-adres wordt alleen veranderd als je het aanvinkt en gebeurt als laatste. De wijziging gaat in de actieve configuratie; vul een profielslot in om hem daar ook te bewaren. Verder wordt niets op de switch aangeraakt. Generatie 1-switches vallen erbuiten.
-
-**Poorten… (per poort):** op elke switchregel opent de knop **Poorten…** een tabel met alle poorten. Per poort pas je de naam aan, het VLAN / de groep (ook een VLAN uit het plan dat de switch nog niet heeft — die groep wordt eerst aangemaakt), PoE aan of uit (alleen poorten met PoE) en de snelheid (Auto, 1 Gbps, 100 / 10 Mbps full of half). Gewijzigde rijen zijn gearceerd, **Namen en VLAN's uit het plan invullen** vult de planwaarden in en alleen de gewijzigde poorten worden gestuurd na je bevestiging. Daarna wordt de switch opnieuw uitgelezen. Zet de snelheid van een fibre-poort of van de poort waar je laptop op zit niet vast.
-
-**LumiNode (HTTP):** de korte en lange naam, het IP-adres (alleen als aangevinkt) en het universe van elke DMX-uitgang, in poortvolgorde. PatchLab volgt elke uitgang via zijn process block naar de ingang die hem voedt. Een uitgang waarvan de ingang gedeeld wordt met een ander blok, of waarvan de opzet niet herkend wordt, blijft ongemoeid en wordt uitgelegd. De universe-nummering volgt de instelling op het tabblad Nodes; nieuwe ingangen zijn Art-Net of sACN naar keuze.
-
-Het uitklapblok "Controleer welke switches antwoorden / configuratieblad" houdt de eenvoudige bereikbaarheidscontrole en het blad met poort, apparaat en VLAN per switch.
-
-Buiten de desktop-app wordt een gesimuleerd netwerk gebruikt zodat je het kunt uitproberen.
+Buiten de desktop-app antwoorden gesimuleerde apparaten zodat je het kunt uitproberen.
 
 <a id="fibres-nl"></a>
 ## Fibers
@@ -1298,6 +1288,12 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.7.0 — 2026-10-04
+- Nieuwe pagina Netwerkconfig: al je LumiNodes en GigaCore-switches op één pagina. Ontdekken vindt ze in één keer via de web-API (het hele netwerk van deze computer, of een bereik dat je typt), koppelt elk aan een switch of node uit het plan en leest hem uit.
+- Switches klappen open tot hun poorten. Kies een VLAN en klik of sleep over poorten om ze dat VLAN te geven, zoals in Araneo; klik op een poort voor naam, PoE en snelheid; fibre-poorten gaan in de trunk Fibre. Een VLAN uit het plan dat de switch nog niet heeft wordt voor je aangemaakt.
+- LumiNodes klappen open tot hun DMX-poorten: kies een universe en klik op poorten (de volgende klik kan het volgende universe geven) en geef de poorten een naam. Nieuwe ingangen zijn sACN. Alles wordt gestuurd na een voorbeeld van elke aanroep, per apparaat of allemaal tegelijk, en teruggelezen ter controle.
+- De apparaten heten LumiNode en GigaCore, niet meer Art-Net-node; herkennen en schrijven volgen hoe de nodes echt antwoorden (aanroep van de softwareversie, IO 100000 = poort 1, de hele IO teruggestuurd met rdm_universe, de uitgang aan zijn process block gekoppeld). Het oude venster Apparaten op het netwerk is vervangen door deze pagina.
 
 ### Versie 0.6.2 — 2026-10-04
 - Ontdekken: één overzicht van alle Luminex-switches en -nodes op het netwerk (scan van de netwerken van deze computer of een bereik dat je typt, plus Art-Net-nodes), elk automatisch gekoppeld aan een switch of node uit het plan op IP-adres en daarna op naam, met een knop om hem te openen.

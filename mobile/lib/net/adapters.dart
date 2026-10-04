@@ -38,7 +38,15 @@ bool looksVirtual(String name) {
       n.contains('loopback') ||
       n.contains('bluetooth') ||
       n.startsWith('veth') ||
-      n.startsWith('br-');
+      n.startsWith('br-') ||
+      // macOS: AirDrop / low-latency Wi-Fi, VPN tunnels, bridges (Internet sharing, VMs), tunnels
+      n.startsWith('awdl') ||
+      n.startsWith('llw') ||
+      n.startsWith('utun') ||
+      n.startsWith('bridge') ||
+      n.startsWith('anpi') ||
+      n.startsWith('gif') ||
+      n.startsWith('stf');
 }
 
 /// Every IPv4 address of this device, link-local (169.254.x.x) included, loopback not.

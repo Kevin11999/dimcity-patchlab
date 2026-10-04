@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:patchlab_rdm/net/adapters.dart';
 import 'package:patchlab_rdm/net/network_info.dart';
 
 void main() {
@@ -52,5 +53,14 @@ void main() {
     expect(LocalNetwork.classfulMask('192.168.0.1'), '255.255.255.0');
     expect(LocalNetwork.broadcastCandidates('192.168.1.20'), ['192.255.255.255', '192.168.255.255', '192.168.1.255']);
     expect(LocalNetwork.broadcastCandidates('nope'), isEmpty);
+  });
+
+  test('software interfaces of a Mac are virtual, the cable and Wi-Fi are not', () {
+    for (final n in ['utun3', 'awdl0', 'llw0', 'bridge100', 'anpi0', 'gif0', 'stf0']) {
+      expect(looksVirtual(n), isTrue, reason: n);
+    }
+    for (final n in ['en0', 'en7', 'Ethernet', 'Wi-Fi']) {
+      expect(looksVirtual(n), isFalse, reason: n);
+    }
   });
 }

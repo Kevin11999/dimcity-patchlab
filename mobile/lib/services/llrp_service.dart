@@ -51,6 +51,9 @@ class AdapterStats {
   int probes = 0;
   int replies = 0;
 
+  /// Sends the operating system refused (no route, permission denied: on a Mac the Local Network permission).
+  int sendFailures = 0;
+
   /// Multicast join of the LLRP group worked on this adapter.
   bool joined = false;
 
@@ -59,7 +62,7 @@ class AdapterStats {
 
   @override
   String toString() =>
-      '${info.name} ${info.ip}: sent $probes, received $replies, ${joined ? 'joined' : 'NOT joined'}${error == null ? '' : ', $error'}';
+      '${info.name} ${info.ip}: sent $probes, received $replies${sendFailures == 0 ? '' : ', $sendFailures sends FAILED'}, ${joined ? 'joined' : 'NOT joined'}${error == null ? '' : ', $error'}';
 }
 
 class _Rx {
@@ -170,17 +173,22 @@ class LlrpService {
     for (final ip in via) {
       final p = _ports[ip];
       if (p == null) continue;
-      p.socket.sendVia(data, to, Llrp.port, ip);
-      p.stats.probes++;
+      _count(p, p.socket.sendVia(data, to, Llrp.port, ip));
       sent = true;
     }
     if (!sent) {
       // The adapter it was seen on is gone: try all of them.
       for (final p in _ports.values) {
-        p.socket.sendVia(data, to, Llrp.port, p.stats.info.ip);
-        p.stats.probes++;
+        _count(p, p.socket.sendVia(data, to, Llrp.port, p.stats.info.ip));
       }
     }
+  }
+
+  void _count(_Port p, int written) {
+    p.stats.probes++;
+    if (written > 0) return;
+    p.stats.sendFailures++;
+    p.stats.error = 'send failed: ${p.socket.lastSendError ?? 'nothing written'}';
   }
 
   Future<T?> _waitFor<T>(T? Function(_Rx rx) pick, Duration timeout) {

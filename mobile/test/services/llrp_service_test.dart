@@ -6,6 +6,7 @@ import 'package:patchlab_rdm/core/rdmnet/acn.dart';
 import 'package:patchlab_rdm/core/uid.dart';
 import 'package:patchlab_rdm/net/adapters.dart';
 import 'package:patchlab_rdm/net/memory_udp.dart';
+import 'package:patchlab_rdm/net/udp.dart';
 import 'package:patchlab_rdm/services/llrp_service.dart';
 import 'package:patchlab_rdm/services/rdm_client.dart';
 import 'package:patchlab_rdm/services/sim/fake_lamps.dart';
@@ -165,6 +166,22 @@ void main() {
     expect(svc.report(), contains('unusable 192.168.1.20'));
   });
 
+  test('sends the operating system refuses (a Mac without the Local Network permission) show up in the report', () async {
+    final svc = LlrpService(
+      socketFactory: (port, {bool reusePort = true, bool broadcast = true, String? localIp}) async =>
+          _RefusingSocket(hub.open(ip: localIp ?? '169.254.10.1', port: port)),
+      cid: Cid.random(),
+      controllerUid: const Uid(0x7FF0, 5),
+      adapters: () async => const [AdapterInfo('en7', '169.254.10.1')],
+    );
+    addTearDown(svc.close);
+    expect(await svc.probe(roundTimeout: const Duration(milliseconds: 200)), isEmpty);
+    expect(svc.stats.single.sendFailures, svc.stats.single.probes);
+    expect(svc.stats.single.sendFailures, greaterThan(0));
+    expect(svc.stats.single.error, contains('No route to host'));
+    expect(svc.report(), contains('sends FAILED'));
+  });
+
   test('the dropped-address demo lamp fails three times, then works', () async {
     await llrp.probe(roundTimeout: const Duration(milliseconds: 500));
     final client = RdmClient(LampsTransport(llrp), timeout: const Duration(milliseconds: 200), retries: 2);
@@ -174,4 +191,25 @@ void main() {
     expect(flaky.address, 77);
     expect(Pid.name(Pid.dmxStartAddress), 'DMX_START_ADDRESS');
   });
+}
+
+/// A socket whose sends all fail, like a Mac that has not been given the Local Network permission.
+class _RefusingSocket implements UdpSocket {
+  _RefusingSocket(this._inner);
+  final UdpSocket _inner;
+
+  @override
+  Stream<Datagram> get datagrams => _inner.datagrams;
+  @override
+  int get port => _inner.port;
+  @override
+  String? get lastSendError => 'No route to host';
+  @override
+  int send(List<int> data, InternetAddress address, int port) => 0;
+  @override
+  int sendVia(List<int> data, InternetAddress address, int port, String localIp) => 0;
+  @override
+  Future<bool> joinMulticast(String group, {Iterable<String> localIps = const []}) => _inner.joinMulticast(group, localIps: localIps);
+  @override
+  void close() => _inner.close();
 }

@@ -1,5 +1,5 @@
 # PatchLab RDM (mobile/): analyze + test on every change, then build the Android APKs and the
-# Windows installer. The builds are attached to the run (Actions -> run -> Artifacts). Pushes to
+# Windows installer and the macOS disk image. The builds are attached to the run (Actions -> run -> Artifacts). Pushes to
 # main and manual runs (Actions -> Mobile -> Run workflow) also publish them together as one GitHub
 # *pre-release* "mobile-v<version>-b<run>". A pre-release never counts as "latest", so the desktop
 # app's update check (which reads /releases/latest) is not affected.
@@ -122,9 +122,63 @@ jobs:
             mobile/build/installer/*.exe
             mobile/build/installer/*.zip
 
+  macos:
+    name: macOS app
+    needs: test
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.6
+          cache: true
+      - run: flutter pub get
+      - run: flutter build macos --release
+      - name: Sign ad hoc and check
+        # No Apple developer certificate: an ad-hoc signature is what lets the app start on Apple Silicon.
+        # (Gatekeeper still asks for one extra confirmation on first start, see the release notes.)
+        run: |
+          APP="build/macos/Build/Products/Release/PatchLab RDM.app"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          echo "architectures: $(lipo -archs "$APP/Contents/MacOS/PatchLab RDM")"
+          plutil -p "$APP/Contents/Info.plist" | grep -E "CFBundle(Short)?Version|CFBundleIdentifier|NSLocalNetwork|LSMinimum"
+      - name: Smoke test, the app must stay running
+        # Informational: a GUI app on a headless runner can behave differently from a real desktop.
+        continue-on-error: true
+        run: |
+          APP="build/macos/Build/Products/Release/PatchLab RDM.app"
+          "$APP/Contents/MacOS/PatchLab RDM" &
+          PID=$!
+          sleep 10
+          if ! kill -0 $PID 2>/dev/null; then echo "the app exited after start"; exit 1; fi
+          echo "PatchLab RDM is running (pid $PID)"
+          kill $PID
+      - name: Disk image and zip
+        run: |
+          V=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')
+          N=${{ github.run_number }}
+          APP="build/macos/Build/Products/Release/PatchLab RDM.app"
+          mkdir -p build/dist stage
+          cp -R "$APP" stage/
+          ln -s /Applications stage/Applications
+          hdiutil create -volname "PatchLab RDM" -srcfolder stage -ov -format UDZO "build/dist/PatchLab-RDM-$V-b$N-macos.dmg"
+          ditto -c -k --keepParent "$APP" "build/dist/PatchLab-RDM-$V-b$N-macos.zip"
+          ls -la build/dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PatchLab-RDM-macos
+          path: |
+            mobile/build/dist/*.dmg
+            mobile/build/dist/*.zip
+
   publish:
     name: Publish pre-release
-    needs: [android, windows]
+    needs: [android, windows, macos]
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
@@ -152,6 +206,11 @@ jobs:
             **Windows**: download `PatchLab-RDM-Setup-*.exe` and run it. The installer is not code-signed, so SmartScreen shows
             "Windows protected your PC": click *More info*, then *Run anyway*. It adds a Start menu shortcut and a firewall rule
             for Art-Net (UDP). A portable `.zip` is attached as well.
+
+            **macOS** (12 or newer, Apple Silicon and Intel): open `PatchLab-RDM-*-macos.dmg` and drag the app to Applications. The app is
+            not notarized, so macOS blocks the first start: open *System Settings, Privacy & Security* and press *Open Anyway*
+            (or run `xattr -dr com.apple.quarantine "/Applications/PatchLab RDM.app"` in Terminal). Allow *Local Network* when macOS asks.
+            If it did not ask or you said no: System Settings, Privacy & Security, Local Network. A `.zip` is attached as well.
 
             **Android** (7.0 or newer): download the `.apk` for the phone (`arm64-v8a` for almost every phone, `armeabi-v7a` for 32-bit),
             open it and allow "install unknown apps" for the browser when asked.

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Not sandboxed: the app is handed out as a DMG, not through the App Store. It opens UDP sockets on
+	     fixed ports (Art-Net 6454, LLRP 5569, mDNS 5353), joins multicast groups per network adapter and
+	     runs an RDMnet broker (TCP server). The network entitlements stay for a sandboxed build. -->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+</dict>
+</plist>

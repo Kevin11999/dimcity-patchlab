@@ -78,6 +78,9 @@ class _MemorySocket implements UdpSocket {
   }
 
   @override
+  String? get lastSendError => null;
+
+  @override
   int sendVia(List<int> data, InternetAddress address, int port, String localIp) => send(data, address, port);
 
   @override

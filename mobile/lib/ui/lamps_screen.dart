@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -196,6 +197,15 @@ class _LampsScreenState extends State<LampsScreen> {
     if (mounted) showMessage(context, t('lamps.diag.copied'));
   }
 
+  /// What to check when no lamp shows up; the permission step depends on the operating system.
+  static List<String> get _checklist => [
+        'lamps.check.cable',
+        'lamps.check.power',
+        'lamps.check.wait',
+        if (Platform.isMacOS) 'lamps.check.mac' else 'lamps.check.firewall',
+        'lamps.check.rdmnet',
+      ];
+
   Widget _empty(BuildContext context) {
     final llrp = widget.backend.llrp;
     final mono = Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace');
@@ -221,7 +231,7 @@ class _LampsScreenState extends State<LampsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
             child: Column(
               children: [
-                for (final k in ['lamps.check.cable', 'lamps.check.power', 'lamps.check.wait', 'lamps.check.firewall', 'lamps.check.rdmnet'])
+                for (final k in _checklist)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 5),
                     child: Row(

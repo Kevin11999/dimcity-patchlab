@@ -1,6 +1,6 @@
 # DimCity PatchLab RDM (mobile)
 
-Native app (Flutter) for Windows, Android and iPhone for the lighting technician on site: plug in a row of
+Native app (Flutter) for Windows, macOS, Android and iPhone for the lighting technician on site: plug in a row of
 RDMnet lamps and address them, or go through an Art-Net / sACN node (Luminex, ELC). The app finds the lamps, makes
 them blink one by one so you set the order, lets you choose a mode per lamp type, calculates every address, sends and
 verifies it, and offers a retry per lamp. It also renames, inspects (hours, temperature, software) and resets a lamp.
@@ -31,6 +31,20 @@ Needs Windows 10 or 11, 64-bit. The Visual C++ runtime is included in the instal
 Windows Settings → Apps; that also removes the firewall rule. To build it yourself you need Windows with
 Visual Studio 2022 (Desktop development with C++): `flutter build windows --release`, then compile
 `windows/installer/patchlab_rdm.iss` with Inno Setup 6.
+
+## Install on macOS (test build)
+
+1. Download `PatchLab-RDM-<version>-macos.dmg` from the latest pre-release (*mobile-v...*) and drag **PatchLab RDM** to Applications.
+2. The app is not notarized (no Apple developer certificate), so macOS blocks the first start. Open
+   *System Settings, Privacy & Security*, scroll down and press **Open Anyway**; or run once in Terminal:
+   `xattr -dr com.apple.quarantine "/Applications/PatchLab RDM.app"`.
+3. macOS asks for **Local Network** access: choose *Allow*. Without it macOS silently refuses every packet to the network
+   (*Privacy & Security, Local Network* to switch it on later). If the macOS firewall asks about incoming connections
+   (the app is the RDMnet broker for the lamps), choose *Allow*.
+4. Plug the lamps' cable in and open the **Lamps** tab; pick the adapter (`en...`, USB-Ethernet or Thunderbolt) if
+   there are several. A cable without DHCP gives both sides 169.254.x.x within about half a minute.
+
+Needs macOS 12 or newer, Apple Silicon or Intel (universal build). Built in CI on a Mac runner; not tested on a real Mac yet.
 
 ## Install on Android (test build)
 

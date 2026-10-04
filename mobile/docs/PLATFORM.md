@@ -62,6 +62,21 @@ Android app. Reasons for this choice over Swift + Kotlin or React Native:
   replies; a cable without internet is classified *Public* by Windows.
 * Layout: on a wide window the phone layout stays in a centred 820 px column.
 
+## macOS
+
+* Flutter desktop, universal binary (arm64 + x86_64), macOS 12 or newer, bundle id `nl.dimcity.patchlab.rdm`.
+* **Not sandboxed** (`macos/Runner/Release.entitlements`): the app binds fixed UDP ports, joins multicast groups per adapter
+  and runs a TCP broker, and it is handed out as a DMG, not through the App Store. The network client / server entitlements are
+  kept for a sandboxed build. macOS has no multicast entitlement (that one is iOS only).
+* **Local Network privacy** (macOS 15 and later): `NSLocalNetworkUsageDescription` and `NSBonjourServices` are in `Info.plist`.
+  Until the user allows it, every send to the local network fails with *No route to host*; the lamp search counts those per adapter
+  ("sends FAILED" in the diagnostics) and the empty state tells the user where the switch is.
+* Signing: ad hoc (`codesign --sign -`), no notarization. Gatekeeper blocks the first start: *Open Anyway* in Privacy & Security, or
+  `xattr -dr com.apple.quarantine`. The macOS application firewall may ask once about incoming connections (broker).
+* Sockets as elsewhere; `IP_MULTICAST_IF` is option 9 (as on Windows), mDNS port 5353 is shared with `mDNSResponder` through `SO_REUSEPORT`.
+  Adapter names are BSD names (`en0`, `en7`); `awdl`, `llw`, `utun`, `bridge`, `anpi`, `gif`, `stf` are marked virtual.
+* Not verified on real hardware: built and signed in CI only.
+
 ## Network
 
 * Art-Net: UDP 6454 (bound with `SO_REUSEADDR` / `SO_REUSEPORT`).

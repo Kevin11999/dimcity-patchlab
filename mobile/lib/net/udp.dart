@@ -18,6 +18,9 @@ abstract class UdpSocket {
   /// picks by default when empty). Completes with false when a join failed.
   Future<bool> joinMulticast(String group, {Iterable<String> localIps = const []});
 
+  /// Why the last send failed (no route, permission denied, ...), null when sends worked.
+  String? get lastSendError;
+
   void close();
 }
 
@@ -84,12 +87,17 @@ class RawUdpSocket implements UdpSocket {
   int get port => _socket.port;
 
   @override
+  String? lastSendError;
+
+  @override
   int send(List<int> data, InternetAddress address, int port) {
     try {
       return _socket.send(data, address, port);
-    } on SocketException {
+    } on SocketException catch (e) {
+      lastSendError = e.osError?.message ?? e.message;
       return 0;
-    } on OSError {
+    } on OSError catch (e) {
+      lastSendError = e.message;
       return 0;
     }
   }

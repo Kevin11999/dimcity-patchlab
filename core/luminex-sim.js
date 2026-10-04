@@ -8,7 +8,8 @@ export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12
     device: { name, model: 'GigaCore 12t', api_version: '1.5.0' },
     groups: [{ group_id: 1, name: 'Default', vid: 1, color: '#808080', predefined: true }, { group_id: 2, name: 'Management', vid: 10, color: '#2266cc', predefined: true }],
     trunks: [], mode,
-    ports: Array.from({ length: ports }, (_, i) => ({ port_number: i + 1, legend: '', member_of: { type: 'group', id: 1 }, type: i >= ports - 2 ? 'sfp' : 'rj45' })),
+    ports: Array.from({ length: ports }, (_, i) => ({ port_number: i + 1, legend: '', member_of: { type: 'group', id: 1 }, type: i >= ports - 2 ? 'sfp' : 'rj45', enabled: true, link_speed: { mode: 'auto', speed: ['all'] } })),
+    poe: Array.from({ length: Math.min(8, ports - 2) }, (_, i) => ({ port_number: i + 1, enabled: true })),
     ip: { mode: 'dhcp', ip_address: ip, prefix_length: 24, default_gateway: '0.0.0.0' },
     log: [] };
   const h = async (method, path, body) => {
@@ -20,6 +21,8 @@ export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12
       if(path === '/api/trunks/trunk') return clone(st.trunks);
       if(path === '/api/ports') return clone({ port: st.ports });
       if(path === '/api/ip_settings') return clone(st.ip);
+      if(path === '/api/poe/capable') return st.poe.length > 0;
+      if(path === '/api/poe/ports') return clone(st.poe);
       if(path === '/api/config/mode') return st.mode;
       throw err(404, path);
     }
@@ -47,6 +50,12 @@ export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12
         if(!ok) throw err(400, 'unknown member');
       }
       p[m[2]] = body; return body;
+    }
+    if((m = path.match(/^\/api\/poe\/ports\/(\d+)\/enabled$/)) && method === 'PUT'){ const q = st.poe.find(x => x.port_number === +m[1]); if(!q) throw err(404, 'no PoE on port'); if(typeof body !== 'boolean') throw err(400, 'boolean'); q.enabled = body; return body; }
+    if((m = path.match(/^\/api\/ports\/port\/(\d+)\/link_speed\/(mode|speed)$/)) && method === 'PUT'){
+      const q = st.ports.find(x => x.port_number === +m[1]); if(!q) throw err(404, 'port');
+      if(m[2] === 'mode' && !['auto', 'fixed'].includes(body)) throw err(400, 'mode'); if(m[2] === 'speed' && !Array.isArray(body)) throw err(400, 'speed list');
+      q.link_speed[m[2]] = clone(body); if(m[2] === 'mode' && body === 'auto') q.link_speed.speed = ['all']; return body;
     }
     if((m = path.match(/^\/api\/config\/profiles\/(\d+)\/save$/)) && method === 'PUT'){ st.profiles = st.profiles || {}; st.profiles[m[1]] = clone({ device: st.device, groups: st.groups, trunks: st.trunks, ports: st.ports }); return null; }
     if((m = path.match(/^\/api\/ip_settings\/(mode|prefix_length|default_gateway|ip_address)$/)) && method === 'PUT'){ st.ip[m[1]] = body; return body; }

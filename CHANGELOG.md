@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.6.2 — 2026-10-04
+
+- GigaCore switches, port by port: the button Ports… on a switch opens a table where you set for every port its name, its VLAN / group (a VLAN of the plan the switch does not have yet is made for you), PoE on or off and the speed. Changed rows are shaded, only the changed ports are sent, and the switch is read back to check.
+
+<details><summary>Nederlands</summary>
+
+- GigaCore-switches, poort voor poort: de knop Poorten… bij een switch opent een tabel waarin je per poort de naam, het VLAN / de groep (een VLAN uit het plan dat de switch nog niet heeft wordt voor je aangemaakt), PoE aan of uit en de snelheid instelt. Gewijzigde rijen zijn gearceerd, alleen de gewijzigde poorten worden gestuurd en de switch wordt teruggelezen ter controle.
+
+</details>
+
 ## 0.6.1 — 2026-10-04
 
 - Luminex GigaCore (generation 2) switches over their web API: read the switch, compare it with the plan and send it — a group per VLAN with name and colour, every port in the group of its device and named after it, the fibre ports in a "Fibre" trunk with the management VLAN untagged, the device name and (if ticked) the IP address. You see every call before it is made, and the switch is read again afterwards to check.

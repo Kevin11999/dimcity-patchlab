@@ -107,7 +107,7 @@
     return `<tr data-k="${esc(e.key)}"><td><b>${esc(title)}</b><div class="subtle" style="font-size:11px">${sub}</div></td>
       <td><input data-at="${esc(e.key)}" value="${esc(at)}" placeholder="${esc(planIp || '10.…')}" style="width:130px" ${st.busy ? 'disabled' : ''}>${planIp && at !== planIp ? `<div class="subtle" style="font-size:11px">${t('plan', 'plan')}: ${esc(planIp)}</div>` : ''}</td>
       <td>${status}<div class="subtle" style="font-size:11px">${dev}</div></td>
-      <td style="text-align:right;white-space:nowrap"><button data-read="${esc(e.key)}" ${st.busy ? 'disabled' : ''}>${I('refresh', 13)}${t('Read', 'Uitlezen')}</button> <button class="primary" data-send="${esc(e.key)}" ${st.plan?.ops.length && !st.busy ? '' : 'disabled'}>${t('Send…', 'Sturen…')}</button></td></tr>
+      <td style="text-align:right;white-space:nowrap"><button data-read="${esc(e.key)}" ${st.busy ? 'disabled' : ''}>${I('refresh', 13)}${t('Read', 'Uitlezen')}</button> ${kind === 'sw' ? `<button data-ports="${esc(e.key)}" ${st.busy ? 'disabled' : ''}>${t('Ports…', 'Poorten…')}</button> ` : ''}<button class="primary" data-send="${esc(e.key)}" ${st.plan?.ops.length && !st.busy ? '' : 'disabled'}>${t('Send…', 'Sturen…')}</button></td></tr>
       ${st.err ? `<tr><td colspan="4"><div class="su-warn">${esc(st.err)}</div></td></tr>` : ''}
       ${st.plan && (st.plan.ops.length || st.plan.notes.length) ? `<tr><td colspan="4"><div class="nd-diff">${st.plan.ops.map(o => `<div class="nd-ch">${esc(o.text)}</div>`).join('')}${st.plan.notes.map(n => `<div class="subtle" style="font-size:12px">${I('info', 12)} ${esc(n)}</div>`).join('')}</div></td></tr>` : ''}`;
   }
@@ -141,7 +141,71 @@
     root.querySelectorAll('[data-at]').forEach(i => i.onchange = () => { const st = LX[kind].get(i.dataset.at) || {}; st.at = i.value.trim(); LX[kind].set(i.dataset.at, st); });
     root.querySelectorAll('[data-read]').forEach(b => b.onclick = async () => { const e = find(b.dataset.read); if(!e) return; const st = LX[kind].get(e.key) || {}; LX[kind].set(e.key, st); st.busy = true; rerender(); await readOne(kind, e); rerender(); });
     root.querySelectorAll('[data-send]').forEach(b => b.onclick = async () => { const e = find(b.dataset.send); if(e){ await sendOne(kind, e, rerender); rerender(); } });
+    root.querySelectorAll('[data-ports]').forEach(b => b.onclick = () => { const e = find(b.dataset.ports); if(e) openPorts(e, rerender); });
     if(q('#lxReadAll')) q('#lxReadAll').onclick = async () => { for(const e of L){ if(!(LX[kind].get(e.key)?.at || (kind === 'sw' ? e.s.dev?.ip : e.inst.ip))) continue; await readOne(kind, e); rerender(); } };
   }
-  window.NetLx = { state:LX, switchesHtml, nodesHtml, bind, wantSwitch, wantNode, swList, ndList, readOne, sendOne, transport };
+
+  // ---- ports of one switch: name, VLAN, PoE and speed, each on its own ----
+  const SPEED_LABEL = { auto:'Auto', '1gbps fdx':'1 Gbps', '100mbps fdx':'100 Mbps full', '100mbps hdx':'100 Mbps half', '10mbps fdx':'10 Mbps full', '10mbps hdx':'10 Mbps half', '10gbps fdx':'10 Gbps', '2.5gbps fdx':'2.5 Gbps' };
+  async function openPorts(e, afterClose){
+    await load();
+    const st = LX.sw.get(e.key) || {}; LX.sw.set(e.key, st); st.at ||= e.s.dev?.ip;
+    if(!ipOk(st.at)){ App.ui.toast(t('Fill in the address the switch has now.', 'Vul het adres in dat de switch nu heeft.'), 'info'); return; }
+    const E = new Map();                                    // port -> { legend, member, poe, speed } edited values
+    let cur = null, err = '', busy = true, D = null;
+    const h = () => transport(st.at);
+    const reload = async () => { busy = true; paint(); try { cur = await api.gigacoreRead(h()); err = ''; } catch(x) { err = String(x.message || x); } busy = false; paint(); };
+    const memberKey = m => (m ? `${m.type}:${m.id}` : '');
+    const fromPlan = () => {
+      const w = wantSwitch(e.dc, e.s).want;
+      for(const p of w.ports){ if(p.trunk) continue; const ed = E.get(p.port) || {}; ed.legend = String(p.legend ?? '').slice(0, 16); const g = w.groups.find(x => x.vid === p.vid); if(g) ed.member = { type:'vid', vid:g.vid, name:g.name, color:g.color }; E.set(p.port, ed); }
+      paint();
+    };
+    const edits = () => [...E.entries()].map(([port, v]) => ({ port, ...v }));
+    function paint(){
+      if(!D) return;
+      const body = D.body;
+      if(!cur){ body.innerHTML = `<div class="subtle" style="padding:14px">${busy ? t('Reading the switch…', 'Switch uitlezen…') : ''}${err ? `<div class="su-warn">${esc(err)}</div>` : ''}</div>`; return; }
+      const rows = api.portRows(cur), plan = api.gigacorePortPlan(cur, edits()), changed = new Set(plan.ops.map(o => Number(o.path.match(/\/(?:port|ports)\/(\d+)\//)?.[1])));
+      const planned = wantSwitch(e.dc, e.s).want.groups.filter(g => !cur.groups.some(x => x.vid === g.vid));
+      const opts = [...cur.groups.map(g => ({ k:`group:${g.group_id}`, label:`${g.vid != null ? `VLAN ${g.vid} · ` : ''}${g.name}` })), ...planned.map(g => ({ k:`vid:${g.vid}`, label:`VLAN ${g.vid} · ${g.name} (${t('new group', 'nieuwe groep')})`, g })), ...cur.trunks.map(x => ({ k:`trunk:${x.trunk_id}`, label:`${t('Trunk', 'Trunk')} · ${x.name}` }))];
+      const poeAny = cur.poeCapable || cur.poe.length > 0;
+      body.innerHTML = `${err ? `<div class="su-warn">${esc(err)}</div>` : ''}<div class="ex-row"><button id="lpPlan">${t('Fill names and VLANs from the plan', 'Namen en VLAN’s uit het plan invullen')}</button><button id="lpReset" ${E.size ? '' : 'disabled'}>${t('Undo my changes', 'Mijn wijzigingen ongedaan maken')}</button><span style="flex:1"></span><span class="subtle">${plan.ops.length} ${t('changes', 'wijzigingen')}</span></div>
+        <div class="table-wrap" style="max-height:440px;overflow:auto"><table class="data-table"><thead><tr><th class="num">${t('Port', 'Poort')}</th><th>${t('Name', 'Naam')}</th><th>VLAN / ${t('group', 'groep')}</th>${poeAny ? '<th>PoE</th>' : ''}<th>${t('Speed', 'Snelheid')}</th><th>${t('Link', 'Link')}</th></tr></thead><tbody>${rows.map(r => {
+          const ed = E.get(r.port) || {}, legend = ed.legend ?? r.legend, mk = ed.member?.type === 'vid' ? `vid:${ed.member.vid}` : memberKey(ed.member ?? r.member), poe = ed.poe ?? r.poe, speed = ed.speed ?? r.speed;
+          return `<tr ${changed.has(r.port) ? 'style="background:rgba(255,170,40,.10)"' : ''}><td class="num"><b>${r.port}</b><div class="subtle" style="font-size:10px">${esc(r.type)}</div></td>
+            <td><input data-f="legend" data-p="${r.port}" maxlength="16" value="${esc(legend)}" style="width:130px"></td>
+            <td><select data-f="member" data-p="${r.port}"><option value="" ${mk ? '' : 'selected'}>—</option>${opts.map(o => `<option value="${esc(o.k)}" ${o.k === mk ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select></td>
+            ${poeAny ? `<td>${poe == null ? '<span class="subtle">–</span>' : `<label class="switch"><input type="checkbox" data-f="poe" data-p="${r.port}" ${poe ? 'checked' : ''}><span></span></label>`}</td>` : ''}
+            <td><select data-f="speed" data-p="${r.port}">${api.SPEEDS.map(v => `<option value="${esc(v)}" ${v === speed ? 'selected' : ''}>${esc(SPEED_LABEL[v] || v)}</option>`).join('')}</select></td>
+            <td>${r.link == null ? '<span class="subtle">–</span>' : `<span class="tag ${/up|true/i.test(String(r.link)) ? 'green' : ''}">${esc(typeof r.link === 'object' ? JSON.stringify(r.link) : r.link)}</span>`}</td></tr>`;
+        }).join('')}</tbody></table></div>
+        ${plan.notes.map(n => `<div class="subtle" style="font-size:12px">${I('info', 12)} ${esc(n)}</div>`).join('')}
+        <div class="hint" style="margin-top:8px">${I('info', 13)} ${t('Change what you want; changed rows are shaded. Only changed ports are sent. Fixing a speed on a port that carries a fibre or the link to this laptop can cut the connection — leave those on Auto.', 'Pas aan wat je wilt; gewijzigde rijen zijn gearceerd. Alleen gewijzigde poorten worden gestuurd. Een vaste snelheid op een poort met een fibre of de verbinding met deze laptop kan de verbinding verbreken — laat die op Auto.')}</div>`;
+      body.querySelectorAll('[data-f]').forEach(inp => inp.onchange = () => {
+        const port = Number(inp.dataset.p), f = inp.dataset.f, ed = E.get(port) || {};
+        if(f === 'legend') ed.legend = inp.value; else if(f === 'poe') ed.poe = inp.checked; else if(f === 'speed') ed.speed = inp.value;
+        else if(f === 'member'){ if(inp.value){ const [ty, id] = inp.value.split(':'); const pg = ty === 'vid' ? opts.find(o => o.k === inp.value)?.g : null; ed.member = ty === 'vid' ? { type:'vid', vid:Number(id), name:pg?.name, color:pg?.color } : { type:ty, id:Number(id) }; } else delete ed.member; }
+        E.set(port, ed); paint();
+      });
+      body.querySelector('#lpPlan').onclick = fromPlan;
+      body.querySelector('#lpReset').onclick = () => { E.clear(); paint(); };
+      D.footer.querySelector('[data-a=send]').disabled = busy || !plan.ops.length;
+    }
+    D = App.ui.openDialog({ title:`${e.s.label} — ${t('ports', 'poorten')}`, subtitle:`${st.at}`, width:'900px', body:'',
+      footer:`<button data-a="send" class="primary" disabled>${t('Send changes…', 'Wijzigingen sturen…')}</button><button data-a="close">${t('Close', 'Sluiten')}</button>`, onClose:() => { D = null; afterClose?.(); } });
+    D.footer.querySelector('[data-a=close]').onclick = () => D.close();
+    D.footer.querySelector('[data-a=send]').onclick = async () => {
+      const plan = api.gigacorePortPlan(cur, edits()); if(!plan.ops.length) return;
+      const list = plan.ops.map(o => `<li>${esc(o.text)}<div class="subtle" style="font-size:11px;font-family:monospace">${esc(o.method)} ${esc(o.path)}</div></li>`).join('');
+      const ok = await App.ui.confirmDialog({ title:t('Send to the switch?', 'Naar de switch sturen?'), okLabel:t('Send', 'Sturen'), html:true, width:'560px',
+        message:`<div style="max-height:320px;overflow:auto"><p>${real() ? t(`This changes the live configuration of <b>${esc(st.at)}</b>.`, `Dit verandert de actieve configuratie van <b>${esc(st.at)}</b>.`) : t('Simulated switch — nothing real is changed.', 'Gesimuleerde switch — er wordt niets echts veranderd.')}</p><ol>${list}</ol></div>` });
+      if(!ok) return;
+      busy = true; paint();
+      try { await api.runOps(h(), plan.ops); if(slotOf()) await h()('PUT', `/api/config/profiles/${slotOf()}/save`); window.PatchHistory?.label?.(t('Port settings sent to a switch', 'Poortinstellingen naar een switch gestuurd')); E.clear(); await reload(); App.ui.toast(`${plan.ops.length} ${t('changes sent and read back', 'wijzigingen gestuurd en teruggelezen')}`, 'ok'); await readOne('sw', e); }
+      catch(x) { err = t(`Stopped after an error: ${x.message || x}`, `Gestopt door een fout: ${x.message || x}`); busy = false; await reload(); }
+    };
+    await reload();
+  }
+  window.NetLx = { state:LX, switchesHtml, nodesHtml, bind, wantSwitch, wantNode, swList, ndList, readOne, sendOne, transport, openPorts };
 })();

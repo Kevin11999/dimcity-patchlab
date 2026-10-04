@@ -13,11 +13,13 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // ===================== GigaCore generation 2 =====================
 export async function gigacoreRead(h){
-  const [device, groups, trunks, ports, ip, mode] = await Promise.all([
+  const [device, groups, trunks, ports, ip, mode, poeCap, poe] = await Promise.all([
     h('GET', '/api/device'), h('GET', '/api/groups/group'), h('GET', '/api/trunks/trunk'), h('GET', '/api/ports'), h('GET', '/api/ip_settings'),
-    h('GET', '/api/config/mode').catch(() => null)]);
+    h('GET', '/api/config/mode').catch(() => null), h('GET', '/api/poe/capable').catch(() => false), h('GET', '/api/poe/ports').catch(() => null)]);
   const plist = Array.isArray(ports) ? ports : (ports?.port || []);
-  return { device, groups: groups || [], trunks: trunks || [], ports: plist, ip, mode: typeof mode === 'string' ? mode : mode?.mode || null };
+  const poeList = Array.isArray(poe) ? poe : (poe?.port || poe?.ports || (poe && typeof poe === 'object' ? Object.values(poe) : []));
+  return { device, groups: groups || [], trunks: trunks || [], ports: plist, ip, mode: typeof mode === 'string' ? mode : mode?.mode || null,
+    poeCapable: poeCap === true, poe: poeList.filter(x => x && typeof x === 'object') };
 }
 
 // want = { name, ip:{address,mask,gateway}|null, groups:[{vid,name,color}], mgmtVid, ports:[{port,vid|null,trunk:bool,legend}] , trunkName }
@@ -86,6 +88,52 @@ export function gigacorePlan(cur, want, { withIp = false } = {}){
     }
   }
   return { ops, notes, groupIds: Object.fromEntries(gid), trunkId };
+}
+
+// ---- one port at a time: name, VLAN (group / trunk), PoE and speed ----
+export const SPEEDS = ['auto', '1gbps fdx', '100mbps fdx', '100mbps hdx', '10mbps fdx', '10mbps hdx', '10gbps fdx', '2.5gbps fdx'];
+// what each port looks like on the switch, in a form a table can show
+export function portRows(cur){
+  return cur.ports.map(p => {
+    const poe = cur.poe.find(x => x.port_number === p.port_number);
+    const m = p.member_of || {}, grp = m.type === 'group' ? cur.groups.find(g => g.group_id === m.id) : null, tr = m.type === 'trunk' ? cur.trunks.find(t => t.trunk_id === m.id) : null;
+    const ls = p.link_speed || {}, sp = Array.isArray(ls.speed) ? ls.speed : [];
+    return { port: p.port_number, type: p.type || '', legend: p.legend ?? '', member: m.type ? { type: m.type, id: m.id } : null, vid: grp?.vid ?? null, groupName: grp?.name || tr?.name || '',
+      poe: poe ? poe.enabled !== false : null, speed: ls.mode === 'fixed' && sp.length === 1 && sp[0] !== 'all' ? sp[0] : 'auto', link: p.link_state ?? null, enabled: p.enabled !== false };
+  });
+}
+// edits = [{ port, legend?, member?:{type,id}, poe?:bool, speed?:'auto'|'1gbps fdx'… }] -> calls, only for what differs
+export function gigacorePortPlan(cur, edits){
+  const ops = [], notes = [], rows = portRows(cur);
+  const add = (method, path, body, text) => ops.push({ method, path, body, text, kind: 'config' });
+  // a member given as { type:'vid', vid, name, color } means "the group of this VLAN" — made first when the switch does not have it yet
+  const used = new Set(cur.groups.map(g => g.group_id)), made = new Map();
+  for(const e of edits) if(e.member?.type === 'vid'){
+    const have = cur.groups.find(g => g.vid === e.member.vid);
+    if(have) e.member = { type: 'group', id: have.group_id };
+    else {
+      if(!made.has(e.member.vid)){ let id = 21; while(used.has(id)) id++; used.add(id); made.set(e.member.vid, id); const nm = clip(e.member.name || `VLAN ${e.member.vid}`, MAX_GROUP_NAME); const col = /^#[0-9a-f]{6}$/i.test(e.member.color || '') ? e.member.color : null;
+        add('POST', '/api/groups/group', { group_id: id, name: nm, vid: e.member.vid, ...(col ? { color: col } : {}) }, `New group ${id}: VLAN ${e.member.vid} “${nm}”`); }
+      e.member = { type: 'group', id: made.get(e.member.vid), newVid: e.member.vid };
+    }
+  }
+  for(const e of edits){
+    const r = rows.find(x => x.port === e.port); if(!r){ notes.push(`Port ${e.port} does not exist on this switch.`); continue; }
+    if(e.legend != null && clip(e.legend, MAX_LEGEND) !== r.legend) add('PUT', `/api/ports/port/${e.port}/legend`, clip(e.legend, MAX_LEGEND), `Port ${e.port}: name “${r.legend}” → “${clip(e.legend, MAX_LEGEND)}”`);
+    if(e.member && !same({ type: r.member?.type, id: r.member?.id }, { type: e.member.type, id: e.member.id })){
+      const to = e.member.type === 'group' ? (cur.groups.find(g => g.group_id === e.member.id) || (e.member.newVid != null ? { name: `VLAN ${e.member.newVid}`, vid: e.member.newVid } : null)) : cur.trunks.find(t => t.trunk_id === e.member.id);
+      add('PUT', `/api/ports/port/${e.port}/member_of`, { type: e.member.type, id: e.member.id }, `Port ${e.port}: ${r.groupName || 'no group'} → ${to?.name || `${e.member.type} ${e.member.id}`}${e.member.type === 'group' && to?.vid != null ? ` (VLAN ${to.vid})` : ''}`);
+    }
+    if(e.poe != null){
+      if(r.poe == null) notes.push(`Port ${e.port} has no PoE.`);
+      else if(e.poe !== r.poe) add('PUT', `/api/poe/ports/${e.port}/enabled`, !!e.poe, `Port ${e.port}: PoE ${r.poe ? 'on' : 'off'} → ${e.poe ? 'on' : 'off'}`);
+    }
+    if(e.speed != null && e.speed !== r.speed){
+      if(e.speed === 'auto') add('PUT', `/api/ports/port/${e.port}/link_speed/mode`, 'auto', `Port ${e.port}: speed ${r.speed} → auto`);
+      else { add('PUT', `/api/ports/port/${e.port}/link_speed/speed`, [e.speed], `Port ${e.port}: speed ${r.speed} → ${e.speed}`); add('PUT', `/api/ports/port/${e.port}/link_speed/mode`, 'fixed', `Port ${e.port}: speed fixed`); }
+    }
+  }
+  return { ops, notes };
 }
 
 // ===================== LumiNode / LumiCore =====================

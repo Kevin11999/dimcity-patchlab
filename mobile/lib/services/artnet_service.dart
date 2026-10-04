@@ -92,6 +92,19 @@ class ArtNetPortView {
   PortAddress get address => port.outputAddress;
 }
 
+/// One datagram that arrived on the Art-Net port, for the diagnostics ("what does the cable say?").
+class RxRecord {
+  RxRecord(this.time, this.from, this.port, this.what, this.length);
+  final DateTime time;
+  final String from;
+  final int port;
+  final String what;
+  final int length;
+
+  @override
+  String toString() => '${time.toIso8601String().substring(11, 19)} $from:$port $what ($length bytes)';
+}
+
 class ArtNetRdmReceived {
   ArtNetRdmReceived({required this.ip, required this.port, required this.rdm, required this.packet});
   final String ip;
@@ -157,6 +170,29 @@ class ArtNetService {
   int pollsSent = 0;
   int repliesSeen = 0;
 
+  /// Datagrams that came in on the Art-Net port from somebody else (not our own broadcasts), newest last.
+  final List<RxRecord> received = <RxRecord>[];
+  int datagramsSeen = 0;
+
+  static const _opNames = <int, String>{
+    ArtNet.opPoll: 'ArtPoll',
+    ArtNet.opPollReply: 'ArtPollReply',
+    ArtNet.opTodRequest: 'ArtTodRequest',
+    ArtNet.opTodData: 'ArtTodData',
+    ArtNet.opRdm: 'ArtRdm',
+    ArtNet.opAddress: 'ArtAddress',
+  };
+
+  void _log(Datagram d) {
+    final from = d.address.address;
+    if (_ifaces.values.any((i) => i.address.ip == from)) return; // our own broadcast coming back
+    datagramsSeen++;
+    final op = ArtNet.opcodeOf(d.data);
+    final what = op == null ? 'not Art-Net' : (_opNames[op] ?? 'Art-Net opcode 0x${op.toRadixString(16)}');
+    received.add(RxRecord(DateTime.now(), from, d.port, what, d.data.length));
+    if (received.length > 40) received.removeAt(0);
+  }
+
   List<LocalAddress> get localAddresses => [for (final i in _ifaces.values) i.address];
 
   final Map<String, ArtNetNodeInfo> nodes = <String, ArtNetNodeInfo>{};
@@ -191,9 +227,10 @@ class ArtNetService {
   }
 
   void _onDatagram(Datagram d) {
+    if (_ifaces.isNotEmpty && _duplicate(d)) return;
+    _log(d);
     final op = ArtNet.opcodeOf(d.data);
     if (op == null) return;
-    if (_ifaces.isNotEmpty && _duplicate(d)) return;
     switch (op) {
       case ArtNet.opPollReply:
         final r = ArtPollReply.decode(d.data);
@@ -438,6 +475,10 @@ class ArtNetService {
     }
     for (final e in interfaceErrors.entries) {
       b.writeln('  adapter ${e.key} unusable: ${e.value}');
+    }
+    b.writeln('  datagrams from others on port 6454: $datagramsSeen${received.isEmpty ? '' : ', the last ones:'}');
+    for (final r in received.reversed.take(15).toList().reversed) {
+      b.writeln('    $r');
     }
     for (final n in nodes.values) {
       final own = n.ownUid;

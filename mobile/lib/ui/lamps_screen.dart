@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app/backend.dart';
+import '../app/lamp_diagnosis.dart';
+import '../net/adapters.dart';
+import '../net/add_address.dart';
 import '../app/port_session.dart';
 import '../app/settings.dart';
 import '../app/version.dart';
@@ -34,6 +37,7 @@ class _LampsScreenState extends State<LampsScreen> {
   bool? _demoSeen;
   bool _starting = false;
   Timer? _auto;
+  List<AdapterInfo> _adapters = const [];
 
   @override
   void initState() {
@@ -69,6 +73,7 @@ class _LampsScreenState extends State<LampsScreen> {
     try {
       await widget.backend.start();
       await session.discover(quiet: quiet);
+      _adapters = await widget.backend.allAdapters();
     } finally {
       _starting = false;
       if (mounted) setState(() {});
@@ -195,20 +200,48 @@ class _LampsScreenState extends State<LampsScreen> {
     );
   }
 
-  /// The adapter the lamps' cable is most likely on: the one picked, else a cable address (169.254), else any real one.
+  /// The adapter the lamps' cable is most likely on: the one picked, else a cable address (169.254), else a wired-looking
+  /// name, else any real one. Wi-Fi is the last choice.
   String _cableAdapterName() {
     final picked = widget.settings.lampsAdapter;
     if (picked.isNotEmpty) return picked;
-    final local = widget.backend.artnet?.localAddresses ?? const [];
+    final local = [for (final a in _adapters) a];
     final real = local.where((a) => !a.isVirtual).toList();
-    return (real.where((a) => a.ip.startsWith('169.254.')).firstOrNull ?? real.firstOrNull ?? local.firstOrNull)?.interfaceName ?? 'Ethernet';
+    bool wifi(AdapterInfo a) => RegExp(r'wi-?fi|wlan|wireless|airport', caseSensitive: false).hasMatch(a.name);
+    bool wired(AdapterInfo a) => RegExp(r'ethernet|lan|usb|thunderbolt', caseSensitive: false).hasMatch(a.name) && !wifi(a);
+    final pick = real.where((a) => a.isLinkLocal && !wifi(a)).firstOrNull ??
+        real.where(wired).firstOrNull ??
+        real.where((a) => !wifi(a)).firstOrNull ??
+        real.firstOrNull ??
+        local.firstOrNull;
+    return pick?.name ?? 'Ethernet';
   }
 
-  String _addAddressCommand(String ip) {
+  String _addAddressCommand(String ip) => AddAddress.command(_cableAdapterName(), ip);
+
+  /// One click: ask the operating system (UAC / password) to add the address, then search again.
+  Future<void> _addAddress(String ip) async {
     final name = _cableAdapterName();
-    if (Platform.isWindows) return 'netsh interface ip add address "$name" $ip 255.0.0.0';
-    if (Platform.isMacOS) return 'sudo ifconfig $name alias $ip 255.0.0.0';
-    return 'sudo ip addr add $ip/8 dev $name';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t('lamps.addip.title')),
+        content: Text(t('lamps.addip.body', {'ip': ip, 'adapter': name})),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('common.cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t('lamps.addip.go'))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final error = await AddAddress.add(name, ip);
+    if (!mounted) return;
+    showMessage(context, error == null ? t('lamps.addip.done', {'ip': ip}) : t('lamps.addip.failed', {'e': error}));
+    if (error == null) {
+      // The adapter needs a moment before the address is usable.
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (mounted) await _search();
+    }
   }
 
   /// One line on the broker state, null in demo mode (there is no broker).
@@ -233,6 +266,55 @@ class _LampsScreenState extends State<LampsScreen> {
       ..write(widget.backend.lampsTransport?.report() ?? '');
     await Clipboard.setData(ClipboardData(text: text.toString()));
     if (mounted) showMessage(context, t('lamps.diag.copied'));
+  }
+
+  /// What the app saw, in plain words, with the most important problem first.
+  Widget _diagnosis() {
+    final checks = diagnoseLamps(
+      adapters: _adapters,
+      artnet: widget.backend.artnet,
+      artnetError: widget.backend.artnetError,
+      llrp: widget.backend.llrp,
+      lampsFound: session.fixtures.length,
+      demo: widget.backend.isDemo,
+    );
+    if (checks.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+      child: Column(
+        children: [
+          for (final c in checks)
+            NoticeCard(
+              t(c.key, c.args),
+              icon: switch (c.level) {
+                CheckLevel.ok => Icons.check_circle_outline,
+                CheckLevel.warn => Icons.warning_amber_rounded,
+                CheckLevel.bad => Icons.error_outline,
+              },
+              iconColor: switch (c.level) {
+                CheckLevel.ok => Pal.teal,
+                CheckLevel.warn => Pal.amber,
+                CheckLevel.bad => Pal.red,
+              },
+              action: c.key == 'diag.range'
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        FilledButton(onPressed: () => _addAddress('2.0.0.100'), child: Text(t('lamps.addip'))),
+                        TextButton(
+                          onPressed: () async {
+                            await Clipboard.setData(ClipboardData(text: _addAddressCommand('2.0.0.100')));
+                            if (mounted) showMessage(context, t('lamps.range.copied'));
+                          },
+                          child: Text(t('lamps.range.copy')),
+                        ),
+                      ],
+                    )
+                  : null,
+            ),
+        ],
+      ),
+    );
   }
 
   /// What to check when no lamp shows up; the permission step depends on the operating system.
@@ -265,6 +347,7 @@ class _LampsScreenState extends State<LampsScreen> {
             ],
           ),
         ),
+        _diagnosis(),
         Card(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -285,6 +368,7 @@ class _LampsScreenState extends State<LampsScreen> {
         if (llrp != null)
           Card(
             child: ExpansionTile(
+              initiallyExpanded: true,
               shape: const Border(),
               collapsedShape: const Border(),
               title: Text(t('lamps.diag'), style: Theme.of(context).textTheme.titleSmall),

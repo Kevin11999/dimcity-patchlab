@@ -76,6 +76,9 @@ class AppBackend extends ChangeNotifier {
 
   /// RDMnet broker for the lamps on the cable: the app's own, or one that is on the network.
   LampBroker? lampBroker;
+
+  /// Why the Art-Net socket (UDP 6454) could not be opened, if it could not.
+  String? artnetError;
   LampsTransport? _lampsTransport;
   BrokerConnection? broker;
   LocalNetwork network = const LocalNetwork();
@@ -122,6 +125,7 @@ class AppBackend extends ChangeNotifier {
       if (settings.extraBroadcast.isNotEmpty) artnet!.broadcastTargets.add(settings.extraBroadcast);
     } catch (e) {
       error = 'Art-Net socket: $e';
+      artnetError = e.toString();
     }
     rdmnet = RdmnetService(cid: settings.cid, controllerUid: settings.controllerUid);
     llrp = LlrpService(
@@ -204,6 +208,7 @@ class AppBackend extends ChangeNotifier {
     llrpDevices = <LlrpDevice>[];
     gateways = <RdmnetGateway>[];
     rdmnetStatus = null;
+    artnetError = null;
     started = false;
   }
 

@@ -92,7 +92,8 @@ Build it yourself: `flutter build apk --release --target-platform android-arm64 
 Lamps that speak **Art-Net** themselves (they answer ArtPoll, sit on 2.x.x.x or 10.x.x.x, set to *Art-Net* or *Auto*) are found
 in the same list: ArtPoll goes out of every network adapter, the lamp's UID comes from its poll reply or Table of Devices, and RDM
 goes unicast inside your subnet and by broadcast outside it. Give your laptop an extra address in the lamps' range (for example
-2.0.0.100 / 255.0.0.0); the app tells you when it is needed and copies the command. See [docs/PROTOCOLS.md](docs/PROTOCOLS.md) section 0a.
+2.0.0.100 / 255.0.0.0); the Lamps tab tells you when it is needed and has an **Add address** button (Windows: UAC prompt, macOS: administrator password) or copies the command.
+When nothing is found, the tab lists what the app saw in plain words (adapters, port 6454, polls sent, packets received) and **Copy diagnostics** copies all of it. See [docs/PROTOCOLS.md](docs/PROTOCOLS.md) section 0a.
 
 For RDMnet lamps it works because they answer **LLRP** (ANSI E1.33): a multicast search that needs nothing configured. Two
 devices on one cable both fall back to link-local addresses (169.254.x.x) and find each other.

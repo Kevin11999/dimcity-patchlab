@@ -33,6 +33,10 @@ that was written down for an app that works on a real rig, and the lamp search f
 **The laptop needs an address in the lamps' range** (an alias next to its own address works): without one the lamps' broadcast answers
 may never reach the app. The Lamps tab says so ("outside our subnets") and copies the command that adds the address, e.g.
 `netsh interface ip add address "Ethernet" 2.0.0.100 255.0.0.0` (Windows, as administrator) or `sudo ifconfig en7 alias 2.0.0.100 255.0.0.0` (macOS).
+The Add address button runs `netsh interface ipv4 add address` through an elevated PowerShell (Windows) or `ifconfig ... alias` through AppleScript
+with administrator privileges (macOS); the adapter name is checked before it goes into a command (`lib/net/add_address.dart`; the Windows and macOS
+paths are covered by tests of the command lines only, not run on those systems). On the Lamps tab `lib/app/lamp_diagnosis.dart` turns the
+adapter list, the Art-Net socket state, the polls sent and the datagrams received (`ArtNetService.received`) into plain-language findings.
 Lamps found both ways (RDMnet and Art-Net) are one lamp; the route that worked last is asked first, the others are the fallback.
 
 ## 0. Lamps straight on the cable: LLRP (the Lamps tab)

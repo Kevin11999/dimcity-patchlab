@@ -415,6 +415,11 @@ Click a node to open it. You see its DMX ports as tiles: number, name, direction
 - **One port:** click a port without a brush and use the panel below the tiles.
 - The node keeps its own rules: the name and direction are written on the DMX port, the universe and protocol on the network input (or, for a DMX input, output) that is connected to it through its process block. Changing the direction or the protocol makes a new input / output, connects it and removes the old one; the preview shows every step. A port whose set-up is not recognised, or whose input is shared with another port, is left alone and explained.
 
+### All settings and sending to other devices
+Every card has a section **All settings**. It lists everything the Luminex API lets you change, in sections (pick one, or search for a word like "jumbo" or "IGMP"). Ports, VLAN groups, outputs and so on are a table with one row each; the **all** button under a column title puts that value on every row. Changed values are marked and stay pending until you press Apply (they are in the list of calls too). Settings that can lock you out (IP, security, switching ports off) carry a warning sign.
+
+**Send to other devices…** copies your pending changes, or whole sections of this device, to as many devices of the same kind as you tick. Only the differences are prepared; names, descriptions and addresses go along only if you tick that, risky settings too. Check the result per device or under **Apply all**.
+
 ### Apply
 **Apply…** on a card, or **Apply all** at the top, shows every call per device (method and path) before anything is sent. After you confirm they are made one by one; it stops at the first error. Then the device is read again and checked against what you asked. Changing the IP address always comes last. Optionally a switch configuration is saved in a profile slot (Connection). It works on GigaCore generation 2 and LumiNode / LumiCore; generation 1 switches are not covered.
 
@@ -595,6 +600,12 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 
 <a id="whats-new"></a>
 ## What's new
+
+### Version 0.8.0 — 2026-10-04
+- New: "All settings" on every GigaCore and LumiNode card in Network Config. It lists every setting the newest Luminex API files (GigaCore WebApi 1.5, LumiNode WebApi 2.9) allow to change, grouped in sections (Ports, PoE, VLAN groups, IGMP, SNMP, PTP, DHCP server, display, DMX, protocols, LEDs …) with a search box, the right control per setting (switch, list, number with limits) and a table per port / group / output.
+- Per column an "all" button sets the same value on every row. Changes stay pending (marked) until you press Apply; risky or device-specific settings are marked.
+- Send to other devices: copy your pending changes, or whole sections of one device, to any number of devices of the same kind at once (only where they differ; names, addresses and risky settings only when you tick them). It prepares the changes; Apply all sends them and every device is read back.
+- Not in this editor: LumiNode network address, process-block wiring beyond the existing port editor, software upload, profiles and reboot / reset actions. Tested against simulated devices; check on a real device first.
 
 ### Version 0.7.4 — 2026-10-04
 - Trunk fixed after looking at a real GigaCore 20t: its built-in trunk (ISL) only carries the built-in VLAN groups, so a VLAN group made from the plan (like 1090) was missing on the fibre. PatchLab now adds the groups of the plan to that trunk, leaves its untagged VLAN alone, checks afterwards that the trunk really carries every VLAN, and otherwise uses a trunk of its own.
@@ -1150,6 +1161,11 @@ Klik op een node om hem open te klappen. Je ziet de DMX-poorten als tegels: numm
 - **Eén poort:** klik zonder kwast op een poort en gebruik het paneel onder de tegels.
 - De node houdt zijn eigen regels aan: naam en richting staan op de DMX-poort, universe en protocol op de netwerkingang (of, bij een DMX-ingang, netwerkuitgang) die er via zijn process block aan hangt. Een richting of protocol veranderen maakt een nieuwe ingang / uitgang, koppelt die en verwijdert de oude; het voorbeeld toont elke stap. Een poort waarvan de opzet niet herkend wordt, of waarvan de ingang gedeeld is met een andere poort, blijft ongemoeid en wordt uitgelegd.
 
+### Alle instellingen en naar andere apparaten sturen
+Elke kaart heeft een onderdeel **Alle instellingen**. Daar staat alles wat de Luminex API laat veranderen, in onderdelen (kies er een, of zoek op een woord als "jumbo" of "IGMP"). Poorten, VLAN-groepen, uitgangen enzovoort staan in een tabel met één rij per stuk; de knop **alle** onder een kolomtitel zet die waarde op elke rij. Gewijzigde waarden zijn gemarkeerd en blijven klaar staan tot je op Toepassen drukt (ze staan ook in de lijst met aanroepen). Instellingen waarmee je jezelf kunt buitensluiten (IP, beveiliging, poorten uitzetten) hebben een waarschuwingsteken.
+
+**Naar andere apparaten sturen…** kopieert je klaargezette wijzigingen, of hele onderdelen van dit apparaat, naar zoveel apparaten van hetzelfde soort als je aanvinkt. Alleen de verschillen worden klaargezet; namen, beschrijvingen en adressen gaan alleen mee als je dat aanvinkt, risicovolle instellingen ook. Controleer het resultaat per apparaat of onder **Alles toepassen**.
+
 ### Toepassen
 **Toepassen…** op een kaart, of **Alles toepassen** bovenaan, toont per apparaat elke aanroep (methode en pad) voordat er iets gestuurd wordt. Na je bevestiging gebeuren ze een voor een; bij de eerste fout stopt het. Daarna wordt het apparaat opnieuw uitgelezen en vergeleken met wat je vroeg. Het IP-adres veranderen gebeurt altijd als laatste. Optioneel wordt een switchconfiguratie in een profielslot bewaard (Verbinding). Het werkt op GigaCore generatie 2 en LumiNode / LumiCore; generatie 1-switches vallen erbuiten.
 
@@ -1330,6 +1346,12 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.8.0 — 2026-10-04
+- Nieuw: "Alle instellingen" op elke GigaCore- en LumiNode-kaart in Netwerkconfig. Het toont elke instelling die de nieuwste Luminex API-bestanden (GigaCore WebApi 1.5, LumiNode WebApi 2.9) laten veranderen, in onderdelen (Poorten, PoE, VLAN-groepen, IGMP, SNMP, PTP, DHCP-server, display, DMX, protocollen, LED's …) met zoekbalk, de juiste bediening per instelling (schakelaar, lijst, getal met grenzen) en een tabel per poort / groep / uitgang.
+- Per kolom zet een "alle"-knop dezelfde waarde op elke rij. Wijzigingen blijven klaar staan (gemarkeerd) tot je op Toepassen drukt; risicovolle of apparaatspecifieke instellingen zijn gemarkeerd.
+- Naar andere apparaten sturen: kopieer je klaargezette wijzigingen, of hele onderdelen van één apparaat, in één keer naar zoveel apparaten van hetzelfde soort als je wilt (alleen waar ze verschillen; namen, adressen en risicovolle instellingen alleen als je die aanvinkt). Dit zet de wijzigingen klaar; Alles toepassen stuurt ze en elk apparaat wordt teruggelezen.
+- Niet in deze editor: netwerkadres van de LumiNode, process-block-koppelingen buiten de bestaande poort-editor, software-upload, profielen en herstart-/reset-acties. Getest met gesimuleerde apparaten; controleer eerst op een echt apparaat.
 
 ### Versie 0.7.4 — 2026-10-04
 - Trunk gerepareerd na het bekijken van een echte GigaCore 20t: zijn ingebouwde trunk (ISL) bevat alleen de ingebouwde VLAN-groepen, dus een VLAN-groep uit het plan (zoals 1090) ontbrak op de fibre. PatchLab voegt de groepen uit het plan nu aan die trunk toe, laat de untagged VLAN ervan met rust, controleert achteraf dat de trunk echt elke VLAN draagt en gebruikt anders een eigen trunk.

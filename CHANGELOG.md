@@ -4,6 +4,22 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.8.0 — 2026-10-04
+
+- New: "All settings" on every GigaCore and LumiNode card in Network Config. It lists every setting the newest Luminex API files (GigaCore WebApi 1.5, LumiNode WebApi 2.9) allow to change, grouped in sections (Ports, PoE, VLAN groups, IGMP, SNMP, PTP, DHCP server, display, DMX, protocols, LEDs …) with a search box, the right control per setting (switch, list, number with limits) and a table per port / group / output.
+- Per column an "all" button sets the same value on every row. Changes stay pending (marked) until you press Apply; risky or device-specific settings are marked.
+- Send to other devices: copy your pending changes, or whole sections of one device, to any number of devices of the same kind at once (only where they differ; names, addresses and risky settings only when you tick them). It prepares the changes; Apply all sends them and every device is read back.
+- Not in this editor: LumiNode network address, process-block wiring beyond the existing port editor, software upload, profiles and reboot / reset actions. Tested against simulated devices; check on a real device first.
+
+<details><summary>Nederlands</summary>
+
+- Nieuw: "Alle instellingen" op elke GigaCore- en LumiNode-kaart in Netwerkconfig. Het toont elke instelling die de nieuwste Luminex API-bestanden (GigaCore WebApi 1.5, LumiNode WebApi 2.9) laten veranderen, in onderdelen (Poorten, PoE, VLAN-groepen, IGMP, SNMP, PTP, DHCP-server, display, DMX, protocollen, LED's …) met zoekbalk, de juiste bediening per instelling (schakelaar, lijst, getal met grenzen) en een tabel per poort / groep / uitgang.
+- Per kolom zet een "alle"-knop dezelfde waarde op elke rij. Wijzigingen blijven klaar staan (gemarkeerd) tot je op Toepassen drukt; risicovolle of apparaatspecifieke instellingen zijn gemarkeerd.
+- Naar andere apparaten sturen: kopieer je klaargezette wijzigingen, of hele onderdelen van één apparaat, in één keer naar zoveel apparaten van hetzelfde soort als je wilt (alleen waar ze verschillen; namen, adressen en risicovolle instellingen alleen als je die aanvinkt). Dit zet de wijzigingen klaar; Alles toepassen stuurt ze en elk apparaat wordt teruggelezen.
+- Niet in deze editor: netwerkadres van de LumiNode, process-block-koppelingen buiten de bestaande poort-editor, software-upload, profielen en herstart-/reset-acties. Getest met gesimuleerde apparaten; controleer eerst op een echt apparaat.
+
+</details>
+
 ## 0.7.4 — 2026-10-04
 
 - Trunk fixed after looking at a real GigaCore 20t: its built-in trunk (ISL) only carries the built-in VLAN groups, so a VLAN group made from the plan (like 1090) was missing on the fibre. PatchLab now adds the groups of the plan to that trunk, leaves its untagged VLAN alone, checks afterwards that the trunk really carries every VLAN, and otherwise uses a trunk of its own.

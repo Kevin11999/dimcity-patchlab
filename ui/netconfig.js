@@ -14,8 +14,8 @@
   const ipNum = ip => String(ip).split('.').reduce((n, o) => n * 256 + (+o || 0), 0);
   const ipOk = ip => /^\d{1,3}(\.\d{1,3}){3}$/.test(String(ip || '').trim());
   const C = { user:'admin', pass:'', https:false, ranges:'', withIp:false, slot:'', offset:0, einkOpen:new Set(), eink:new Map(), found:null, busy:false, err:'', info:'', dev:new Map(), open:new Set(), simDevs:null, drag:null };
-  let api = null, simm = null, root = null;
-  const load = async () => { if(!api){ const b = document.baseURI; api = await import(new URL('./core/luminex-api.js', b).href); simm = await import(new URL('./core/luminex-sim.js', b).href); } };
+  let api = null, simm = null, root = null, SET = null;
+  const load = async () => { if(!api){ const b = document.baseURI; api = await import(new URL('./core/luminex-api.js', b).href); simm = await import(new URL('./core/luminex-sim.js', b).href); SET = await import(new URL('./core/luminex-settings.js', b).href); } };
   const real = () => !!window.app?.luminexHttp;
   const FENT = () => window.Fent;
   const clone = x => JSON.parse(JSON.stringify(x));
@@ -64,7 +64,7 @@
 
   // ---------- one device ----------
   const D = ip => C.dev.get(ip);
-  function mk(f){ return { ip:f.ip, kind:f.kind, name:f.name || '', longName:f.longName || '', model:f.model || '', version:f.version || '', auth:!!f.auth, link:null, cur:null, E:new Map(), dev:{}, brush:null, sel:null, busy:false, err:'', note:'', verified:false, step:1 }; }
+  function mk(f){ return { ip:f.ip, kind:f.kind, name:f.name || '', longName:f.longName || '', model:f.model || '', version:f.version || '', auth:!!f.auth, link:null, cur:null, E:new Map(), dev:{}, brush:null, sel:null, tree:null, treeBusy:false, S:new Map(), setOpen:false, setSec:null, setQ:'', busy:false, err:'', note:'', verified:false, step:1 }; }
   const isSw = d => d.kind === 'gigacore';
   const ports = d => (isSw(d) ? api.portRows(d.cur) : d.cur.ports);
   // what the ports look like with the pending changes on top
@@ -115,6 +115,7 @@
       const p = api.lumiPlan(d.cur, { shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || '255.255.255.0', gateway:d.dev.gateway || '' } : null, ports:per }, { withIp:!!d.dev.ip, artnetOffset:C.offset });
       ops.push(...p.ops); notes.push(...p.notes);
     }
+    if(d.S.size && d.tree){ const so = SET.settingsOps(isSw(d) ? 'gigacore' : 'lumi', d.tree, [...d.S.values()]); ops.push(...so.ops); notes.push(...so.notes); }
     return { ops, notes };
   }
   const changeCount = d => opsOf(d).ops.length;
@@ -145,7 +146,7 @@
   async function readDev(d, keepEdits){
     d.busy = true; d.err = ''; d.verified = false;
     try { await load(); const h = transport(d.ip); d.cur = isSw(d) ? await api.gigacoreRead(h) : await api.lumiRead(h);
-      if(!keepEdits){ d.E = new Map(); d.dev = {}; }
+      if(!keepEdits){ d.E = new Map(); d.dev = {}; d.S = new Map(); d.tree = null; }
       if(isSw(d)){ d.name = d.cur.device?.name || d.name; d.model = d.cur.device?.model || d.model; } else { d.name = d.cur.info?.short_name || d.name; d.longName = d.cur.info?.long_name || ''; d.version = d.cur.version || d.version; }
     } catch(x) { d.cur = null; d.err = String(x.message || x); if(/401/.test(d.err)) d.auth = true; }
     d.busy = false;
@@ -195,7 +196,7 @@
         await load(); const h = logged(d); await api.runOps(h, ops);
         if(isSw(d) && Number(C.slot) >= 1 && Number(C.slot) <= 20) await h('PUT', `/api/config/profiles/${Number(C.slot)}/save`);
         const ipOp = ops.find(o => o.kind === 'ip'); if(ipOp){ d.ip = d.dev.ip; if(real()) await new Promise(r => setTimeout(r, 2500)); }
-        d.E = new Map(); d.dev = {}; d.trunkEdit = null; await readDev(d);
+        d.E = new Map(); d.dev = {}; d.trunkEdit = null; d.S = new Map(); d.tree = null; await readDev(d);
         await verifyTrunk(d, ops, h);
         d.verified = !d.err && changeCount(d) === 0;
       } catch(x) { failed++; d.err = t(`Stopped after an error: ${x.message || x}. Read the device again to see what was applied.`, `Gestopt door een fout: ${x.message || x}. Lees het apparaat opnieuw uit om te zien wat is toegepast.`); }
@@ -382,6 +383,116 @@
     e.busy = false; paint(); einkPreviewUpdate(d);
   }
 
+
+  // ---------- all settings: everything the API of the device allows to change ----------
+  const kindOf = d => (isSw(d) ? 'gigacore' : 'lumi');
+  const skey = (fid, ids) => fid + '|' + ids.join(',');
+  async function settingsLoad(d){
+    if(d.tree || d.treeBusy) return; d.treeBusy = true; paint();
+    try { await load(); d.tree = await SET.readTree(kindOf(d), transport(d.ip)); } catch(x) { d.err = String(x.message || x); d.tree = {}; }
+    d.treeBusy = false; paint();
+  }
+  const setCount = (d, sec) => { let n = 0; for(const e of d.S.values()) if(!sec || SET.fieldById(kindOf(d), e.fid)?.sec === sec) n++; return n; };
+  // one control for one value of one setting
+  function ctl(d, f, ids, val, extra = ''){
+    const key = skey(f.id, ids), edited = d.S.has(key), v = edited ? d.S.get(key).value : val, cls = edited ? 'chg' : '', at = `data-sf="${esc(f.id)}" data-ids='${esc(JSON.stringify(ids))}' ${extra}`;
+    const title = esc([f.desc, f.min != null || f.max != null ? `${f.min ?? ''}…${f.max ?? ''}` : '', f.danger ? t('Careful: this can cut the connection', 'Pas op: dit kan de verbinding verbreken') : ''].filter(Boolean).join(' — '));
+    if(v === undefined) return `<span class="subtle">–</span>`;
+    if(f.type === 'boolean') return `<input type="checkbox" class="${cls}" ${at} ${v ? 'checked' : ''} title="${title}">`;
+    if(f.type === 'enum') return `<select class="${cls}" ${at} title="${title}">${f.enum.map(o => `<option value="${esc(o)}" ${String(o) === String(v) ? 'selected' : ''}>${esc(o)}</option>`).join('')}${f.enum.some(o => String(o) === String(v)) ? '' : `<option value="${esc(v)}" selected>${esc(v)}</option>`}</select>`;
+    if(f.type === 'integer' || f.type === 'number') return `<input type="number" class="${cls}" ${at} value="${esc(v)}" ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''} step="${f.type === 'integer' ? 1 : 'any'}" title="${title}">`;
+    if(f.type === 'list') return `<input type="text" class="${cls}" ${at} value="${esc(SET.display(v))}" title="${title}" placeholder="1, 2, 3">`;
+    if(/^#/.test(String(v)) && f.pattern && /a-fA-F0-9/.test(f.pattern)) return `<input type="color" class="${cls}" ${at} value="${esc(String(v).slice(0, 7))}" title="${title}">`;
+    return `<input type="text" class="${cls}" ${at} value="${esc(v)}" ${f.maxLength ? `maxlength="${f.maxLength}"` : ''} title="${title}">`;
+  }
+  function fieldsTable(d, list){
+    const k = kindOf(d), tree = d.tree, cid = list[0].coll, ids = SET.itemsOf(k, tree, cid);
+    if(!ids.length) return `<div class="subtle">${t('None on this device.', 'Geen op dit apparaat.')}</div>`;
+    const head = list.map(f => `<th title="${esc((f.group ? f.group + ' › ' : '') + f.label)}">${esc(f.label)}${f.danger ? ' ⚠' : ''}<div class="nc-all">${ctl(d, f, [], SET.valueOf(k, tree, f, ids[0]) ?? (f.type === 'boolean' ? false : f.enum?.[0] ?? ''), 'data-all="1"')}<button data-sfall="${esc(f.id)}" title="${t('Set this value on every row', 'Zet deze waarde op elke rij')}">${t('all', 'alle')}</button></div></th>`).join('');
+    const rows = ids.map(it => `<tr><th class="nc-rowh">${esc(SET.labelOfItem(k, cid, it))}</th>${list.map(f => `<td>${ctl(d, f, it, SET.valueOf(k, tree, f, it))}</td>`).join('')}</tr>`).join('');
+    return `<div class="nc-set-wrap" data-scrollkey="${esc(d.ip + cid)}"><table class="nc-set-table"><thead><tr><th></th>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  function settingsBody(d){
+    const k = kindOf(d), secs = SET.sections(k), q = d.setQ.trim().toLowerCase();
+    const sec = d.setSec && secs.some(x => x.id === d.setSec) ? d.setSec : secs[0].id;
+    const match = f => !q || `${f.label} ${f.group} ${f.desc || ''} ${SET.titleOf(k, f.sec)}`.toLowerCase().includes(q);
+    const all = SET.fields(k).filter(f => (q ? true : f.sec === sec) && match(f));
+    const bySec = new Map(); for(const f of all){ if(!bySec.has(f.sec)) bySec.set(f.sec, []); bySec.get(f.sec).push(f); }
+    const part = [...bySec.entries()].map(([sc, list]) => {
+      const glob = list.filter(f => !f.coll), colls = [...new Set(list.filter(f => f.coll).map(f => f.coll))];
+      const groups = [...new Set(glob.map(f => f.group))];
+      return `${q ? `<h4 class="nc-set-h">${esc(SET.titleOf(k, sc))}</h4>` : ''}
+        ${groups.map(g => `<div class="nc-set-grid">${g ? `<div class="nc-set-g">${esc(g)}</div>` : ''}${glob.filter(f => f.group === g).map(f => `<label class="nc-set-row"><span>${esc(f.label)}${f.danger ? ' ⚠' : ''}${f.desc ? `<small>${esc(f.desc)}</small>` : ''}</span>${ctl(d, f, [], SET.valueOf(k, d.tree, f, []))}</label>`).join('')}</div>`).join('')}
+        ${colls.map(cid => `<div class="nc-set-coll"><b>${esc(SET.collOf(k, { coll: cid }) ? (SET.fieldById(k, list.find(f => f.coll === cid).id) && cid.split('/').filter(x => !x.startsWith('{')).slice(2).map(x => x.replace(/_/g, ' ')).join(' › ')) : cid)}</b></div>${fieldsTable(d, list.filter(f => f.coll === cid))}`).join('')}`;
+    }).join('') || `<div class="subtle">${t('Nothing found.', 'Niets gevonden.')}</div>`;
+    return `<div class="nc-set-chips">${secs.map(x => `<button class="nc-chip ${!q && x.id === sec ? 'on' : ''}" data-setsec="${esc(x.id)}" style="--pc:var(--accent)">${esc(x.title)} <small>${x.count}</small>${setCount(d, x.id) ? `<b class="nc-set-n">${setCount(d, x.id)}</b>` : ''}</button>`).join('')}</div>${part}`;
+  }
+  function settingsHtml(d){
+    if(!d.cur) return '';
+    const n = d.S.size;
+    const head = `<div class="nc-eink-h" data-setopen="${esc(d.ip)}"><span class="nc-chev ${d.setOpen ? 'open' : ''}">${I('chevronRight', 13)}</span><b>${t('All settings', 'Alle instellingen')}</b><span class="subtle">${t('everything the device lets you change', 'alles wat het apparaat laat veranderen')}</span>${n ? `<span class="tag yellow">${n} ${t('changed', 'gewijzigd')}</span>` : ''}</div>`;
+    if(!d.setOpen) return `<div class="nc-eink" data-sip="${esc(d.ip)}">${head}</div>`;
+    return `<div class="nc-eink open nc-set" data-sip="${esc(d.ip)}">${head}<div class="nc-set-body">
+      <div class="nc-row"><label>${t('Search', 'Zoeken')}<input data-setq value="${esc(d.setQ)}" placeholder="${t('e.g. jumbo, IGMP, PoE …', 'bijv. jumbo, IGMP, PoE …')}" style="width:240px"></label><span style="flex:1"></span>
+        <button data-setcopy="${esc(d.ip)}">${I('copy', 13)}${t('Send to other devices…', 'Naar andere apparaten sturen…')}</button><button data-setreload="${esc(d.ip)}">${I('refresh', 13)}${t('Read again', 'Opnieuw lezen')}</button></div>
+      ${d.treeBusy || !d.tree ? `<div class="subtle">${t('Reading all settings…', 'Alle instellingen uitlezen…')}</div>` : settingsBody(d)}</div></div>`;
+  }
+  // ---- send settings to other devices of the same kind ----
+  async function copyDialog(d){
+    await load(); const k = kindOf(d), others = [...C.dev.values()].filter(x => x !== d && x.kind === d.kind && x.cur);
+    if(!others.length){ App.ui.toast(t('There is no other device of this kind', 'Er is geen ander apparaat van dit soort'), 'info'); return; }
+    const secs = SET.sections(k), mine = d.S.size;
+    const dlg = App.ui.openDialog({ title:t('Send settings to other devices', 'Instellingen naar andere apparaten sturen'), subtitle:`${d.name || d.ip}`, width:'720px', body:`<div class="nc-copy">
+        <div><b>${t('What', 'Wat')}</b>
+          <label class="nc-chk"><input type="radio" name="cpwhat" value="mine" ${mine ? 'checked' : 'disabled'}> ${t('My changes in All settings', 'Mijn wijzigingen in Alle instellingen')} (${mine})</label>
+          <label class="nc-chk"><input type="radio" name="cpwhat" value="secs" ${mine ? '' : 'checked'}> ${t('Whole sections of this device (only where the other device differs):', 'Hele onderdelen van dit apparaat (alleen waar het andere apparaat verschilt):')}</label>
+          <div class="nc-cp-secs">${secs.map(x => `<label class="nc-chk"><input type="checkbox" data-cpsec="${esc(x.id)}" ${x.id === d.setSec ? 'checked' : ''}> ${esc(x.title)}</label>`).join('')}</div>
+          <label class="nc-chk"><input type="checkbox" id="cpDev"> ${t('also names, descriptions and addresses', 'ook namen, beschrijvingen en adressen')}</label>
+          <label class="nc-chk"><input type="checkbox" id="cpDanger"> ${t('also risky settings (IP, security, switching ports off)', 'ook risicovolle instellingen (IP, beveiliging, poorten uitzetten)')}</label></div>
+        <div><b>${t('To', 'Naar')}</b> <button id="cpAll">${t('all', 'alle')}</button> <button id="cpNone">${t('none', 'geen')}</button>
+          <div class="nc-cp-list">${others.map(o => `<label class="nc-chk"><input type="checkbox" data-cpdev="${esc(o.ip)}" checked> ${esc(o.name || o.ip)} <span class="subtle">${esc(o.ip)}${o.link ? ' · ' + esc(linkLabel(planItems().find(x => x.id === o.link) || { kind:'sw', label:'', dc:'' })) : ''}</span></label>`).join('')}</div></div>
+        <div class="subtle">${t('This only prepares the changes on those devices. Check them on each device (or under “Apply all”) and send when you are ready.', 'Dit zet de wijzigingen alleen klaar op die apparaten. Controleer ze per apparaat (of onder “Alles toepassen”) en stuur als je klaar bent.')}</div></div>`,
+      footer:`<button class="primary" data-a="go">${t('Prepare', 'Klaarzetten')}</button><button data-a="x">${t('Cancel', 'Annuleren')}</button>` });
+    const q = s => dlg.body.querySelector(s), qa = s => [...dlg.body.querySelectorAll(s)];
+    q('#cpAll').onclick = () => qa('[data-cpdev]').forEach(c => { c.checked = true; }); q('#cpNone').onclick = () => qa('[data-cpdev]').forEach(c => { c.checked = false; });
+    dlg.footer.querySelector('[data-a=x]').onclick = () => dlg.close();
+    dlg.footer.querySelector('[data-a=go]').onclick = async () => {
+      const what = qa('[name=cpwhat]').find(r => r.checked)?.value, secsSel = qa('[data-cpsec]').filter(c => c.checked).map(c => c.dataset.cpsec), targets = qa('[data-cpdev]').filter(c => c.checked).map(c => D(c.dataset.cpdev));
+      if(!targets.length){ App.ui.toast(t('Pick at least one device', 'Kies minstens één apparaat'), 'info'); return; }
+      if(what === 'secs' && !secsSel.length){ App.ui.toast(t('Pick at least one section', 'Kies minstens één onderdeel'), 'info'); return; }
+      if(!d.tree) await settingsLoad(d);
+      let total = 0;
+      for(const o of targets){
+        if(!o.tree) o.tree = await SET.readTree(k, transport(o.ip));
+        const edits = what === 'mine' ? SET.carryEdits(k, [...d.S.values()], o.tree) : SET.copyEdits(k, d.tree, o.tree, { secs:secsSel, includeDev:q('#cpDev').checked, includeDanger:q('#cpDanger').checked });
+        for(const e of edits){ const f = SET.fieldById(k, e.fid); if(!SET.same(SET.valueOf(k, o.tree, f, e.ids), e.value)){ o.S.set(skey(e.fid, e.ids), e); total++; } }
+      }
+      dlg.close(); paint();
+      App.ui.toast(`${total} ${t('changes prepared on', 'wijzigingen klaargezet op')} ${targets.length} ${t('devices — look at “Apply all”', 'apparaten — kijk bij “Alles toepassen”')}`, 'ok');
+    };
+  }
+  function bindSettings(qa){
+    const dv = el => D(el.closest('[data-sip]').dataset.sip);
+    qa('[data-setopen]').forEach(h => h.onclick = () => { const d = D(h.dataset.setopen); d.setOpen = !d.setOpen; paint(); if(d.setOpen) settingsLoad(d); });
+    qa('[data-setsec]').forEach(b => b.onclick = () => { const d = dv(b); d.setSec = b.dataset.setsec; d.setQ = ''; paint(); });
+    qa('[data-setq]').forEach(i => { i.onchange = () => { const d = dv(i); d.setQ = i.value; paint(); const n = root.querySelector(`[data-sip="${d.ip}"] [data-setq]`); n?.focus(); n?.setSelectionRange(n.value.length, n.value.length); }; });
+    qa('[data-setreload]').forEach(b => b.onclick = () => { const d = D(b.dataset.setreload); d.tree = null; paint(); settingsLoad(d); });
+    qa('[data-setcopy]').forEach(b => b.onclick = () => copyDialog(D(b.dataset.setcopy)));
+    const store = (d, f, ids, el) => {
+      const raw = el.type === 'checkbox' ? el.checked : el.value, c = SET.coerce(f, raw), key = skey(f.id, ids);
+      if(!c.ok){ el.classList.add('bad'); el.title = c.err; return false; }
+      const cur = SET.valueOf(kindOf(d), d.tree, f, ids);
+      if(SET.same(cur, c.value)) d.S.delete(key); else d.S.set(key, { fid:f.id, ids:ids.slice(), value:c.value });
+      return true;
+    };
+    qa('[data-sf]:not([data-all])').forEach(el => el.onchange = () => { const d = dv(el), f = SET.fieldById(kindOf(d), el.dataset.sf); if(store(d, f, JSON.parse(el.dataset.ids), el)) paint(); });
+    qa('[data-sfall]').forEach(b => b.onclick = () => {
+      const d = dv(b), k = kindOf(d), f = SET.fieldById(k, b.dataset.sfall), src = b.parentElement.querySelector('[data-sf]');
+      let n = 0; for(const ids of SET.itemsOf(k, d.tree, f.coll)){ if(SET.valueOf(k, d.tree, f, ids) === undefined) continue; if(store(d, f, ids, src)) n++; }
+      paint();
+    });
+  }
+
   // ---------- drawing ----------
   const linkLabel = it => `${it.kind === 'sw' ? 'Switch' : 'LumiNode'} · ${it.label} (${it.dc})`;
   function swTileHtml(d, r){
@@ -463,16 +574,17 @@
         ${isSw(d) && d.cur.mode === 'advanced' ? `<div class="su-warn">${t('This switch is in “advanced” configuration mode: it is also set with its command line, so groups and trunks made here may not show correctly.', 'Deze switch staat in “advanced” configuratiemodus: hij wordt ook met zijn commandoregel ingesteld, dus groepen en trunks die hier gemaakt worden kunnen verkeerd getoond worden.')} <button data-lxmode="${esc(d.ip)}">${t('Switch to Luminex mode…', 'Naar Luminex-modus…')}</button></div>` : ''}
         ${brushBar(d)}${grid}${detailHtml(d)}
         ${isSw(d) ? trunkHtml(d) + einkHtml(d) + lightsHtml(d) : ''}
+        ${settingsHtml(d)}
         ${o.notes.map(x => `<div class="subtle" style="font-size:12px">${I('info', 12)} ${esc(x)}</div>`).join('')}
         ${logHtml(d)}
-        <div class="nc-row"><span class="subtle">${n} ${t('changes waiting', 'wijzigingen wachten')}</span><span style="flex:1"></span><button data-undo="${esc(d.ip)}" ${d.E.size || Object.keys(f).length || d.trunkEdit ? '' : 'disabled'}>${t('Undo my changes', 'Mijn wijzigingen ongedaan maken')}</button><button class="primary" data-apply="${esc(d.ip)}" ${n && !d.busy ? '' : 'disabled'}>${t('Apply…', 'Toepassen…')}</button></div></div>`;
+        <div class="nc-row"><span class="subtle">${n} ${t('changes waiting', 'wijzigingen wachten')}</span><span style="flex:1"></span><button data-undo="${esc(d.ip)}" ${d.E.size || Object.keys(f).length || d.trunkEdit || d.S.size ? '' : 'disabled'}>${t('Undo my changes', 'Mijn wijzigingen ongedaan maken')}</button><button class="primary" data-apply="${esc(d.ip)}" ${n && !d.busy ? '' : 'disabled'}>${t('Apply…', 'Toepassen…')}</button></div></div>`;
     }
     return `<div class="nc-card open">${head}${body}</div>`;
   }
   function paint(){
     if(App.getMODEL?.()?.ui?.view !== 'NETCONFIG') return;       // never draw over another page
     if(!root || !root.isConnected) root = App.$('#lkDetail'); if(!root) return;
-    const sc = App.$('#mainScroll'), top = sc ? sc.scrollTop : 0;
+    const sc = App.$('#mainScroll'), top = sc ? sc.scrollTop : 0, wraps = {}; root.querySelectorAll('[data-scrollkey]').forEach(w => { wraps[w.dataset.scrollkey] = [w.scrollLeft, w.scrollTop]; });
     const devs = [...C.dev.values()].sort((a, b) => (a.kind === 'gigacore' ? 0 : a.kind === 'lumi' ? 1 : 2) - (b.kind === 'gigacore' ? 0 : b.kind === 'lumi' ? 1 : 2) || ipNum(a.ip) - ipNum(b.ip));
     const total = devs.reduce((n, d) => n + (d.cur ? changeCount(d) : 0), 0);
     const missing = planItems().filter(x => !devs.some(d => d.link === x.id));
@@ -497,6 +609,7 @@
         : `<div class="nc-empty">${I('search', 30)}<b>${t('Find your devices', 'Vind je apparaten')}</b><span>${t('Press Discover to list every LumiNode and GigaCore switch on the network at once. Each one is linked to a switch or node of your plan.', 'Druk op Ontdekken om elke LumiNode en GigaCore-switch op het netwerk in één keer te tonen. Elk apparaat wordt gekoppeld aan een switch of node uit je plan.')}</span></div>`}
     </div>`;
     if(sc) sc.scrollTop = top;
+    root.querySelectorAll('[data-scrollkey]').forEach(w => { const p = wraps[w.dataset.scrollkey]; if(p){ w.scrollLeft = p[0]; w.scrollTop = p[1]; } });
     bind();
   }
   function tileUpdate(d, port){
@@ -517,7 +630,7 @@
     qa('select[data-link]').forEach(s => s.onchange = () => { const d = D(s.dataset.link); d.link = s.value || null; paint(); });
     qa('[data-read]').forEach(b => b.onclick = async () => { const d = D(b.dataset.read); await readDev(d); paint(); });
     qa('[data-fill]').forEach(b => b.onclick = () => { const d = D(b.dataset.fill); fillFromPlan(d); paint(); });
-    qa('[data-undo]').forEach(b => b.onclick = () => { const d = D(b.dataset.undo); d.E = new Map(); d.dev = {}; d.trunkEdit = null; paint(); });
+    qa('[data-undo]').forEach(b => b.onclick = () => { const d = D(b.dataset.undo); d.E = new Map(); d.dev = {}; d.trunkEdit = null; d.S = new Map(); paint(); });
     qa('[data-apply]').forEach(b => b.onclick = () => applyDevs([D(b.dataset.apply)]));
     qa('[data-df]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const k = i.dataset.df, v = i.value.trim(); d.dev[k] = v; if(k === 'ip' && !ipOk(v)) delete d.dev.ip; if(k === 'ip' && d.dev.ip && !d.dev.mask) d.dev.mask = planOf(d)?.s?.dev?.subnet || planOf(d)?.inst?.subnet || '255.255.255.0'; paint(); });
     // brushes
@@ -534,6 +647,7 @@
     qa('[data-lstate]').forEach(b => b.onclick = async () => { const [ip, st] = b.dataset.lstate.split('|'), d = D(ip); try { await load(); await logged(d)('PUT', '/api/interface/set_state', { state:st }); } catch(x) { d.err = String(x.message || x); } paint(); });
     qa('[data-lxmode]').forEach(b => b.onclick = () => luminexMode(D(b.dataset.lxmode)));
     qa('[data-copylog]').forEach(b => b.onclick = () => { const d = D(b.dataset.copylog); navigator.clipboard?.writeText((d.log || []).map(l => `${l.ok ? 'OK ' : 'ERR'} ${l.line}${l.ok ? '' : '  -> ' + l.err}`).join('\n')); App.ui.toast(t('Copied', 'Gekopieerd'), 'ok'); });
+    bindSettings(qa);
     // e-ink display
     const ekDev = el => D(el.closest('[data-eip]').dataset.eip);
     qa('[data-ekopen]').forEach(h => h.onclick = () => { const d = D(h.dataset.ekopen); if(C.einkOpen.has(d.ip)) C.einkOpen.delete(d.ip); else { C.einkOpen.add(d.ip); if(!EK(d).w) einkLoad(d); } paint(); einkPreviewUpdate(d); });

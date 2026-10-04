@@ -8,10 +8,12 @@ const WHITE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAPoAAAB6AQAAAAC+J3NIAAAAJklEQVR4nO3Ko
 export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12, mode = 'luminex', eink = false, ignoreAssign = false } = {}){
   const st = {
     device: { name, model: 'GigaCore 12t', api_version: '1.5.0' },
-    groups: [{ group_id: 1, name: 'Default', vid: 1, color: '#808080', predefined: true }, { group_id: 2, name: 'Management', vid: 10, color: '#2266cc', predefined: true }],
+    groups: [{ group_id: 1, name: 'Default', vid: 1, color: '#808080', predefined: true, igmp: { snooping: true, querier: true, fast_leave: false, unknown_flooding: false }, avb: { enabled: false } }, { group_id: 2, name: 'Management', vid: 10, color: '#2266cc', predefined: true, igmp: { snooping: true, querier: true, fast_leave: false, unknown_flooding: false }, avb: { enabled: false } }],
     trunks: [{ trunk_id: 1, name: 'ISL', predefined: true, color: '#999999', groups: [1, 2], untagged_group: 1 }], mode, state: 'groups', eink: { present: !!eink, mode: 'standard', show_ip: true, show_qr: false, invert: false, shot: WHITE_PNG, custom: null, preview: null, up: null },
-    ports: Array.from({ length: ports }, (_, i) => ({ port_number: i + 1, legend: '', member_of: { type: 'group', id: 1 }, type: i >= ports - 2 ? 'sfp' : 'rj45', enabled: true, link_speed: { mode: 'auto', speed: ['all'] } })),
-    poe: Array.from({ length: Math.min(8, ports - 2) }, (_, i) => ({ port_number: i + 1, enabled: true })),
+    ports: Array.from({ length: ports }, (_, i) => ({ port_number: i + 1, legend: '', member_of: { type: 'group', id: 1 }, type: i >= ports - 2 ? 'sfp' : 'rj45', enabled: true, protected: false, allow_jumbo_frames: 'auto', link_speed: { mode: 'auto', speed: ['all'] }, vlan: { mode: 'access', allowed: [1], untagged: 1, pvid: 1 }, rlinkx: { enabled: true }, fec: { mode: 'unavailable' } })),
+    poe: Array.from({ length: Math.min(8, ports - 2) }, (_, i) => ({ port_number: i + 1, enabled: true, priority: 'low', power_limit_type: 'class', user_defined_power_limit: 99000, power_up_mode: 'dot3bt', detection_type: '4ptdot3af' })),
+    led: { brightness: 2 }, display: { auto_scroll: true, auto_off: 600, mode: 'dark', language: 'english', pin: { enabled: false } },
+    snmp: { enabled: false }, snooping: { query_interval: 125, vlan: [{ vid: 1, snooping_enabled: true, querier_enabled: true, fast_leave_enabled: false, unknown_flooding: false }, { vid: 10, snooping_enabled: true, querier_enabled: true, fast_leave_enabled: false, unknown_flooding: false }] },
     ip: { mode: 'dhcp', ip_address: ip, prefix_length: 24, default_gateway: '0.0.0.0' },
     log: [] };
   const h = async (method, path, body, opts = {}) => {
@@ -28,6 +30,7 @@ export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12
       if(method === 'PUT' && /^\/api\/eink\/(mode|show_ip|show_qr|invert)$/.test(path)){ st.eink[path.split('/').pop()] = body; return body; }
       throw err(404, path);
     }
+    if(method === 'GET' && path === '/api') return clone(tree());
     if(method === 'GET'){
       if(path === '/api/device') return clone(st.device);
       if(path === '/api/groups/group') return clone(st.groups);
@@ -81,19 +84,31 @@ export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12
     }
     if((m = path.match(/^\/api\/config\/profiles\/(\d+)\/save$/)) && method === 'PUT'){ st.profiles = st.profiles || {}; st.profiles[m[1]] = clone({ device: st.device, groups: st.groups, trunks: st.trunks, ports: st.ports }); return null; }
     if((m = path.match(/^\/api\/ip_settings\/(mode|prefix_length|default_gateway|ip_address)$/)) && method === 'PUT'){ st.ip[m[1]] = body; return body; }
+    if(method === 'PUT' && path.startsWith('/api/')){                       // any other setting: found in the tree by its address
+      const segs = path.slice(5).split('/').map(decodeURIComponent); let o = tree(), parent = null, key = null;
+      for(const sg of segs){
+        if(Array.isArray(o)){ o = o.find(x => ['port_number', 'group_id', 'trunk_id', 'vid', 'id', 'name', 'session'].some(k => String(x?.[k]) === sg)); if(o === undefined) throw err(404, path); continue; }
+        if(o == null || typeof o !== 'object' || !(sg in o)) throw err(404, path); parent = o; key = sg; o = o[sg];
+      }
+      if(parent == null || typeof o === 'object' && !Array.isArray(o) && o !== null) throw err(400, 'not a setting');
+      if(typeof o !== typeof body && !(Array.isArray(o) && Array.isArray(body))) throw err(400, 'wrong type');
+      parent[key] = clone(body); return null;
+    }
     throw err(404, `${method} ${path}`);
   };
+  const tree = () => ({ device: st.device, led: st.led, ip_settings: st.ip, ports: { port: st.ports }, poe: { capable: st.poe.length > 0, power_budget: 'reserved', psu_mode: 'redundant', ports: st.poe }, groups: { group: st.groups }, trunks: { trunk: st.trunks }, display: st.display, snmp: st.snmp, snooping: st.snooping, eink: { present: st.eink.present, mode: st.eink.mode, show_ip: st.eink.show_ip, show_qr: st.eink.show_qr, invert: st.eink.invert }, interface: { default_state: 'groups' } });
   return { kind: 'gigacore', state: st, h };
 }
 
 export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192.168.1.60', outputs = 4, universes = [0, 1, 2, 3], klass = 'artnet', version = 'v2.9.1', dmxIn = [] } = {}){
-  const st = { info: { ID: 0, colors: [], short_name: short, long_name: long }, ip: { ipaddress: ip, netmask: '255.255.255.0', gateway: '0.0.0.0' }, ios: [], blocks: [], log: [] };
+  const st = { info: { ID: 0, colors: [], short_name: short, long_name: long }, ip: { ipaddress: ip, netmask: '255.255.255.0', gateway: '0.0.0.0' }, ios: [], blocks: [], log: [],
+    roots: { auth: { web_auth_enabled: false }, protocols_config: { artnet_timeout: 5, dmx_timeout: 5, kinet_timeout: 5, sacn_timeout: 3, unicast_artpoll_reply: false, unknown_arttod_port: false }, dmx_config: { break_time: 120, framerate: 40, output_time: 20, rdm_controller_ip: '0.0.0.0' }, display_settings: { auto_off_time: 60, auto_scroll: true, color_scheme: 'dark', language: 'english', lock_enabled: false }, leds: { brightness: 2 }, ethdmx_compatibility: { process_engine_switch_channels: false } } };
   let nextIo = 1;
   for(let i = 0; i < outputs; i++){
     const isIn = dmxIn.includes(i);
     const net = { id: nextIo++, io_class: klass, io_type: isIn ? 'output' : 'input', universe: universes[i] ?? i, name: `${isIn ? 'Out' : 'In'} ${i + 1}`, duplicate_ios: [] };
     const dmx = { id: 100000 + i, io_class: 'dmx', io_type: isIn ? 'input' : 'output', port_number: i, name: `${isIn ? 'In' : 'Out'} ${i + 1}`, rdm: false, interweaving: false, adaptive_discovery: false, rdm_universe: -1 };
-    st.ios.push(net, dmx); st.blocks.push({ id: i, name: `PB ${i + 1}`, inputs: { 0: isIn ? dmx.id : net.id }, outputs: { 0: isIn ? net.id : dmx.id } });
+    st.ios.push(net, dmx); st.blocks.push({ id: i, name: `PB ${i + 1}`, mode: 'REROUTE', ratelimiting: false, backup_auto_recover: false, inputs: { 0: isIn ? dmx.id : net.id }, outputs: { 0: isIn ? net.id : dmx.id } });
   }
   const h = async (method, path, body) => {
     st.log.push(`${method} ${path}`);
@@ -101,6 +116,8 @@ export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192
     if(method === 'GET'){
       if(path === '/api/software/version') return { current: version, minimum: 'v2.0.0', alternate: null };
       if(path === '/api/deviceinfo') return clone(st.info);
+      if(path === '/api/deviceinfo/auth') return clone(st.roots.auth);
+      if(/^\/api\/(protocols_config|dmx_config|display_settings|leds|ethdmx_compatibility)$/.test(path)) return clone(st.roots[path.slice(5)]);
       if(path === '/api/ipsettings') return clone(st.ip);
       if(path === '/api/IO') return clone(st.ios);
       if(path === '/api/processblock') return clone(st.blocks);
@@ -108,6 +125,9 @@ export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192
     }
     if(path === '/api/deviceinfo' && method === 'PUT'){ if((body.short_name || '').length > 17) throw err(400, 'short name'); Object.assign(st.info, clone(body)); return body; }
     if(path === '/api/ipsettings' && method === 'PUT'){ st.ip = clone(body); return body; }
+    if(path === '/api/deviceinfo/auth' && method === 'PUT'){ st.roots.auth = clone(body); return body; }
+    if(/^\/api\/(protocols_config|dmx_config|display_settings|leds|ethdmx_compatibility)$/.test(path) && method === 'PUT'){ const k = path.slice(5); for(const key of Object.keys(body)) if(!(key in st.roots[k])) throw err(422, 'unknown field ' + key); st.roots[k] = clone(body); return body; }
+    if((m = path.match(/^\/api\/processblock\/(\d+)$/)) && method === 'PUT'){ const b = st.blocks.find(x => x.id === +m[1]); if(!b) throw err(404, 'block'); Object.assign(b, clone(body)); return body; }
     if((m = path.match(/^\/api\/IO\/(\d+)$/)) && method === 'PUT'){
       const i = st.ios.findIndex(x => x.id === +m[1]); if(i < 0) throw err(404, 'io');
       if(body.io_class === 'artnet' && (body.universe < 0 || body.universe > 32767)) throw err(400, 'universe range');

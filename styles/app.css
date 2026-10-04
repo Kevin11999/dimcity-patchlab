@@ -1284,3 +1284,24 @@ body.view-flow .view{width:100%}
 .nc-trunk label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted)}
 .nc-lights{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0;padding:8px 12px;border:1px dashed var(--border);border-radius:10px}
 .nc-log{margin:8px 0;font-size:12px}.nc-log pre{white-space:pre-wrap;word-break:break-all;max-height:200px;overflow:auto;background:rgba(0,0,0,.25);padding:8px;border-radius:8px}
+
+/* all settings */
+.nc-set-body{padding:6px 14px 14px}
+.nc-set-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.nc-set-chips small{color:var(--muted);margin-left:4px}.nc-set-n{background:var(--accent);color:#111;border-radius:999px;padding:0 6px;font-size:11px;margin-left:6px}
+.nc-set-h{margin:14px 0 4px}
+.nc-set-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:6px 18px;margin:8px 0}
+.nc-set-g{grid-column:1/-1;font-weight:700;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;margin-top:6px}
+.nc-set-row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)}
+.nc-set-row span{display:flex;flex-direction:column}.nc-set-row small{color:var(--muted);font-size:11px;max-width:300px}
+.nc-set-coll{margin:14px 0 4px;text-transform:capitalize}
+.nc-set-wrap{overflow:auto;max-height:460px;border:1px solid var(--border);border-radius:10px}
+.nc-set-table{border-collapse:separate;border-spacing:0;font-size:12px}
+.nc-set-table th,.nc-set-table td{padding:4px 8px;border-bottom:1px solid var(--border);white-space:nowrap;text-align:left;font-weight:500}
+.nc-set-table thead th{position:sticky;top:0;background:var(--panel);z-index:2;vertical-align:top}
+.nc-set-table .nc-rowh{position:sticky;left:0;background:var(--panel);z-index:1;font-weight:700}
+.nc-set-table input[type=text],.nc-set-table input[type=number],.nc-set-table select{width:120px}
+.nc-all{display:flex;gap:4px;margin-top:4px}.nc-all button{padding:0 6px;font-size:11px}
+.nc-set input.chg,.nc-set select.chg{outline:2px solid var(--accent)}.nc-set .bad{outline:2px solid #ef4444}
+.nc-copy{display:grid;grid-template-columns:1fr 1fr;gap:18px}.nc-cp-secs,.nc-cp-list{display:flex;flex-direction:column;gap:2px;max-height:240px;overflow:auto;margin:6px 0}
+@media (max-width:800px){.nc-copy{grid-template-columns:1fr}}

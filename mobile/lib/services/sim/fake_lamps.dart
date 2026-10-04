@@ -42,7 +42,8 @@ class FakeRdmnetLamps {
 
   void start() {
     for (final lamp in lamps) {
-      final s = hub.open(ip: lamp.ip, port: Llrp.port)..joinMulticast(Llrp.requestAddress);
+      final s = hub.open(ip: lamp.ip, port: Llrp.port);
+      unawaited(s.joinMulticast(Llrp.requestAddress));
       _sockets.add(s);
       _subs.add(s.datagrams.listen((d) => _onDatagram(lamp, s, d)));
     }

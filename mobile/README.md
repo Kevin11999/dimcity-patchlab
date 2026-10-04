@@ -63,7 +63,10 @@ Build it yourself: `flutter build apk --release --target-platform android-arm64 
 
 It works because RDMnet lamps answer **LLRP** (ANSI E1.33): a multicast search that needs nothing configured. Two
 devices on one cable both fall back to link-local addresses (169.254.x.x) and find each other.
-See [docs/PROTOCOLS.md](docs/PROTOCOLS.md).
+On top of that the app is the **RDMnet broker** for the lamps when no other broker is on the network (DNS-SD
+advertisement, TCP broker), so lamps that look for a broker connect by themselves; LLRP remains as the fallback.
+The Lamps tab shows which network adapter is used (default: all) and whether the app is the broker, and has a
+"Copy diagnostics" button for when nothing is found. See [docs/PROTOCOLS.md](docs/PROTOCOLS.md).
 
 **Demo mode** (Settings, or the button when no lamps are found) simulates a row of eight lamps and a node, all inside
 the app on an in-memory network, so the flow can be tried without hardware and without any network.
@@ -87,7 +90,8 @@ lib/core/        pure Dart protocol layer, no Flutter
   rdmnet/        ACN root layer, Broker protocol, RPT, LLRP codecs
   addressing/    the address calculation (start, footprints, 512 limit, wrap)
 lib/net/         UDP sockets (real and in-memory), own IP / subnet, Android multicast lock
-lib/services/    LlrpService + LampsTransport (the lamps on the cable), ArtNetService, RdmClient
+lib/services/    LlrpService + LampsTransport (the lamps on the cable), LampBroker (BrokerServer + MdnsResponder),
+                 ArtNetService, RdmClient
                  (ACK_TIMER / ACK_OVERFLOW / NACK / retries), RdmnetService + BrokerConnection,
                  simulated node and lamps (sim/)
 lib/model/       Node / NodePort, Fixture / FixtureType

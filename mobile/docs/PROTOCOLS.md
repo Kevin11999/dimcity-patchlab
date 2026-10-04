@@ -31,6 +31,33 @@ answers DMX_START_ADDRESS and DMX_PERSONALITY over LLRP depends on its firmware;
 LLRP commands to the same handler as normal ones, so most lamps do. If a lamp is found but does not answer, the fix is
 a broker, see below.
 
+### The broker: lamps connect by themselves (`lib/services/lamp_broker.dart`)
+
+RDMnet is meant to run with a **broker**. Lamps do not wait for a user: they look for a broker of scope `default`
+with DNS-SD and connect to it over TCP. The app therefore does what a console does:
+
+1. Look for a broker that is already on the network (mDNS browse `_rdmnet._tcp`, scope `default`). If there is one,
+   connect to it as a controller (`RdmnetService`, `BrokerConnection`).
+2. Otherwise **be the broker**: `BrokerServer` (`lib/services/broker_server.dart`, ANSI E1.33 Broker protocol on a TCP
+   port the system picks) plus `MdnsResponder` (`lib/services/mdns_responder.dart`, `lib/core/dns.dart`) that
+   advertises `PatchLab RDM Broker xxxx._rdmnet._tcp.local` with subtype `_default._sub._rdmnet._tcp` and the TXT keys
+   `TxtVers=1`, `E133Scope`, `E133Vers`, `CID`, `UID`, `Model`, `Manuf`. The app connects to its own broker over
+   127.0.0.1 as a controller. Lamps that connect get a UID (their own static one, or a dynamic one from the broker's
+   range when they ask for one) and show up in the client list.
+3. **LLRP stays on**, as the fallback and as the way to see lamps before they have joined the broker. A lamp that is on the
+   broker and answers LLRP is **one lamp**: both views are matched on the lamp's **CID**, because the UID LLRP reports
+   can differ from the broker-assigned one (seen with ETC's reference device: dynamic UID requested from the broker
+   versus the LLRP UID). RDM goes through the broker (RPT Request / Notification) and falls back to LLRP when the
+   broker route times out; the UID of either view addresses the lamp (`LampsTransport`).
+
+Wire details verified against ETC's RDMnet reference implementation (built and run in the test environment, see
+`test/interop/`): the RPT Request and Notification PDUs carry a **4-byte** vector, the RPT header is 28 bytes with a
+reserved byte, all flags are 0xF0. Interop that was run: LLRP discovery and RDM, our controller with ETC's broker and
+device, ETC's device on our broker, ETC's device finding our broker with mDNS with nothing configured, and the whole
+`LampsTransport` against that device. What is **not** verified: real fixtures, a real Windows machine (port 5353 is
+shared with the Windows DNS client), and DMX address / personality over RPT on a real fixture (the ETC example device has
+no DMX footprint). If the broker route does not work on site, LLRP still addresses the lamps.
+
 ## 1. Node discovery and port configuration: Art-Net 4
 
 * **ArtPoll / ArtPollReply** (`lib/core/artnet/artnet.dart`). The app broadcasts

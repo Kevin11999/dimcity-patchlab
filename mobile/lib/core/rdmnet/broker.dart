@@ -56,6 +56,9 @@ class Broker {
       }[code] ??
       'Connect status $code';
 
+  /// A complete TCP block with one Broker PDU: vector (2 bytes) + data.
+  static Uint8List message(Cid senderCid, int vector, List<int> data) => _message(senderCid, vector, data);
+
   /// Broker PDU: vector (2) + data, wrapped in the root layer for TCP.
   static Uint8List _message(Cid senderCid, int vector, List<int> data) {
     final w = ByteWriter();
@@ -81,6 +84,25 @@ class Broker {
     return _message(cid, vectorConnect, w.toBytes());
   }
 
+  /// Connect Reply: status, E1.33 version, the broker's UID and the UID the client now has.
+  static Uint8List connectReply(Cid brokerCid, {required int status, required Uid brokerUid, required Uid clientUid}) {
+    final w = ByteWriter();
+    w.u16(status);
+    w.u16(e133Version);
+    brokerUid.writeTo(w);
+    clientUid.writeTo(w);
+    return _message(brokerCid, vectorConnectReply, w.toBytes());
+  }
+
+  /// Connected Client List (7), Client Add (8), Client Remove (9) or Client Entry Change (10).
+  static Uint8List clientList(Cid brokerCid, int vector, List<ClientEntry> entries) {
+    final w = ByteWriter();
+    for (final e in entries) {
+      w.bytes(e.encode());
+    }
+    return _message(brokerCid, vector, w.toBytes());
+  }
+
   static Uint8List fetchClientList(Cid cid) => _message(cid, vectorFetchClientList, const []);
 
   static Uint8List nullMessage(Cid cid) => _message(cid, vectorNull, const []);
@@ -97,6 +119,21 @@ class Broker {
     final end = start + len;
     final data = r.bytes(end - r.offset);
     switch (vector) {
+      case vectorConnect:
+        final d = ByteReader(data);
+        final scope = d.fixedString(scopeLength);
+        final version = d.u16();
+        final domain = d.fixedString(searchDomainLength);
+        final flags = d.u8();
+        final entries = ClientEntry.decodeList(d.rest());
+        return ClientConnectMessage(scope, version, domain, flags, entries.isEmpty ? null : entries.first);
+      case vectorFetchClientList:
+        return FetchClientListMessage();
+      case vectorClientEntryUpdate:
+        final d = ByteReader(data);
+        d.u8(); // connect flags
+        final entries = ClientEntry.decodeList(d.rest());
+        return ClientEntryUpdateMessage(entries.isEmpty ? null : entries.first);
       case vectorConnectReply:
         final d = ByteReader(data);
         return ConnectReply(d.u16(), d.u16(), Uid.fromBytes(d.bytes(6)), Uid.fromBytes(d.bytes(6)));
@@ -202,6 +239,23 @@ class RedirectMessage extends BrokerMessage {
 }
 
 class NullMessage extends BrokerMessage {}
+
+/// A client asking to connect (seen by a broker).
+class ClientConnectMessage extends BrokerMessage {
+  ClientConnectMessage(this.scope, this.e133Version, this.searchDomain, this.flags, this.entry);
+  final String scope;
+  final int e133Version;
+  final String searchDomain;
+  final int flags;
+  final ClientEntry? entry;
+}
+
+class FetchClientListMessage extends BrokerMessage {}
+
+class ClientEntryUpdateMessage extends BrokerMessage {
+  ClientEntryUpdateMessage(this.entry);
+  final ClientEntry? entry;
+}
 
 class UnknownBrokerMessage extends BrokerMessage {
   UnknownBrokerMessage(this.vector, this.data);

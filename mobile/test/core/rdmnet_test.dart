@@ -50,9 +50,7 @@ void main() {
     expect(rest.length, 2);
     expect(rest[0].vector, Acn.vectorRootBroker);
     expect(Broker.decode(rest[0]), isA<NullMessage>());
-    final fetch = Broker.decode(rest[1]);
-    expect(fetch, isA<UnknownBrokerMessage>());
-    expect((fetch as UnknownBrokerMessage).vector, Broker.vectorFetchClientList);
+    expect(Broker.decode(rest[1]), isA<FetchClientListMessage>());
   });
 
   test('Client Connect layout', () {
@@ -136,7 +134,11 @@ void main() {
     w.u16(0);
     w.u32(42);
     w.u8(0);
-    w.bytes(Acn.pdu([Rpt.vectorNotificationRdmCmd, ...Rpt.rdmCommandPdu(rdm), ...Rpt.rdmCommandPdu(response)]));
+    final body = ByteWriter()
+      ..u32(Rpt.vectorNotificationRdmCmd)
+      ..bytes(Rpt.rdmCommandPdu(rdm))
+      ..bytes(Rpt.rdmCommandPdu(response));
+    w.bytes(Acn.pdu(body.toBytes()));
     final notifBlock = Acn.tcpBlock(Acn.vectorRootRpt, otherCid, Acn.pdu(w.toBytes()));
     final notif = Rpt.decode(AcnTcpFramer().feed(notifBlock).single) as RptNotification;
     expect(notif.packets.length, 2);

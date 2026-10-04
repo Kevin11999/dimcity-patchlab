@@ -1,15 +1,15 @@
 import 'dart:async';
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 
 import '../core/artnet/artnet.dart';
 import '../model/node.dart';
+import '../net/adapters.dart';
 import '../net/memory_udp.dart';
 import '../net/multicast_lock.dart';
 import '../net/network_info.dart';
 import '../net/udp.dart';
 import '../services/artnet_service.dart';
+import '../services/lamp_broker.dart';
 import '../services/llrp_service.dart';
 import '../services/rdm_client.dart';
 import '../services/rdmnet_service.dart';
@@ -60,13 +60,23 @@ class PortEdit {
 /// In demo mode all of it runs on an in-memory network ([MemoryUdpHub]): no operating system
 /// sockets, adapters or firewall are involved.
 class AppBackend extends ChangeNotifier {
-  AppBackend(this.settings);
+  AppBackend(this.settings, {this.adapterLister, this.llrpSocketFactory});
 
   final Settings settings;
+
+  /// For tests: replaces the operating system's adapter list.
+  final Future<List<AdapterInfo>> Function()? adapterLister;
+
+  /// For tests: replaces the real UDP sockets of the lamp search.
+  final UdpSocketFactory? llrpSocketFactory;
 
   ArtNetService? artnet;
   RdmnetService? rdmnet;
   LlrpService? llrp;
+
+  /// RDMnet broker for the lamps on the cable: the app's own, or one that is on the network.
+  LampBroker? lampBroker;
+  LampsTransport? _lampsTransport;
   BrokerConnection? broker;
   LocalNetwork network = const LocalNetwork();
 
@@ -115,23 +125,33 @@ class AppBackend extends ChangeNotifier {
     }
     rdmnet = RdmnetService(cid: settings.cid, controllerUid: settings.controllerUid);
     llrp = LlrpService(
-      socketFactory: RawUdpSocket.open,
+      socketFactory: llrpSocketFactory ?? RawUdpSocket.open,
       cid: settings.cid,
       controllerUid: settings.controllerUid,
-      localIps: _realLocalIps,
+      adapters: _lampAdapters,
+    );
+    lampBroker = LampBroker(
+      cid: settings.cid,
+      controllerUid: settings.controllerUid,
+      adapters: _lampAdapters,
+      socketFactory: llrpSocketFactory ?? RawUdpSocket.open,
+      discovery: rdmnet,
+      scope: settings.rdmnetScope,
     );
   }
 
-  /// Every IPv4 address of this device, link-local (169.254.x.x) included: two devices on one
-  /// cable have nothing else.
-  static Future<List<String>> _realLocalIps() async {
-    try {
-      final ifs = await NetworkInterface.list(type: InternetAddressType.IPv4, includeLoopback: false, includeLinkLocal: true);
-      return [for (final i in ifs) for (final a in i.addresses) if (!a.isLoopback) a.address];
-    } catch (_) {
-      return const [];
-    }
+  /// The adapters the lamp search uses: all of them, or the one picked in the settings (by name, because
+  /// an address changes when a cable is moved).
+  Future<List<AdapterInfo>> _lampAdapters() async {
+    final all = await (adapterLister ?? listAdapters)();
+    final picked = settings.lampsAdapter;
+    if (picked.isEmpty) return all;
+    final only = all.where((a) => a.name == picked).toList();
+    return only.isEmpty ? all : only;
   }
+
+  /// Adapters shown in the picker, whatever is selected.
+  Future<List<AdapterInfo>> allAdapters() async => isDemo ? const [AdapterInfo('Demo (Ethernet)', _demoLampsIp)] : (adapterLister ?? listAdapters)();
 
   static const _demoArtNetIp = '2.0.0.200';
   static const _demoLampsIp = '169.254.10.1';
@@ -149,7 +169,7 @@ class AppBackend extends ChangeNotifier {
       socketFactory: h.factoryFor(_demoLampsIp),
       cid: settings.cid,
       controllerUid: settings.controllerUid,
-      localIps: () async => const [_demoLampsIp],
+      adapters: () async => const [AdapterInfo('Demo (Ethernet)', _demoLampsIp)],
     );
   }
 
@@ -164,6 +184,9 @@ class AppBackend extends ChangeNotifier {
     artnet = null;
     llrp?.close();
     llrp = null;
+    await lampBroker?.stop();
+    lampBroker = null;
+    _lampsTransport = null;
     rdmnet = null;
     await demoNode?.stop();
     demoNode = null;
@@ -193,7 +216,8 @@ class AppBackend extends ChangeNotifier {
   /// The lamps on the cable: RDMnet devices found with LLRP, addressed without a node or a broker.
   PortRoute? lampsRoute() {
     final l = llrp;
-    return l == null ? null : PortRoute(primary: LampsTransport(l));
+    if (l == null) return null;
+    return PortRoute(primary: _lampsTransport ??= LampsTransport(l, broker: lampBroker));
   }
 
   /// Polls the network and refreshes the node list (Art-Net nodes and RDMnet gateways).
@@ -226,7 +250,9 @@ class AppBackend extends ChangeNotifier {
         brokers.add(RdmnetBrokerInfo(host: manual.$1, port: manual.$2, scope: settings.rdmnetScope, name: 'manual', manual: true));
       }
       final found = await r.discoverBrokers(timeout: const Duration(seconds: 2));
-      brokers.addAll(found.where((b) => b.scope == settings.rdmnetScope));
+      final own = lampBroker?.server;
+      // Our own broker (for the lamps on the cable) advertises itself too: it has no gateways.
+      brokers.addAll(found.where((b) => b.scope == settings.rdmnetScope && !(own != null && (b.port == own.port || b.cid == own.cid.toString()))));
       llrpDevices = await l.probe(maxRounds: 2, roundTimeout: const Duration(milliseconds: 1500));
       // A component that knows its broker (static configuration) names it in COMPONENT_SCOPE.
       for (final c in llrpDevices.where((c) => c.isBroker || (brokers.isEmpty && c.isDevice)).take(5)) {
@@ -254,7 +280,9 @@ class AppBackend extends ChangeNotifier {
         broker = null;
         for (final b in brokers) {
           try {
-            broker = await r.connect(b);
+            // The lamp search may already be connected to this very broker: one connection per CID.
+            final shared = lampBroker?.connection;
+            broker = shared != null && shared.connected && shared.host == b.host && shared.port == b.port ? shared : await r.connect(b);
             rdmnetStatus = 'RDMnet broker ${b.host}:${b.port} (${b.scope})';
             break;
           } on Exception catch (e) {
@@ -264,7 +292,7 @@ class AppBackend extends ChangeNotifier {
       }
       final conn = broker;
       if (conn != null && conn.connected) {
-        gateways = await conn.loadGateways(llrp: llrpDevices);
+        gateways = (await conn.loadGateways(llrp: llrpDevices)).where((g) => g.endpoints.isNotEmpty).toList();
       }
     } catch (e) {
       rdmnetStatus = 'RDMnet: $e';

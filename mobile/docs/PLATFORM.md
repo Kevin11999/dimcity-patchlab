@@ -66,8 +66,10 @@ Android app. Reasons for this choice over Swift + Kotlin or React Native:
 
 * Art-Net: UDP 6454 (bound with `SO_REUSEADDR` / `SO_REUSEPORT`).
 * LLRP: UDP 5569, groups 239.255.250.133 / .134.
-* mDNS: UDP 5353, 224.0.0.251 (package `multicast_dns`).
-* RDMnet broker: TCP, port from DNS-SD or the settings.
+* mDNS: UDP 5353, 224.0.0.251 (package `multicast_dns` to look for brokers; `MdnsResponder` to advertise our own, one socket
+  per adapter, address records per adapter).
+* RDMnet broker: TCP, port from DNS-SD or the settings. The app's own broker (for the lamps on the cable) listens on a port
+  the system picks; the installer adds an inbound TCP rule for the program next to the UDP rule.
 * The phone must have an IP in the node's subnet. Nodes default to
   2.x.x.x/8 or 10.x.x.x/8; most phones default to 192.168.x.x/24 from DHCP,
   so the technician sets a static Wi-Fi IP. The nodes screen shows the

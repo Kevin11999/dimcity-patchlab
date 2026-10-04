@@ -14,8 +14,10 @@ class Rpt {
   static const vectorStatus = 0x00000002;
   static const vectorNotification = 0x00000003;
 
-  static const vectorRequestRdmCmd = 0x01;
-  static const vectorNotificationRdmCmd = 0x01;
+  /// The Request and Notification PDUs carry a 4-byte vector (value 1), unlike the RDM Command PDU
+  /// inside them (1 byte, 0xCC) and the Status PDU (2 bytes). ETC's reference code packs it that way.
+  static const vectorRequestRdmCmd = 0x00000001;
+  static const vectorNotificationRdmCmd = 0x00000001;
   static const vectorRdmCmdRdmData = 0xCC;
 
   static const nullEndpoint = 0x0000;
@@ -62,10 +64,29 @@ class Rpt {
     return Acn.pdu(w.toBytes());
   }
 
+  /// A complete TCP block with an RPT Status (a broker answers a request it cannot deliver).
+  static Uint8List status(Cid senderCid, RptHeader header, int code, [String text = '']) {
+    final body = ByteWriter();
+    body.u16(code);
+    body.string(text, max: 1024);
+    return Acn.tcpBlock(Acn.vectorRootRpt, senderCid, _rptPdu(header, vectorStatus, Acn.pdu(body.toBytes())));
+  }
+
   /// A complete TCP block carrying one RDM request to [header.destUid] / endpoint.
   static Uint8List request(Cid senderCid, RptHeader header, RdmPacket packet) {
-    final requestPdu = Acn.pdu([vectorRequestRdmCmd, ...rdmCommandPdu(packet)]);
+    final w = ByteWriter();
+    w.u32(vectorRequestRdmCmd);
+    w.bytes(rdmCommandPdu(packet));
+    final requestPdu = Acn.pdu(w.toBytes());
     return Acn.tcpBlock(Acn.vectorRootRpt, senderCid, _rptPdu(header, vectorRequest, requestPdu));
+  }
+
+  /// A complete TCP block carrying one RDM response (an RPT Notification) back to a controller.
+  static Uint8List notification(Cid senderCid, RptHeader header, RdmPacket packet) {
+    final w = ByteWriter();
+    w.u32(vectorNotificationRdmCmd);
+    w.bytes(rdmCommandPdu(packet));
+    return Acn.tcpBlock(Acn.vectorRootRpt, senderCid, _rptPdu(header, vectorNotification, Acn.pdu(w.toBytes())));
   }
 
   /// Parses the RPT PDU inside a root layer PDU with vector [Acn.vectorRootRpt].
@@ -90,7 +111,7 @@ class Rpt {
         final inner = ByteReader(data);
         final innerStart = inner.offset;
         final innerLen = Acn.readPduLength(inner);
-        inner.u8(); // vector 0x01
+        inner.u32(); // vector 1 (4 bytes)
         final innerEnd = innerStart + innerLen;
         final packets = <RdmPacket>[];
         while (inner.offset < innerEnd && inner.remaining >= 4) {

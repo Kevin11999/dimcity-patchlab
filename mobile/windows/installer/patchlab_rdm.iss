@@ -12,6 +12,7 @@
 #endif
 #define AppExe "patchlab_rdm.exe"
 #define FirewallRule "PatchLab RDM (Art-Net / RDMnet)"
+#define FirewallRuleTcp "PatchLab RDM (RDMnet broker)"
 
 [Setup]
 AppId={{53ABFEA7-2B53-4838-A61F-86120A7A4D1A}
@@ -54,9 +55,13 @@ Name: "{autodesktop}\PatchLab RDM"; Filename: "{app}\{#AppExe}"; Tasks: desktopi
 [Run]
 ; Art-Net nodes answer ArtPoll with UDP to port 6454 (broadcast or unicast); LLRP / mDNS replies are UDP as well.
 ; Without this rule Windows asks (or silently blocks) on first start and no node shows up.
+; The app is the RDMnet broker for the lamps on the cable: they connect to it over TCP, hence the second rule.
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""{#FirewallRule}"""; Flags: runhidden; StatusMsg: "Firewall..."
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#FirewallRule}"" dir=in action=allow program=""{app}\{#AppExe}"" protocol=udp profile=any enable=yes"; Flags: runhidden; StatusMsg: "Firewall..."
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""{#FirewallRuleTcp}"""; Flags: runhidden; StatusMsg: "Firewall..."
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#FirewallRuleTcp}"" dir=in action=allow program=""{app}\{#AppExe}"" protocol=tcp profile=any enable=yes"; Flags: runhidden; StatusMsg: "Firewall..."
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,PatchLab RDM}"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""{#FirewallRule}"""; Flags: runhidden; RunOnceId: "RemoveFirewallRule"
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""{#FirewallRuleTcp}"""; Flags: runhidden; RunOnceId: "RemoveFirewallRuleTcp"

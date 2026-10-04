@@ -91,7 +91,7 @@ class RdmnetService {
           found[key] = RdmnetBrokerInfo(
             host: host,
             port: srv.port,
-            scope: txt['ConfScope'] ?? Broker.defaultScope,
+            scope: txt['E133Scope'] ?? txt['ConfScope'] ?? Broker.defaultScope,
             name: ptr.domainName.split('._rdmnet').first,
             cid: txt['CID'],
             uid: txt['UID'],
@@ -166,6 +166,7 @@ class BrokerConnection {
   void _listen() {
     _socket.listen(
       (chunk) {
+        if (_closed) return; // data that was already on its way when we closed
         _lastReceived = DateTime.now();
         List<RootLayerPdu> pdus;
         try {
@@ -211,12 +212,12 @@ class BrokerConnection {
               if (i >= 0) clients[i] = e;
             }
           }
-          _clientsChanged.add(null);
+          if (!_clientsChanged.isClosed) _clientsChanged.add(null);
         } else if (m is DisconnectMessage) {
           closeReason = 'Broker disconnect (${m.reason})';
           close();
         }
-        _brokerMessages.add(m);
+        if (!_brokerMessages.isClosed) _brokerMessages.add(m);
       } else if (p.vector == Acn.vectorRootRpt) {
         final m = Rpt.decode(p);
         final c = _pending.remove(m.header.sequence);

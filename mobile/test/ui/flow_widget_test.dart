@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:patchlab_rdm/app/backend.dart';
 import 'package:patchlab_rdm/app/settings.dart';
 import 'package:patchlab_rdm/main.dart';
+import 'package:patchlab_rdm/net/adapters.dart';
+import 'package:patchlab_rdm/net/memory_udp.dart';
 
 /// Drives the real screens on a phone-sized window against the simulated lamp row: the lamps appear
 /// by themselves, then align → modes → addresses → send → verify → retry, ending with every lamp addressed.
@@ -95,9 +97,13 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.runAsync(() async {
-      // Real mode on a machine without lamps: nothing answers the probe.
+      // Real mode on a cable without lamps: nothing answers the probe (an empty in-memory network).
       final settings = Settings.memory();
-      final backend = AppBackend(settings);
+      final backend = AppBackend(
+        settings,
+        adapterLister: () async => const [AdapterInfo('Ethernet', '169.254.1.1')],
+        llrpSocketFactory: MemoryUdpHub().factoryFor('169.254.1.1'),
+      );
       await tester.pumpWidget(PatchLabApp(settings: settings, backend: backend));
       await tester.pump();
       await wait(tester, const Duration(seconds: 9));

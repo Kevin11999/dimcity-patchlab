@@ -14,15 +14,19 @@ abstract class UdpSocket {
   /// multicast: without it the OS picks one adapter, often the wrong one.
   int sendVia(List<int> data, InternetAddress address, int port, String localIp);
 
-  /// Joins a multicast group on the adapters that own [localIps] (all adapters
-  /// the OS picks by default when empty).
-  void joinMulticast(String group, {Iterable<String> localIps = const []});
+  /// Joins a multicast group on the adapters that own [localIps] (the adapter the OS
+  /// picks by default when empty). Completes with false when a join failed.
+  Future<bool> joinMulticast(String group, {Iterable<String> localIps = const []});
 
   void close();
 }
 
 /// Opens a UDP socket on [port] (0 = any free port).
-typedef UdpSocketFactory = Future<UdpSocket> Function(int port, {bool reusePort, bool broadcast});
+///
+/// [localIp] names the adapter the socket is meant for. A real socket listens on all addresses and
+/// ignores it (multicast is tied to an adapter by [UdpSocket.joinMulticast]); the in-memory network
+/// uses it as the socket's own address.
+typedef UdpSocketFactory = Future<UdpSocket> Function(int port, {bool reusePort, bool broadcast, String? localIp});
 
 /// [RawDatagramSocket] wrapper. Binds on all IPv4 addresses with address reuse so
 /// the app can share a port (Art-Net 6454, LLRP 5569) with other software.
@@ -57,21 +61,21 @@ class RawUdpSocket implements UdpSocket {
       reusePort: reusePort && !Platform.isWindows,
     );
     s.broadcastEnabled = broadcast;
-    s.multicastLoopback = false;
+    s.multicastLoopback = true;
     final r = RawUdpSocket._(s);
+    r._limitMulticastToJoinedInterfaces();
     for (final g in multicastGroups) {
-      r.joinMulticast(g);
+      await r.joinMulticast(g);
     }
     return r;
   }
 
   /// Factory for the services.
-  static Future<UdpSocket> open(int port, {bool reusePort = true, bool broadcast = true}) =>
+  static Future<UdpSocket> open(int port, {bool reusePort = true, bool broadcast = true, String? localIp}) =>
       bind(port, reusePort: reusePort, broadcast: broadcast);
 
   final RawDatagramSocket _socket;
   final StreamController<Datagram> _controller = StreamController<Datagram>.broadcast();
-  Future<List<NetworkInterface>>? _interfaces;
 
   @override
   Stream<Datagram> get datagrams => _controller.stream;
@@ -106,35 +110,53 @@ class RawUdpSocket implements UdpSocket {
     return send(data, address, port);
   }
 
+  /// Linux and Android hand a socket the multicast packets of groups joined by ANY socket on ANY
+  /// adapter unless IP_MULTICAST_ALL is switched off. With one socket per adapter that would
+  /// make every socket see every reply.
+  void _limitMulticastToJoinedInterfaces() {
+    if (!(Platform.isLinux || Platform.isAndroid)) return;
+    try {
+      _socket.setRawOption(RawSocketOption.fromInt(RawSocketOption.levelIPv4, 49, 0)); // IP_MULTICAST_ALL = 0
+    } catch (_) {
+      // Not supported: duplicates are harmless, the services de-duplicate.
+    }
+  }
+
   @override
-  void joinMulticast(String group, {Iterable<String> localIps = const []}) {
+  Future<bool> joinMulticast(String group, {Iterable<String> localIps = const []}) async {
     final g = InternetAddress(group);
+    var ok = true;
     if (localIps.isEmpty) {
       try {
         _socket.joinMulticast(g);
       } on SocketException {
-        // no multicast on the default adapter
+        ok = false;
       } on OSError {
-        // same
+        ok = false;
       }
-      return;
+      return ok;
     }
-    _interfaces ??= NetworkInterface.list(type: InternetAddressType.IPv4, includeLoopback: false, includeLinkLocal: true);
-    unawaited(_interfaces!.then((list) {
-      for (final ip in localIps) {
-        for (final i in list) {
-          if (i.addresses.any((a) => a.address == ip)) {
-            try {
-              _socket.joinMulticast(g, i);
-            } on SocketException {
-              // adapter without multicast
-            } on OSError {
-              // same
-            }
-          }
-        }
+    List<NetworkInterface> list;
+    try {
+      list = await NetworkInterface.list(type: InternetAddressType.IPv4, includeLoopback: false, includeLinkLocal: true);
+    } catch (_) {
+      return false;
+    }
+    for (final ip in localIps) {
+      final iface = list.where((i) => i.addresses.any((a) => a.address == ip)).firstOrNull;
+      if (iface == null) {
+        ok = false;
+        continue;
       }
-    }).catchError((Object _) {}));
+      try {
+        _socket.joinMulticast(g, iface);
+      } on SocketException {
+        ok = false;
+      } on OSError {
+        ok = false;
+      }
+    }
+    return ok;
   }
 
   @override

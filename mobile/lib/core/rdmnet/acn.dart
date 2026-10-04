@@ -96,10 +96,14 @@ class Acn {
 }
 
 class RootLayerPdu {
-  RootLayerPdu(this.vector, this.senderCid, this.data);
+  RootLayerPdu(this.vector, this.senderCid, this.data, [this.block]);
   final int vector;
   final Cid senderCid;
   final Uint8List data;
+
+  /// The complete TCP block (preamble and PDU) this came in, when read from a stream. A broker
+  /// forwards RPT messages by sending this block on unchanged.
+  final Uint8List? block;
 }
 
 /// Splits a TCP byte stream into root layer PDU blocks.
@@ -123,7 +127,9 @@ class AcnTcpFramer {
           _buffer.sublist(Acn.tcpPreambleLength, Acn.tcpPreambleLength + len));
       _buffer.removeRange(0, Acn.tcpPreambleLength + len);
       final pdu = Acn.decodeRootLayer(ByteReader(block));
-      if (pdu != null) out.add(pdu);
+      if (pdu != null) {
+        out.add(RootLayerPdu(pdu.vector, pdu.senderCid, pdu.data, Uint8List.fromList([...Acn.packetIdentifier, len >> 24 & 0xFF, len >> 16 & 0xFF, len >> 8 & 0xFF, len & 0xFF, ...block])));
+      }
     }
     return out;
   }

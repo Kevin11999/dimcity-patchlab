@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:network_info_plus/network_info_plus.dart';
 
+import 'adapters.dart';
+
 /// One IPv4 address of this device with its subnet mask.
 class LocalAddress {
   const LocalAddress(this.ip, this.mask, {this.interfaceName = '', this.maskGuessed = false});
@@ -49,19 +51,7 @@ class LocalAddress {
     return first == 2 || first == 10;
   }
 
-  bool get isVirtual {
-    final n = interfaceName.toLowerCase();
-    return n.contains('vethernet') ||
-        n.contains('virtualbox') ||
-        n.contains('vmware') ||
-        n.contains('vmnet') ||
-        n.contains('hyper-v') ||
-        n.contains('docker') ||
-        n.contains('wsl') ||
-        n.contains('loopback') ||
-        n.startsWith('veth') ||
-        n.startsWith('br-');
-  }
+  bool get isVirtual => looksVirtual(interfaceName);
 
   String get describe => '$ip ${maskGuessed ? '~' : ''}/${prefixLength ?? '?'}';
 

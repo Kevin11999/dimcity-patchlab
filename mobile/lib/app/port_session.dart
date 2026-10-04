@@ -78,24 +78,34 @@ class PortSession extends ChangeNotifier {
   // Discovery
   // ---------------------------------------------------------------------------
 
-  Future<void> discover() async {
-    final route = routeBuilder();
-    if (route == null) {
-      error = 'No network connection to the lamps';
-      phase = SessionPhase.idle;
-      _notify();
-      return;
-    }
-    phase = SessionPhase.discovering;
-    error = null;
-    routeNote = null;
+  void _resetForSearch() {
     fixtures.clear();
     placed.clear();
     queue.clear();
     current = null;
     alignDone = false;
     sendState.clear();
-    _notify();
+  }
+
+  /// Looks for the fixtures. With [quiet] a search that finds nothing leaves the screen as it was (used
+  /// for the automatic searching while no lamps are connected yet); as soon as it finds something it
+  /// carries on like a normal search.
+  Future<void> discover({bool quiet = false}) async {
+    final route = routeBuilder();
+    if (route == null) {
+      if (quiet) return;
+      error = 'No network connection to the lamps';
+      phase = SessionPhase.idle;
+      _notify();
+      return;
+    }
+    if (!quiet) {
+      phase = SessionPhase.discovering;
+      error = null;
+      routeNote = null;
+      _resetForSearch();
+      _notify();
+    }
 
     List<Uid>? uids;
     RdmTransport transport = route.primary;
@@ -116,9 +126,18 @@ class PortSession extends ChangeNotifier {
       }
     }
     if (uids == null) {
-      phase = SessionPhase.idle;
+      if (!quiet) phase = SessionPhase.idle;
       _notify();
       return;
+    }
+    if (quiet) {
+      if (uids.isEmpty) return;
+      // Found something: from here on it is a normal search.
+      phase = SessionPhase.discovering;
+      error = null;
+      routeNote = null;
+      _resetForSearch();
+      _notify();
     }
     routeName = transport.routeName;
     expectedCount = uids.length;

@@ -18,6 +18,7 @@ class Settings extends ChangeNotifier {
     s._rdmnetScope = prefs.getString('rdmnetScope') ?? 'default';
     s._manualBroker = prefs.getString('manualBroker') ?? '';
     s._extraBroadcast = prefs.getString('extraBroadcast') ?? '';
+    s._lampsAdapter = prefs.getString('lampsAdapter') ?? '';
     final uid = Uid.tryParse(prefs.getString('controllerUid') ?? '');
     if (uid == null) {
       s._uid = Uid.randomPrototype();
@@ -52,6 +53,7 @@ class Settings extends ChangeNotifier {
   String _rdmnetScope = 'default';
   String _manualBroker = '';
   String _extraBroadcast = '';
+  String _lampsAdapter = '';
   late Uid _uid;
   late Cid _cid;
 
@@ -60,6 +62,9 @@ class Settings extends ChangeNotifier {
   String get rdmnetScope => _rdmnetScope;
   String get manualBroker => _manualBroker;
   String get extraBroadcast => _extraBroadcast;
+
+  /// Name of the network adapter the lamp search is limited to; empty = all adapters.
+  String get lampsAdapter => _lampsAdapter;
   Uid get controllerUid => _uid;
   Cid get cid => _cid;
 
@@ -85,6 +90,12 @@ class Settings extends ChangeNotifier {
   set manualBroker(String v) {
     _manualBroker = v.trim();
     _prefs?.setString('manualBroker', _manualBroker);
+    notifyListeners();
+  }
+
+  set lampsAdapter(String v) {
+    _lampsAdapter = v;
+    _prefs?.setString('lampsAdapter', v);
     notifyListeners();
   }
 

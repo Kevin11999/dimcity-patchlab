@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:patchlab_rdm/core/rdm/rdm_constants.dart';
 import 'package:patchlab_rdm/core/rdmnet/acn.dart';
 import 'package:patchlab_rdm/core/uid.dart';
+import 'package:patchlab_rdm/net/adapters.dart';
 import 'package:patchlab_rdm/net/memory_udp.dart';
 import 'package:patchlab_rdm/services/llrp_service.dart';
 import 'package:patchlab_rdm/services/rdm_client.dart';
@@ -23,7 +26,7 @@ void main() {
       socketFactory: hub.factoryFor('169.254.10.1'),
       cid: Cid.random(),
       controllerUid: const Uid(0x7FF0, 1),
-      localIps: () async => ['169.254.10.1'],
+      adapters: () async => const [AdapterInfo('Ethernet', '169.254.10.1')],
     );
   });
 
@@ -39,7 +42,7 @@ void main() {
     expect(found.map((d) => d.uid).toSet(), lamps.map((l) => l.fixture.uid).toSet());
     final first = found.firstWhere((d) => d.uid == lamps.first.fixture.uid);
     expect(first.ip, lamps.first.ip);
-    expect(first.localIp, '169.254.10.1');
+    expect(first.localIps, {'169.254.10.1'});
     expect(first.hardwareAddress, '02:00:7F:F1:20:00');
     expect(llrp.devices.length, 8);
     expect(llrp.repliesSeen, 8, reason: 'known UIDs stay quiet in the next round, so nobody answers twice');
@@ -50,7 +53,7 @@ void main() {
     final found = await llrp.probe(roundTimeout: const Duration(milliseconds: 150));
     expect(found, isEmpty);
     expect(llrp.probesSent, 2);
-    expect(llrp.adapters, ['169.254.10.1']);
+    expect(llrp.adapterIps, ['169.254.10.1']);
   });
 
   test('RDM through LLRP: info, modes, address, label, identify, NACK', () async {
@@ -101,19 +104,65 @@ void main() {
     expect(RdmClient(LampsTransport(llrp)).transport.routeName, 'RDMnet');
   });
 
-  test('localIpFor picks the adapter on the same network', () async {
-    final s = LlrpService(
-      socketFactory: hub.factoryFor('10.0.0.5'),
+  test('several adapters: one socket each, replies are counted on the adapter they came in on', () async {
+    final multi = LlrpService(
+      socketFactory: hub.factoryFor('169.254.10.1'),
       cid: Cid.random(),
       controllerUid: const Uid(0x7FF0, 2),
-      localIps: () async => ['192.168.1.20', '169.254.7.7', '2.0.0.9'],
+      adapters: () async => const [
+        AdapterInfo('Wi-Fi', '192.168.1.20'),
+        AdapterInfo('Ethernet', '169.254.10.1'),
+        AdapterInfo('vEthernet (WSL)', '172.20.0.1'),
+      ],
     );
-    await s.open();
-    expect(s.localIpFor('169.254.10.22'), '169.254.7.7');
-    expect(s.localIpFor('2.4.4.4'), isNull, reason: 'only one byte in common is not the same network');
-    expect(s.localIpFor('192.168.1.99'), '192.168.1.20');
-    expect(s.localIpFor('8.8.8.8'), isNull);
-    s.close();
+    addTearDown(multi.close);
+    final found = await multi.probe(roundTimeout: const Duration(milliseconds: 500));
+    expect(found.length, 8);
+    expect(found.every((d) => d.localIps.length == 1 && d.localIps.single == '169.254.10.1'), isTrue);
+    final byIp = {for (final s in multi.stats) s.info.ip: s};
+    expect(byIp['169.254.10.1']!.replies, 8);
+    expect(byIp['192.168.1.20']!.replies, 0);
+    expect(byIp['172.20.0.1']!.replies, 0);
+    expect(multi.stats.every((s) => s.joined && s.probes >= 2), isTrue);
+    // A command only goes out of the adapter the lamp was found on.
+    final client = RdmClient(LampsTransport(multi), timeout: const Duration(milliseconds: 400));
+    final before = multi.stats.map((s) => s.probes).toList();
+    await client.deviceInfo(lamps.first.fixture.uid);
+    final after = multi.stats.map((s) => s.probes).toList();
+    expect([for (var i = 0; i < after.length; i++) after[i] - before[i]], [0, 1, 0]);
+    expect(multi.report(), allOf(contains('Ethernet'), contains('received 8'), contains('components found: 8')));
+  });
+
+  test('an adapter that appears later (cable plugged in) is picked up by the next probe', () async {
+    var plugged = false;
+    final svc = LlrpService(
+      socketFactory: hub.factoryFor('169.254.10.1'),
+      cid: Cid.random(),
+      controllerUid: const Uid(0x7FF0, 3),
+      adapters: () async => plugged ? const [AdapterInfo('Ethernet', '169.254.10.1')] : const [AdapterInfo('Wi-Fi', '192.168.1.20')],
+    );
+    addTearDown(svc.close);
+    expect(await svc.probe(roundTimeout: const Duration(milliseconds: 300)), isEmpty);
+    expect(svc.adapterIps, ['192.168.1.20']);
+    plugged = true;
+    expect((await svc.probe(roundTimeout: const Duration(milliseconds: 500))).length, 8);
+    expect(svc.adapterIps, ['169.254.10.1'], reason: 'the Wi-Fi socket is closed, the cable socket opened');
+  });
+
+  test('an adapter whose socket cannot be opened is reported, the others still work', () async {
+    final svc = LlrpService(
+      socketFactory: (port, {bool reusePort = true, bool broadcast = true, String? localIp}) async {
+        if (localIp == '192.168.1.20') throw const SocketException('Address already in use');
+        return hub.open(ip: localIp ?? '169.254.10.1', port: port);
+      },
+      cid: Cid.random(),
+      controllerUid: const Uid(0x7FF0, 4),
+      adapters: () async => const [AdapterInfo('Wi-Fi', '192.168.1.20'), AdapterInfo('Ethernet', '169.254.10.1')],
+    );
+    addTearDown(svc.close);
+    expect((await svc.probe(roundTimeout: const Duration(milliseconds: 500))).length, 8);
+    expect(svc.unusable.keys, ['192.168.1.20']);
+    expect(svc.report(), contains('unusable 192.168.1.20'));
   });
 
   test('the dropped-address demo lamp fails three times, then works', () async {

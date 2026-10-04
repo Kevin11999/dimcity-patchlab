@@ -4,6 +4,20 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.6.1 — 2026-10-04
+
+- Luminex GigaCore (generation 2) switches over their web API: read the switch, compare it with the plan and send it — a group per VLAN with name and colour, every port in the group of its device and named after it, the fibre ports in a "Fibre" trunk with the management VLAN untagged, the device name and (if ticked) the IP address. You see every call before it is made, and the switch is read again afterwards to check.
+- LumiNode / LumiCore over their web API: name, IP address and the universe of every DMX output (followed through its process block), also for nodes that do not answer Art-Net polls. Outputs with a shared or unknown set-up are left alone and explained.
+- The network dialog gets the tabs LumiNode (HTTP) and Switches with user name, password and https, an address field for devices that still have another address, and an optional profile slot to save a switch configuration.
+
+<details><summary>Nederlands</summary>
+
+- Luminex GigaCore-switches (generatie 2) via hun web-API: lees de switch uit, vergelijk met het plan en stuur — een groep per VLAN met naam en kleur, elke poort in de groep van zijn apparaat en ernaar genoemd, de fibre-poorten in een trunk "Fibre" met het beheer-VLAN untagged, de apparaatnaam en (als aangevinkt) het IP-adres. Je ziet elke aanroep voordat hij gedaan wordt en de switch wordt daarna opnieuw uitgelezen ter controle.
+- LumiNode / LumiCore via hun web-API: naam, IP-adres en het universe van elke DMX-uitgang (gevolgd via zijn process block), ook voor nodes die niet op Art-Net-polls antwoorden. Uitgangen met een gedeelde of onbekende opzet blijven ongemoeid en worden uitgelegd.
+- Het netwerkvenster krijgt de tabbladen LumiNode (HTTP) en Switches met gebruikersnaam, wachtwoord en https, een adresveld voor apparaten die nog een ander adres hebben en een optioneel profielslot om een switchconfiguratie te bewaren.
+
+</details>
+
 ## 0.6.0 — 2026-10-04
 
 - New Tasks page: the next thing to do with a button that takes you there, the whole workflow as one line, a square for every DB and every step (click to go there), and the show checks. A short next-step bar sits on the Overview too.

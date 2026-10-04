@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('app', {
   artnetScan: (opts) => ipcRenderer.invoke('artnetScan', opts),
   artnetApply: (job) => ipcRenderer.invoke('artnetApply', job),
   netProbe: (args) => ipcRenderer.invoke('netProbe', args),
+  luminexHttp: (req) => ipcRenderer.invoke('luminexHttp', req),
   showItemInFolder: (filePath) => ipcRenderer.invoke('showItemInFolder', filePath),
   appInfo: () => ipcRenderer.invoke('appInfo'),
   ping: () => ipcRenderer.invoke('ping'),

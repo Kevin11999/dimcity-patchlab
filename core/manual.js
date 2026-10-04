@@ -619,7 +619,18 @@ Dit is een bestandsuitwisseling op de standaard veldnamen, geen live koppeling; 
 
 Universe numbering: Luminex shows universe 1 where Art-Net says 0, so the default is one less; choose "same number" if your nodes count differently.
 
-The **Switches** tab checks whether each planned switch address answers and makes a sheet with port, device and VLAN for every switch. Sending a configuration to Luminex GigaCore switches is not built in: it needs the switch's own control interface.
+## Luminex GigaCore switches and LumiNode over their web API
+The tabs **LumiNode (HTTP)** and **Switches** talk to the devices through the HTTP APIs that Luminex documents (GigaCore generation 2 WebApi 1.5, LumiNode/LumiCore WebApi 2.8). Fill in the user name and password of the device, then for each switch or node:
+
+1. **Read.** The address now is the one in your plan; if the device still has another address (factory setting), type that one. PatchLab reads the device.
+2. PatchLab shows what differs from the plan, one line per change.
+3. **Send…** shows every call it will make (method and path). After you confirm, the calls are made one by one; it stops at the first error. Then the device is read again and checked against the plan.
+
+**Switches (GigaCore gen 2):** a group per VLAN of the plan (name and colour), every port in the group of its device, the ports named after the device (16 characters at most), the device name, and the fibre ports in a trunk "Fibre" that carries these VLANs with the management VLAN untagged, so the switch stays reachable over the fibre. Built-in groups keep their name. The IP address is only changed if you tick it, and is done last. The change is made on the running configuration; fill in a profile slot to save it there too. Nothing else on the switch is touched. Generation 1 switches are not covered.
+
+**LumiNode (HTTP):** the short and long name, the IP address (only if ticked) and the universe of every DMX output, in port order. PatchLab follows each output through its process block to the input that feeds it. An output whose input is shared with another block, or whose set-up is not recognised, is left alone and explained. Universe numbering follows the setting on the Nodes tab; new inputs are Art-Net or sACN as you choose.
+
+The group "Check which switches answer / configuration sheet" keeps the simple reachability check and the sheet with port, device and VLAN per switch.
 
 Outside the desktop app a simulated network is used so you can try it out.`,
     nl:`PatchLab kan Art-Net-nodes (Luminex LumiNode, ELC en andere) op het netwerk vinden en ze de configuratie uit je plan sturen. Open het vanaf de pagina **Taken** (**Apparaten op het netwerk**).
@@ -632,7 +643,18 @@ Outside the desktop app a simulated network is used so you can try it out.`,
 
 Universe-nummering: Luminex toont universe 1 waar Art-Net 0 zegt, dus de standaard is één lager; kies "zelfde nummer" als je nodes anders tellen.
 
-Het tabblad **Switches** controleert of elk geplande switchadres antwoordt en maakt een blad met poort, apparaat en VLAN per switch. Een configuratie naar Luminex GigaCore-switches sturen zit er niet in: daarvoor is de eigen besturingsinterface van de switch nodig.
+## Luminex GigaCore-switches en LumiNode via hun web-API
+De tabbladen **LumiNode (HTTP)** en **Switches** praten met de apparaten via de HTTP-API's die Luminex documenteert (GigaCore generatie 2 WebApi 1.5, LumiNode/LumiCore WebApi 2.8). Vul de gebruikersnaam en het wachtwoord van het apparaat in en doe dan per switch of node:
+
+1. **Uitlezen.** Het adres nu is dat uit je plan; heeft het apparaat nog een ander adres (fabrieksinstelling), typ dan dat adres. PatchLab leest het apparaat uit.
+2. PatchLab toont wat verschilt van het plan, één regel per wijziging.
+3. **Sturen…** toont elke aanroep die gedaan wordt (methode en pad). Na je bevestiging gebeuren de aanroepen een voor een; bij de eerste fout stopt het. Daarna wordt het apparaat opnieuw uitgelezen en met het plan vergeleken.
+
+**Switches (GigaCore gen 2):** een groep per VLAN van het plan (naam en kleur), elke poort in de groep van zijn apparaat, de poorten genoemd naar het apparaat (maximaal 16 tekens), de apparaatnaam, en de fibre-poorten in een trunk "Fibre" met deze VLAN's en het beheer-VLAN untagged, zodat de switch via de fibre bereikbaar blijft. Ingebouwde groepen houden hun naam. Het IP-adres wordt alleen veranderd als je het aanvinkt en gebeurt als laatste. De wijziging gaat in de actieve configuratie; vul een profielslot in om hem daar ook te bewaren. Verder wordt niets op de switch aangeraakt. Generatie 1-switches vallen erbuiten.
+
+**LumiNode (HTTP):** de korte en lange naam, het IP-adres (alleen als aangevinkt) en het universe van elke DMX-uitgang, in poortvolgorde. PatchLab volgt elke uitgang via zijn process block naar de ingang die hem voedt. Een uitgang waarvan de ingang gedeeld wordt met een ander blok, of waarvan de opzet niet herkend wordt, blijft ongemoeid en wordt uitgelegd. De universe-nummering volgt de instelling op het tabblad Nodes; nieuwe ingangen zijn Art-Net of sACN naar keuze.
+
+Het uitklapblok "Controleer welke switches antwoorden / configuratieblad" houdt de eenvoudige bereikbaarheidscontrole en het blad met poort, apparaat en VLAN per switch.
 
 Buiten de desktop-app wordt een gesimuleerd netwerk gebruikt zodat je het kunt uitproberen.`
   },
@@ -940,6 +962,19 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // Release notes per version, newest first. `npm run manual` turns this into CHANGELOG.md and the
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
+  {
+    version:'0.6.1', date:'2026-10-04',
+    en:[
+      'Luminex GigaCore (generation 2) switches over their web API: read the switch, compare it with the plan and send it — a group per VLAN with name and colour, every port in the group of its device and named after it, the fibre ports in a "Fibre" trunk with the management VLAN untagged, the device name and (if ticked) the IP address. You see every call before it is made, and the switch is read again afterwards to check.',
+      'LumiNode / LumiCore over their web API: name, IP address and the universe of every DMX output (followed through its process block), also for nodes that do not answer Art-Net polls. Outputs with a shared or unknown set-up are left alone and explained.',
+      'The network dialog gets the tabs LumiNode (HTTP) and Switches with user name, password and https, an address field for devices that still have another address, and an optional profile slot to save a switch configuration.',
+    ],
+    nl:[
+      'Luminex GigaCore-switches (generatie 2) via hun web-API: lees de switch uit, vergelijk met het plan en stuur — een groep per VLAN met naam en kleur, elke poort in de groep van zijn apparaat en ernaar genoemd, de fibre-poorten in een trunk "Fibre" met het beheer-VLAN untagged, de apparaatnaam en (als aangevinkt) het IP-adres. Je ziet elke aanroep voordat hij gedaan wordt en de switch wordt daarna opnieuw uitgelezen ter controle.',
+      'LumiNode / LumiCore via hun web-API: naam, IP-adres en het universe van elke DMX-uitgang (gevolgd via zijn process block), ook voor nodes die niet op Art-Net-polls antwoorden. Uitgangen met een gedeelde of onbekende opzet blijven ongemoeid en worden uitgelegd.',
+      'Het netwerkvenster krijgt de tabbladen LumiNode (HTTP) en Switches met gebruikersnaam, wachtwoord en https, een adresveld voor apparaten die nog een ander adres hebben en een optioneel profielslot om een switchconfiguratie te bewaren.',
+    ]
+  },
   {
     version:'0.6.0', date:'2026-10-04',
     en:[

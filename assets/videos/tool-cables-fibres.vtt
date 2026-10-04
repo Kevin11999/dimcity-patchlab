@@ -1,0 +1,29 @@
+WEBVTT
+
+1
+00:00:00.794 --> 00:00:05.666
+Fibres start with cable types. Open the Device Builder on the Cables tab.
+
+2
+00:00:05.971 --> 00:00:14.470
+A cable type has a medium, a number of cores, a connector at both ends, and a length. Half metres are fine, like seven point five.
+
+3
+00:00:17.378 --> 00:00:27.050
+OpticalCON, FiberFox and SFP patch cables each have their own connector. A cable only fits ports with the same connector. Click save.
+
+4
+00:00:27.359 --> 00:00:34.258
+On the Network page, on the Fibres tab, enter how many of each cable you own. The stock is counted for you.
+
+5
+00:00:34.566 --> 00:00:43.129
+Auto-assign chains the switches inside a DB with the short cable, and links the DB's with the long cable, as a ring or a chain.
+
+6
+00:00:43.433 --> 00:00:49.969
+It tells you if the stock is not enough, and which connectors are missing. Press Assign, and the links are made.
+
+7
+00:00:50.276 --> 00:00:56.193
+The list shows every fibre, with its two ends. Remove one, and the cable goes back into the stock.

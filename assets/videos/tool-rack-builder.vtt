@@ -1,0 +1,33 @@
+WEBVTT
+
+1
+00:00:00.797 --> 00:00:05.477
+Racks are built from your devices. Open the Device Builder on the Racks tab.
+
+2
+00:00:05.785 --> 00:00:10.999
+Click New rack, give it a name, and an article key if you use them. The key is optional.
+
+3
+00:00:12.615 --> 00:00:16.847
+Choose the height in units. A rack can never be lower than what is in it.
+
+4
+00:00:17.158 --> 00:00:24.974
+On the right are your devices. Click the plus to add one at the first free position, or drag it to the exact place you want.
+
+5
+00:00:25.302 --> 00:00:33.204
+Half width devices, like the LumiNode four, sit two side by side. Fill gaps adds black blind plates next to them.
+
+6
+00:00:33.509 --> 00:00:38.979
+The summary shows how much space is used. Close the builder, and place the rack in a DB.
+
+7
+00:00:39.287 --> 00:00:49.599
+Or build a rack right here: Custom rack. Choose how many panels, nodes, splitters and switches it holds, and PatchLab places them. No article key is needed.
+
+8
+00:00:49.909 --> 00:00:57.917
+Click Build and place, and the rack is in the DB, with its own name, and the LK and the lines of this DB are patched onto it.

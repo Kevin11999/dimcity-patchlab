@@ -23,6 +23,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // the voice text has spaced letters ("D B", "P D F"); the subtitles do not
 const subtitle = t => t.replace(/\b([A-Z])((?: [A-Z])+)\b/g, (m, a, b) => a + b.replace(/ /g, ''));
 
+function writeIndex(){
+const cuesOf = id => { try { return JSON.parse(fs.readFileSync(path.join(OUT, `${id}.cues.json`), 'utf8')); } catch { return []; } };
+  fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(SERIES.map(sr => ({ id: sr.id, title: sr.title, parts: sr.parts.filter(p => fs.existsSync(path.join(OUT, `${p.id}.webm`))).map(p => ({ id: p.id, title: p.title, desc: p.desc || '', cues: cuesOf(p.id) })) })).filter(sr => sr.parts.length)));
+}
+if(process.argv.includes('--index')){ writeIndex(); console.log('index.json written'); process.exit(0); }
+
 // 1. the voice: one clip per sentence
 const CHECK = process.argv.includes('--check');        // run the steps without voice and video; save a picture after every step to /tmp/vf/check-*.jpg
 const want = process.argv.slice(2).filter(a => !a.startsWith('-'));
@@ -125,5 +131,4 @@ function helpers(page){
 }
 
 for(const p of parts){ console.log(CHECK ? 'checking' : 'recording', p.id); await record(p); }
-const cuesOf = id => { try { return JSON.parse(fs.readFileSync(path.join(OUT, `${id}.cues.json`), 'utf8')); } catch { return []; } };
-fs.writeFileSync(path.join(OUT, 'index.json'), JSON.stringify(SERIES.map(sr => ({ id: sr.id, title: sr.title, parts: sr.parts.filter(p => fs.existsSync(path.join(OUT, `${p.id}.webm`))).map(p => ({ id: p.id, title: p.title, desc: p.desc || '', cues: cuesOf(p.id) })) })).filter(sr => sr.parts.length)));
+writeIndex();

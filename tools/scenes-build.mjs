@@ -81,11 +81,11 @@ export const BUILD = [
     { say: 'It can be one picture for all the views, or its own picture for each view. Fit to drawing makes it cover everything.', do: async k => { await k.hover('.fl-bgsec .switch'); await k.wait(1200); } }
   ] },
 
-  { id: 'build-8-check', title: '8 · Check and the P D F', prep: upTo(doAdvice, doNodes, doSwitches, doFibres), steps: [
+  { id: 'build-8-check', title: '8 · Check and the PDF', prep: upTo(doAdvice, doNodes, doSwitches, doFibres), steps: [
     { say: 'Step seven: check and output. Look at the Tasks page first. When every square is green, the show is complete.', do: async k => { await k.go('TASKS'); await k.hover('.tk-matrix'); await k.wait(900); } },
     { say: 'The last step of Setup lists the open issues, and links to the Signal Flow, the P D F and the stickers.', do: async k => { await k.click('#tbSetup'); await k.click('[data-go=check]'); await k.wait(1000); await k.click('#suStop'); } },
     { say: 'Export P D F opens the report builder. Choose the sections: the patch, the racks, the signal flow, the network, the switch ports and the fibre links.', do: async k => { await k.click('#fileExportPdf'); await k.wait(2200); } },
-    { say: 'New: the QR codes section. Every D B gets QR codes that hold the whole D B as text, and the first page can carry one for the whole system.', do: async k => { await k.ev(() => document.querySelector('[data-on="qr"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })); await k.wait(700); await k.click('label:has([data-on="qr"]), .rb-sec:has([data-on="qr"]) .switch'); await k.wait(1500); } },
+    { say: 'New: the QR codes section. Every D B gets QR codes that hold the whole D B as text, and the first page can carry one for the whole system.', do: async k => { await k.ev(() => document.querySelector('[data-on="qr"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })); await k.wait(700); await k.click('label:has([data-on="qr"]), .rb-sec:has([data-on="qr"]) .switch'); await k.wait(1500); await k.ev(() => { for (const f of document.querySelectorAll('iframe')) { try { f.contentDocument.querySelector('.qrgrid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} } }); await k.wait(1500); } },
     { say: 'A live preview shows every page before you export. Then export, and you have the report, ready to print or to send.', do: async k => { await k.wait(2800); } }
   ] },
 

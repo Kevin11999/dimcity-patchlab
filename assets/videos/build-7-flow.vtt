@@ -1,0 +1,25 @@
+WEBVTT
+
+1
+00:00:00.798 --> 00:00:05.179
+The Signal Flow shows how the data runs from the rack to every object.
+
+2
+00:00:05.488 --> 00:00:09.613
+Hover a universe to follow it through the drawing. Click it to pin the route.
+
+3
+00:00:11.937 --> 00:00:17.534
+The Show switch shows everything, only DMX, only the network, or only the fibres.
+
+4
+00:00:18.038 --> 00:00:27.049
+Blocks never overlap. Drag a rack or a block to arrange it, and the arrangement is saved per DB. Auto layout puts everything back.
+
+5
+00:00:27.358 --> 00:00:35.835
+New: a background picture, like a floor plan or a stage plot. Choose a picture, then set the opacity, the size and the position.
+
+6
+00:00:36.199 --> 00:00:43.119
+It can be one picture for all the views, or its own picture for each view. Fit to drawing makes it cover everything.

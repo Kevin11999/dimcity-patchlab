@@ -1,0 +1,25 @@
+WEBVTT
+
+1
+00:00:00.864 --> 00:00:08.509
+Step five: the network. Every DB gets a network switch, and the nodes and the network cables take its ports in order.
+
+2
+00:00:08.874 --> 00:00:19.719
+First choose the numbering of the VLANs. Luminex style: management is VLAN one, group two is VLAN two hundred, and so on. Or use the FENT numbers.
+
+3
+00:00:20.030 --> 00:00:30.961
+Now add the switches. The Luminex GigaCore twenty T, three U set, is a special device, drawn exactly like the real one. DB 1 gets three of them.
+
+4
+00:00:31.268 --> 00:00:34.625
+The same switch in every other DB takes one click.
+
+5
+00:00:35.014 --> 00:00:43.427
+Open the Network page for the details. Switches and ports shows which port every node and cable takes, with the colour of its VLAN.
+
+6
+00:00:43.738 --> 00:00:53.581
+On the VLAN tab you can rename any VLAN, change its colour, or add your own. The new name is used in the port plan, on the stickers and in the PDF.

@@ -1,0 +1,25 @@
+WEBVTT
+
+1
+00:00:00.792 --> 00:00:09.163
+Export PDF opens the report builder. On the left you choose what goes in, on the right a live preview shows every page.
+
+2
+00:00:09.470 --> 00:00:19.228
+Every section can be switched on or off: the DB header, network, splitters, racks, signal flow, patch, universes, the patch list, warnings and notes.
+
+3
+00:00:19.533 --> 00:00:28.309
+Drag a section by its handle to change the order. Racks has options: the rack drawing, node ports, loose devices and the patch table.
+
+4
+00:00:28.617 --> 00:00:36.519
+The new QR codes section puts QR codes on the page that hold the whole DB as text, and optionally the whole system.
+
+5
+00:00:36.827 --> 00:00:45.859
+Style, header and footer, cover page and logo are set in the other tabs. Save the layout as a template, and use it again in the next project.
+
+6
+00:00:46.168 --> 00:00:51.488
+Choose one PDF with all DB's, or one file per DB. Then export.

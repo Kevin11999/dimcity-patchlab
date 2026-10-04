@@ -1,0 +1,29 @@
+WEBVTT
+
+1
+00:00:00.797 --> 00:00:10.895
+Step six: the fibres between the switches, inside a DB and between the DB's. First make your cable types in the Device Builder, on the Cables tab.
+
+2
+00:00:11.204 --> 00:00:19.340
+OpticalCON, FiberFox or SFP patch cables, each with a length. Half metres are fine, like seven point five.
+
+3
+00:00:19.650 --> 00:00:24.714
+On the Network page, on the Fibres tab, fill in how many of each cable you own.
+
+4
+00:00:25.022 --> 00:00:35.504
+Auto-assign chains the switches inside a DB with the short cable, and links the DB's with the long cable, as a ring. It only uses ports with the right connector.
+
+5
+00:00:35.815 --> 00:00:45.743
+A cable only fits ports with the same connector: opticalCON cable on opticalCON ports, FiberFox on FiberFox. Other ports are dimmed.
+
+6
+00:00:46.055 --> 00:00:56.580
+In the Signal Flow, under Show, choose Fibres. Every location is a card with its switches and fibre ports. Drag a switch by its name to place it next to another.
+
+7
+00:00:56.938 --> 00:01:07.442
+Cables run in straight lines and hop over each other with a little bridge. To draw one by hand, pick a cable at the bottom, click a free port, and then the port at the other end.

@@ -1,0 +1,25 @@
+WEBVTT
+
+1
+00:00:00.793 --> 00:00:07.734
+Everything about the network is on the Network page. Switches and ports shows what every port of a switch is used for.
+
+2
+00:00:08.041 --> 00:00:13.809
+Every port has the colour of its VLAN, so you see at a glance which network a cable belongs to.
+
+3
+00:00:14.117 --> 00:00:19.842
+The VLAN tab lists all VLANs. Choose Luminex numbering, or the FENT scheme.
+
+4
+00:00:20.154 --> 00:00:28.396
+Click a name to rename a VLAN, and change its colour. The new name is used in the port plan, on the stickers and in the PDF.
+
+5
+00:00:28.703 --> 00:00:36.199
+Add your own VLAN with a number and a name. It can be removed again, and a standard VLAN can be reset to its standard name.
+
+6
+00:00:36.509 --> 00:00:42.938
+The Overview tab shows every device with its addresses, and warns about addresses that are used twice.

@@ -1,0 +1,29 @@
+WEBVTT
+
+1
+00:00:00.795 --> 00:00:07.501
+Not sure which panels and nodes a DB needs? Open the DB, and look at the card Advice, best setup.
+
+2
+00:00:07.811 --> 00:00:16.309
+PatchLab counts the LK's, Veams, lines and universes, and works out the best setup from the devices in your Device Builder.
+
+3
+00:00:16.617 --> 00:00:26.758
+It chooses the cheapest combination of panels, and compares nodes with and without a splitter. It only uses devices you made yourself, never something you do not own.
+
+4
+00:00:27.065 --> 00:00:32.833
+When there are too few sockets, it adds loose spiders instead of a whole extra panel, and says so.
+
+5
+00:00:33.143 --> 00:00:43.732
+Open Block mode per LK. It advises twelve XLR for an LK with many ports, three Veams when an LK only carries Veams, and mixed in between.
+
+6
+00:00:44.041 --> 00:00:52.518
+Apply this advice, and PatchLab adds a rack made for this DB. Your own racks stay untouched, and you can apply again at any time.
+
+7
+00:00:52.828 --> 00:00:59.108
+The rack appears below, with every LK and Veam on its socket, and the colour of the node that feeds it.

@@ -1,0 +1,29 @@
+WEBVTT
+
+1
+00:00:00.861 --> 00:00:08.400
+Step two: racks and devices. Open a DB, here DB 1, and look at the card called Advice, best setup.
+
+2
+00:00:08.707 --> 00:00:18.251
+PatchLab counts the LK's, the Veams, the lines and the universes of this DB, and works out the best setup from the devices in your Device Builder.
+
+3
+00:00:18.559 --> 00:00:27.570
+It lists the panels and nodes it would use, how much rack space they take, and why. Here three nodes are enough, because a splitter would need more space.
+
+4
+00:00:27.952 --> 00:00:42.296
+It also advises a block mode per LK: twelve XLR for an LK with many ports, three Veams when an LK only carries Veams, and mixed in between. If an LK is set differently, one button fixes it.
+
+5
+00:00:42.881 --> 00:00:52.063
+Happy with it? Apply the advice. PatchLab adds a rack made for this DB, and a loose spider when only a few Veams do not deserve a whole panel.
+
+6
+00:00:52.370 --> 00:01:00.869
+You can always place racks and loose devices yourself, or change a rack in the Rack Builder. Setup brings you back to the same step afterwards.
+
+7
+00:01:01.341 --> 00:01:11.611
+Do the same for the other DB's. And FOH, front of house, where the lighting desk stands, is added with the plus next to the DimCities. It does not need a rack.

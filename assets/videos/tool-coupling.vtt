@@ -1,0 +1,33 @@
+WEBVTT
+
+1
+00:00:00.797 --> 00:00:08.293
+Every LK and Veam needs a socket. Open a DB, and find the table Couple LK's and Veams to sockets.
+
+2
+00:00:08.624 --> 00:00:15.053
+Automatic fills the sockets in order. Or choose a socket yourself, a loose spider, or do not patch.
+
+3
+00:00:15.402 --> 00:00:18.140
+One button returns everything to automatic.
+
+4
+00:00:18.480 --> 00:00:30.114
+Now an important rule. LK and Veam cables are short. A socket in one rack can only feed nodes in the same rack. Here the panels are in one rack, and the nodes in another.
+
+5
+00:00:30.422 --> 00:00:40.286
+Only network cables can run from rack to rack. Two racks that stand directly on top of each other count as one: that is the tick, stacked on the rack above.
+
+6
+00:00:40.611 --> 00:00:47.061
+Without that tick, the LK's have no node in their own rack. PatchLab warns, and offers a Fix button.
+
+7
+00:00:47.370 --> 00:00:51.111
+Press Fix, and the racks are stacked. Everything is patched again.
+
+8
+00:00:51.416 --> 00:01:01.514
+A node without a rack always comes with a spider. Add a loose node, and an LK spider is added with it, because a loose node has no panel to be fed from.

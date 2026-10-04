@@ -1,7 +1,7 @@
 WEBVTT
 
 1
-00:00:00.799 --> 00:00:09.725
+00:00:00.800 --> 00:00:09.725
 Welcome to DimCity PatchLab. In this series we build a complete show from scratch: from the patch list to the finished PDF and the stickers.
 
 2
@@ -9,37 +9,37 @@ Welcome to DimCity PatchLab. In this series we build a complete show from scratc
 This is an empty project. The device library of Luminex and ELC is already loaded, so you can start right away.
 
 3
-00:00:18.262 --> 00:00:24.436
+00:00:18.272 --> 00:00:24.445
 Everything starts with the patch list, a CSV file. Click Import CSV in the toolbar.
 
 4
-00:00:24.743 --> 00:00:35.055
+00:00:24.765 --> 00:00:35.077
 Choose which columns hold the LK or Veam ID, the port, the universe and the location. PatchLab detects them for you, and skips header and footer rows.
 
 5
-00:00:35.364 --> 00:00:36.930
+00:00:35.383 --> 00:00:36.948
 Click Import Selection.
 
 6
-00:00:38.946 --> 00:00:46.101
+00:00:39.242 --> 00:00:46.397
 The overview now shows three DB's with their LK blocks, Veams and universes, all taken from the file.
 
 7
-00:00:46.553 --> 00:00:54.711
+00:00:46.704 --> 00:00:54.861
 The patch list shows every row: LK's, Veams, loose DMX lines, and network cables, which start with the letter C.
 
 8
-00:00:55.022 --> 00:01:03.052
+00:00:55.171 --> 00:01:03.200
 The Validation page tells you what is wrong, such as a universe that is used twice, or a Veam that is not linked to an LK.
 
 9
-00:01:03.357 --> 00:01:11.216
+00:01:03.508 --> 00:01:11.367
 The Tasks page is your map. It shows the whole workflow as one line, and for every DB what is done and what comes next.
 
 10
-00:01:11.519 --> 00:01:17.842
+00:01:11.674 --> 00:01:17.997
 Below it is a square for every DB and every step. Click a square, and you go straight to the right place.
 
 11
-00:01:18.148 --> 00:01:25.559
+00:01:18.306 --> 00:01:25.717
 Setup walks through the same steps, with an explanation at every step. We use it in the next parts. Let's start with the racks.

@@ -1,0 +1,29 @@
+WEBVTT
+
+1
+00:00:00.797 --> 00:00:06.139
+The fibre overview is in the Signal Flow. Open it, and under Show, choose Fibres.
+
+2
+00:00:06.444 --> 00:00:12.938
+Every location is a card with its switches. Each switch shows its fibre ports with their number and connector.
+
+3
+00:00:13.245 --> 00:00:17.520
+Zoom with the wheel, or the buttons. Drag the background to move around.
+
+4
+00:00:17.829 --> 00:00:24.664
+Drag a switch by its name. It moves live, and its cables follow, so you can place it exactly where it belongs.
+
+5
+00:00:24.973 --> 00:00:29.291
+Cables run in straight lines, and hop over each other with a little bridge.
+
+6
+00:00:29.597 --> 00:00:38.885
+To draw a cable by hand, pick a cable type at the bottom, click a free port, and then the port at the other end. Ports with the wrong connector are dimmed.
+
+7
+00:00:39.198 --> 00:00:45.457
+Click a cable to select it, and remove it with the button. Auto-assign and the stock are right here too.

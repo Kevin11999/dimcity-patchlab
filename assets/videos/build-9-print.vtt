@@ -1,0 +1,17 @@
+WEBVTT
+
+1
+00:00:00.799 --> 00:00:11.858
+The last step is printing. Stickers makes labels for Herma laser sheets: cable labels, panel strips, node ports, devices, switch ports, fibres and network cables.
+
+2
+00:00:12.162 --> 00:00:19.594
+Pick the Herma sheet, the DB, and what to print. The preview matches the sheet exactly, so you see what the printer will do.
+
+3
+00:00:19.906 --> 00:00:31.093
+Switch on DB info QR, and every DB gets stickers with a QR code that holds everything about that DB. The system QR does the same for the whole show.
+
+4
+00:00:31.401 --> 00:00:41.180
+A calibration sheet checks that your printer puts every label where the template says. And that is the whole workflow, from the CSV file to the printed show.

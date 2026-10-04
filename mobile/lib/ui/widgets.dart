@@ -167,7 +167,8 @@ Future<String?> promptText(BuildContext context, {required String title, String?
       ],
     ),
   );
-  controller.dispose();
+  // The dialog is still fading out when it returns; its TextField may build once more with this controller.
+  Future<void>.delayed(const Duration(milliseconds: 500), controller.dispose);
   return r;
 }
 

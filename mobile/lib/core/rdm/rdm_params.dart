@@ -327,3 +327,110 @@ class ComponentScope {
 
   static Uint8List request(int slot) => RdmData.u16(slot);
 }
+
+/// PARAMETER_DESCRIPTION: what one manufacturer-specific parameter (PID 0x8000-0xFFDF) is, how big its data is, whether it
+/// can be read and written, and its name.
+class ParameterDescription {
+  ParameterDescription({
+    required this.pid,
+    required this.pdlSize,
+    required this.dataType,
+    required this.commandClass,
+    required this.min,
+    required this.max,
+    required this.defaultValue,
+    required this.description,
+  });
+
+  factory ParameterDescription.decode(Uint8List d) {
+    if (d.length < 20) throw const FormatException('PARAMETER_DESCRIPTION too short');
+    final b = ByteData.sublistView(d);
+    return ParameterDescription(
+      pid: b.getUint16(0),
+      pdlSize: d[2],
+      dataType: d[3],
+      commandClass: d[4],
+      min: b.getUint32(8),
+      max: b.getUint32(12),
+      defaultValue: b.getUint32(16),
+      description: latin1Trim(d.sublist(20)),
+    );
+  }
+
+  final int pid;
+  final int pdlSize;
+  final int dataType;
+
+  /// 1 = GET, 2 = SET, 3 = GET and SET.
+  final int commandClass;
+  final int min;
+  final int max;
+  final int defaultValue;
+  final String description;
+
+  static const typeAscii = 0x02;
+
+  bool get canGet => commandClass == 1 || commandClass == 3;
+  bool get canSet => commandClass == 2 || commandClass == 3;
+  bool get isText => dataType == typeAscii;
+  bool get isNumber => dataType >= 0x03 && dataType <= 0x08;
+  bool get isSigned => dataType == 0x04 || dataType == 0x06 || dataType == 0x08;
+
+  /// Byte width of a numeric value of this type.
+  int get width => switch (dataType) { 0x03 || 0x04 => 1, 0x05 || 0x06 => 2, _ => 4 };
+
+  String get typeName => switch (dataType) {
+        0x01 => 'bit field',
+        0x02 => 'text',
+        0x03 => 'uint8',
+        0x04 => 'int8',
+        0x05 => 'uint16',
+        0x06 => 'int16',
+        0x07 => 'uint32',
+        0x08 => 'int32',
+        _ => 'raw',
+      };
+
+  /// Is there a limit to show? Many devices send 0 / 0.
+  bool get hasRange => min != 0 || max != 0;
+
+  int? number(Uint8List value) {
+    if (!isNumber || value.length < width) return null;
+    final b = ByteData.sublistView(value);
+    return switch (dataType) {
+      0x03 => b.getUint8(0),
+      0x04 => b.getInt8(0),
+      0x05 => b.getUint16(0),
+      0x06 => b.getInt16(0),
+      0x07 => b.getUint32(0),
+      _ => b.getInt32(0),
+    };
+  }
+
+  /// The value as text for the screen.
+  String format(Uint8List value) {
+    if (isText) return latin1Trim(value);
+    final n = number(value);
+    if (n != null) return '$n';
+    return value.map((x) => x.toRadixString(16).padLeft(2, '0')).join(' ').toUpperCase();
+  }
+
+  /// The data to SET for [v], or null when it does not fit the type.
+  Uint8List? encode(int v) {
+    if (!isNumber) return null;
+    final bits = width * 8;
+    final lo = isSigned ? -(1 << (bits - 1)) : 0;
+    final hi = isSigned ? (1 << (bits - 1)) - 1 : (1 << bits) - 1;
+    if (v < lo || v > hi) return null;
+    final out = ByteData(width);
+    switch (width) {
+      case 1:
+        out.setUint8(0, v & 0xFF);
+      case 2:
+        out.setUint16(0, v & 0xFFFF);
+      default:
+        out.setUint32(0, v & 0xFFFFFFFF);
+    }
+    return out.buffer.asUint8List();
+  }
+}

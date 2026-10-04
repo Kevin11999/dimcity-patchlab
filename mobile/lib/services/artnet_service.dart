@@ -105,6 +105,12 @@ class RxRecord {
   String toString() => '${time.toIso8601String().substring(11, 19)} $from:$port $what ($length bytes)';
 }
 
+class ArtIpProgReceived {
+  ArtIpProgReceived(this.ip, this.reply);
+  final String ip;
+  final ArtIpProgReply reply;
+}
+
 class ArtNetRdmReceived {
   ArtNetRdmReceived({required this.ip, required this.port, required this.rdm, required this.packet});
   final String ip;
@@ -188,6 +194,8 @@ class ArtNetService {
     ArtNet.opTodData: 'ArtTodData',
     ArtNet.opRdm: 'ArtRdm',
     ArtNet.opAddress: 'ArtAddress',
+    ArtNet.opIpProg: 'ArtIpProg',
+    ArtNet.opIpProgReply: 'ArtIpProgReply',
   };
 
   void _log(Datagram d) {
@@ -208,6 +216,7 @@ class ArtNetService {
   final _tod = StreamController<ArtTodData>.broadcast();
   final _rdm = StreamController<ArtNetRdmReceived>.broadcast();
   final _nodesChanged = StreamController<void>.broadcast();
+  final _ipProgReplies = StreamController<ArtIpProgReceived>.broadcast();
 
   Stream<ArtPollReply> get pollReplies => _replies.stream;
   Stream<ArtTodData> get todData => _tod.stream;
@@ -253,6 +262,9 @@ class ArtNetService {
         }
         _replies.add(reply);
         _nodesChanged.add(null);
+      case ArtNet.opIpProgReply:
+        final r = ArtIpProgReply.decode(d.data);
+        if (r != null) _ipProgReplies.add(ArtIpProgReceived(d.address.address, r));
       case ArtNet.opTodData:
         final t = ArtTodData.decode(d.data);
         if (t != null) _tod.add(t);
@@ -390,6 +402,18 @@ class ArtNetService {
     return f;
   }
 
+  /// ArtIpProg to one node (always unicast: broadcasting it would reprogram every node). Returns what the node reports
+  /// afterwards, or null when it does not answer, which is what a node without remote IP programming does. The answer may come
+  /// from the new address ([newIp]).
+  Future<ArtIpProgReply?> ipProg(ArtNetNodeInfo node, Uint8List packet, {String? newIp, Duration timeout = const Duration(seconds: 2)}) async {
+    if (!isLocal(node.ip)) {
+      throw RdmException('${node.ip} is not in a subnet of this computer: give the network adapter an address in the lamp\'s range first');
+    }
+    final f = firstMatching<ArtIpProgReceived>(_ipProgReplies.stream, (m) => m.ip == node.ip || (newIp != null && (m.ip == newIp || m.reply.ip == newIp)), timeout);
+    _send(packet, node.ip, node.udpPort);
+    return (await f)?.reply;
+  }
+
   /// Sends an ArtAddress packet to a node and returns the ArtPollReply for
   /// that page afterwards (the node replies on its own; otherwise it is polled).
   Future<ArtPollReply?> sendAddress(ArtNetNodeInfo node, Uint8List packet, {required int page, Duration timeout = const Duration(seconds: 3)}) async {
@@ -518,6 +542,7 @@ class ArtNetService {
     unawaited(_tod.close());
     unawaited(_rdm.close());
     unawaited(_nodesChanged.close());
+    unawaited(_ipProgReplies.close());
   }
 }
 

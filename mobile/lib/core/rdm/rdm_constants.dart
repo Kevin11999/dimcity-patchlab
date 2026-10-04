@@ -77,6 +77,22 @@ class Pid {
   static const resetDevice = 0x1001;
   static const powerState = 0x1010;
 
+  // ANSI E1.37-2 (IPv4 and DNS configuration over RDM), listed by name only.
+  static const listInterfaces = 0x0700;
+  static const interfaceLabel = 0x0701;
+  static const interfaceHardwareAddressType1 = 0x0702;
+  static const ipv4DhcpMode = 0x0703;
+  static const ipv4ZeroconfMode = 0x0704;
+  static const ipv4CurrentAddress = 0x0705;
+  static const ipv4StaticAddress = 0x0706;
+  static const interfaceRenewDhcp = 0x0707;
+  static const interfaceReleaseDhcp = 0x0708;
+  static const interfaceApplyConfiguration = 0x0709;
+  static const ipv4DefaultRoute = 0x070A;
+  static const dnsIpv4NameServer = 0x070B;
+  static const dnsHostname = 0x070C;
+  static const dnsDomainName = 0x070D;
+
   // ANSI E1.33 (RDMnet) management.
   static const componentScope = 0x0800;
   static const searchDomain = 0x0801;
@@ -129,6 +145,20 @@ class Pid {
     identifyDevice: 'IDENTIFY_DEVICE',
     resetDevice: 'RESET_DEVICE',
     powerState: 'POWER_STATE',
+    listInterfaces: 'LIST_INTERFACES',
+    interfaceLabel: 'INTERFACE_LABEL',
+    interfaceHardwareAddressType1: 'INTERFACE_HARDWARE_ADDRESS_TYPE1',
+    ipv4DhcpMode: 'IPV4_DHCP_MODE',
+    ipv4ZeroconfMode: 'IPV4_ZEROCONF_MODE',
+    ipv4CurrentAddress: 'IPV4_CURRENT_ADDRESS',
+    ipv4StaticAddress: 'IPV4_STATIC_ADDRESS',
+    interfaceRenewDhcp: 'INTERFACE_RENEW_DHCP',
+    interfaceReleaseDhcp: 'INTERFACE_RELEASE_DHCP',
+    interfaceApplyConfiguration: 'INTERFACE_APPLY_CONFIGURATION',
+    ipv4DefaultRoute: 'IPV4_DEFAULT_ROUTE',
+    dnsIpv4NameServer: 'DNS_IPV4_NAME_SERVER',
+    dnsHostname: 'DNS_HOSTNAME',
+    dnsDomainName: 'DNS_DOMAIN_NAME',
     componentScope: 'COMPONENT_SCOPE',
     searchDomain: 'SEARCH_DOMAIN',
     tcpCommsStatus: 'TCP_COMMS_STATUS',

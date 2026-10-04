@@ -10,6 +10,7 @@ import '../net/network_info.dart';
 import '../net/udp.dart';
 import '../services/artnet_service.dart';
 import '../services/lamp_broker.dart';
+import '../services/lamp_network.dart';
 import '../services/llrp_service.dart';
 import '../services/rdm_client.dart';
 import '../services/rdmnet_service.dart';
@@ -223,6 +224,9 @@ class AppBackend extends ChangeNotifier {
     _rebuildTimer?.cancel();
     _rebuildTimer = Timer(const Duration(milliseconds: 150), _rebuildNodes);
   }
+
+  /// Universe and IP settings of lamps that speak Art-Net themselves.
+  LampNetwork? get lampNetwork => artnet == null ? null : LampNetwork(artnet!);
 
   /// The lamp route, once the lamp search has used it.
   LampsTransport? get lampsTransport => _lampsTransport;

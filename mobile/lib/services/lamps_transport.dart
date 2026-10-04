@@ -230,6 +230,9 @@ class LampsTransport implements RdmTransport {
     throw last!;
   }
 
+  /// The lamp that goes by [uid] (any UID it has), from the last search.
+  Lamp? lampFor(Uid uid) => _byUid[uid];
+
   /// What the lamps were found by, for the diagnostics.
   String report() {
     final b = StringBuffer('Lamps: ${lamps.length}\n');

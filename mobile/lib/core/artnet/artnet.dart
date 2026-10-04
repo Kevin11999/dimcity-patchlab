@@ -21,6 +21,8 @@ class ArtNet {
   static const opTodData = 0x8100;
   static const opTodControl = 0x8200;
   static const opRdm = 0x8300;
+  static const opIpProg = 0xF800;
+  static const opIpProgReply = 0xF900;
 
   /// Returns the OpCode of an Art-Net packet, or null when it is not one.
   static int? opcodeOf(Uint8List b) {
@@ -649,5 +651,68 @@ class ArtRdm {
       subUni: b[23],
       rdmBytes: Uint8List.fromList(b.sublist(24)),
     );
+  }
+}
+
+/// ArtIpProg: reprogram the IP address and subnet mask of a node (Art-Net, section ArtIpProg). It goes to the node's own
+/// address, never as a broadcast (it would reprogram every node), and only nodes that support remote programming of the
+/// IP address answer it with an [ArtIpProgReply]; the others stay silent.
+class ArtIpProg {
+  ArtIpProg._();
+
+  static const enableProgramming = 0x80;
+  static const enableDhcp = 0x40;
+  static const returnToDefault = 0x08;
+  static const programIp = 0x04;
+  static const programMask = 0x02;
+
+  /// Without [ip], [mask], [dhcp] or [defaults] this is an enquiry: the node only reports its settings.
+  static Uint8List encode({List<int>? ip, List<int>? mask, bool dhcp = false, bool defaults = false}) {
+    var command = 0;
+    if (dhcp) {
+      command = enableProgramming | enableDhcp;
+    } else if (defaults) {
+      command = enableProgramming | returnToDefault;
+    } else {
+      if (ip != null) command |= enableProgramming | programIp;
+      if (mask != null) command |= enableProgramming | programMask;
+    }
+    final w = ByteWriter();
+    ArtNet._header(w, ArtNet.opIpProg);
+    w.u8(0); // Filler1
+    w.u8(0); // Filler2
+    w.u8(command);
+    w.u8(0); // Filler4
+    w.bytes(ArtPollReply._padN(ip ?? const [], 4));
+    w.bytes(ArtPollReply._padN(mask ?? const [], 4));
+    w.zeros(2); // ProgPort (deprecated)
+    w.zeros(8); // Spare
+    return w.toBytes();
+  }
+}
+
+/// ArtIpProgReply: the IP address, subnet mask and DHCP state a node reports after an [ArtIpProg].
+class ArtIpProgReply {
+  ArtIpProgReply({required this.ip, required this.mask, required this.dhcp});
+
+  final String ip;
+  final String mask;
+  final bool dhcp;
+
+  static ArtIpProgReply? decode(Uint8List b) {
+    if (ArtNet.opcodeOf(b) != ArtNet.opIpProgReply || b.length < 27) return null;
+    return ArtIpProgReply(ip: b.sublist(16, 20).join('.'), mask: b.sublist(20, 24).join('.'), dhcp: b[26] & 0x40 != 0);
+  }
+
+  static Uint8List encode({required List<int> ip, required List<int> mask, bool dhcp = false}) {
+    final w = ByteWriter();
+    ArtNet._header(w, ArtNet.opIpProgReply);
+    w.zeros(4); // Filler1-4
+    w.bytes(ArtPollReply._padN(ip, 4));
+    w.bytes(ArtPollReply._padN(mask, 4));
+    w.zeros(2); // Port
+    w.u8(dhcp ? 0x40 : 0);
+    w.zeros(7);
+    return w.toBytes();
   }
 }

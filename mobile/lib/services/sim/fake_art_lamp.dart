@@ -12,15 +12,35 @@ import 'sim_fixture.dart';
 /// ArtPollReply that carries its own UID, its Table of Devices with that one UID, and RDM in ArtRdm. Like the real
 /// ones it answers by broadcast (it has no route to a laptop in another subnet).
 class FakeArtLamp {
-  FakeArtLamp(this.hub, this.fixture, {required this.ip, this.segment, this.net = 0, this.subnet = 0, this.universe = 0, this.leaveStartCode = false});
+  FakeArtLamp(
+    this.hub,
+    this.fixture, {
+    required this.ip,
+    this.segment,
+    this.net = 0,
+    this.subnet = 0,
+    this.universe = 0,
+    this.leaveStartCode = false,
+    this.answersArtAddress = true,
+    this.answersIpProg = true,
+  }) : reportedIp = ip;
 
   final MemoryUdpHub hub;
   final SimFixture fixture;
   final String ip;
   final String? segment;
-  final int net;
-  final int subnet;
-  final int universe;
+  int net;
+  int subnet;
+  int universe;
+
+  /// The address the lamp reports (changes when it is reprogrammed; the in-memory socket keeps its own).
+  String reportedIp;
+  String mask = '255.0.0.0';
+  bool dhcp = false;
+
+  /// Does it act on ArtAddress / answer ArtIpProg? The ACME manual only has these in the menu.
+  final bool answersArtAddress;
+  final bool answersIpProg;
 
   /// Leave the 0xCC start code in the ArtRdm payload of the answers (some devices do).
   final bool leaveStartCode;
@@ -29,7 +49,24 @@ class FakeArtLamp {
   UdpSocket? _socket;
   StreamSubscription<Datagram>? _sub;
 
-  List<int> get _ipBytes => ip.split('.').map(int.parse).toList();
+  List<int> get _ipBytes => reportedIp.split('.').map(int.parse).toList();
+
+  Uint8List _pollReply() {
+    final u = fixture.uid;
+    return ArtPollReply.encode(
+      ip: _ipBytes,
+      shortName: fixture.model,
+      longName: '${fixture.manufacturer} ${fixture.model}',
+      netSwitch: net,
+      subSwitch: subnet,
+      swOut: [universe],
+      portTypes: const [0x80],
+      goodOutput: const [0x80],
+      numPorts: 1,
+      mac: [0x02, 0x00, 0x00, (u.deviceId >> 16) & 0xFF, (u.deviceId >> 8) & 0xFF, u.deviceId & 0xFF],
+      defaultResponderUid: [u.manufacturerId >> 8, u.manufacturerId & 0xFF, (u.deviceId >> 24) & 0xFF, (u.deviceId >> 16) & 0xFF, (u.deviceId >> 8) & 0xFF, u.deviceId & 0xFF],
+    );
+  }
 
   void start() {
     final s = hub.open(ip: ip, port: ArtNet.port, segment: segment);
@@ -50,20 +87,7 @@ class FakeArtLamp {
     switch (op) {
       case ArtNet.opPoll:
         log.add('poll from ${d.address.address}');
-        final u = fixture.uid;
-        _broadcast(ArtPollReply.encode(
-          ip: _ipBytes,
-          shortName: fixture.model,
-          longName: '${fixture.manufacturer} ${fixture.model}',
-          netSwitch: net,
-          subSwitch: subnet,
-          swOut: [universe],
-          portTypes: const [0x80],
-          goodOutput: const [0x80],
-          numPorts: 1,
-          mac: [0x02, 0x00, 0x00, (u.deviceId >> 16) & 0xFF, (u.deviceId >> 8) & 0xFF, u.deviceId & 0xFF],
-          defaultResponderUid: [u.manufacturerId >> 8, u.manufacturerId & 0xFF, (u.deviceId >> 24) & 0xFF, (u.deviceId >> 16) & 0xFF, (u.deviceId >> 8) & 0xFF, u.deviceId & 0xFF],
-        ));
+        _broadcast(_pollReply());
       case ArtNet.opTodRequest:
         final req = ArtTodRequest.decode(d.data);
         if (req == null || req.net != net || !req.subUniAddresses.contains((subnet << 4) | universe)) return;
@@ -76,6 +100,27 @@ class FakeArtLamp {
         final resp = simRespond(fixture, req, log);
         if (resp == null) return;
         _broadcast(ArtRdm(net: art.net, subUni: art.subUni, rdmBytes: resp.encode(withStartCode: leaveStartCode)).encode());
+      case ArtNet.opAddress:
+        if (!answersArtAddress || d.data.length < 107) return;
+        int? prog(int v) => v & 0x80 != 0 ? v & 0x7F : null;
+        net = prog(d.data[12]) ?? net;
+        universe = prog(d.data[100]) ?? universe; // SwOut[0]
+        subnet = prog(d.data[104]) ?? subnet;
+        log.add('ArtAddress $net.$subnet.$universe');
+        _broadcast(_pollReply());
+      case ArtNet.opIpProg:
+        if (!answersIpProg || d.data.length < 24) return;
+        final cmd = d.data[14];
+        if (cmd & 0x80 != 0) {
+          if (cmd & 0x04 != 0) reportedIp = d.data.sublist(16, 20).join('.');
+          if (cmd & 0x02 != 0) mask = d.data.sublist(20, 24).join('.');
+          log.add('ArtIpProg $reportedIp / $mask');
+        }
+        _socket?.send(
+          ArtIpProgReply.encode(ip: _ipBytes, mask: mask.split('.').map(int.parse).toList(), dhcp: dhcp),
+          d.address,
+          d.port,
+        );
       default:
         break;
     }

@@ -5,6 +5,32 @@ import '../../core/rdm/rdm_packet.dart';
 import '../../core/rdm/rdm_params.dart';
 import '../../core/uid.dart';
 
+/// A manufacturer-specific parameter of a simulated fixture (PID 0x8000 and up): a number or a text.
+class SimParam {
+  SimParam({required this.description, this.dataType = 0x03, this.commandClass = 3, this.value = 0, this.text = '', this.min = 0, this.max = 0});
+
+  final String description;
+
+  /// RDM data type: 0x02 text, 0x03 uint8, 0x05 uint16, 0x07 uint32.
+  final int dataType;
+
+  /// 1 = GET, 2 = SET, 3 = GET and SET.
+  final int commandClass;
+  int value;
+  String text;
+  final int min;
+  final int max;
+
+  int get pdlSize => dataType == 0x02 ? text.length : (dataType == 0x03 ? 1 : (dataType == 0x05 ? 2 : 4));
+
+  List<int> get data => switch (dataType) {
+        0x02 => text.codeUnits,
+        0x03 => [value & 0xFF],
+        0x05 => RdmData.u16(value),
+        _ => RdmData.u32(value),
+      };
+}
+
 /// A simulated RDM fixture behind a port of the fake node.
 class SimFixture {
   SimFixture({
@@ -38,6 +64,9 @@ class SimFixture {
   int temperature;
   bool identify = false;
   int resets = 0;
+
+  /// Manufacturer-specific parameters by PID.
+  final Map<int, SimParam> params = <int, SimParam>{};
 
   /// Number of upcoming SET DMX_START_ADDRESS requests that get no answer (demo of the "retry" button).
   int dropSetAddress;
@@ -111,11 +140,31 @@ RdmPacket? simRespond(SimFixture f, RdmPacket req, [List<String>? log]) {
         if (d.isEmpty || d[0] != 0) return nack(NackReason.dataOutOfRange);
         return ack([0, ...RdmData.u16(f.temperature), ...RdmData.u16(f.temperature - 10), ...RdmData.u16(f.temperature + 5), 0, 0]);
       case Pid.supportedParameters:
-        final pids = [Pid.deviceModelDescription, Pid.manufacturerLabel, Pid.deviceLabel, Pid.softwareVersionLabel, Pid.dmxPersonality, Pid.dmxPersonalityDescription, Pid.deviceHours, Pid.lampHours, Pid.sensorDefinition, Pid.sensorValue, Pid.resetDevice];
+        final pids = [Pid.deviceModelDescription, Pid.manufacturerLabel, Pid.deviceLabel, Pid.softwareVersionLabel, Pid.dmxPersonality, Pid.dmxPersonalityDescription, Pid.deviceHours, Pid.lampHours, Pid.sensorDefinition, Pid.sensorValue, Pid.resetDevice, ...f.params.keys];
         return ack([for (final p in pids) ...RdmData.u16(p)]);
+      case Pid.parameterDescription:
+        final pid = d.length >= 2 ? RdmData.decodeU16(d) : 0;
+        final param = f.params[pid];
+        if (param == null) return nack(NackReason.dataOutOfRange);
+        final text = param.description.codeUnits.take(32).toList();
+        return ack([
+          ...RdmData.u16(pid),
+          param.pdlSize,
+          param.dataType,
+          param.commandClass,
+          0, // type
+          0, // unit
+          0, // prefix
+          ...RdmData.u32(param.min),
+          ...RdmData.u32(param.max),
+          ...RdmData.u32(0),
+          ...text,
+        ]);
       case Pid.queuedMessage:
         return RdmPacket(destination: req.source, source: f.uid, transactionNumber: req.transactionNumber, portIdOrResponseType: Rdm.responseAck, commandClass: Rdm.getCommandResponse, pid: Pid.statusMessages);
       default:
+        final param = f.params[req.pid];
+        if (param != null && (param.commandClass & 1) != 0) return ack(param.data);
         return nack(NackReason.unknownPid);
     }
   }
@@ -148,7 +197,18 @@ RdmPacket? simRespond(SimFixture f, RdmPacket req, [List<String>? log]) {
         f.identify = false;
         return ack(const [], cc: Rdm.setCommandResponse);
       default:
-        return nack(NackReason.unknownPid, cc: Rdm.setCommandResponse);
+        final param = f.params[req.pid];
+        if (param == null) return nack(NackReason.unknownPid, cc: Rdm.setCommandResponse);
+        if ((param.commandClass & 2) == 0) return nack(NackReason.writeProtect, cc: Rdm.setCommandResponse);
+        if (param.dataType == 0x02) {
+          param.text = String.fromCharCodes(d);
+          return ack(const [], cc: Rdm.setCommandResponse);
+        }
+        if (d.length != param.pdlSize) return nack(NackReason.formatError, cc: Rdm.setCommandResponse);
+        final v = d.fold<int>(0, (n, b) => (n << 8) | b);
+        if (param.max != 0 && (v < param.min || v > param.max)) return nack(NackReason.dataOutOfRange, cc: Rdm.setCommandResponse);
+        param.value = v;
+        return ack(const [], cc: Rdm.setCommandResponse);
     }
   }
   return null;

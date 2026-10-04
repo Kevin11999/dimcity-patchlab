@@ -9,6 +9,7 @@ import '../l10n/strings.dart';
 import '../core/uid.dart';
 import '../model/fixture.dart';
 import '../model/node.dart';
+import '../services/lamps_transport.dart';
 import '../services/rdm_client.dart';
 import 'backend.dart';
 
@@ -86,6 +87,9 @@ class PortSession extends ChangeNotifier {
     alignDone = false;
     sendState.clear();
   }
+
+  /// How to reach [f] over Art-Net, when it is a lamp that speaks Art-Net itself (Lamps tab): its universe and IP can then be set.
+  ArtRoute? artRouteOf(Fixture f) => backend.isDemo ? null : backend.lampsTransport?.lampFor(f.uid)?.art;
 
   /// Looks for the fixtures. With [quiet] a search that finds nothing leaves the screen as it was (used
   /// for the automatic searching while no lamps are connected yet); as soon as it finds something it

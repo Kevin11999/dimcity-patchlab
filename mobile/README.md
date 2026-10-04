@@ -93,6 +93,9 @@ Lamps that speak **Art-Net** themselves (they answer ArtPoll, sit on 2.x.x.x or 
 in the same list: ArtPoll goes out of every network adapter, the lamp's UID comes from its poll reply or Table of Devices, and RDM
 goes unicast inside your subnet and by broadcast outside it. Give your laptop an extra address in the lamps' range (for example
 2.0.0.100 / 255.0.0.0); the Lamps tab tells you when it is needed and has an **Add address** button (Windows: UAC prompt, macOS: administrator password) or copies the command.
+Tap a lamp that speaks Art-Net for its **Network** card: the universe (ArtAddress, checked in the lamp's next poll reply) and the
+IP address and subnet mask (ArtIpProg) can be read and set; a lamp that does not support it says so and nothing changes. **Own RDM
+settings** lists what the lamp supports over RDM and its manufacturer settings (PARAMETER_DESCRIPTION), writable ones can be set.
 When nothing is found, the tab lists what the app saw in plain words (adapters, port 6454, polls sent, packets received) and **Copy diagnostics** copies all of it. See [docs/PROTOCOLS.md](docs/PROTOCOLS.md) section 0a.
 
 For RDMnet lamps it works because they answer **LLRP** (ANSI E1.33): a multicast search that needs nothing configured. Two

@@ -3,7 +3,7 @@ description: "DimCity PatchLab RDM – address DMX fixtures on site through Lumi
 publish_to: 'none'
 
 # Version of the mobile app (independent of the desktop app in the repository root).
-version: 0.5.2+8
+version: 0.6.0+9
 
 environment:
   sdk: ^3.13.5

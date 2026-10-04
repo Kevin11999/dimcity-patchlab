@@ -4,6 +4,8 @@ import '../app/port_session.dart';
 import '../core/rdm/rdm_params.dart';
 import '../l10n/strings.dart';
 import '../model/fixture.dart';
+import '../services/lamp_network.dart';
+import 'rdm_params_screen.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -25,6 +27,8 @@ class _FixtureScreenState extends State<FixtureScreen> {
   bool _loading = true;
   bool _busy = false;
   String? _error;
+  LampNetInfo? _net;
+  bool _netLoading = false;
 
   Fixture get f => widget.fixture;
 
@@ -32,6 +36,104 @@ class _FixtureScreenState extends State<FixtureScreen> {
   void initState() {
     super.initState();
     _loadInfo();
+    _loadNet();
+  }
+
+  /// Network settings of a lamp that speaks Art-Net itself.
+  Future<void> _loadNet() async {
+    final route = widget.session.artRouteOf(f);
+    final net = widget.session.backend.lampNetwork;
+    if (route == null || net == null) return;
+    setState(() => _netLoading = true);
+    try {
+      _net = await net.read(route);
+    } catch (_) {
+      _net = null;
+    }
+    if (mounted) setState(() => _netLoading = false);
+  }
+
+  String _netMessage(NetResult r, {required bool universe, String? ip, String? shown}) {
+    switch (r.outcome) {
+      case NetOutcome.ok:
+        return universe ? t('net.ok.universe', {'u': shown ?? ''}) : t('net.ok.ip', {'ip': ip ?? ''});
+      case NetOutcome.noAnswer:
+        return universe ? t('net.noanswer.universe') : t('net.noanswer.ip');
+      case NetOutcome.ignored:
+        return t('net.ignored', {'v': r.detail});
+      case NetOutcome.notReachable:
+        return t('net.notreachable', {'ip': widget.session.artRouteOf(f)?.node.ip ?? ''});
+    }
+  }
+
+  Future<void> _setUniverse() async {
+    final route = widget.session.artRouteOf(f);
+    final net = widget.session.backend.lampNetwork;
+    if (route == null || net == null) return;
+    final cur = _net?.universe;
+    final v = await promptText(context, title: t('net.set.universe'), hint: t('net.set.universe.hint'), initial: cur == null ? '' : '${cur.net}.${cur.subnet}.${cur.universe}');
+    if (v == null) return;
+    final target = LampNetwork.parsePortAddress(v);
+    if (target == null) {
+      if (mounted) showMessage(context, t('net.invalid.universe'));
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final r = await net.setUniverse(route, target);
+      if (mounted) showMessage(context, _netMessage(r, universe: true, shown: '${target.net}.${target.subnet}.${target.universe}'));
+      if (r.ok) await _loadNet();
+    } catch (e) {
+      if (mounted) showMessage(context, describeError(e));
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  Future<void> _setIp() async {
+    final route = widget.session.artRouteOf(f);
+    final net = widget.session.backend.lampNetwork;
+    if (route == null || net == null) return;
+    final ipController = TextEditingController(text: route.node.ip);
+    final maskController = TextEditingController(text: _net?.mask ?? '255.0.0.0');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t('net.set.ip')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t('net.set.ip.body')),
+            const SizedBox(height: 12),
+            TextField(controller: ipController, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: t('net.set.ip.field'))),
+            TextField(controller: maskController, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: t('net.set.mask.field'))),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('common.cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t('common.ok'))),
+        ],
+      ),
+    );
+    final ip = ipController.text.trim(), mask = maskController.text.trim();
+    Future<void>.delayed(const Duration(milliseconds: 500), () {
+      ipController.dispose();
+      maskController.dispose();
+    });
+    if (ok != true) return;
+    final ipBytes = LampNetwork.parseIp(ip), maskBytes = LampNetwork.parseIp(mask);
+    if (ipBytes == null || maskBytes == null || !LampNetwork.validHost(ipBytes) || !LampNetwork.validMask(maskBytes)) {
+      if (mounted) showMessage(context, t('net.invalid.ip'));
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final r = await net.setIp(route, ip, mask);
+      if (mounted) showMessage(context, _netMessage(r, universe: false, ip: ip));
+    } catch (e) {
+      if (mounted) showMessage(context, describeError(e));
+    }
+    if (mounted) setState(() => _busy = false);
   }
 
   Future<void> _loadInfo() async {
@@ -185,6 +287,40 @@ class _FixtureScreenState extends State<FixtureScreen> {
                         ListTile(leading: const Icon(Icons.tune), title: Text(t('fx.set.mode')), subtitle: Text(f.modeLabel), trailing: const Icon(Icons.chevron_right), onTap: _busy ? null : _setMode),
                       ],
                     ],
+                  ),
+                ),
+                if (widget.session.artRouteOf(f) != null) ...[
+                  SectionTitle(t('net.title')),
+                  Card(
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (_netLoading) const Padding(padding: EdgeInsets.only(bottom: 8), child: LinearProgressIndicator()),
+                              InfoRow(t('net.ip'), _net?.ip ?? widget.session.artRouteOf(f)!.node.ip, mono: true),
+                              if (_net != null) InfoRow(t('net.universe'), '${_net!.universe.net}.${_net!.universe.subnet}.${_net!.universe.universe}', mono: true),
+                              if (_net != null) InfoRow(t('net.mask'), _net!.mask ?? t('net.mask.unknown')),
+                              if (_net?.dhcp != null) InfoRow(t('net.dhcp'), _net!.dhcp! ? 'on' : 'off'),
+                            ],
+                          ),
+                        ),
+                        const Divider(),
+                        ListTile(leading: const Icon(Icons.hub_outlined), title: Text(t('net.set.universe')), trailing: const Icon(Icons.chevron_right), onTap: _busy ? null : _setUniverse),
+                        const Divider(),
+                        ListTile(leading: const Icon(Icons.lan_outlined), title: Text(t('net.set.ip')), trailing: const Icon(Icons.chevron_right), onTap: _busy ? null : _setIp),
+                      ],
+                    ),
+                  ),
+                ],
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.settings_input_component_outlined),
+                    title: Text(t('params.open')),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => RdmParamsScreen(session: widget.session, fixture: f))),
                   ),
                 ),
                 SectionTitle(t('fx.info')),

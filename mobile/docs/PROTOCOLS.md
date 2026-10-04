@@ -37,6 +37,16 @@ The Add address button runs `netsh interface ipv4 add address` through an elevat
 with administrator privileges (macOS); the adapter name is checked before it goes into a command (`lib/net/add_address.dart`; the Windows and macOS
 paths are covered by tests of the command lines only, not run on those systems). On the Lamps tab `lib/app/lamp_diagnosis.dart` turns the
 adapter list, the Art-Net socket state, the polls sent and the datagrams received (`ArtNetService.received`) into plain-language findings.
+**Universe and IP over the network** (`lib/services/lamp_network.dart`). Neither is an RDM parameter of the lamp (E1.20 has only
+DMX_START_ADDRESS; E1.37-7 ENDPOINT_TO_UNIVERSE is for the DMX ports of a node; E1.37-2 has IPV4_STATIC_ADDRESS 0x0706 and friends,
+which a lamp only has if it lists them in SUPPORTED_PARAMETERS). For a lamp that is an Art-Net node: the universe is **ArtAddress**
+(Net, Sub-Net, SwOut of the port) and is verified in the ArtPollReply that follows; the IP address and subnet mask are **ArtIpProg**
+(OpIpProg 0xF800; command 0x80 | 0x04 IP, | 0x02 mask, 0x00 = enquiry) verified in the ArtIpProgReply (0xF900). ArtIpProg goes unicast
+only (a broadcast would reprogram every node), so it needs an address of the laptop in the lamp's range. A node that does not
+support remote IP programming does not answer; ACME's Pixel Line IP manual (version I) lists IP address, subnet mask, Art-Net
+Net / Sub-Net / Universe and sACN universe only as menu items on the lamp and no network PID in its RDM table, so whether such a lamp
+answers is found out on site: the app reports "no answer" or "not taken over" and changes nothing. "Own RDM settings" shows
+SUPPORTED_PARAMETERS and, for PIDs 0x8000-0xFFDF, PARAMETER_DESCRIPTION (name, data type, GET / SET, range) and the current value.
 Lamps found both ways (RDMnet and Art-Net) are one lamp; the route that worked last is asked first, the others are the fallback.
 
 ## 0. Lamps straight on the cable: LLRP (the Lamps tab)

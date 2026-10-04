@@ -216,6 +216,17 @@ class RdmClient {
   Future<List<int>> supportedParameters(Uid uid) async =>
       RdmData.decodeU16List((await tryGet(uid, Pid.supportedParameters)) ?? Uint8List(0));
 
+  /// What a manufacturer-specific parameter is; null when the device does not describe it.
+  Future<ParameterDescription?> parameterDescription(Uid uid, int pid) async {
+    final d = await tryGet(uid, Pid.parameterDescription, data: RdmData.u16(pid));
+    if (d == null) return null;
+    try {
+      return ParameterDescription.decode(d);
+    } on FormatException {
+      return null;
+    }
+  }
+
   // --- E1.37-7 / E1.33 (gateway endpoints, over RDMnet) --------------------
 
   Future<EndpointList> endpointList(Uid gateway) async => EndpointList.decode(await get(gateway, Pid.endpointList));

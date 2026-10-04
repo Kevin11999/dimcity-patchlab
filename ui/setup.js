@@ -20,14 +20,39 @@
 
   // The order follows the work: what the show needs → racks and devices → which socket every LK / Veam gets → the nodes that come out
   // of that → the network that connects those nodes → fibres between the DBs → check and print.
+  // The order follows the work: first the paper plan (patch, racks, sockets, nodes, switches, fibres), then check it,
+  // and only then the real devices (find them, say which is which, send the configuration) and the printouts.
   const STEPS = [
-    { id:'import',  icon:'upload',  en:'Import the patch',            nl:'De patch importeren',                 hen:'Bring in the CSV with the LK, Veam, DMX and network (C) rows. The DimCities follow from the IDs. Add a DB or FOH by hand if one has no rows yet.', hnl:'Haal de CSV binnen met de LK-, Veam-, DMX- en netwerk (C)-regels. De DimCities volgen uit de ID\'s. Voeg zelf een DB of FOH toe als die nog geen regels heeft.' },
-    { id:'racks',   icon:'rack',    en:'Racks and devices per DB',    nl:'Racks en apparaten per DB',           hen:'PatchLab works out the best setup from your LKs, Veams and universes (panels, nodes, splitters, spiders, block modes): read the advice and apply it, or place racks and loose devices yourself.', hnl:'PatchLab rekent uit wat de beste setup is voor je LK\'s, Veams en universes (panelen, nodes, splitters, spinnen, blokmodi): lees het advies en pas het toe, of plaats zelf racks en losse apparaten.' },
-    { id:'lks',     icon:'box',     en:'Couple LKs and Veams',        nl:'LK\'s en Veams koppelen',             hen:'Every LK and Veam gets a socket. Automatic fills them in order; choose a socket yourself, a loose spider, or leave one out. Lines without a node port show up here.', hnl:'Elke LK en Veam krijgt een aansluiting. Automatisch vult ze op volgorde; kies zelf een aansluiting, een losse spin, of laat er een weg. Lijnen zonder nodepoort zie je hier.' },
-    { id:'nodes',   icon:'network', en:'Nodes',                       nl:'Nodes',                               hen:'The rack patch becomes the nodes and splitters of the network plan (this also gives them their switch ports). DMX lines that say “Node 401.1” are put on that node port.', hnl:'De rekpatch wordt de nodes en splitters van het netwerkplan (zo krijgen ze ook hun switchpoorten). DMX-regels met “Node 401.1” komen op die nodepoort.' },
-    { id:'network', icon:'switchDev', en:'Network per DB',            nl:'Netwerk per DB',                      hen:'Choose the VLAN numbering and add a network switch to every DB. The nodes and the network cables take its ports in order.', hnl:'Kies de VLAN-nummering en voeg aan elke DB een netwerkswitch toe. De nodes en de netwerkkabels pakken zijn poorten op volgorde.' },
-    { id:'fibers',  icon:'cable',   en:'Couple the fibres',           nl:'Fibers koppelen',                     hen:'Connect the fibre ports of the switches, also between DBs: auto-assign from your stock or draw them. Make the cable types in the Device Builder first.', hnl:'Verbind de fiberpoorten van de switches, ook tussen DB\'s: automatisch uit je voorraad of tekenen. Maak eerst de kabeltypes in de Device Builder.' },
-    { id:'check',   icon:'checkCircle', en:'Check and output',        nl:'Controleren en uitvoer',              hen:'Look at the signal flow, clear the open issues and print: the PDF report and the stickers.', hnl:'Bekijk de signaalstroom, los de open meldingen op en print: het PDF-rapport en de stickers.' }
+    { id:'import',  icon:'upload',  en:'Import the patch',            nl:'De patch importeren',
+      hen:'What is this? Your patch list (a CSV file) is the start of everything. What do you do? Press “Import CSV” and pick the file. What next? PatchLab finds your DimCities (the DBs) by itself.',
+      hnl:'Wat is dit? Je patchlijst (een CSV-bestand) is het begin van alles. Wat doe je? Druk op “CSV importeren” en kies het bestand. Hoe verder? PatchLab vindt zelf je DimCities (de DB’s).' },
+    { id:'racks',   icon:'rack',    en:'Racks and devices per DB',    nl:'Racks en apparaten per DB',
+      hen:'What is this? What stands in each DB: racks, nodes, splitters. What do you do? Read the advice and press Apply; or place racks and devices yourself. What next? The sockets of the LKs and Veams get a place to go.',
+      hnl:'Wat is dit? Wat er in elke DB staat: racks, nodes, splitters. Wat doe je? Lees het advies en druk op Toepassen; of plaats zelf racks en apparaten. Hoe verder? De aansluitingen van de LK’s en Veams krijgen een plek.' },
+    { id:'lks',     icon:'box',     en:'Couple LKs and Veams',        nl:'LK\'s en Veams koppelen',
+      hen:'What is this? Every LK and Veam cable must end on a socket of a device. What do you do? Press “Automatic”; fix by hand what is left over. What next? Every line has a node port.',
+      hnl:'Wat is dit? Elke LK- en Veam-kabel moet eindigen op een aansluiting van een apparaat. Wat doe je? Druk op “Automatisch”; los wat overblijft zelf op. Hoe verder? Elke lijn heeft een nodepoort.' },
+    { id:'nodes',   icon:'network', en:'Nodes',                       nl:'Nodes',
+      hen:'What is this? The nodes and splitters from the racks go into the network plan, with names like “Node 401.1”. What do you do? Press the button that makes the network plan and link the node names. What next? The switches get their ports.',
+      hnl:'Wat is dit? De nodes en splitters uit de racks komen in het netwerkplan, met namen als “Node 401.1”. Wat doe je? Druk op de knop die het netwerkplan maakt en koppel de nodenamen. Hoe verder? De switches krijgen hun poorten.' },
+    { id:'network', icon:'switchDev', en:'Network per DB',            nl:'Netwerk per DB',
+      hen:'What is this? The network switch of every DB and the numbering of the VLANs. What do you do? Pick the VLAN numbering and add a switch to every DB. What next? Nodes and network cables take the switch ports in order.',
+      hnl:'Wat is dit? De netwerkswitch van elke DB en de nummering van de VLAN’s. Wat doe je? Kies de VLAN-nummering en voeg aan elke DB een switch toe. Hoe verder? Nodes en netwerkkabels pakken de poorten van de switch op volgorde.' },
+    { id:'fibers',  icon:'cable',   en:'Couple the fibres',           nl:'Fibers koppelen',
+      hen:'What is this? The fibres between the switches, also between DBs. What do you do? Press auto-assign (it uses your cable stock) or draw them. Make the cable types in the Device Builder first. What next? The plan is complete.',
+      hnl:'Wat is dit? De fibers tussen de switches, ook tussen DB’s. Wat doe je? Druk op automatisch toewijzen (uit je voorraad) of teken ze. Maak eerst de kabeltypes in de Device Builder. Hoe verder? Het plan is compleet.' },
+    { id:'check',   icon:'checkCircle', en:'Check the plan',          nl:'Het plan controleren',
+      hen:'What is this? A last look at the paper plan, before the real devices. What do you do? Look at the signal flow and clear every open issue. What next? Now you can go to the devices.',
+      hnl:'Wat is dit? Een laatste blik op het plan op papier, vóór de echte apparaten. Wat doe je? Bekijk de signaalstroom en los elke open melding op. Hoe verder? Nu kun je naar de apparaten.' },
+    { id:'align',   icon:'compass', en:'Find and align the devices',  nl:'Apparaten zoeken en uitlijnen',
+      hen:'What is this? Now the real devices. PatchLab finds every switch and node on the network, makes them blink one by one, and you say which is which (“this is DB3 switch 1”). What do you do? Open the Align tool and follow it. What next? Every device knows its place in the plan.',
+      hnl:'Wat is dit? Nu de echte apparaten. PatchLab vindt elke switch en node in het netwerk, laat ze één voor één knipperen en jij zegt welke wat is (“dit is DB3 switch 1”). Wat doe je? Open de Uitlijntool en volg hem. Hoe verder? Elk apparaat weet zijn plek in het plan.' },
+    { id:'send',    icon:'upload',  en:'Send the configuration',      nl:'De configuratie sturen',
+      hen:'What is this? Names, IP addresses, VLANs and universes of the plan go to the devices. What do you do? In the Align tool press “Fill in from the plan” and then “Send config”; you see every change before it is sent. What next? The devices are read back and checked.',
+      hnl:'Wat is dit? Namen, IP-adressen, VLAN’s en universes uit het plan gaan naar de apparaten. Wat doe je? In de Uitlijntool druk je op “Invullen uit het plan” en dan op “Config sturen”; je ziet elke wijziging vóór hij wordt gestuurd. Hoe verder? De apparaten worden teruggelezen en gecontroleerd.' },
+    { id:'output',  icon:'file',    en:'Print and share',             nl:'Printen en delen',
+      hen:'What is this? The paperwork: the PDF report, stickers and QR codes, and the exchange with Lightwright or Vectorworks. What do you do? Press the button of what you need. What next? You are done; come back whenever the show changes.',
+      hnl:'Wat is dit? De papieren: het PDF-rapport, stickers en QR-codes, en de uitwisseling met Lightwright of Vectorworks. Wat doe je? Druk op de knop van wat je nodig hebt. Hoe verder? Je bent klaar; kom terug als de show verandert.' }
   ];
 
   // ---- what is true about the show right now ----
@@ -52,6 +77,13 @@
       done = rd.length > 0 && have === rd.length && st.linked === st.total;
       detail = `${have}/${rd.length} ${t('DBs with nodes', 'DB\'s met nodes')}${st.total ? ` · ${st.linked}/${st.total} ${t('CSV names', 'CSV-namen')}` : ''}`; }
     else if(id === 'fibers'){ const n = window.Fibers ? window.Fibers.all().length : 0; done = n > 0; detail = n ? `${n} ${t('fibres', 'fibers')}` : t('no fibres yet', 'nog geen fibers'); }
+    else if(id === 'align'){
+      const NC = window.NetConfig, devs = NC ? [...NC.state.dev.values()].filter(d => d.kind !== 'unknown') : [], planned = NC ? NC.planItems().length : 0, linked = devs.filter(d => d.link).length;
+      done = planned > 0 && linked >= planned; detail = devs.length ? `${linked}/${planned} ${t('linked', 'gekoppeld')} · ${devs.length} ${t('found', 'gevonden')}` : t('not searched yet', 'nog niet gezocht'); }
+    else if(id === 'send'){
+      const NC = window.NetConfig, l = NC ? [...NC.state.dev.values()].filter(d => d.link) : [];
+      done = l.length > 0 && l.every(d => d.verified && !NC.changeCount(d)); detail = l.length ? `${l.filter(d => d.verified).length}/${l.length} ${t('sent and checked', 'gestuurd en gecontroleerd')}` : t('nothing linked yet', 'nog niets gekoppeld'); }
+    else if(id === 'output'){ done = !!state().outputDone; detail = done ? t('printed or shared', 'geprint of gedeeld') : t('when you need paperwork', 'als je papieren nodig hebt'); }
     else if(id === 'check'){ const n = (m().issues || []).length; done = f.rows > 0 && n === 0; detail = n ? `${n} ${t('open issues', 'open meldingen')}` : t('no open issues', 'geen open meldingen'); }
     return { done, skipped:!!sk && !done, detail };
   }
@@ -87,7 +119,7 @@
     R.querySelector('#suList').innerHTML = `<div class="su-steps">${STEPS.map((s, i) => { const st = status(s.id, f); return `<button class="su-step ${S.step === s.id ? 'on' : ''} ${st.done ? 'done' : st.skipped ? 'skip' : ''}" data-go="${s.id}"><span class="su-n">${st.done ? I('check', 13) : i + 1}</span><span class="su-t"><b>${esc(t(s.en, s.nl))}</b><em>${esc(st.skipped ? t('skipped', 'overgeslagen') : st.detail)}</em></span></button>`; }).join('')}</div>`;
     R.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { S.step = b.dataset.go; render(); });
     const body = bodyFor(cur.id, f), st = status(cur.id, f);
-    R.querySelector('#suMain').innerHTML = `<div class="su-card"><div class="su-head">${I(cur.icon, 20)}<div><h2>${esc(t(cur.en, cur.nl))}</h2><p>${esc(t(cur.hen, cur.hnl))}</p></div><span class="net-st ${st.done ? 'ok' : st.skipped ? 'warn' : ''}">${esc(st.done ? t('done', 'klaar') : st.skipped ? t('skipped', 'overgeslagen') : t('to do', 'te doen'))}</span></div>
+    R.querySelector('#suMain').innerHTML = `<div class="su-card"><div class="su-head">${I(cur.icon, 20)}<div><h2>${esc(t(cur.en, cur.nl))}</h2>${stepIntro(t(cur.hen, cur.hnl))}</div><span class="net-st ${st.done ? 'ok' : st.skipped ? 'warn' : ''}">${esc(st.done ? t('done', 'klaar') : st.skipped ? t('skipped', 'overgeslagen') : t('to do', 'te doen'))}</span></div>
       <div class="su-content">${body}</div>
       <div class="su-nav"><button id="suBack" ${idx(S.step) === 0 ? 'disabled' : ''}>${t('Back', 'Terug')}</button><span style="flex:1"></span>${st.done ? '' : `<button id="suSkip" class="ghost">${t('Skip this step', 'Deze stap overslaan')}</button>`}<button class="primary" id="suNext">${idx(S.step) === STEPS.length - 1 ? t('Finish', 'Afronden') : t('Next step', 'Volgende stap')}</button></div></div>`;
     R.querySelector('#suBack').onclick = () => { S.step = STEPS[Math.max(0, idx(S.step) - 1)].id; render(); };
@@ -96,6 +128,9 @@
     bindStep(cur.id);
   }
   const dcBar = f => `<div class="rb-chips" style="margin:0 0 14px">${f.dims.map(d => `<label class="rb-chip ${S.dc === d ? 'on' : ''}"><input type="radio" name="sudc" data-sudc="${esc(d)}" ${S.dc === d ? 'checked' : ''}><i class="dot" style="background:${App.dimColor(d)}"></i>${esc(d)}<span class="subtle">${f.per[d].switches.length ? '✓' : ''}</span></label>`).join('')}<button class="sm ghost" data-su-adddb title="${esc(t('Add a DB', 'Een DB toevoegen'))}">${I('plus', 12)} DB</button>${f.dims.includes('FOH') ? '' : `<button class="sm ghost" data-su-addfoh title="${esc(t('Front of house: where the lighting desk stands', 'Front of house: waar de lichttafel staat'))}">${I('plus', 12)} FOH</button>`}</div>`;
+
+  // “What is this? … What do you do? … What next? …” as three short lines with the question in bold
+  const stepIntro = txt => String(txt).split(/(?=Wat doe je\?|Hoe verder\?|What do you do\?|What next\?)/).map(x => { const m = x.match(/^([^?]+\?)\s*(.*)$/); return m ? `<p><b>${esc(m[1])}</b> ${esc(m[2])}</p>` : `<p>${esc(x)}</p>`; }).join('');
 
   function bodyFor(id, f){
     const dc = S.dc, n = nd(), c = n.prefs.fent;
@@ -148,11 +183,19 @@
         <div class="su-list">${links.map(l => `<div class="su-item"><b>${esc(l.id)}</b><span class="subtle">${esc(window.Fibers.endLabel(l.a))} ⇄ ${esc(window.Fibers.endLabel(l.b))}</span></div>`).join('') || `<div class="subtle">${t('No fibres yet.', 'Nog geen fibers.')}</div>`}</div>
         <div class="su-row">${types.length ? '' : `<button class="primary" data-cmd-run="deviceBuilder" data-arg="cable">${I('plus', 14)}${t('Make cable types first', 'Maak eerst kabeltypes')}</button>`}<button class="${types.length ? 'primary' : ''}" data-su-autofib>${t('Auto-assign…', 'Automatisch koppelen…')}</button><button data-su-drawfib>${t('Draw in the fibre overview', 'Tekenen in het fiber-overzicht')}</button><button data-su-fibers>${I('cable', 14)}${t('Couple fibres on the Network page', 'Fibers koppelen op de pagina Netwerk')}</button><button class="ghost" data-su-nofiber>${t('No fibres needed', 'Geen fibers nodig')}</button></div>`;
     }
+    if(id === 'align' || id === 'send'){
+      const NC = window.NetConfig, devs = NC ? [...NC.state.dev.values()].filter(d => d.kind !== 'unknown') : [], planned = NC ? NC.planItems() : [], linked = devs.filter(d => d.link).length;
+      const stp = status(id, f);
+      return `<div class="su-big">${id === 'align' ? `<b>${linked}</b> / ${planned.length} ${t('places of the plan have their device', 'plekken van het plan hebben hun apparaat')}` : `<b>${stp.detail}</b>`}</div>
+        <div class="su-row"><button class="primary" data-cmd-run="align" data-arg="${id === 'send' ? 'send' : devs.length ? 'align' : 'find'}">${I('compass', 15)}${t('Open the Align tool', 'Open de Uitlijntool')}</button><button data-cmd-run="netDevices">${I('sliders', 14)}${t('Network config (one device or port)', 'Netwerkconfig (één apparaat of poort)')}</button></div>
+        <div class="hint" style="margin-top:12px">${I('info', 13)} ${id === 'align' ? t('The Align tool blinks one device at a time. You need to be at the network with the devices switched on and connected to this computer.', 'De Uitlijntool laat steeds één apparaat knipperen. Je moet dan op het netwerk zitten, met de apparaten aan en verbonden met deze computer.') : t('Nothing is sent without a list of every change and your OK. Changing an IP address makes the device move; do that on a new network.', 'Er wordt niets gestuurd zonder een lijst van elke wijziging en jouw OK. Een ander IP-adres laat het apparaat verhuizen; doe dat op een nieuw netwerk.')}</div>`;
+    }
+    if(id === 'output') return `<div class="su-row"><button class="primary" data-cmd-run="exportPdf" data-done="1">${I('file', 14)}${t('Export PDF report', 'PDF-rapport exporteren')}</button><button data-cmd-run="stickers" data-done="1">${I('grid', 14)}${t('Print stickers', 'Stickers printen')}</button><button data-cmd-run="exchange" data-done="1">${I('refresh', 14)}${t('Exchange with Lightwright / Vectorworks', 'Uitwisselen met Lightwright / Vectorworks')}</button></div>
+        <div class="hint" style="margin-top:12px">${I('info', 13)} ${t('The PDF report holds the racks, the patch, the network plan and the signal flow, per DimCity or all together. Stickers and QR codes have their own settings.', 'Het PDF-rapport bevat de racks, de patch, het netwerkplan en de signaalstroom, per DimCity of allemaal samen. Stickers en QR-codes hebben hun eigen instellingen.')}</div>`;
     const issues = (M().issues || []);
     return `<div class="su-big">${issues.length ? `<b>${issues.length}</b> ${t('open issues', 'open meldingen')}` : `<b>${t('No open issues', 'Geen open meldingen')}</b>`}</div>
       ${issues.slice(0, 5).map(i => `<div class="su-warn">${I('alert', 13)} ${esc(i.message)}</div>`).join('')}
-      <div class="su-row" style="margin-top:12px"><button data-cmd-run="signalFlow">${I('cable', 14)}${t('Look at the signal flow', 'Bekijk de signaalstroom')}</button><button data-cmd-run="issues">${t('Open validation', 'Open validatie')}</button></div>
-      <div class="su-row"><button class="primary" data-cmd-run="exportPdf">${I('file', 14)}${t('Export PDF report', 'PDF-rapport exporteren')}</button><button data-cmd-run="stickers">${I('grid', 14)}${t('Print stickers', 'Stickers printen')}</button></div>`;
+      <div class="su-row" style="margin-top:12px"><button data-cmd-run="signalFlow">${I('cable', 14)}${t('Look at the signal flow', 'Bekijk de signaalstroom')}</button><button data-cmd-run="issues">${t('Open validation', 'Open validatie')}</button></div>`;
   }
 
   function bindStep(id){
@@ -171,6 +214,7 @@
     root.querySelectorAll('[data-sudc]').forEach(i => i.onchange = () => { S.dc = i.dataset.sudc; render(); });
     root.querySelectorAll('[data-cmd-run]').forEach(b => b.onclick = () => {
       const cmd = b.dataset.cmdRun, arg = b.dataset.arg;
+      if(b.dataset.done){ state().outputDone = true; M().ui.dirty = true; }
       if(cmd === 'issues'){ close(); App.navigate('ISSUES'); return; }
       if(cmd === 'demo'){ close(); window.Demo?.open?.(); return; }
       const back = { step:S.step, dc:S.dc }, before = new Set(document.querySelectorAll('.rb, .modal-backdrop'));

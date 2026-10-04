@@ -590,7 +590,7 @@
     const missing = planItems().filter(x => !devs.some(d => d.link === x.id));
     const nSw = devs.filter(d => d.kind === 'gigacore').length, nNd = devs.filter(d => d.kind === 'lumi').length, nUn = devs.filter(d => d.kind === 'unknown').length;
     App.pageHead?.({ eyebrow:t('Network', 'Netwerk'), title:t('Network config', 'Netwerkconfig'), sub:t('All your LumiNodes and GigaCore switches on one page: discover them, paint the VLANs and universes, apply.', 'Al je LumiNodes en GigaCore-switches op één pagina: ontdek ze, schilder de VLAN’s en universes, pas toe.'),
-      actions:`<button class="primary" id="ncDisc" ${C.busy ? 'disabled' : ''}>${I('search', 15)}${C.busy ? t('Searching…', 'Zoeken…') : C.found ? t('Discover again', 'Opnieuw ontdekken') : t('Discover devices', 'Apparaten ontdekken')}</button>` });
+      actions:`<button data-cmd="align" title="${t('Find, blink, link and send in guided steps', 'Zoeken, knipperen, koppelen en sturen in stappen')}">${I('compass', 15)}${t('Align tool', 'Uitlijntool')}</button><button class="primary" id="ncDisc" ${C.busy ? 'disabled' : ''}>${I('search', 15)}${C.busy ? t('Searching…', 'Zoeken…') : C.found ? t('Discover again', 'Opnieuw ontdekken') : t('Discover devices', 'Apparaten ontdekken')}</button>` });
     root.innerHTML = `<div class="stack nc">
       <details class="nc-conn" ${C.found ? '' : 'open'}><summary>${I('sliders', 14)} ${t('Connection', 'Verbinding')} <span class="subtle">${esc(C.user)}${C.ranges ? ' · ' + esc(C.ranges) : ''}</span></summary>
         <div class="nc-row"><label>${t('User name', 'Gebruikersnaam')}<input id="ncUser" value="${esc(C.user)}" style="width:110px" autocomplete="off"></label><label>${t('Password', 'Wachtwoord')}<input id="ncPass" type="password" value="${esc(C.pass)}" style="width:110px" autocomplete="off"></label>
@@ -681,5 +681,5 @@
     await load().catch(() => {});
     paint();
   }
-  window.NetConfig = { render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D };
+  window.NetConfig = { render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D, applyDevs, autoLink, real, changeCount };
 })();

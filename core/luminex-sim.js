@@ -48,6 +48,7 @@ export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12
       if(st.groups.some(g => g.group_id === body.group_id || g.vid === body.vid)) throw err(409, 'duplicate group');
       if(body.name && body.name.length > 31) throw err(400, 'name too long'); st.groups.push({ color: '#808080', ...clone(body) }); return body;
     }
+    if(path === '/api/identify' && method === 'PUT'){ st.identify = Number(body?.duration ?? 9); st.identifyLog = (st.identifyLog || []).concat(st.identify); return null; }
     if(path === '/api/interface/set_state' && method === 'PUT'){ if(!/^(dark_mode|groups|rlinkx|multilinkx|poe|milan|all_(red|green|blue|white|cyan|magenta|yellow|black))$/.test(body?.state)) throw err(400, 'state'); st.state = body.state; return null; }
     if((m = path.match(/^\/api\/trunks\/trunk\/(\d+)\/color$/)) && method === 'PUT'){ const t = st.trunks.find(x => x.trunk_id === +m[1]); if(!t) throw err(404, 'trunk'); if(t.predefined) throw err(403, 'the predefined trunk is white'); t.color = body; return body; }
     if((m = path.match(/^\/api\/groups\/group\/(\d+)\/(name|color)$/)) && method === 'PUT'){
@@ -113,6 +114,7 @@ export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192
   const h = async (method, path, body) => {
     st.log.push(`${method} ${path}`);
     let m;
+    if(path === '/api/identify' && method === 'POST'){ st.identify = (st.identify || 0) + 1; return null; }
     if(method === 'GET'){
       if(path === '/api/software/version') return { current: version, minimum: 'v2.0.0', alternate: null };
       if(path === '/api/deviceinfo') return clone(st.info);

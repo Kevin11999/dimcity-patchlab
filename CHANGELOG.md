@@ -4,6 +4,20 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.9.0 — 2026-10-04
+
+- New: the Align tool. It finds every GigaCore and LumiNode, makes them blink one by one (the identify call of the devices), you press which place in the plan it is ("DB3-SW1") and the next one blinks. Then "Fill in from the plan" and "Send config" put names, IP addresses, VLANs and universes on all devices at once, with every change listed first. Network Config stays as it is.
+- The Setup steps are clearer and in a better order: first the plan on paper (import, racks, sockets, nodes, switches, fibres, check), then the real devices (find and align, send the configuration), then print and share. Every step now says in three lines what it is, what you do and what comes next.
+- Sending the configuration to the devices is one of the last steps, as it should be; the PDF, stickers and exchange moved to their own last step.
+
+<details><summary>Nederlands</summary>
+
+- Nieuw: de Uitlijntool. Hij vindt elke GigaCore en LumiNode, laat ze één voor één knipperen (de identify-aanroep van de apparaten), jij drukt welke plek in het plan het is ("DB3-SW1") en de volgende knippert. Daarna zetten "Invullen uit het plan" en "Config sturen" namen, IP-adressen, VLAN’s en universes in één keer op alle apparaten, met eerst een lijst van elke wijziging. Netwerkconfig blijft zoals het was.
+- De Setup-stappen zijn duidelijker en in een betere volgorde: eerst het plan op papier (import, racks, aansluitingen, nodes, switches, fibers, controle), dan de echte apparaten (zoeken en uitlijnen, configuratie sturen), dan printen en delen. Elke stap zegt nu in drie regels wat het is, wat je doet en wat daarna komt.
+- De configuratie naar de apparaten sturen is een van de laatste stappen, zoals het hoort; de PDF, stickers en uitwisseling staan in hun eigen laatste stap.
+
+</details>
+
 ## 0.8.0 — 2026-10-04
 
 - New: "All settings" on every GigaCore and LumiNode card in Network Config. It lists every setting the newest Luminex API files (GigaCore WebApi 1.5, LumiNode WebApi 2.9) allow to change, grouped in sections (Ports, PoE, VLAN groups, IGMP, SNMP, PTP, DHCP server, display, DMX, protocols, LEDs …) with a search box, the right control per setting (switch, list, number with limits) and a table per port / group / output.

@@ -1305,3 +1305,14 @@ body.view-flow .view{width:100%}
 .nc-set input.chg,.nc-set select.chg{outline:2px solid var(--accent)}.nc-set .bad{outline:2px solid #ef4444}
 .nc-copy{display:grid;grid-template-columns:1fr 1fr;gap:18px}.nc-cp-secs,.nc-cp-list{display:flex;flex-direction:column;gap:2px;max-height:240px;overflow:auto;margin:6px 0}
 @media (max-width:800px){.nc-copy{grid-template-columns:1fr}}
+
+/* ---- Align tool ---- */
+.al-now{display:flex;gap:16px;align-items:center;padding:14px 16px;border:1px solid var(--accent);border-radius:12px;background:color-mix(in srgb,var(--accent) 8%,transparent);margin:10px 0}
+.al-blink{width:18px;height:18px;border-radius:50%;background:var(--muted,#888);flex:none}
+.al-blink.on{background:var(--accent);animation:alBlink .8s infinite}
+@keyframes alBlink{0%,100%{opacity:1;box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 60%,transparent)}50%{opacity:.25;box-shadow:0 0 0 10px transparent}}
+.al-dc{display:flex;align-items:center;gap:8px;margin:14px 0 6px}
+.al-items{display:flex;flex-wrap:wrap;gap:8px}
+.al-item{min-height:56px;line-height:1.3;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:150px;padding:10px 14px;font-size:14px;font-weight:600}
+.al-item.guess{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+.al-item .subtle{font-weight:400;font-size:11px}

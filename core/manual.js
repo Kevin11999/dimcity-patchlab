@@ -529,26 +529,40 @@ Per DimCity: nodes, switches, gebruikte poorten, Cat-lijnen, fibers en een statu
     title:{ en:'Setup wizard', nl:'Setup-wizard' },
     en:`The **Setup** button in the toolbar (also offered after an import, and under the File menu) walks through a new project in the right order. Nothing is locked: take the steps in order or jump to any step.
 
+**First the plan on paper (steps 1–7), then the real devices (steps 8–9), then the printouts (step 10).**
+
 1. **Import the patch** — LK, Veam and C rows.
 2. **Racks and devices** — read the **advice** (best setup for the LKs, Veams and universes) and apply it, or place racks and loose devices yourself.
 3. **Couple LKs and Veams** — every LK and Veam gets a socket; automatic, or choose a socket / loose spider / do not patch yourself.
 4. **Nodes** — the rack patch becomes the nodes of the network plan; DMX lines named like "Node 401.1" are put on that node port (see [[node-names|Node names]]).
 5. **Network per DB** — VLAN numbering, FENT on or off, and a network switch for every DB (the nodes take its ports).
 6. **Couple the fibres** between the DBs: auto-assign from your stock, or draw them (see [[fibres|Fibres]]).
-7. **Check and output** — open the issues, the Signal Flow, the PDF or the stickers.
+7. **Check the plan** — the Signal Flow and the open issues. The plan on paper is now complete.
+8. **Find and align the devices** — the [[align|Align tool]] finds every switch and node, makes them blink one by one and you say which is which.
+9. **Send the configuration** — names, IP addresses, VLANs and universes go to the devices, after you have seen every change.
+10. **Print and share** — the PDF report, stickers, QR codes and the exchange with Lightwright / Vectorworks.
+
+Every step explains itself in three lines: what it is, what you do, what comes next.
 
 Need more locations? Use **+ DB** or **+ FOH** (front of house, where the lighting desk stands) next to the DimCity chips in the Network and Racks steps. If you open the Rack Builder or the Device Builder from the wizard, Setup comes back on the same step when you close it.
 
 Each step shows a green check when it is done. **Skip** marks a step as skipped; **Start over** clears the skipped marks; **Stop** closes the wizard whenever you like. See [[videos|the videos]] for a walk-through.`,
     nl:`De knop **Setup** in de werkbalk (ook aangeboden na een import, en in het menu Bestand) loopt een nieuw project in de juiste volgorde door. Niets zit vast: neem de stappen op volgorde of spring naar elke stap.
 
+**Eerst het plan op papier (stap 1–7), dan de echte apparaten (stap 8–9), dan het printwerk (stap 10).**
+
 1. **Patch importeren** — LK-, Veam- en C-regels.
-2. **Netwerk per DB** — VLAN-nummering, FENT aan of uit, en een netwerkswitch voor elke DB.
-3. **Racks** — plaats racks of losse apparaten en pas het rack toe als netwerkplan.
-4. **LK’s koppelen** aan de racks.
-5. **Nodes aan de CSV koppelen** — DMX-regels met een naam als "Node 401.1" (zie [[node-names|Nodenamen]]).
+2. **Racks en apparaten** — lees het **advies** (beste setup voor de LK’s, Veams en universes) en pas het toe, of plaats zelf racks en losse apparaten.
+3. **LK’s en Veams koppelen** — elke LK en Veam krijgt een aansluiting; automatisch, of kies zelf een aansluiting / losse spin / niet patchen.
+4. **Nodes** — de rekpatch wordt de nodes van het netwerkplan; DMX-regels met een naam als "Node 401.1" komen op die nodepoort (zie [[node-names|Nodenamen]]).
+5. **Netwerk per DB** — VLAN-nummering, FENT aan of uit, en een netwerkswitch voor elke DB (de nodes pakken zijn poorten).
 6. **Fibers koppelen** tussen de DB’s: automatisch uit je voorraad, of tekenen (zie [[fibres|Fibers]]).
-7. **Controle en uitvoer** — open de problemen, de Signaalstroom, de PDF of de stickers.
+7. **Het plan controleren** — de Signaalstroom en de open meldingen. Het plan op papier is nu compleet.
+8. **Apparaten zoeken en uitlijnen** — de [[align|Uitlijntool]] vindt elke switch en node, laat ze één voor één knipperen en jij zegt welke wat is.
+9. **De configuratie sturen** — namen, IP-adressen, VLAN’s en universes gaan naar de apparaten, nadat je elke wijziging hebt gezien.
+10. **Printen en delen** — het PDF-rapport, stickers, QR-codes en de uitwisseling met Lightwright / Vectorworks.
+
+Elke stap legt zichzelf uit in drie regels: wat het is, wat je doet, wat daarna komt.
 
 Meer locaties nodig? Gebruik **+ DB** of **+ FOH** (front of house, waar de lichttafel staat) naast de DimCity-chips in de stappen Netwerk en Racks. Open je de Rack Builder of Device Builder vanuit de wizard, dan komt Setup bij sluiten terug op dezelfde stap.
 
@@ -681,6 +695,24 @@ Elke kaart heeft een onderdeel **Alle instellingen**. Daar staat alles wat de Lu
 **Toepassen…** op een kaart, of **Alles toepassen** bovenaan, toont per apparaat elke aanroep (methode en pad) voordat er iets gestuurd wordt. Na je bevestiging gebeuren ze een voor een; bij de eerste fout stopt het. Daarna wordt het apparaat opnieuw uitgelezen en vergeleken met wat je vroeg. Het IP-adres veranderen gebeurt altijd als laatste. Optioneel wordt een switchconfiguratie in een profielslot bewaard (Verbinding). Het werkt op GigaCore generatie 2 en LumiNode / LumiCore; generatie 1-switches vallen erbuiten.
 
 Buiten de desktop-app antwoorden gesimuleerde apparaten zodat je het kunt uitproberen.`
+  },
+  {
+    id:'align', icon:'compass', context:['align'],
+    title:{ en:'Align tool', nl:'Uitlijntool' },
+    en:`The **Align tool** is for setting up many devices quickly. Open it from the Tasks page, from Network Config (**Align tool**) or from Setup step 8. Network Config stays as it is, for working on one device or port.
+
+1. **Find** — searches the network (or the range you type) for every LumiNode and GigaCore.
+2. **Align** — the first device **blinks**: a GigaCore blinks its screen and port lights (the identify call of the switch), a LumiNode its LEDs. You stand at the device, see which one it is and press its place in the plan, for example **DB3-SW1**. The link is made and the next device blinks. The suggestion in orange is the first free place, or the one with the same IP address. **Skip** leaves a device alone, **Undo** takes the last link back.
+3. **Send** — **Fill in from the plan** puts names, VLANs, port names and universes on the devices (optionally also the IP address of the plan; the device then moves to its new address, so do that on a new network). **Send config** lists every call and asks for your OK, sends to all linked devices one by one and reads each back.
+
+Not done yet: finding devices by IPv6 / MAC address when a new device is on another IP range than your computer. That needs a test on real devices first.`,
+    nl:`De **Uitlijntool** is om snel veel apparaten in te stellen. Open hem via de pagina Taken, via Netwerkconfig (**Uitlijntool**) of via Setup stap 8. Netwerkconfig blijft zoals het was, voor het werken aan één apparaat of poort.
+
+1. **Zoeken** — zoekt in het netwerk (of het bereik dat je typt) naar elke LumiNode en GigaCore.
+2. **Uitlijnen** — het eerste apparaat **knippert**: een GigaCore laat scherm en poortlampjes knipperen (de identify-aanroep van de switch), een LumiNode zijn LED’s. Jij staat bij het apparaat, ziet welke het is en drukt op zijn plek in het plan, bijvoorbeeld **DB3-SW1**. De koppeling is gemaakt en het volgende apparaat knippert. Het voorstel in oranje is de eerste vrije plek, of die met hetzelfde IP-adres. **Overslaan** laat een apparaat met rust, **Ongedaan** neemt de laatste koppeling terug.
+3. **Sturen** — **Invullen uit het plan** zet namen, VLAN’s, poortnamen en universes op de apparaten (eventueel ook het IP-adres uit het plan; het apparaat verhuist dan naar zijn nieuwe adres, doe dat dus op een nieuw netwerk). **Config sturen** toont elke aanroep en vraagt om jouw OK, stuurt één voor één naar alle gekoppelde apparaten en leest ze terug.
+
+Nog niet gedaan: apparaten vinden via IPv6 / MAC-adres als een nieuw apparaat op een ander IP-bereik zit dan je computer. Dat moet eerst op echte apparaten getest worden.`
   },
   {
     id:'fibres', icon:'cable', context:['fibres'],
@@ -986,6 +1018,19 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // Release notes per version, newest first. `npm run manual` turns this into CHANGELOG.md and the
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
+  {
+    version:'0.9.0', date:'2026-10-04',
+    en:[
+      'New: the Align tool. It finds every GigaCore and LumiNode, makes them blink one by one (the identify call of the devices), you press which place in the plan it is ("DB3-SW1") and the next one blinks. Then "Fill in from the plan" and "Send config" put names, IP addresses, VLANs and universes on all devices at once, with every change listed first. Network Config stays as it is.',
+      'The Setup steps are clearer and in a better order: first the plan on paper (import, racks, sockets, nodes, switches, fibres, check), then the real devices (find and align, send the configuration), then print and share. Every step now says in three lines what it is, what you do and what comes next.',
+      'Sending the configuration to the devices is one of the last steps, as it should be; the PDF, stickers and exchange moved to their own last step.',
+    ],
+    nl:[
+      'Nieuw: de Uitlijntool. Hij vindt elke GigaCore en LumiNode, laat ze één voor één knipperen (de identify-aanroep van de apparaten), jij drukt welke plek in het plan het is ("DB3-SW1") en de volgende knippert. Daarna zetten "Invullen uit het plan" en "Config sturen" namen, IP-adressen, VLAN’s en universes in één keer op alle apparaten, met eerst een lijst van elke wijziging. Netwerkconfig blijft zoals het was.',
+      'De Setup-stappen zijn duidelijker en in een betere volgorde: eerst het plan op papier (import, racks, aansluitingen, nodes, switches, fibers, controle), dan de echte apparaten (zoeken en uitlijnen, configuratie sturen), dan printen en delen. Elke stap zegt nu in drie regels wat het is, wat je doet en wat daarna komt.',
+      'De configuratie naar de apparaten sturen is een van de laatste stappen, zoals het hoort; de PDF, stickers en uitwisseling staan in hun eigen laatste stap.',
+    ]
+  },
   {
     version:'0.8.0', date:'2026-10-04',
     en:[

@@ -2354,6 +2354,7 @@ async function runCommand(cmd, arg){
     case 'demo':          return window.Demo?.open?.();
     case 'exchange':      return window.Exchange?.open?.();
     case 'netDevices':    return navigate('NETCONFIG');
+    case 'align':         return window.Align?.open?.(arg ? { phase:arg } : {});
     case 'wrapped':       return window.Fun?.wrapped?.();
     case 'stickers':      return window.Labels?.open?.(arg ? { dcs:[arg] } : {});
     case 'shareFlow':     return window.Fun?.shareFlow?.();

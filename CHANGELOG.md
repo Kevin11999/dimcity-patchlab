@@ -4,6 +4,18 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.7.3 — 2026-10-04
+
+- Trunk checked after every change: when the switch answers ok to "assign ports to a trunk" but a port is not in the trunk, PatchLab tries the other documented way (port by port), logs what the switch reports for each port and tells you if it still did not work.
+- Rainbow flow for the switch lights: the rainbow runs along the groups like a wave for a few seconds (stop any time), then the old colours come back. Ports follow the colour of their group, so a single port cannot get its own colour without moving to another group.
+
+<details><summary>Nederlands</summary>
+
+- Trunk na elke wijziging gecontroleerd: zegt de switch ok op "poorten aan een trunk toewijzen" maar zit een poort niet in de trunk, dan probeert PatchLab de andere gedocumenteerde manier (poort voor poort), logt wat de switch per poort meldt en zegt het als het nog steeds niet lukte.
+- Regenboogstroom voor de lampjes van de switch: de regenboog loopt een paar seconden als een golf langs de groepen (stoppen kan altijd) en daarna komen de oude kleuren terug. Poorten volgen de kleur van hun groep, dus een losse poort kan geen eigen kleur krijgen zonder naar een andere groep te verhuizen.
+
+</details>
+
 ## 0.7.2 — 2026-10-04
 
 - Trunk reworked: fibre ports now go into the switch's own built-in trunk (which carries every VLAN) instead of a trunk of ours, so it behaves like a trunk made on the switch itself. The trunk is shown in words under the ports (ports, VLANs, untagged VLAN, changeable), the page recognises whether a switch lists group numbers or VLAN ids, warns about advanced mode (with a button to go to Luminex mode), and shows what the switch itself says per port.

@@ -5,7 +5,7 @@ const clone = x => JSON.parse(JSON.stringify(x));
 
 // a white 250 x 122 PNG, what the e-ink display of a 20t could look like
 const WHITE_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAPoAAAB6AQAAAAC+J3NIAAAAJklEQVR4nO3KoQEAAAwCIP9/Wk9YXIFMeoggCIIgCIIgCIIgCH9hZZExotrhapAAAAAASUVORK5CYII=';
-export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12, mode = 'luminex', eink = false } = {}){
+export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12, mode = 'luminex', eink = false, ignoreAssign = false } = {}){
   const st = {
     device: { name, model: 'GigaCore 12t', api_version: '1.5.0' },
     groups: [{ group_id: 1, name: 'Default', vid: 1, color: '#808080', predefined: true }, { group_id: 2, name: 'Management', vid: 10, color: '#2266cc', predefined: true }],
@@ -58,6 +58,7 @@ export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12
     }
     if(path === '/api/trunks/assign_ports' && method === 'PUT'){
       if(!st.trunks.some(t => t.trunk_id === body?.id) || !Array.isArray(body.ports)) throw err(400, 'unknown trunk / ports');
+      if(ignoreAssign || st.ignoreAssign) return {};              // a switch that says ok and does nothing
       for(const q of st.ports){ const inList = body.ports.includes(q.port_number); if(inList) q.member_of = { type: 'trunk', id: body.id }; else if(q.member_of.type === 'trunk' && q.member_of.id === body.id) q.member_of = { type: 'group', id: 1 }; }
       return null;
     }

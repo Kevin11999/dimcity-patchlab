@@ -122,6 +122,13 @@ export function trunkInfo(cur, tid){
   const un = tr.untagged_group ? g(tr.untagged_group) : null;
   return { id: tid, name: tr.name, predefined: !!tr.predefined, vlans: (tr.groups || []).map(x => g(x)?.vid ?? x), untaggedVid: un?.vid ?? null, untaggedGroup: tr.untagged_group ?? 0, ports: cur.ports.filter(p => p.member_of?.type === 'trunk' && p.member_of.id === tid).map(p => p.port_number) };
 }
+// After a trunk change: which of the ports that should sit in the trunk do not (according to the switch), and what it says about them
+export function trunkMissing(cur, tid, ports){
+  return ports.map(n => cur.ports.find(p => p.port_number === n)).filter(p => !p || p.member_of?.type !== 'trunk' || p.member_of.id !== tid).map(p => ({ port: p?.port_number, says: p ? JSON.stringify(p.member_of ?? null) : 'no such port' }));
+}
+// the other documented way into a trunk: each port's own group membership
+export const trunkFallbackOps = (tid, ports) => ports.map(n => ({ method: 'PUT', path: `/api/ports/port/${n}/member_of`, body: { type: 'trunk', id: tid }, text: `Port ${n}: member of trunk ${tid} (port by port)`, kind: 'config' }));
+
 // change which VLAN is untagged on a trunk (vid = a VLAN id, or null / 0 for none)
 export function gigacoreTrunkPlan(cur, tid, untaggedVid){
   const tr = cur.trunks.find(t => t.trunk_id === tid); if(!tr) return { ops: [], notes: [] };
@@ -211,13 +218,13 @@ export const RAINBOW_STATES = ['all_red', 'all_yellow', 'all_green', 'all_cyan',
 export function rainbowPlan(cur){
   const order = []; const seen = new Set();
   for(const p of [...cur.ports].sort((a, b) => a.port_number - b.port_number)){ const m = p.member_of; if(!m?.type || m.type === 'none') continue; const k = `${m.type}:${m.id}`; if(!seen.has(k)){ seen.add(k); order.push(m); } }
-  const ops = [], before = [], n = order.length;
+  const ops = [], before = [], n = order.length, targets = [];
   order.forEach((m, i) => {
     const color = hslHex(Math.round(300 * i / Math.max(1, n - 1)));          // red … magenta, never wrapping back to red
-    if(m.type === 'group'){ const g = cur.groups.find(x => x.group_id === m.id); if(g){ before.push({ path: `/api/groups/group/${g.group_id}/color`, color: g.color }); ops.push({ method: 'PUT', path: `/api/groups/group/${g.group_id}/color`, body: color, text: `Group ${g.group_id} “${g.name}”: colour → ${color}`, kind: 'config', soft: true }); } }
-    else if(m.type === 'trunk'){ const t = cur.trunks.find(x => x.trunk_id === m.id); if(t && !t.predefined){ before.push({ path: `/api/trunks/trunk/${t.trunk_id}/color`, color: t.color }); ops.push({ method: 'PUT', path: `/api/trunks/trunk/${t.trunk_id}/color`, body: color, text: `Trunk “${t.name}”: colour → ${color}`, kind: 'config', soft: true }); } }
+    if(m.type === 'group'){ const g = cur.groups.find(x => x.group_id === m.id); if(g){ before.push({ path: `/api/groups/group/${g.group_id}/color`, color: g.color }); targets.push(`/api/groups/group/${g.group_id}/color`); ops.push({ method: 'PUT', path: `/api/groups/group/${g.group_id}/color`, body: color, text: `Group ${g.group_id} “${g.name}”: colour → ${color}`, kind: 'config', soft: true }); } }
+    else if(m.type === 'trunk'){ const t = cur.trunks.find(x => x.trunk_id === m.id); if(t && !t.predefined){ before.push({ path: `/api/trunks/trunk/${t.trunk_id}/color`, color: t.color }); targets.push(`/api/trunks/trunk/${t.trunk_id}/color`); ops.push({ method: 'PUT', path: `/api/trunks/trunk/${t.trunk_id}/color`, body: color, text: `Trunk “${t.name}”: colour → ${color}`, kind: 'config', soft: true }); } }
   });
-  return { ops, before };
+  return { ops, before, targets };
 }
 
 // ---- the e-ink display of a GigaCore 20t: show your own picture or text ----

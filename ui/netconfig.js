@@ -196,7 +196,9 @@
         await load(); const h = logged(d); await api.runOps(h, ops);
         if(isSw(d) && Number(C.slot) >= 1 && Number(C.slot) <= 20) await h('PUT', `/api/config/profiles/${Number(C.slot)}/save`);
         const ipOp = ops.find(o => o.kind === 'ip'); if(ipOp){ d.ip = d.dev.ip; if(real()) await new Promise(r => setTimeout(r, 2500)); }
-        d.E = new Map(); d.dev = {}; d.trunkEdit = null; await readDev(d); d.verified = !d.err && changeCount(d) === 0;
+        d.E = new Map(); d.dev = {}; d.trunkEdit = null; await readDev(d);
+        await verifyTrunk(d, ops, h);
+        d.verified = !d.err && changeCount(d) === 0;
       } catch(x) { failed++; d.err = t(`Stopped after an error: ${x.message || x}. Read the device again to see what was applied.`, `Gestopt door een fout: ${x.message || x}. Lees het apparaat opnieuw uit om te zien wat is toegepast.`); }
       d.busy = false; paint();
     }
@@ -218,6 +220,36 @@
     catch(x) { d.err = String(x.message || x); }
     try { await h('PUT', '/api/interface/set_state', { state:typeof before === 'string' && before ? before : 'groups' }); } catch { try { await h('PUT', '/api/interface/set_state', { state:'groups' }); } catch {} }
     C.show = null; paint();
+  }
+
+  // The switch answered "ok" to the trunk call; did the ports really end up in the trunk? If not, try the other documented way (port by port) and say what the switch reports.
+  async function verifyTrunk(d, ops, h){
+    if(!d.cur) return;
+    const asg = ops.filter(o => o.path === '/api/trunks/assign_ports'); if(!asg.length) return;
+    for(const o of asg){
+      let miss = api.trunkMissing(d.cur, o.body.id, o.body.ports);
+      if(!miss.length){ d.log.push({ ok:true, line:`verify: ports ${o.body.ports.join(', ')} are in trunk ${o.body.id}`, res:'' }); continue; }
+      d.log.push({ ok:false, line:`verify: trunk ${o.body.id}`, err:`the switch says ${miss.map(m => `port ${m.port} member_of ${m.says}`).join('; ')}` });
+      try { await api.runOps(h, api.trunkFallbackOps(o.body.id, miss.map(m => m.port).filter(Boolean))); await readDev(d); miss = api.trunkMissing(d.cur, o.body.id, o.body.ports); } catch(x) { d.log.push({ ok:false, line:'port by port', err:String(x.message || x) }); }
+      if(miss.length) d.err = t(`The switch accepted the trunk call but reports ports ${miss.map(m => m.port).join(', ')} are not in trunk ${o.body.id} (it says: ${miss[0].says}). Open “Last calls” and send it to me.`, `De switch accepteerde de trunkaanroep maar meldt dat poorten ${miss.map(m => m.port).join(', ')} niet in trunk ${o.body.id} zitten (hij zegt: ${miss[0].says}). Open “Laatste aanroepen” en stuur het naar mij.`);
+      else d.log.push({ ok:true, line:`verify: port by port worked, ports ${o.body.ports.join(', ')} are in trunk ${o.body.id}`, res:'' });
+    }
+  }
+  // the colours flow along: every group in use keeps its place in the rainbow and the whole rainbow turns, a few seconds, then the old colours come back
+  async function rainbowFlow(d){
+    if(C.flow && C.flow.ip === d.ip){ C.flow.stop = true; return; }
+    const plan = api.rainbowPlan(d.cur); if(!plan.targets.length){ App.ui.toast(t('No groups in use to colour', 'Geen groepen in gebruik om te kleuren'), 'info'); return; }
+    const h = logged(d), run = C.flow = { ip:d.ip, stop:false }; paint(); let err = '';
+    try {
+      await load(); const n = plan.targets.length;
+      for(let f = 0; f < 90 && !run.stop; f++){
+        const results = await Promise.allSettled(plan.targets.map((path, i) => h('PUT', path, api.hslHex(((360 * i / n) + f * 14) % 360))));
+        const bad = results.find(r => r.status === 'rejected'); if(bad){ err = String(bad.reason?.message || bad.reason); break; }
+        await sleep(160);
+      }
+    } catch(x) { err = String(x.message || x); }
+    try { await Promise.allSettled(plan.before.map(b => h('PUT', b.path, b.color))); } catch {}
+    C.flow = null; if(err) d.err = err; await readDev(d, true); paint();
   }
   async function rainbowColours(d, undo){
     d.busy = true; d.err = ''; paint();
@@ -253,9 +285,10 @@
   }
   const lightsHtml = d => `<div class="nc-lights"><b>${t('Lights', 'Lampjes')}</b>
     <button data-rainbow="${esc(d.ip)}" class="${C.show?.ip === d.ip ? 'primary' : ''}">${C.show?.ip === d.ip ? '■ ' + t('Stop', 'Stop') : '🌈 ' + t('Rainbow show', 'Regenboogshow')}</button>
+    <button data-rainbowf="${esc(d.ip)}" class="${C.flow?.ip === d.ip ? 'primary' : ''}">${C.flow?.ip === d.ip ? '■ ' + t('Stop', 'Stop') : '🌊 ' + t('Rainbow flow', 'Regenboogstroom')}</button>
     <button data-rainbowc="${esc(d.ip)}" ${d.busy ? 'disabled' : ''}>${t('Rainbow colours on the groups', 'Regenboogkleuren op de groepen')}</button>
     ${d.rainbowBefore ? `<button data-rainbowu="${esc(d.ip)}">${t('Colours back', 'Kleuren terug')}</button>` : ''}
-    <span class="subtle" style="font-size:12px">${t('The show runs the front-panel colours red → magenta a few times and then goes back. The port lights follow the colour of their group, so “rainbow colours” gives every group in use its own colour, left to right (a group colour has no effect on traffic).', 'De show laat de kleuren van het voorpaneel een paar keer van rood → magenta lopen en gaat dan terug. De poortlampjes volgen de kleur van hun groep, dus “regenboogkleuren” geeft elke gebruikte groep een eigen kleur, van links naar rechts (een groepskleur heeft geen invloed op het verkeer).')}</span></div>`;
+    <span class="subtle" style="font-size:12px">${t('The show runs the front-panel colours red → magenta a few times and then goes back. The port lights follow the colour of their group, so “rainbow colours” gives every group in use its own colour, left to right, and “rainbow flow” lets those colours run along like a wave (ports in the same VLAN change together; a single port cannot get a colour of its own without moving it to another group). A group colour has no effect on traffic.', 'De show laat de kleuren van het voorpaneel een paar keer van rood → magenta lopen en gaat dan terug. De poortlampjes volgen de kleur van hun groep, dus “regenboogkleuren” geeft elke gebruikte groep een eigen kleur, van links naar rechts, en de “regenboogstroom” laat die kleuren als een golf langs lopen (poorten in dezelfde VLAN veranderen samen; een losse poort kan geen eigen kleur krijgen zonder naar een andere groep te verhuizen). Een groepskleur heeft geen invloed op het verkeer.')}</span></div>`;
   const logHtml = d => (d.log && d.log.length) ? `<details class="nc-log"><summary>${t('Last calls to this device', 'Laatste aanroepen naar dit apparaat')} (${d.log.length})</summary><button data-copylog="${esc(d.ip)}">${t('Copy', 'Kopieer')}</button><pre>${d.log.slice(-40).map(l => `${l.ok ? '✓' : '✗'} ${esc(l.line)}${l.ok ? (l.res ? '  → ' + esc(l.res) : '') : '  → ' + esc(l.err)}`).join('\n')}</pre></details>` : '';
 
   // ---------- the e-ink display of a GigaCore 20t ----------
@@ -479,6 +512,7 @@
     qa('[data-bklass]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.brush = { ...(d.brush || {}), klass:i.value || undefined, auto:d.brush?.auto !== false }; paint(); });
     qa('[data-trunkun]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.trunkEdit = { tid:Number(i.dataset.trunkun), vid:Number(i.value) || 0 }; paint(); });
     qa('[data-rainbow]').forEach(b => b.onclick = () => rainbowShow(D(b.dataset.rainbow)));
+    qa('[data-rainbowf]').forEach(b => b.onclick = () => rainbowFlow(D(b.dataset.rainbowf)));
     qa('[data-rainbowc]').forEach(b => b.onclick = () => rainbowColours(D(b.dataset.rainbowc), false));
     qa('[data-rainbowu]').forEach(b => b.onclick = () => rainbowColours(D(b.dataset.rainbowu), true));
     qa('[data-lxmode]').forEach(b => b.onclick = () => luminexMode(D(b.dataset.lxmode)));

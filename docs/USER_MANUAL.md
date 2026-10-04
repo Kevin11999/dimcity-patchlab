@@ -399,6 +399,8 @@ PatchLab can find Art-Net nodes (Luminex LumiNode, ELC and others) on the networ
 Universe numbering: Luminex shows universe 1 where Art-Net says 0, so the default is one less; choose "same number" if your nodes count differently.
 
 ### Luminex GigaCore switches and LumiNode over their web API
+**Discover (first tab):** press **Discover devices** and PatchLab asks every address of the networks of this computer (or the range you type, for example "10.90.101.0/24" or "10.90.101.20-60") whether it is a Luminex switch or node, and adds the Art-Net nodes. You get one overview with address, type and name. Each device is **linked** to a switch or node of the plan, automatically on IP address and then on name; change it in the list. A link makes that address the "Address now" of the switch or node. **Open switch / Open node** takes you to its tab to read and send. Devices that ask for a login show up as "login needed": fill in the user name and password and discover again.
+
 The tabs **LumiNode (HTTP)** and **Switches** talk to the devices through the HTTP APIs that Luminex documents (GigaCore generation 2 WebApi 1.5, LumiNode/LumiCore WebApi 2.8). Fill in the user name and password of the device, then for each switch or node:
 
 1. **Read.** The address now is the one in your plan; if the device still has another address (factory setting), type that one. PatchLab reads the device.
@@ -592,6 +594,7 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 ## What's new
 
 ### Version 0.6.2 — 2026-10-04
+- Discover: one overview of all Luminex switches and nodes on the network (scan of the networks of this computer or a range you type, plus Art-Net nodes), each linked to a switch or node of the plan automatically on IP address and then on name, with a button to open it.
 - GigaCore switches, port by port: the button Ports… on a switch opens a table where you set for every port its name, its VLAN / group (a VLAN of the plan the switch does not have yet is made for you), PoE on or off and the speed. Changed rows are shaded, only the changed ports are sent, and the switch is read back to check.
 
 ### Version 0.6.1 — 2026-10-04
@@ -1102,6 +1105,8 @@ PatchLab kan Art-Net-nodes (Luminex LumiNode, ELC en andere) op het netwerk vind
 Universe-nummering: Luminex toont universe 1 waar Art-Net 0 zegt, dus de standaard is één lager; kies "zelfde nummer" als je nodes anders tellen.
 
 ### Luminex GigaCore-switches en LumiNode via hun web-API
+**Ontdekken (eerste tabblad):** druk op **Apparaten ontdekken** en PatchLab vraagt elk adres van de netwerken van deze computer (of het bereik dat je typt, bijvoorbeeld "10.90.101.0/24" of "10.90.101.20-60") of het een Luminex-switch of -node is, en voegt de Art-Net-nodes toe. Je krijgt één overzicht met adres, type en naam. Elk apparaat wordt **gekoppeld** aan een switch of node uit het plan, automatisch op IP-adres en daarna op naam; pas het aan in de lijst. Een koppeling maakt dat adres het "Adres nu" van de switch of node. **Open switch / Open node** brengt je naar het tabblad om uit te lezen en te sturen. Apparaten die om een login vragen staan er als "login nodig": vul gebruikersnaam en wachtwoord in en ontdek opnieuw.
+
 De tabbladen **LumiNode (HTTP)** en **Switches** praten met de apparaten via de HTTP-API's die Luminex documenteert (GigaCore generatie 2 WebApi 1.5, LumiNode/LumiCore WebApi 2.8). Vul de gebruikersnaam en het wachtwoord van het apparaat in en doe dan per switch of node:
 
 1. **Uitlezen.** Het adres nu is dat uit je plan; heeft het apparaat nog een ander adres (fabrieksinstelling), typ dan dat adres. PatchLab leest het apparaat uit.
@@ -1295,6 +1300,7 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 ## Wat is er nieuw
 
 ### Versie 0.6.2 — 2026-10-04
+- Ontdekken: één overzicht van alle Luminex-switches en -nodes op het netwerk (scan van de netwerken van deze computer of een bereik dat je typt, plus Art-Net-nodes), elk automatisch gekoppeld aan een switch of node uit het plan op IP-adres en daarna op naam, met een knop om hem te openen.
 - GigaCore-switches, poort voor poort: de knop Poorten… bij een switch opent een tabel waarin je per poort de naam, het VLAN / de groep (een VLAN uit het plan dat de switch nog niet heeft wordt voor je aangemaakt), PoE aan of uit en de snelheid instelt. Gewijzigde rijen zijn gearceerd, alleen de gewijzigde poorten worden gestuurd en de switch wordt teruggelezen ter controle.
 
 ### Versie 0.6.1 — 2026-10-04

@@ -400,9 +400,16 @@ Click a switch to open it. You see its ports as tiles, as on the front panel, ea
 - A VLAN of the plan that the switch does not have yet is marked with a plus; its group is made when you apply.
 - **Fill from the plan** puts the names (from the port plan) and VLANs of the plan on the ports, the fibre ports in the trunk and the device name. The IP address is only changed if you set that in Connection or type it yourself.
 Painted ports have an orange border; nothing is sent yet.
+- **Trunk:** the brush **Trunk** puts a port in the trunk "Fibre" (all VLANs of the plan, the management VLAN untagged). PatchLab makes the trunk if needed and assigns the ports to it with the switch's own "assign ports to a trunk" call; after applying, the switch is read back, so a port that did not end up in the trunk shows up as a change again.
+
+### The e-ink display (GigaCore 20t)
+A switch with an e-ink display shows a section **E-ink display** under its ports. Choose **Text** (type the lines; the size is automatic or fixed) or **Picture** (choose a JPG, PNG or other picture file): PatchLab scales it to the size of the display (read from the display itself), makes it black and white (dithered if you like) and sends it as a PNG. **Send as preview** puts it on the device without touching the display and shows what the device made of it; **Show on the display** applies it; **Standard layout** brings the Luminex layout back; **Remove my picture** clears it. You can also hide the IP address or show the quick-start QR code. If the preview looks wrong, adjust the fit, size or dither and send it again.
 
 ### A LumiNode
-Click a node to open it. You see its DMX ports with name and universe. Type a universe in the brush, click a port, and the port gets it; with "next port gets the next universe" the next click gives the next number. New inputs are sACN (or Art-Net, set in Connection). Per port you can change the name; the node keeps its own firmware rules (the name is written on the port, the universe on the input that feeds it through its process block). A port whose set-up is not recognised, or whose input is shared with another port, is left alone and explained.
+Click a node to open it. You see its DMX ports as tiles: number, name, direction, protocol and universe. Per port you can set everything: the **name**, the **direction** (output: network → DMX, input: DMX → network, or off), the **protocol** (sACN or Art-Net) and the **universe**. The universe is the number the node itself shows; Art-Net is not shifted by one unless you choose that under Connection.
+- **Brush:** set direction, protocol and universe in the brush bar (leave a field on "keep" to leave it alone) and click ports. With "next port gets the next universe" the next click gives the next number.
+- **One port:** click a port without a brush and use the panel below the tiles.
+- The node keeps its own rules: the name and direction are written on the DMX port, the universe and protocol on the network input (or, for a DMX input, output) that is connected to it through its process block. Changing the direction or the protocol makes a new input / output, connects it and removes the old one; the preview shows every step. A port whose set-up is not recognised, or whose input is shared with another port, is left alone and explained.
 
 ### Apply
 **Apply…** on a card, or **Apply all** at the top, shows every call per device (method and path) before anything is sent. After you confirm they are made one by one; it stops at the first error. Then the device is read again and checked against what you asked. Changing the IP address always comes last. Optionally a switch configuration is saved in a profile slot (Connection). It works on GigaCore generation 2 and LumiNode / LumiCore; generation 1 switches are not covered.
@@ -584,6 +591,12 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 
 <a id="whats-new"></a>
 ## What's new
+
+### Version 0.7.1 — 2026-10-04
+- Trunk fixed: fibre ports are now put in the trunk with the switch's own "assign ports to a trunk" call (instead of a plain group membership), the trunk carries all VLANs of the plan with the management VLAN untagged, and the switch is read back to check.
+- Nothing is cut off any more: port tiles are bigger, names wrap over two lines, and show direction, protocol and VLAN / universe clearly.
+- LumiNode, everything per port: name, direction (output / input / off), protocol (sACN or Art-Net) and universe, by brush or per port. Art-Net universe 10 is now sent as 10 and the node shows 10 (the shift by one is only used if you choose it). Changing the direction or protocol builds the new input / output and connects it through the process block, with every step in the preview.
+- E-ink display of the GigaCore 20t: show your own text or a picture (JPG, PNG …, scaled to the display, black and white, dithered), send it first as a preview, then show it; back to the standard layout, hide the IP address, show the QR code.
 
 ### Version 0.7.0 — 2026-10-04
 - New page Network Config: all your LumiNodes and GigaCore switches on one page. Discover finds them at once over the web API (the whole network of this computer, or a range you type), links each to a switch or node of the plan and reads it.
@@ -1104,9 +1117,16 @@ Klik op een switch om hem open te klappen. Je ziet de poorten als tegels, zoals 
 - Een VLAN uit het plan dat de switch nog niet heeft staat met een plusje; de groep wordt aangemaakt bij het toepassen.
 - **Invullen uit het plan** zet de namen (uit het poortplan) en VLAN's van het plan op de poorten, de fibre-poorten in de trunk en de apparaatnaam. Het IP-adres verandert alleen als je dat bij Verbinding aanzet of zelf intypt.
 Geschilderde poorten hebben een oranje rand; er is nog niets gestuurd.
+- **Trunk:** de kwast **Trunk** zet een poort in de trunk "Fibre" (alle VLAN's van het plan, het beheer-VLAN untagged). PatchLab maakt de trunk als dat nodig is en wijst de poorten eraan toe met de eigen aanroep van de switch voor "poorten aan een trunk toewijzen"; na het toepassen wordt de switch teruggelezen, dus een poort die niet in de trunk terechtkwam verschijnt opnieuw als wijziging.
+
+### Het e-ink-display (GigaCore 20t)
+Een switch met een e-ink-display toont onder zijn poorten een onderdeel **E-ink display**. Kies **Tekst** (typ de regels; de grootte is automatisch of vast) of **Afbeelding** (kies een JPG-, PNG- of ander afbeeldingsbestand): PatchLab schaalt het naar het formaat van de display (uitgelezen van de display zelf), maakt het zwart-wit (desgewenst gedithered) en stuurt het als PNG. **Als voorbeeld sturen** zet het op het apparaat zonder de display aan te raken en toont wat het apparaat ervan maakte; **Op de display tonen** past het toe; **Standaardweergave** brengt de Luminex-weergave terug; **Mijn afbeelding wissen** wist het. Je kunt ook het IP-adres verbergen of de quick-start-QR-code tonen. Ziet het voorbeeld er verkeerd uit, pas dan passen, grootte of dither aan en stuur opnieuw.
 
 ### Een LumiNode
-Klik op een node om hem open te klappen. Je ziet de DMX-poorten met naam en universe. Typ een universe in de kwast, klik op een poort en de poort krijgt het; met "volgende poort krijgt het volgende universe" geeft de volgende klik het volgende nummer. Nieuwe ingangen zijn sACN (of Art-Net, in te stellen bij Verbinding). Per poort kun je de naam veranderen; de node houdt zijn eigen firmwareregels aan (de naam staat op de poort, het universe op de ingang die hem via zijn process block voedt). Een poort waarvan de opzet niet herkend wordt, of waarvan de ingang gedeeld is met een andere poort, blijft ongemoeid en wordt uitgelegd.
+Klik op een node om hem open te klappen. Je ziet de DMX-poorten als tegels: nummer, naam, richting, protocol en universe. Per poort kun je alles instellen: de **naam**, de **richting** (uitgang: netwerk → DMX, ingang: DMX → netwerk, of uit), het **protocol** (sACN of Art-Net) en het **universe**. Het universe is het nummer dat de node zelf toont; Art-Net wordt niet één verschoven, tenzij je dat onder Verbinding kiest.
+- **Kwast:** stel richting, protocol en universe in de kwastbalk in (laat een veld op "houden" om het met rust te laten) en klik op poorten. Met "volgende poort krijgt het volgende universe" geeft de volgende klik het volgende nummer.
+- **Eén poort:** klik zonder kwast op een poort en gebruik het paneel onder de tegels.
+- De node houdt zijn eigen regels aan: naam en richting staan op de DMX-poort, universe en protocol op de netwerkingang (of, bij een DMX-ingang, netwerkuitgang) die er via zijn process block aan hangt. Een richting of protocol veranderen maakt een nieuwe ingang / uitgang, koppelt die en verwijdert de oude; het voorbeeld toont elke stap. Een poort waarvan de opzet niet herkend wordt, of waarvan de ingang gedeeld is met een andere poort, blijft ongemoeid en wordt uitgelegd.
 
 ### Toepassen
 **Toepassen…** op een kaart, of **Alles toepassen** bovenaan, toont per apparaat elke aanroep (methode en pad) voordat er iets gestuurd wordt. Na je bevestiging gebeuren ze een voor een; bij de eerste fout stopt het. Daarna wordt het apparaat opnieuw uitgelezen en vergeleken met wat je vroeg. Het IP-adres veranderen gebeurt altijd als laatste. Optioneel wordt een switchconfiguratie in een profielslot bewaard (Verbinding). Het werkt op GigaCore generatie 2 en LumiNode / LumiCore; generatie 1-switches vallen erbuiten.
@@ -1288,6 +1308,12 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.7.1 — 2026-10-04
+- Trunk gerepareerd: fibre-poorten gaan nu in de trunk met de eigen aanroep van de switch "poorten aan een trunk toewijzen" (in plaats van een gewoon groepslidmaatschap), de trunk voert alle VLAN's van het plan met het beheer-VLAN untagged, en de switch wordt teruggelezen ter controle.
+- Niets wordt meer afgekapt: poorttegels zijn groter, namen lopen over twee regels en tonen richting, protocol en VLAN / universe duidelijk.
+- LumiNode, alles per poort: naam, richting (uitgang / ingang / uit), protocol (sACN of Art-Net) en universe, met de kwast of per poort. Art-Net-universe 10 wordt nu als 10 gestuurd en de node toont 10 (de verschuiving met één wordt alleen gebruikt als je die kiest). Een richting of protocol veranderen bouwt de nieuwe ingang / uitgang en koppelt die via het process block, met elke stap in het voorbeeld.
+- E-ink-display van de GigaCore 20t: toon je eigen tekst of een afbeelding (JPG, PNG …, geschaald naar de display, zwart-wit, gedithered), stuur het eerst als voorbeeld en toon het dan; terug naar de standaardweergave, IP-adres verbergen, QR-code tonen.
 
 ### Versie 0.7.0 — 2026-10-04
 - Nieuwe pagina Netwerkconfig: al je LumiNodes en GigaCore-switches op één pagina. Ontdekken vindt ze in één keer via de web-API (het hele netwerk van deze computer, of een bereik dat je typt), koppelt elk aan een switch of node uit het plan en leest hem uit.

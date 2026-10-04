@@ -4,6 +4,22 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.7.1 — 2026-10-04
+
+- Trunk fixed: fibre ports are now put in the trunk with the switch's own "assign ports to a trunk" call (instead of a plain group membership), the trunk carries all VLANs of the plan with the management VLAN untagged, and the switch is read back to check.
+- Nothing is cut off any more: port tiles are bigger, names wrap over two lines, and show direction, protocol and VLAN / universe clearly.
+- LumiNode, everything per port: name, direction (output / input / off), protocol (sACN or Art-Net) and universe, by brush or per port. Art-Net universe 10 is now sent as 10 and the node shows 10 (the shift by one is only used if you choose it). Changing the direction or protocol builds the new input / output and connects it through the process block, with every step in the preview.
+- E-ink display of the GigaCore 20t: show your own text or a picture (JPG, PNG …, scaled to the display, black and white, dithered), send it first as a preview, then show it; back to the standard layout, hide the IP address, show the QR code.
+
+<details><summary>Nederlands</summary>
+
+- Trunk gerepareerd: fibre-poorten gaan nu in de trunk met de eigen aanroep van de switch "poorten aan een trunk toewijzen" (in plaats van een gewoon groepslidmaatschap), de trunk voert alle VLAN's van het plan met het beheer-VLAN untagged, en de switch wordt teruggelezen ter controle.
+- Niets wordt meer afgekapt: poorttegels zijn groter, namen lopen over twee regels en tonen richting, protocol en VLAN / universe duidelijk.
+- LumiNode, alles per poort: naam, richting (uitgang / ingang / uit), protocol (sACN of Art-Net) en universe, met de kwast of per poort. Art-Net-universe 10 wordt nu als 10 gestuurd en de node toont 10 (de verschuiving met één wordt alleen gebruikt als je die kiest). Een richting of protocol veranderen bouwt de nieuwe ingang / uitgang en koppelt die via het process block, met elke stap in het voorbeeld.
+- E-ink-display van de GigaCore 20t: toon je eigen tekst of een afbeelding (JPG, PNG …, geschaald naar de display, zwart-wit, gedithered), stuur het eerst als voorbeeld en toon het dan; terug naar de standaardweergave, IP-adres verbergen, QR-code tonen.
+
+</details>
+
 ## 0.7.0 — 2026-10-04
 
 - New page Network Config: all your LumiNodes and GigaCore switches on one page. Discover finds them at once over the web API (the whole network of this computer, or a range you type), links each to a switch or node of the plan and reads it.

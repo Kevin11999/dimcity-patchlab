@@ -92,24 +92,31 @@ function renderArticle(){
   art.querySelectorAll('[data-ch]').forEach(a => a.onclick = () => { current = Man.CHAPTERS.find(x => x.id === a.dataset.ch) || current; renderToc(); renderArticle(); });
   art.querySelector('[data-h=req]').onclick = () => openRequest({ about:c.title[L] });
 }
-// ---- Videos (assets/videos/<part>-<lang>.webm, made by tools/make-videos.mjs) ----
-const PARTS = ['start', 'racks', 'couple', 'nodes', 'network', 'fibres', 'flow', 'pdf', 'stickers'];
-const VIDEOS = [
-  ['full', 'Complete workflow, start to finish', 'Complete workflow, van begin tot eind'], ['start', '1 · Start with your patch', '1 · Begin met je patch'], ['racks', '2 · Racks and the advice', '2 · Racks en het advies'],
-  ['couple', '3 · Couple LKs and Veams', '3 · LK’s en Veams koppelen'], ['nodes', '4 · Nodes', '4 · Nodes'], ['network', '5 · Network', '5 · Netwerk'],
-  ['fibres', '6 · Fibres', '6 · Fibers'], ['flow', '7 · Signal Flow', '7 · Signaalstroom'], ['pdf', '8 · Check and the PDF', '8 · Controle en de PDF'], ['stickers', '9 · Stickers', '9 · Stickers'],
-];
-let videoId = 'full';
-function videoPlayer(art, auto = false){
-  const L = lang();
+// ---- Videos (assets/videos/<id>.webm + <id>.vtt, made by tools/make-videos.mjs; the list is assets/videos/index.json) ----
+let videoId = null, videoSeries = null;
+async function loadVideoIndex(){
+  if(videoSeries) return videoSeries;
+  try { const r = await fetch('assets/videos/index.json'); videoSeries = r.ok ? await r.json() : []; } catch { videoSeries = []; }
+  return videoSeries;
+}
+async function videoPlayer(art, auto = false){
+  const series = await loadVideoIndex(); if(!series.length || !art.isConnected) return;
+  const all = series.flatMap(s => s.parts.map(p => ({ ...p, series:s.id })));
+  if(!videoId || !all.some(p => p.id === videoId)) videoId = all[0].id;
+  const cur = all.find(p => p.id === videoId), si = series.find(s => s.id === cur.series), pos = si.parts.findIndex(p => p.id === videoId);
+  art.querySelector('.help-videos')?.remove();
   const box = document.createElement('div'); box.className = 'help-videos';
-  box.innerHTML = `<video class="help-video" controls preload="metadata" src="assets/videos/${videoId === 'full' ? PARTS[0] : videoId}.webm" ${auto ? 'autoplay' : ''}></video>
-    <div class="help-vlist">${VIDEOS.map(([id, en, nl]) => `<button class="sm ${id === videoId ? 'primary' : 'ghost'}" data-vid="${id}">${I('play', 13)}${esc(t(en, nl))}</button>`).join('')}</div>
-    <div class="subtle" style="margin-top:6px">${t('With a voice and subtitles (English).', 'Met stem en ondertiteling (Engels).')}</div>`;
+  box.innerHTML = `<video class="help-video" controls preload="metadata" src="assets/videos/${esc(videoId)}.webm" ${auto ? 'autoplay' : ''}></video>
+    <div class="help-vnow"><b>${esc(cur.title)}</b>${cur.desc ? `<span class="subtle"> — ${esc(cur.desc)}</span>` : ''}</div>
+    ${series.map(s => `<div class="help-vgroup"><div class="rb-label">${esc(s.title)}</div><div class="help-vlist">${s.parts.map(p => `<button class="sm ${p.id === videoId ? 'primary' : 'ghost'}" data-vid="${esc(p.id)}">${I('play', 13)}${esc(p.title)}</button>`).join('')}</div></div>`).join('')}
+    <div class="subtle" style="margin-top:6px">${t('Voice in English. Subtitles: use the CC button in the player. The first series builds one show from start to finish and plays on to the next part by itself.', 'Stem in het Engels. Ondertiteling: gebruik de CC-knop in de speler. De eerste reeks bouwt één show van begin tot eind en gaat zelf door naar het volgende deel.')}</div>`;
   const h = art.querySelector('h3'); h.after(box);
-  box.querySelectorAll('[data-vid]').forEach(b => b.onclick = () => { videoId = b.dataset.vid; box.remove(); videoPlayer(art, true); });
-  if(videoId === 'full'){ const v = box.querySelector('video'); let i = 0; v.onended = () => { if(++i < PARTS.length){ v.src = `assets/videos/${PARTS[i]}.webm`; v.play(); } }; }
-  box.querySelector('video').onerror = () => { box.querySelector('video').replaceWith(Object.assign(document.createElement('div'), { className: 'subtle', textContent: t('This video is not available in this build.', 'Deze video is niet beschikbaar in deze versie.') })); };
+  box.querySelectorAll('[data-vid]').forEach(b => b.onclick = () => { videoId = b.dataset.vid; videoPlayer(art, true); });
+  const v = box.querySelector('video');
+  // subtitles are made from the cues in the index (no extra file to load)
+  if(cur.cues?.length){ try { const tr = v.addTextTrack('subtitles', 'English', 'en'); for(const [a, b, tx] of cur.cues) tr.addCue(new VTTCue(a, b, tx)); tr.mode = 'hidden'; } catch {} }
+  v.onended = () => { if(si.id === 'build' && pos + 1 < si.parts.length){ videoId = si.parts[pos + 1].id; videoPlayer(art, true); } };
+  v.onerror = () => { v.replaceWith(Object.assign(document.createElement('div'), { className: 'subtle', textContent: t('This video is not available in this build.', 'Deze video is niet beschikbaar in deze versie.') })); };
 }
 function renderSearch(){
   const Man = window.Manual, L = lang(), art = panel.querySelector('.help-article');

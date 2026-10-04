@@ -65,12 +65,20 @@ Linksonder toont een kleine balk hoe compleet de show is: projectinfo, patch ge�
   {
     id:'videos', icon:'play', context:['videos'],
     title:{ en:'Videos', nl:'Video’s' },
-    en:`Screen recordings with a spoken explanation (English, with subtitles) show how the app works. Watch the **complete workflow** first, from the imported patch to the printed show, or pick one part: Start, Racks and the advice, Couple LKs and Veams, Nodes, Network, Fibres, Signal Flow, the PDF or Stickers.
+    en:`Screen recordings of the whole app window, in full HD, with a spoken explanation in English. There is no text in the picture; switch the **subtitles** on with the CC button in the player.
 
-The recordings follow the same demo show, so everything you see you can also do yourself in **Open Demo Show** on the welcome screen. The **Setup** button in the toolbar walks you through the same steps for your own project.`,
-    nl:`Schermopnames met gesproken uitleg (Engels, met ondertiteling) laten zien hoe de app werkt. Kijk eerst de **complete workflow**, van de geïmporteerde patch tot de geprinte show, of kies een onderdeel: Start, Racks en het advies, LK’s en Veams koppelen, Nodes, Netwerk, Fibers, Signaalstroom, de PDF of Stickers.
+There are two series:
+- **Build a show, step by step** — one project from an empty window to the finished report: import the patch, racks and the advice, couple LKs and Veams, nodes, network, fibres, signal flow, check and PDF, stickers. The parts play one after the other.
+- **Tool guides** — one short video per tool: Device Builder, Rack Builder and custom racks, the advice, coupling and stacking, cable types and fibre stock, the fibre overview, VLANs, the Signal Flow, the PDF builder, stickers, QR codes, exchange with Lightwright and Vectorworks, devices on the network, Tasks and Setup, search and undo.
 
-De opnames gebruiken de Demo-show; alles wat je ziet kun je dus zelf nadoen via **Demo-show openen** op het welkomstscherm. De knop **Setup** in de werkbalk loopt dezelfde stappen met je door voor je eigen project.`
+Everything you see you can do yourself in **Open Demo Show** on the welcome screen. The **Tasks** page and the **Setup** button walk you through the same steps for your own project.`,
+    nl:`Schermopnames van het hele appvenster, in full HD, met gesproken uitleg in het Engels. Er staat geen tekst in beeld; zet de **ondertiteling** aan met de CC-knop in de speler.
+
+Er zijn twee reeksen:
+- **Bouw een show, stap voor stap** — één project van een leeg venster tot het eindrapport: patch importeren, racks en het advies, LK’s en Veams koppelen, nodes, netwerk, fibers, signaalstroom, controle en PDF, stickers. De delen spelen na elkaar af.
+- **Tool-uitleg** — één korte video per tool: Device Builder, Rack Builder en eigen rekken, het advies, koppelen en stapelen, kabeltypen en fibervoorraad, het fiberoverzicht, VLAN’s, de Signaalstroom, de PDF-bouwer, stickers, QR-codes, uitwisselen met Lightwright en Vectorworks, apparaten op het netwerk, Taken en Setup, zoeken en ongedaan maken.
+
+Alles wat je ziet kun je zelf doen in **Demo-show openen** op het welkomstscherm. De pagina **Taken** en de knop **Setup** lopen dezelfde stappen met je door voor je eigen project.`
   },
   {
     id:'import', icon:'upload', context:['wizard', 'csvSources'],
@@ -145,6 +153,7 @@ Voeg LK's of Veams met de hand toe met de **+** naast "DimCities" in de zijbalk.
     title:{ en:'DimCity page', nl:'DimCity-pagina' },
     en:`Everything of one DimCity on one page. Cards can be collapsed with the chevron; PatchLab remembers that per card.
 
+- **At a glance** — the whole DB in one view: LK blocks and Veams with their socket and node, racks with their devices (by short name), nodes and splitters, and the network switches with their addresses and fibres. The **QR** button makes QR codes of it (see [[qr|QR codes]]).
 - **Universes** — one tile per universe with its patch points. Click a tile to see exactly which LK and Veam ports carry it.
 - **LK blocks** — the port layout of every LK. Click a block to change its block type and Veam links inline; see [[lk|LK block]].
 - **Veams** — the four ports of every Veam and whether it is linked to an LK; click to open it.
@@ -156,6 +165,7 @@ Voeg LK's of Veams met de hand toe met de **+** naast "DimCities" in de zijbalk.
 **Color** changes the DimCity colour used in the sidebar and on the PDF. **Export** opens the Report Builder with only this DimCity selected.`,
     nl:`Alles van één DimCity op één pagina. Kaarten klap je in met het pijltje; PatchLab onthoudt dat per kaart.
 
+- **In één oogopslag** — de hele DB in één beeld: LK-blokken en Veams met aansluiting en node, racks met hun apparaten (op korte naam), nodes en splitters, en de netwerkswitches met adressen en fibers. De knop **QR** maakt er QR-codes van (zie [[qr|QR-codes]]).
 - **Universes** — één tegel per universe met zijn patchpunten. Klik op een tegel om precies te zien welke LK- en Veam-poorten hem dragen.
 - **LK-blokken** — de poortindeling van elke LK. Klik op een blok om het bloktype en de Veam-koppelingen ter plekke te wijzigen; zie [[lk|LK-blok]].
 - **Veams** — de vier poorten van elke Veam en of hij aan een LK gekoppeld is; klik om hem te openen.
@@ -293,6 +303,9 @@ Het originele CSV-bestand wordt nooit aangepast. Je bewerkingen zitten in het pr
     title:{ en:'Device Builder', nl:'Device Builder' },
     en:`**Network → Device Builder** (Cmd/Ctrl+Shift+D) is where you define the device types you work with. Types are saved in the show and in your personal [[library|library]], so they are available in every project.
 
+## Short names
+Every node, splitter, switch and panel has a **Short name**. Racks, the Signal Flow, the PDF and the DimCity overview show it, so a long name is never cut off. Leave it empty and PatchLab makes one (brand left out, spaces tightened); the button **Fill short names** at the bottom writes one into all your existing devices so you can adjust them.
+
 ## Node
 A DMX node: brand, type, number of **DMX ports**, **Ethernet ports** (1× or 2× RJ45 for link + redundant / daisy chain), default IP and subnet, height in U and a colour.
 
@@ -313,6 +326,9 @@ The preview at the top shows the front face of the device with its ports as it w
 ## Cables
 The tab **Cables** holds cable types: fibre (singlemode or multimode), SFP patch cables / DAC and copper Cat. Fill in the brand, the type (for example *opticalCON QUAD 4-core*), the number of cores, the connectors on both ends (opticalCON DUO / QUAD / ADVANCED, FiberFox, LC, SC, SFP …, or type your own), the length in metres, an article key and a colour. Cable types are saved in your library like the devices. They are used for the fibre links on the Network page.`,
     nl:`**Netwerk → Device Builder** (Cmd/Ctrl+Shift+D) is de plek waar je de devicetypes definieert waarmee je werkt. Types worden in de show en in je persoonlijke [[library|bibliotheek]] opgeslagen, dus ze zijn in elk project beschikbaar.
+
+## Korte namen
+Elke node, splitter, switch en paneel heeft een **Korte naam**. Racks, de Signaalstroom, de PDF en het DimCity-overzicht tonen die, zodat een lange naam nooit wordt afgekapt. Laat je hem leeg, dan maakt PatchLab er een (zonder merk, spaties aangepast); de knop **Korte namen invullen** onderaan zet er een in al je bestaande apparaten zodat je ze kunt aanpassen.
 
 ## Node
 Een DMX-node: merk, type, aantal **DMX-poorten**, **Ethernet-poorten** (1× of 2× RJ45 voor link + redundant / daisy chain), standaard-IP en subnet, hoogte in U en een kleur.
@@ -369,6 +385,13 @@ Een rek is een sjabloon: je plaatst het in een DimCity op de [[racks|Racks-kaart
 3. Every used line gets a **node port**. Lines of one LK or Veam stay on one node where possible — the legend shows the node per LK / Veam, and every node has its own colour.
 4. When node ports run short, universes that are used more than once go through a **splitter** in the rack.
 
+## Racks are zones
+LK and Veam cables are short, so an LK or Veam on a rack socket only feeds nodes **in the same rack**. Only network cables (Cat, fibre) run from rack to rack. When two racks stand directly on top of each other, tick **stacked on the rack above** on the upper one, and they count as one. If a rack has lines but no free node port of its own, PatchLab says so and offers a **Fix** button that stacks the racks.
+
+## Loose nodes, spiders and custom racks
+- A node without a rack has no panel to be fed from, so it is added **with an LK spider**. A warning appears when a loose node has no LK or Veam spider.
+- **Custom rack…** builds a rack of your own right here: choose how many panels, nodes, splitters and switches, and PatchLab places them. No article key is needed.
+
 ## Reading the result
 - The counters show used / available LK7-1 sockets, Veam4 sockets, node ports and lines.
 - **Recommendations** tell you what is missing: loose spiders to add, extra nodes, unused splitters.
@@ -390,6 +413,13 @@ Een rek is een sjabloon: je plaatst het in een DimCity op de [[racks|Racks-kaart
 2. Veams die niet door een LK gevoed worden krijgen een **Veam4-aansluiting**: eerst een Veam4-spin die aan een node hangt, dan een vrije Veam4 naast een LK die die lijnen niet gebruikt, dan losse Veam4's, dan andere spinnen.
 3. Elke gebruikte lijn krijgt een **nodepoort**. Lijnen van één LK of Veam blijven waar mogelijk op één node — de legenda toont de node per LK / Veam, en elke node heeft een eigen kleur.
 4. Als er nodepoorten tekortkomen, gaan universes die vaker gebruikt worden via een **splitter** in het rek.
+
+## Rekken zijn zones
+LK- en Veam-kabels zijn kort, dus een LK of Veam op een rekaansluiting voedt alleen nodes **in hetzelfde rek**. Alleen netwerkkabels (Cat, fiber) lopen van rek naar rek. Staan twee rekken direct op elkaar, vink dan bij het bovenste **gestapeld op het rek erboven** aan; ze tellen dan als één. Heeft een rek lijnen maar geen eigen vrije nodepoort, dan meldt PatchLab dat en biedt een **Oplossen**-knop die de rekken stapelt.
+
+## Losse nodes, spinnen en eigen rekken
+- Een node zonder rek heeft geen paneel waar hij van gevoed wordt, daarom komt er **een LK-spin** bij. Er verschijnt een waarschuwing als een losse node geen LK- of Veam-spin heeft.
+- **Eigen rek…** bouwt hier ter plekke een eigen rek: kies hoeveel panelen, nodes, splitters en switches, en PatchLab plaatst ze. Een artikelsleutel is niet nodig.
 
 ## Het resultaat lezen
 - De tellers tonen gebruikt / beschikbaar voor LK7-1-aansluitingen, Veam4-aansluitingen, nodepoorten en lijnen.
@@ -523,6 +553,88 @@ Each step shows a green check when it is done. **Skip** marks a step as skipped;
 Meer locaties nodig? Gebruik **+ DB** of **+ FOH** (front of house, waar de lichttafel staat) naast de DimCity-chips in de stappen Netwerk en Racks. Open je de Rack Builder of Device Builder vanuit de wizard, dan komt Setup bij sluiten terug op dezelfde stap.
 
 Elke stap krijgt een groen vinkje als hij klaar is. **Overslaan** markeert een stap als overgeslagen; **Opnieuw beginnen** wist de overgeslagen-markeringen; **Stop** sluit de wizard wanneer je wilt. Zie [[videos|de video’s]] voor een rondleiding.`
+  },
+  {
+    id:'tasks', icon:'checkCircle', context:['TASKS'],
+    title:{ en:'Tasks', nl:'Taken' },
+    en:`The **Tasks** page shows what is done and what is next, worked out from your show, so it is always true.
+
+- **Next up** — the one thing to do now, with a button that opens [[setup|Setup]] on the right step for the right DB.
+- **The workflow** — the seven steps as one line: done in green, the current step ringed, skipped steps dashed.
+- **Per DB** — a square for every DB and every step. Orange is still to do, yellow needs attention, green is done, grey is not needed. Click a square to go there.
+- **Show checks** — project info, errors, complete rows, linked Veams, racks, network plan, PDF layout and saving.
+
+On the Overview page a short bar shows the same next step.`,
+    nl:`De pagina **Taken** laat zien wat klaar is en wat de volgende stap is, berekend uit je show, dus altijd waar.
+
+- **Hierna** — het ene dat je nu moet doen, met een knop die [[setup|Setup]] opent op de juiste stap voor de juiste DB.
+- **De werkwijze** — de zeven stappen als één lijn: klaar in groen, de huidige stap omcirkeld, overgeslagen stappen gestippeld.
+- **Per DB** — een vakje voor elke DB en elke stap. Oranje moet nog, geel heeft aandacht nodig, groen is klaar, grijs is niet nodig. Klik op een vakje om ernaartoe te gaan.
+- **Controles van de show** — projectinfo, fouten, complete regels, gekoppelde Veams, racks, netwerkplan, PDF-indeling en opslaan.
+
+Op de Overzichtspagina staat een korte balk met dezelfde volgende stap.`
+  },
+  {
+    id:'qr', icon:'grid', context:[],
+    title:{ en:'QR codes', nl:'QR-codes' },
+    en:`A QR code can hold the whole picture of a DB or of the system, as plain text any phone camera can read: every LK and Veam with its socket and node, the racks and their devices, the nodes with their IP address and universes, the network switches and the fibres.
+
+- On a DimCity page, the card **At a glance** has a **QR** button that shows the codes large, with the text, **Copy text** and **Save as SVG**. The Overview has one for the whole system.
+- A long DB is cut into numbered parts ([DB01 1/3]); scan them in order.
+- **Stickers**: switch on **DB info QR** and **System QR** to print them on Herma sheets.
+- **PDF report**: the section **QR codes** puts them on the page of each DB; the system code is on the first DB.`,
+    nl:`Een QR-code kan het hele beeld van een DB of van het systeem bevatten, als platte tekst die elke telefooncamera leest: elke LK en Veam met aansluiting en node, de racks en hun apparaten, de nodes met IP-adres en universes, de netwerkswitches en de fibers.
+
+- Op een DimCity-pagina heeft de kaart **In één oogopslag** een knop **QR** die de codes groot toont, met de tekst, **Tekst kopiëren** en **Opslaan als SVG**. Het Overzicht heeft er een voor het hele systeem.
+- Een lange DB wordt in genummerde delen geknipt ([DB01 1/3]); scan ze op volgorde.
+- **Stickers**: zet **DB-info QR** en **Systeem-QR** aan om ze op Herma-vellen te printen.
+- **PDF-rapport**: de sectie **QR-codes** zet ze op de pagina van elke DB; de systeemcode staat bij de eerste DB.`
+  },
+  {
+    id:'exchange', icon:'refresh', context:[],
+    title:{ en:'Exchange with Lightwright and Vectorworks', nl:'Uitwisselen met Lightwright en Vectorworks' },
+    en:`The patch can go to Lightwright or Vectorworks (Spotlight) and come back, through files. Open it from the **Tasks** page (**Open exchange**) or the command "Exchange".
+
+- **Export** writes a tab-delimited (Lightwright) or comma-separated (Vectorworks) file with one row per LK or Veam port: **Circuit Name** (the key, e.g. LK101.4), **Position** (the location) and **Universe**, plus DB, socket and node for information. Import it there and match on the circuit name.
+- **Import** reads such a file after you changed things there, matches every row on its circuit name and shows exactly what differs. You tick the changes and press **Apply**; the universe and position are written into the patch rows and validation runs again. Rows that exist only in the file can be added as new lines; rows only in PatchLab are counted but never removed.
+
+This is a file exchange on the standard field names, not a live connection; map the columns when you import in the other program.`,
+    nl:`De patch kan naar Lightwright of Vectorworks (Spotlight) en terugkomen, via bestanden. Open hem vanaf de pagina **Taken** (**Uitwisseling openen**) of het commando "Uitwisselen".
+
+- **Export** schrijft een tab-gescheiden (Lightwright) of kommagescheiden (Vectorworks) bestand met één regel per LK- of Veam-poort: **Circuit Name** (de sleutel, bijv. LK101.4), **Position** (de locatie) en **Universe**, plus DB, aansluiting en node ter informatie. Importeer het daar en match op de circuit name.
+- **Import** leest zo'n bestand nadat je daar iets hebt veranderd, matcht elke regel op de circuit name en laat precies zien wat verschilt. Je vinkt de wijzigingen aan en drukt op **Toepassen**; universe en positie worden in de patchregels geschreven en de controle draait opnieuw. Regels die alleen in het bestand staan kun je als nieuwe regels toevoegen; regels die alleen in PatchLab staan worden geteld maar nooit verwijderd.
+
+Dit is een bestandsuitwisseling op de standaard veldnamen, geen live koppeling; wijs de kolommen toe als je in het andere programma importeert.`
+  },
+  {
+    id:'netdev', icon:'network', context:[],
+    title:{ en:'Devices on the network', nl:'Apparaten op het netwerk' },
+    en:`PatchLab can find Art-Net nodes (Luminex LumiNode, ELC and others) on the network and send them the configuration from your plan. Open it from the **Tasks** page (**Devices on the network**).
+
+1. **Scan the network.** Every node that answers is listed with its IP address, MAC, names and ports.
+2. PatchLab **matches** each one with a node of your plan by IP address, by name or by MAC. You can change the match.
+3. The status shows what differs: the name, the universe of a port, or the address.
+4. Tick the nodes and press **Send**. You see exactly what will change; nothing is sent until you confirm. Changing the IP address is a separate tick, because the node moves.
+5. PatchLab scans again and checks that the node now has the new settings.
+
+Universe numbering: Luminex shows universe 1 where Art-Net says 0, so the default is one less; choose "same number" if your nodes count differently.
+
+The **Switches** tab checks whether each planned switch address answers and makes a sheet with port, device and VLAN for every switch. Sending a configuration to Luminex GigaCore switches is not built in: it needs the switch's own control interface.
+
+Outside the desktop app a simulated network is used so you can try it out.`,
+    nl:`PatchLab kan Art-Net-nodes (Luminex LumiNode, ELC en andere) op het netwerk vinden en ze de configuratie uit je plan sturen. Open het vanaf de pagina **Taken** (**Apparaten op het netwerk**).
+
+1. **Scan het netwerk.** Elke node die antwoordt staat in de lijst met IP-adres, MAC, namen en poorten.
+2. PatchLab **koppelt** elke node aan een node uit je plan op IP-adres, naam of MAC. Je kunt de koppeling aanpassen.
+3. De status laat zien wat verschilt: de naam, het universe van een poort of het adres.
+4. Vink de nodes aan en druk op **Sturen**. Je ziet precies wat er verandert; er wordt niets gestuurd zonder jouw bevestiging. Het IP-adres veranderen is een apart vinkje, want de node verhuist.
+5. PatchLab scant opnieuw en controleert of de node nu de nieuwe instellingen heeft.
+
+Universe-nummering: Luminex toont universe 1 waar Art-Net 0 zegt, dus de standaard is één lager; kies "zelfde nummer" als je nodes anders tellen.
+
+Het tabblad **Switches** controleert of elk geplande switchadres antwoordt en maakt een blad met poort, apparaat en VLAN per switch. Een configuratie naar Luminex GigaCore-switches sturen zit er niet in: daarvoor is de eigen besturingsinterface van de switch nodig.
+
+Buiten de desktop-app wordt een gesimuleerd netwerk gebruikt zodat je het kunt uitproberen.`
   },
   {
     id:'fibres', icon:'cable', context:['fibres'],
@@ -828,6 +940,31 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // Release notes per version, newest first. `npm run manual` turns this into CHANGELOG.md and the
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
+  {
+    version:'0.6.0', date:'2026-10-09',
+    en:[
+      'New Tasks page: the next thing to do with a button that takes you there, the whole workflow as one line, a square for every DB and every step (click to go there), and the show checks. A short next-step bar sits on the Overview too.',
+      'New card At a glance on every DimCity page: LK blocks and Veams with their socket and node, racks with their devices, nodes and splitters, and the network switches with addresses and fibres. Switches you add on the Network page show up there at once.',
+      'QR codes with everything: a QR per DB and for the whole system holds sockets, nodes with IP, racks, switches and fibres as plain text, in numbered parts. Large view with copy / save as SVG, new sticker kinds (DB info QR, System QR) and a QR codes section in the PDF.',
+      'Exchange with Lightwright and Vectorworks, both ways: export the patch (Circuit Name, Position, Universe) as a tab / CSV file, and import the file back — PatchLab matches on the circuit name, shows what differs and applies only what you tick.',
+      'Devices on the network: scan for Art-Net nodes, match each with a node of the plan (IP, name, MAC), see what differs and send names and port universes (and, if you tick it, the IP address) after a preview; PatchLab scans again to check the result. Switches: reachability check and a configuration sheet. A simulated network is used outside the desktop app.',
+      'Short names: every device type has a short name (automatic when empty, Fill short names for the existing ones) used in racks, the Signal Flow, the PDF and overviews, so long names are no longer cut off.',
+      'Racks are zones: LK and Veam cables are short, so an LK or Veam only feeds nodes in the same rack; racks that stand on each other can be marked stacked. PatchLab warns when a rack has no node port of its own and offers a Fix button. A loose node now comes with an LK spider. Custom rack builds a rack of your own from the DimCity card or Setup.',
+      'Signal Flow: the fibre overview moves a dragged switch live with its cables, and the Show switch no longer cuts off Fibres. Fixed the window overflowing sideways between 1380 and 1500 px. DBs without a number (FOH) get their own address number instead of sharing DB01\'s.',
+      'New video library in full HD without text in the picture (subtitles via the CC button): the series Build a show, step by step (9 parts, starting from an empty project and the real CSV import) and 15 Tool guides.'
+    ],
+    nl:[
+      'Nieuwe pagina Taken: het volgende dat je moet doen met een knop die je erheen brengt, de hele werkwijze als één lijn, een vakje voor elke DB en elke stap (klik om erheen te gaan) en de controles van de show. Op het Overzicht staat ook een korte balk met de volgende stap.',
+      'Nieuwe kaart In één oogopslag op elke DimCity-pagina: LK-blokken en Veams met aansluiting en node, racks met hun apparaten, nodes en splitters, en de netwerkswitches met adressen en fibers. Switches die je op de Netwerk-pagina toevoegt staan er meteen.',
+      'QR-codes met alles: een QR per DB en voor het hele systeem bevat aansluitingen, nodes met IP, racks, switches en fibers als platte tekst, in genummerde delen. Groot beeld met kopiëren / opslaan als SVG, nieuwe stickersoorten (DB-info QR, Systeem-QR) en een sectie QR-codes in de PDF.',
+      'Uitwisselen met Lightwright en Vectorworks, beide kanten op: exporteer de patch (Circuit Name, Position, Universe) als tab- / CSV-bestand en importeer het bestand terug — PatchLab matcht op de circuit name, toont wat verschilt en past alleen toe wat je aanvinkt.',
+      'Apparaten op het netwerk: scan op Art-Net-nodes, koppel elke aan een node uit het plan (IP, naam, MAC), zie wat verschilt en stuur namen en poortuniverses (en, als je het aanvinkt, het IP-adres) na een voorbeeld; PatchLab scant opnieuw om het resultaat te controleren. Switches: bereikbaarheidscontrole en een configuratieblad. Buiten de desktop-app wordt een gesimuleerd netwerk gebruikt.',
+      'Korte namen: elk devicetype heeft een korte naam (automatisch als hij leeg is, Korte namen invullen voor de bestaande) die in racks, de Signaalstroom, de PDF en overzichten wordt gebruikt, zodat lange namen niet meer worden afgekapt.',
+      'Rekken zijn zones: LK- en Veam-kabels zijn kort, dus een LK of Veam voedt alleen nodes in hetzelfde rek; rekken die op elkaar staan kun je als gestapeld markeren. PatchLab waarschuwt als een rek geen eigen nodepoort heeft en biedt een Oplossen-knop. Een losse node krijgt nu een LK-spin erbij. Eigen rek bouwt een eigen rek vanuit de DimCity-kaart of Setup.',
+      'Signaalstroom: het fiberoverzicht verplaatst een gesleepte switch live met zijn kabels, en de Tonen-schakelaar kapt Fibers niet meer af. Het venster liep tussen 1380 en 1500 px opzij over de rand; dat is opgelost. DB\'s zonder nummer (FOH) krijgen een eigen adresnummer in plaats van dat van DB01 te delen.',
+      'Nieuwe videobibliotheek in full HD zonder tekst in beeld (ondertitels via de CC-knop): de reeks Bouw een show, stap voor stap (9 delen, vanaf een leeg project en de echte CSV-import) en 15 Tool-uitleggen.'
+    ]
+  },
   {
     version:'0.5.2', date:'2026-10-08',
     en:[

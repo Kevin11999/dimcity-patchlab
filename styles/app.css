@@ -1088,7 +1088,7 @@ body.nav-mini .nav-empty{display:none}
   .toolbar button:not(.primary):not(#tbSave):not(#tbStickers) [data-icon],.toolbar button:not(.primary):not(#tbSave):not(#tbStickers) svg{font-size:14px}
   .toolbar .tb-search kbd{display:none}
 }
-@media (max-width:1500px){ .project-chip .meta{display:none} .toolbar #tbStickers,.toolbar #tbSave{font-size:0;gap:0;padding-left:9px;padding-right:9px} .toolbar #tbStickers svg,.toolbar #tbSave svg{font-size:14px} }
+@media (max-width:1380px){ .project-chip .meta{display:none} .toolbar #tbStickers,.toolbar #tbSave{font-size:0;gap:0;padding-left:9px;padding-right:9px} .toolbar #tbStickers svg,.toolbar #tbSave svg{font-size:14px} }
 
 /* ===== Setup wizard ===== */
 .su-body{grid-template-columns:320px minmax(0,1fr)}

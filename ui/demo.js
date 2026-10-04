@@ -50,24 +50,24 @@ async function standardLibrary(){
   } catch { return null; }
 }
 
-async function open({ silent=false, tutorial=false } = {}){
+async function open({ silent=false, tutorial=false, blank=false } = {}){
   if(!silent && !(await window.ProjectIO?.confirmSaveIfDirty?.())) return false;
   window.PatchLabUI?.closeWelcome?.();
   const meta = { project:'Demo Festival 2026', area:'Mainstage + B-stage', location:'Biddinghuizen', date:new Date().toISOString().slice(0, 10), prepared:'PatchLab demo', logo:null };
   window.ProjectIO.newProject(meta);
   const m = M();
   // 1. patch rows as one imported CSV file
-  const rows = ROWS.map(r => [String(r[0]), r[1] === '' ? '' : String(r[1]), String(r[2]), r[3], '', r[4] || '', null, null]);
-  m.csvSources = [{ id:'csv_demo', name:'Demo patch list.csv', path:'Demo patch list.csv', importedAt:new Date().toISOString(), updatedAt:new Date().toISOString(), rawRowCount:rows.length + 2, rowCount:rows.length, skipFirst:1, skipLast:1, map:{ id:0, port:1, uni:2, dest:3, truss:4 }, rows }];
+  const rows = (blank ? [] : ROWS).map(r => [String(r[0]), r[1] === '' ? '' : String(r[1]), String(r[2]), r[3], '', r[4] || '', null, null]);
+  m.csvSources = blank ? [] : [{ id:'csv_demo', name:'Demo patch list.csv', path:'Demo patch list.csv', importedAt:new Date().toISOString(), updatedAt:new Date().toISOString(), rawRowCount:rows.length + 2, rowCount:rows.length, skipFirst:1, skipLast:1, map:{ id:0, port:1, uni:2, dest:3, truss:4 }, rows }];
   await App.rebuildFromCsvSources();
   const M2 = M();
   // 2. LK103 is a 3× Veam block without rows of its own (added by hand, like Add LK), then links and block types
-  if(!M2.byLK.has('LK103')){
+  if(!blank && !M2.byLK.has('LK103')){
     M2.byLK.set('LK103', { id:'LK103', dimcity:'DB01', lines:[], names:{ '1-4':null, '5-8':null, '9-12':null }, veam:{ 1:null, 2:null, 3:null }, blockType:{ mode:'Manual', value:'VEAM_ONLY' }, manual:true });
     M2.byDim.get('DB01')?.lks.add('LK103');
   }
-  for(const [lk, slots] of Object.entries(LINKS)){ const rec = M2.byLK.get(lk); if(rec) for(const [s, v] of Object.entries(slots)) rec.veam[Number(s)] = v; }
-  for(const [lk, type] of Object.entries(BLOCKS)){ const rec = M2.byLK.get(lk); if(rec) rec.blockType = { mode:'Manual', value:type }; }
+  for(const [lk, slots] of (blank ? [] : Object.entries(LINKS))){ const rec = M2.byLK.get(lk); if(rec) for(const [s, v] of Object.entries(slots)) rec.veam[Number(s)] = v; }
+  for(const [lk, type] of (blank ? [] : Object.entries(BLOCKS))){ const rec = M2.byLK.get(lk); if(rec) rec.blockType = { mode:'Manual', value:type }; }
   M2.dimColors = { DB01:'#ff8a1f', DB02:'#4ea8ff', DB03:'#1DB954' };
   // 3. device types from the standard library (Luminex / ELC), racks and loose devices
   const std = await standardLibrary();
@@ -76,12 +76,16 @@ async function open({ silent=false, tutorial=false } = {}){
   for(const key of ['nodeTypes', 'splitterTypes', 'switchTypes', 'panelTypes', 'rackTypes']) for(const it of (std?.[key] || [])) if(!nd[key].some(x => x.id === it.id)) nd[key].push(JSON.parse(JSON.stringify(it)));
   window.Library?.fillProject?.(M2);
   const plan = dc => App.net.getDimPlan(dc);
+  if(blank){   // an empty project with the device library and the cable types ready: the CSV is imported on camera
+    M2.networkDevices.dimCityPlans = {};
+  } else {
   plan('DB01').racks = [{ iid:'rk_demo1', rackId:'RACK:STD-DIM-LMX', name:'Dimmer rack SL' }, { iid:'rk_demo1b', rackId:'RACK:STD-NODE-LMX', name:'Node rack SR', stack:true }];
   plan('DB01').loose = [{ iid:'ls_demo1', kind:'node', typeId:'NODE:LMX-LN4', name:'Truss 2 node' }, { iid:'ls_demo2', kind:'vimSpider', nodeIid:'ls_demo1' }];
-  plan('DB02').racks = [{ iid:'rk_demo2', rackId:'RACK:STD-DIM-ELC', name:'B-stage rack' }];
-  plan('DB02').loose = [{ iid:'ls_demo6', kind:'node', typeId:'NODE:ELC-NGBX8', name:'B-stage truss node' }];
+  plan('DB02').racks = [{ iid:'rk_demo2', rackId:'RACK:STD-DIM-ELC', name:'B-stage rack' }, { iid:'rk_demo2b', rackId:'RACK:STD-NODE-LMX', name:'B-stage node rack', stack:true }];
+  plan('DB02').loose = [];
   plan('DB03').racks = [];
   plan('DB03').loose = [{ iid:'ls_demo3', kind:'node', typeId:'NODE:LMX-LN12', name:'FOH node' }, { iid:'ls_demo4', kind:'lkSpider', nodeIid:'ls_demo3' }, { iid:'ls_demo5', kind:'vimSpider', nodeIid:'ls_demo3' }];
+  }
   nd.prefs.nodeSparePorts = 0;
   // fibre between the stage switch and the B-stage switch, with two cable types made by hand
   const nd2 = M2.networkDevices;   // fillProject made a new object: use the current one
@@ -95,6 +99,9 @@ async function open({ silent=false, tutorial=false } = {}){
   for(const r of (nd2.rackTypes || [])){ const had = (r.items || []).filter(it => it.kind === 'switch'); if(!had.length) continue; r.items = r.items.filter(it => it.kind !== 'switch'); r.items.forEach(it => { it.u = Math.max(1, it.u - had.length); }); r.heightU = Math.max(1, r.heightU - had.length); }
   nd2.fiberStock = [{ typeId:'CABLE:DEMO-OC250', qty:6 }, { typeId:'CABLE:DEMO-OC75', qty:6 }, { typeId:'CABLE:DEMO-FF250', qty:2 }];
   nd2.fiberLinks = [];
+  if(blank){
+    M2.ui.dirty = false; M2.ui.cardCollapsed = {}; App.setMODEL(M2); App.fullRebuildAndRender(); window.PatchHistory?.reset?.(); App.navigate('HOME'); return true;
+  }
   if(tutorial){
     // the start of the video tutorials: the patch is imported, nothing is built yet (no racks, devices, switches or fibres)
     for(const dc of ['DB01', 'DB02', 'DB03']){ const p = plan(dc); p.racks = []; p.loose = []; p.switches = []; p.nodes = []; p.splitters = []; delete p.assign; }
@@ -133,8 +140,8 @@ async function open({ silent=false, tutorial=false } = {}){
   App.fullRebuildAndRender();
   window.PatchHistory?.reset?.();
   App.openEntity('DIM', 'DB01');
-  App.ui.toast(t('Demo show opened — look around, change things, export a PDF. Nothing is saved until you choose Save.', 'Demo-show geopend — kijk rond, verander dingen, exporteer een PDF. Er wordt niets opgeslagen tot je op Opslaan klikt.'), 'info', { ms:7000 });
+  if(!silent) App.ui.toast(t('Demo show opened — look around, change things, export a PDF. Nothing is saved until you choose Save.', 'Demo-show geopend — kijk rond, verander dingen, exporteer een PDF. Er wordt niets opgeslagen tot je op Opslaan klikt.'), 'info', { ms:7000 });
   return true;
 }
 
-window.Demo = { open, ROWS };
+window.Demo = { open, ROWS, csv: () => ROWS.filter(r => r[0] !== '').map(r => [r[0], r[1], r[2], r[3], '', r[4] || ''].map(v => { const x = String(v ?? ''); return /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x; }).join(',')).join('\n') };

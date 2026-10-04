@@ -4,6 +4,20 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.7.2 — 2026-10-04
+
+- Trunk reworked: fibre ports now go into the switch's own built-in trunk (which carries every VLAN) instead of a trunk of ours, so it behaves like a trunk made on the switch itself. The trunk is shown in words under the ports (ports, VLANs, untagged VLAN, changeable), the page recognises whether a switch lists group numbers or VLAN ids, warns about advanced mode (with a button to go to Luminex mode), and shows what the switch itself says per port.
+- Every call to a switch is logged: under Last calls to this device you see (and can copy) each call and the answer, so a refusal by the switch can be seen at once.
+- Rainbow for the switch lights: a Rainbow show runs the front-panel colours red → magenta and goes back, and Rainbow colours on the groups gives every group in use its own colour from left to right (with Colours back). The port lights follow the colour of their group; a single port cannot get a colour of its own.
+
+<details><summary>Nederlands</summary>
+
+- Trunk herzien: fibre-poorten gaan nu in de ingebouwde trunk van de switch zelf (die elke VLAN voert) in plaats van een trunk van ons, zodat het zich gedraagt als een trunk die op de switch zelf is gemaakt. De trunk wordt onder de poorten in woorden getoond (poorten, VLAN's, untagged VLAN, aanpasbaar), de pagina herkent of een switch groepsnummers of VLAN-id's opsomt, waarschuwt voor advanced-modus (met een knop naar Luminex-modus) en toont per poort wat de switch zelf zegt.
+- Elke aanroep naar een switch wordt bijgehouden: onder Laatste aanroepen naar dit apparaat zie je (en kopieer je) elke aanroep en het antwoord, zodat een weigering door de switch meteen zichtbaar is.
+- Regenboog voor de lampjes van de switch: een Regenboogshow laat de kleuren van het voorpaneel van rood → magenta lopen en gaat terug, en Regenboogkleuren op de groepen geeft elke gebruikte groep een eigen kleur van links naar rechts (met Kleuren terug). De poortlampjes volgen de kleur van hun groep; een losse poort kan geen eigen kleur krijgen.
+
+</details>
+
 ## 0.7.1 — 2026-10-04
 
 - Trunk fixed: fibre ports are now put in the trunk with the switch's own "assign ports to a trunk" call (instead of a plain group membership), the trunk carries all VLANs of the plan with the management VLAN untagged, and the switch is read back to check.

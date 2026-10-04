@@ -107,6 +107,31 @@ export function portRows(cur){
       poe: poe ? poe.enabled !== false : null, speed: ls.mode === 'fixed' && sp.length === 1 && sp[0] !== 'all' ? sp[0] : 'auto', link: p.link_state ?? null, enabled: p.enabled !== false };
   });
 }
+// Do the trunks of this switch list group numbers or VLAN ids? Looked up from the switch's own predefined trunk (which carries every group); group numbers if unsure.
+export function trunkRefMode(cur){
+  const tr = cur.trunks.find(t => t.predefined) || cur.trunks.find(t => t.trunk_id === 1);
+  const list = tr?.groups || []; if(!list.length) return 'id';
+  const ids = new Set(cur.groups.map(g => g.group_id)), vids = new Set(cur.groups.map(g => g.vid));
+  const allIds = list.every(x => ids.has(x)), allVids = list.every(x => vids.has(x));
+  return allVids && !allIds ? 'vid' : 'id';
+}
+// the trunk of this switch in words: name, VLANs it carries, which one is untagged, which ports sit in it
+export function trunkInfo(cur, tid){
+  const tr = cur.trunks.find(t => t.trunk_id === tid); if(!tr) return null;
+  const ref = trunkRefMode(cur), g = x => (ref === 'vid' ? cur.groups.find(y => y.vid === x) : cur.groups.find(y => y.group_id === x));
+  const un = tr.untagged_group ? g(tr.untagged_group) : null;
+  return { id: tid, name: tr.name, predefined: !!tr.predefined, vlans: (tr.groups || []).map(x => g(x)?.vid ?? x), untaggedVid: un?.vid ?? null, untaggedGroup: tr.untagged_group ?? 0, ports: cur.ports.filter(p => p.member_of?.type === 'trunk' && p.member_of.id === tid).map(p => p.port_number) };
+}
+// change which VLAN is untagged on a trunk (vid = a VLAN id, or null / 0 for none)
+export function gigacoreTrunkPlan(cur, tid, untaggedVid){
+  const tr = cur.trunks.find(t => t.trunk_id === tid); if(!tr) return { ops: [], notes: [] };
+  const ref = trunkRefMode(cur), g = untaggedVid ? cur.groups.find(x => x.vid === untaggedVid) : null;
+  if(untaggedVid && !g) return { ops: [], notes: [`VLAN ${untaggedVid} does not exist on this switch.`] };
+  const value = !g ? 0 : ref === 'vid' ? g.vid : g.group_id;
+  if((tr.untagged_group ?? 0) === value) return { ops: [], notes: [] };
+  return { ops: [{ method: 'PUT', path: `/api/trunks/trunk/${tid}/untagged_group`, body: value, text: `Trunk “${tr.name}”: untagged VLAN → ${untaggedVid || 'none'}`, kind: 'config' }], notes: [] };
+}
+
 // edits = [{ port, legend?, member?:{type,id}, poe?:bool, speed?:'auto'|'1gbps fdx'… }] -> calls, only for what differs
 export function gigacorePortPlan(cur, edits){
   const ops = [], notes = [], rows = portRows(cur), trunkIn = new Map(), trunkOut = new Map();
@@ -125,19 +150,26 @@ export function gigacorePortPlan(cur, edits){
   // a member { type:'fibre', vids:[…], mgmtVid, groups:[{vid,name,color}] } means "the fibre trunk" — made / completed first, with every VLAN it has to carry
   const fib = edits.filter(e => e.member?.type === 'fibre');
   if(fib.length){
-    const f = fib[0].member, tn = 'Fibre';
-    const vids = [...new Set([...(f.vids || []), ...cur.trunks.filter(t => t.name === tn).flatMap(t => (t.groups || []).map(id => cur.groups.find(g => g.group_id === id)?.vid).filter(v => v != null))])];
+    const f = fib[0].member, tn = 'Fibre', pre = cur.trunks.find(t => t.predefined) || cur.trunks.find(t => t.trunk_id === 1);
     const idOf = vid => { const have = cur.groups.find(g => g.vid === vid); if(have) return have.group_id;
       if(!made.has(vid)){ let id = 21; while(used.has(id)) id++; used.add(id); made.set(vid, id); const g = (f.groups || []).find(x => x.vid === vid) || {}; const nm = clip(g.name || `VLAN ${vid}`, MAX_GROUP_NAME); const col = /^#[0-9a-f]{6}$/i.test(g.color || '') ? g.color : null;
         add('POST', '/api/groups/group', { group_id: id, name: nm, vid, ...(col ? { color: col } : {}) }, `New group ${id}: VLAN ${vid} “${nm}”`); }
       return made.get(vid); };
-    const gids = vids.map(idOf).sort((a, b) => a - b), untagged = f.mgmtVid != null && vids.includes(f.mgmtVid) ? idOf(f.mgmtVid) : 0;
-    const have = cur.trunks.find(t => t.name === tn); let tid;
-    if(have){ tid = have.trunk_id;
-      if(!same([...(have.groups || [])].sort((a, b) => a - b), gids)) add('PUT', `/api/trunks/trunk/${tid}/groups`, gids, `Trunk “${tn}”: groups → ${gids.join(',')}`);
-      if((have.untagged_group ?? 0) !== untagged) add('PUT', `/api/trunks/trunk/${tid}/untagged_group`, untagged, `Trunk “${tn}”: untagged group → ${untagged || 'none'}`);
-    } else { const ut = new Set(cur.trunks.map(t => t.trunk_id)); tid = 2; while(ut.has(tid)) tid++; add('POST', '/api/trunks/trunk', { trunk_id: tid, name: tn, groups: gids, untagged_group: untagged }, `New trunk ${tid} “${tn}” with groups ${gids.join(',')}`); }
-    for(const e of fib) e.member = { type: 'trunk', id: tid, name: tn };
+    if(pre && !f.own){
+      // the switch's own trunk: it carries every group (VLAN) by itself, so only the VLANs of the plan that are missing have to be made
+      for(const vid of f.vids || []) idOf(vid);
+      for(const e of fib) e.member = { type: 'trunk', id: pre.trunk_id, name: pre.name };
+    } else {
+      const ref = trunkRefMode(cur);                           // does a trunk list group numbers or VLAN ids?
+      const vids = [...new Set([...(f.vids || []), ...cur.trunks.filter(t => t.name === tn).flatMap(t => (t.groups || []).map(id => ref === 'vid' ? id : cur.groups.find(g => g.group_id === id)?.vid).filter(v => v != null))])];
+      const list = vids.map(v => (ref === 'vid' ? (idOf(v), v) : idOf(v))).sort((a, b) => a - b), untagged = f.mgmtVid != null && vids.includes(f.mgmtVid) ? (ref === 'vid' ? f.mgmtVid : idOf(f.mgmtVid)) : 0;
+      const have = cur.trunks.find(t => t.name === tn); let tid;
+      if(have){ tid = have.trunk_id;
+        if(!same([...(have.groups || [])].sort((a, b) => a - b), list)) add('PUT', `/api/trunks/trunk/${tid}/groups`, list, `Trunk “${tn}”: ${ref === 'vid' ? 'VLANs' : 'groups'} → ${list.join(',')}`);
+        if((have.untagged_group ?? 0) !== untagged) add('PUT', `/api/trunks/trunk/${tid}/untagged_group`, untagged, `Trunk “${tn}”: untagged → ${untagged || 'none'}`);
+      } else { const ut = new Set(cur.trunks.map(t => t.trunk_id)); tid = 2; while(ut.has(tid)) tid++; add('POST', '/api/trunks/trunk', { trunk_id: tid, name: tn, groups: list, untagged_group: untagged }, `New trunk ${tid} “${tn}” with ${ref === 'vid' ? 'VLANs' : 'groups'} ${list.join(',')}`); }
+      for(const e of fib) e.member = { type: 'trunk', id: tid, name: tn };
+    }
   }
   for(const e of edits){
     const r = rows.find(x => x.port === e.port); if(!r){ notes.push(`Port ${e.port} does not exist on this switch.`); continue; }
@@ -170,6 +202,22 @@ export function gigacorePortPlan(cur, edits){
 export function gigacoreDevicePlan(cur, { name, ip } = {}, { withIp = false } = {}){
   const r = gigacorePlan(cur, { name, ip, groups: [], ports: [] }, { withIp });
   return { ops: r.ops, notes: r.notes.filter(n => !/advanced/.test(n)) };
+}
+
+// ---- the lights of a GigaCore: port LEDs show the colour of the group the port is in, and the front panel can show one colour on all ports ----
+export const hslHex = (h, s = 1, l = 0.5) => { const a = s * Math.min(l, 1 - l), f = n => { const k = (n + h / 30) % 12, c = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); return Math.round(255 * c).toString(16).padStart(2, '0'); }; return `#${f(0)}${f(8)}${f(4)}`; };
+export const RAINBOW_STATES = ['all_red', 'all_yellow', 'all_green', 'all_cyan', 'all_blue', 'all_magenta'];
+// recolour the groups (and the own trunk) in use evenly over the rainbow, left to right along the ports; returns the calls and the colours that were there
+export function rainbowPlan(cur){
+  const order = []; const seen = new Set();
+  for(const p of [...cur.ports].sort((a, b) => a.port_number - b.port_number)){ const m = p.member_of; if(!m?.type || m.type === 'none') continue; const k = `${m.type}:${m.id}`; if(!seen.has(k)){ seen.add(k); order.push(m); } }
+  const ops = [], before = [], n = order.length;
+  order.forEach((m, i) => {
+    const color = hslHex(Math.round(300 * i / Math.max(1, n - 1)));          // red … magenta, never wrapping back to red
+    if(m.type === 'group'){ const g = cur.groups.find(x => x.group_id === m.id); if(g){ before.push({ path: `/api/groups/group/${g.group_id}/color`, color: g.color }); ops.push({ method: 'PUT', path: `/api/groups/group/${g.group_id}/color`, body: color, text: `Group ${g.group_id} “${g.name}”: colour → ${color}`, kind: 'config', soft: true }); } }
+    else if(m.type === 'trunk'){ const t = cur.trunks.find(x => x.trunk_id === m.id); if(t && !t.predefined){ before.push({ path: `/api/trunks/trunk/${t.trunk_id}/color`, color: t.color }); ops.push({ method: 'PUT', path: `/api/trunks/trunk/${t.trunk_id}/color`, body: color, text: `Trunk “${t.name}”: colour → ${color}`, kind: 'config', soft: true }); } }
+  });
+  return { ops, before };
 }
 
 // ---- the e-ink display of a GigaCore 20t: show your own picture or text ----
@@ -280,7 +328,9 @@ export async function runOps(h, ops, onStep = () => {}){
   for(const op of ops){
     onStep(op, 'start');
     const path = typeof op.path === 'function' ? op.path(ctx) : op.path, body = typeof op.body === 'function' ? op.body(ctx) : op.body;
-    const r = await h(op.method, path, body);
+    let r;
+    try { r = await h(op.method, path, body); }
+    catch(e) { if(op.soft){ op.failed = String(e.message || e); done.push(op); onStep(op, 'failed'); continue; } throw e; }       // a soft call (like a colour) may be refused without stopping the rest
     if(op.saveAs) ctx[op.saveAs] = r?.index ?? r?.id;
     done.push(op);
     if(op.after){ const a = op.after; await h(a.method, a.path, a.bodyFromResult ? a.bodyFromResult(r) : a.body); }

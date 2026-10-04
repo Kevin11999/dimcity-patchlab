@@ -108,6 +108,7 @@
       const p = api.gigacorePortPlan(d.cur, edits); ops.push(...p.ops); notes.push(...p.notes);
       const dp = api.gigacoreDevicePlan(d.cur, { name:d.dev.name ?? d.cur.device?.name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || '255.255.255.0', gateway:d.dev.gateway || '' } : null }, { withIp:!!d.dev.ip });
       ops.push(...dp.ops); notes.push(...dp.notes);
+      if(d.trunkEdit){ const tp = api.gigacoreTrunkPlan(d.cur, d.trunkEdit.tid, d.trunkEdit.vid); ops.push(...tp.ops); notes.push(...tp.notes); }
     } else {
       const n = d.cur.ports.length, per = Array(n).fill(null);
       for(const [i, e] of d.E) if(i < n) per[i] = clone(e);
@@ -124,6 +125,8 @@
       const w = wantSwitch(it);
       for(const p of w.ports){ if(!d.cur.ports.some(x => x.port_number === p.port)) continue; const e = d.E.get(p.port) || {}; e.legend = String(p.legend).slice(0, 16); const g = w.groups.find(x => x.vid === p.vid); if(g) e.member = { type:'vid', vid:g.vid, name:g.name, color:g.color }; d.E.set(p.port, e); }
       if(w.fibre.length){ const fm = { type:'fibre', vids:w.groups.map(g => g.vid), mgmtVid:w.mgmt, groups:w.groups }; for(const no of w.fibre) if(d.cur.ports.some(x => x.port_number === no)){ const e = d.E.get(no) || {}; e.member = clone(fm); d.E.set(no, e); } }
+      const pre = d.cur.trunks.find(x => x.predefined), want = w.mgmt != null ? d.cur.groups.find(g => g.vid === w.mgmt) : null;
+      if(pre && w.fibre.length && want && api.trunkInfo(d.cur, pre.trunk_id)?.untaggedVid !== w.mgmt) d.trunkEdit = { tid:pre.trunk_id, vid:w.mgmt };      // the management VLAN untagged on the trunk, as the plan wants
       if(w.name && w.name !== d.cur.device?.name) d.dev.name = w.name;
       if(C.withIp && w.ip?.address && w.ip.address !== d.cur.ip?.ip_address) Object.assign(d.dev, { ip:w.ip.address, mask:w.ip.mask, gateway:w.ip.gateway });
       return true;
@@ -190,10 +193,10 @@
     for(const { d, ops } of todo){
       d.busy = true; d.err = ''; paint();
       try {
-        await load(); const h = transport(d.ip); await api.runOps(h, ops);
+        await load(); const h = logged(d); await api.runOps(h, ops);
         if(isSw(d) && Number(C.slot) >= 1 && Number(C.slot) <= 20) await h('PUT', `/api/config/profiles/${Number(C.slot)}/save`);
         const ipOp = ops.find(o => o.kind === 'ip'); if(ipOp){ d.ip = d.dev.ip; if(real()) await new Promise(r => setTimeout(r, 2500)); }
-        d.E = new Map(); d.dev = {}; await readDev(d); d.verified = !d.err && changeCount(d) === 0;
+        d.E = new Map(); d.dev = {}; d.trunkEdit = null; await readDev(d); d.verified = !d.err && changeCount(d) === 0;
       } catch(x) { failed++; d.err = t(`Stopped after an error: ${x.message || x}. Read the device again to see what was applied.`, `Gestopt door een fout: ${x.message || x}. Lees het apparaat opnieuw uit om te zien wat is toegepast.`); }
       d.busy = false; paint();
     }
@@ -201,6 +204,59 @@
     App.ui.toast(failed ? `${failed} ${t('failed', 'mislukt')}` : `${todo.length} ${t('devices configured and checked', 'apparaten ingesteld en gecontroleerd')}`, failed ? 'err' : 'ok');
   }
 
+
+
+  // ---------- calls that are logged (so a failing switch can be diagnosed) ----------
+  const logged = d => { const h = transport(d.ip); d.log ||= []; return async (m, p, b, o) => { const line = `${m} ${p}${b !== undefined && !o?.bodyBase64 ? ' ' + JSON.stringify(b).slice(0, 160) : ''}`; try { const r = await h(m, p, b, o); d.log.push({ ok:true, line, res:r == null ? '' : String(JSON.stringify(r)).slice(0, 100) }); if(d.log.length > 80) d.log.shift(); return r; } catch(x) { d.log.push({ ok:false, line, err:String(x.message || x) }); throw x; } }; };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // ---------- the lights ----------
+  async function rainbowShow(d){
+    if(C.show && C.show.ip === d.ip){ C.show.stop = true; return; }
+    const h = logged(d), run = C.show = { ip:d.ip, stop:false }; paint();
+    let before = 'groups'; try { before = (await h('GET', '/api/interface/info/current_state')) || 'groups'; } catch {}
+    try { await load(); for(let round = 0; round < 4 && !run.stop; round++) for(const st of api.RAINBOW_STATES){ if(run.stop) break; await h('PUT', '/api/interface/set_state', { state:st }); await sleep(520); } }
+    catch(x) { d.err = String(x.message || x); }
+    try { await h('PUT', '/api/interface/set_state', { state:typeof before === 'string' && before ? before : 'groups' }); } catch { try { await h('PUT', '/api/interface/set_state', { state:'groups' }); } catch {} }
+    C.show = null; paint();
+  }
+  async function rainbowColours(d, undo){
+    d.busy = true; d.err = ''; paint();
+    try {
+      await load(); const h = logged(d);
+      const plan = undo ? { ops:(d.rainbowBefore || []).map(b => ({ method:'PUT', path:b.path, body:b.color, text:b.path, kind:'config', soft:true })) } : api.rainbowPlan(d.cur);
+      if(!undo) d.rainbowBefore = plan.before;
+      const done = await api.runOps(h, plan.ops), bad = done.filter(o => o.failed);
+      if(undo) d.rainbowBefore = null;
+      await readDev(d, true);
+      App.ui.toast(bad.length ? `${done.length - bad.length}/${done.length} ${t('colours changed — the switch refused the rest', 'kleuren aangepast — de switch weigerde de rest')}` : (undo ? t('Colours are back', 'Kleuren zijn terug') : `${done.length} ${t('groups in rainbow colours', 'groepen in regenboogkleuren')}`), bad.length ? 'info' : 'ok');
+    } catch(x) { d.err = String(x.message || x); }
+    d.busy = false; paint();
+  }
+  async function luminexMode(d){
+    const ok = await App.ui.confirmDialog({ title:t('Switch to Luminex configuration mode?', 'Naar Luminex-configuratiemodus?'), okLabel:t('Switch and reboot', 'Omzetten en herstarten'), danger:true, message:t('In “advanced” mode the switch is also configured with its command line, and groups / trunks set through this API may not show correctly. Switching to “luminex” mode makes the API the only way to configure it. The switch reboots.', 'In “advanced” modus wordt de switch ook via de commandoregel ingesteld, en groepen / trunks die via deze API worden gezet kunnen verkeerd getoond worden. Naar “luminex” modus maakt de API de enige manier om hem in te stellen. De switch herstart.') });
+    if(!ok) return;
+    try { await load(); await logged(d)('PUT', '/api/config/mode', 'luminex'); App.ui.toast(t('The switch reboots — discover again in a minute', 'De switch herstart — ontdek over een minuut opnieuw'), 'info'); } catch(x) { d.err = String(x.message || x); }
+    paint();
+  }
+  function trunkHtml(d){
+    const cur = d.cur, used = [...new Set(cur.ports.filter(p => p.member_of?.type === 'trunk').map(p => p.member_of.id))];
+    const ids = used.length ? used : (cur.trunks.find(x => x.predefined) ? [cur.trunks.find(x => x.predefined).trunk_id] : []);
+    if(!ids.length) return '';
+    return `<div class="nc-trunks">${ids.map(tid => {
+      const ti = api.trunkInfo(cur, tid); if(!ti) return '';
+      const un = d.trunkEdit?.tid === tid ? d.trunkEdit.vid : ti.untaggedVid;
+      const vl = [...new Set(ti.vlans)].sort((a, b) => a - b);
+      return `<div class="nc-trunk"><b>Trunk “${esc(ti.name)}”</b> <span class="subtle">${ti.predefined ? t('(built into the switch — carries every VLAN)', '(zit in de switch — voert elke VLAN)') : ''}</span>
+        <span class="subtle">${t('ports', 'poorten')}: ${ti.ports.length ? ti.ports.join(', ') : t('none yet', 'nog geen')} · VLAN: ${vl.join(', ') || '–'}</span>
+        <label>${t('Untagged VLAN', 'Untagged VLAN')}<select data-trunkun="${tid}"><option value="0" ${!un ? 'selected' : ''}>${t('none (all tagged)', 'geen (alles getagd)')}</option>${vl.map(v => `<option value="${v}" ${un === v ? 'selected' : ''}>${v} ${esc(cur.groups.find(g => g.vid === v)?.name || '')}</option>`).join('')}</select></label></div>`;
+    }).join('')}</div>`;
+  }
+  const lightsHtml = d => `<div class="nc-lights"><b>${t('Lights', 'Lampjes')}</b>
+    <button data-rainbow="${esc(d.ip)}" class="${C.show?.ip === d.ip ? 'primary' : ''}">${C.show?.ip === d.ip ? '■ ' + t('Stop', 'Stop') : '🌈 ' + t('Rainbow show', 'Regenboogshow')}</button>
+    <button data-rainbowc="${esc(d.ip)}" ${d.busy ? 'disabled' : ''}>${t('Rainbow colours on the groups', 'Regenboogkleuren op de groepen')}</button>
+    ${d.rainbowBefore ? `<button data-rainbowu="${esc(d.ip)}">${t('Colours back', 'Kleuren terug')}</button>` : ''}
+    <span class="subtle" style="font-size:12px">${t('The show runs the front-panel colours red → magenta a few times and then goes back. The port lights follow the colour of their group, so “rainbow colours” gives every group in use its own colour, left to right (a group colour has no effect on traffic).', 'De show laat de kleuren van het voorpaneel een paar keer van rood → magenta lopen en gaat dan terug. De poortlampjes volgen de kleur van hun groep, dus “regenboogkleuren” geeft elke gebruikte groep een eigen kleur, van links naar rechts (een groepskleur heeft geen invloed op het verkeer).')}</span></div>`;
+  const logHtml = d => (d.log && d.log.length) ? `<details class="nc-log"><summary>${t('Last calls to this device', 'Laatste aanroepen naar dit apparaat')} (${d.log.length})</summary><button data-copylog="${esc(d.ip)}">${t('Copy', 'Kopieer')}</button><pre>${d.log.slice(-40).map(l => `${l.ok ? '✓' : '✗'} ${esc(l.line)}${l.ok ? (l.res ? '  → ' + esc(l.res) : '') : '  → ' + esc(l.err)}`).join('\n')}</pre></details>` : '';
 
   // ---------- the e-ink display of a GigaCore 20t ----------
   const EK = d => { let e = C.eink.get(d.ip); if(!e){ e = { w:0, h:0, kind:'text', text:'', size:0, align:'center', bold:true, fit:'contain', dither:true, invert:false, img:null, imgName:'', shot:null, prev:null, busy:false, err:'', ok:'' }; C.eink.set(d.ip, e); } return e; };
@@ -305,7 +361,7 @@
       const r = api.portRows(d.cur).find(x => x.port === idx); if(!r) return '';
       const v = swTile(d, r), brushes = swBrushes(d);
       const cur = v.trunk ? 'fibre' : v.vid != null ? `vid:${v.vid}` : '';
-      return `<div class="nc-det"><b>${t('Port', 'Poort')} ${r.port}</b> <span class="subtle">${esc(r.type)}${r.link != null ? ` · ${esc(typeof r.link === 'object' ? JSON.stringify(r.link) : r.link)}` : ''}</span>
+      return `<div class="nc-det"><b>${t('Port', 'Poort')} ${r.port}</b> <span class="subtle">${esc(r.type)} · ${t('on the switch', 'op de switch')}: ${esc(r.member ? `${r.member.type} ${r.member.id}${r.groupName ? ' “' + r.groupName + '”' : ''}` : t('no group', 'geen groep'))}${r.link != null ? ` · ${esc(typeof r.link === 'object' ? JSON.stringify(r.link) : r.link)}` : ''}</span>
         <label>${t('Name', 'Naam')}<input data-f="legend" maxlength="16" value="${esc(v.legend)}"></label>
         <label>${t('Type / VLAN', 'Type / VLAN')}<select data-f="member"><option value="" ${cur ? '' : 'selected'}>—</option><optgroup label="${t('Access (one VLAN)', 'Toegang (één VLAN)')}">${brushes.map(b => `<option value="vid:${b.vid}" ${cur === `vid:${b.vid}` ? 'selected' : ''}>${b.vid} · ${esc(b.name)}${b.isNew ? ` (${t('new', 'nieuw')})` : ''}</option>`).join('')}</optgroup><optgroup label="Trunk"><option value="fibre" ${cur === 'fibre' ? 'selected' : ''}>${t('Trunk (all VLANs, fibre)', 'Trunk (alle VLAN’s, fibre)')}</option></optgroup></select></label>
         ${v.poe == null ? '' : `<label>PoE<span><input type="checkbox" data-f="poe" ${v.poe ? 'checked' : ''}> ${t('on', 'aan')}</span></label>`}
@@ -355,10 +411,12 @@
       body = `<div class="nc-body">${d.err ? `<div class="su-warn">${esc(d.err)}</div>` : ''}
         <div class="nc-row">${devFields}<span style="flex:1"></span>${it ? `<button data-fill="${esc(d.ip)}">${t('Fill from the plan', 'Invullen uit het plan')}</button>` : ''}<button data-read="${esc(d.ip)}">${I('refresh', 13)}${t('Read again', 'Opnieuw lezen')}</button></div>
         ${f.ip && f.ip !== (isSw(d) ? d.cur.ip?.ip_address : d.cur.ip?.ipaddress) ? `<div class="su-warn">${t('The IP address changes when you apply; the device then moves to the new address.', 'Het IP-adres verandert bij het toepassen; het apparaat verhuist dan naar het nieuwe adres.')}</div>` : ''}
+        ${isSw(d) && d.cur.mode === 'advanced' ? `<div class="su-warn">${t('This switch is in “advanced” configuration mode: it is also set with its command line, so groups and trunks made here may not show correctly.', 'Deze switch staat in “advanced” configuratiemodus: hij wordt ook met zijn commandoregel ingesteld, dus groepen en trunks die hier gemaakt worden kunnen verkeerd getoond worden.')} <button data-lxmode="${esc(d.ip)}">${t('Switch to Luminex mode…', 'Naar Luminex-modus…')}</button></div>` : ''}
         ${brushBar(d)}${grid}${detailHtml(d)}
-        ${isSw(d) ? einkHtml(d) : ''}
+        ${isSw(d) ? trunkHtml(d) + einkHtml(d) + lightsHtml(d) : ''}
         ${o.notes.map(x => `<div class="subtle" style="font-size:12px">${I('info', 12)} ${esc(x)}</div>`).join('')}
-        <div class="nc-row"><span class="subtle">${n} ${t('changes waiting', 'wijzigingen wachten')}</span><span style="flex:1"></span><button data-undo="${esc(d.ip)}" ${d.E.size || Object.keys(f).length ? '' : 'disabled'}>${t('Undo my changes', 'Mijn wijzigingen ongedaan maken')}</button><button class="primary" data-apply="${esc(d.ip)}" ${n && !d.busy ? '' : 'disabled'}>${t('Apply…', 'Toepassen…')}</button></div></div>`;
+        ${logHtml(d)}
+        <div class="nc-row"><span class="subtle">${n} ${t('changes waiting', 'wijzigingen wachten')}</span><span style="flex:1"></span><button data-undo="${esc(d.ip)}" ${d.E.size || Object.keys(f).length || d.trunkEdit ? '' : 'disabled'}>${t('Undo my changes', 'Mijn wijzigingen ongedaan maken')}</button><button class="primary" data-apply="${esc(d.ip)}" ${n && !d.busy ? '' : 'disabled'}>${t('Apply…', 'Toepassen…')}</button></div></div>`;
     }
     return `<div class="nc-card open">${head}${body}</div>`;
   }
@@ -410,7 +468,7 @@
     qa('select[data-link]').forEach(s => s.onchange = () => { const d = D(s.dataset.link); d.link = s.value || null; paint(); });
     qa('[data-read]').forEach(b => b.onclick = async () => { const d = D(b.dataset.read); await readDev(d); paint(); });
     qa('[data-fill]').forEach(b => b.onclick = () => { const d = D(b.dataset.fill); fillFromPlan(d); paint(); });
-    qa('[data-undo]').forEach(b => b.onclick = () => { const d = D(b.dataset.undo); d.E = new Map(); d.dev = {}; paint(); });
+    qa('[data-undo]').forEach(b => b.onclick = () => { const d = D(b.dataset.undo); d.E = new Map(); d.dev = {}; d.trunkEdit = null; paint(); });
     qa('[data-apply]').forEach(b => b.onclick = () => applyDevs([D(b.dataset.apply)]));
     qa('[data-df]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const k = i.dataset.df, v = i.value.trim(); d.dev[k] = v; if(k === 'ip' && !ipOk(v)) delete d.dev.ip; if(k === 'ip' && d.dev.ip && !d.dev.mask) d.dev.mask = planOf(d)?.s?.dev?.subnet || planOf(d)?.inst?.subnet || '255.255.255.0'; paint(); });
     // brushes
@@ -419,6 +477,12 @@
     qa('[data-auto]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.brush = { ...(d.brush || {}), auto:i.checked }; });
     qa('[data-bdir]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.brush = { ...(d.brush || {}), dir:i.value || undefined, auto:d.brush?.auto !== false }; paint(); });
     qa('[data-bklass]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.brush = { ...(d.brush || {}), klass:i.value || undefined, auto:d.brush?.auto !== false }; paint(); });
+    qa('[data-trunkun]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.trunkEdit = { tid:Number(i.dataset.trunkun), vid:Number(i.value) || 0 }; paint(); });
+    qa('[data-rainbow]').forEach(b => b.onclick = () => rainbowShow(D(b.dataset.rainbow)));
+    qa('[data-rainbowc]').forEach(b => b.onclick = () => rainbowColours(D(b.dataset.rainbowc), false));
+    qa('[data-rainbowu]').forEach(b => b.onclick = () => rainbowColours(D(b.dataset.rainbowu), true));
+    qa('[data-lxmode]').forEach(b => b.onclick = () => luminexMode(D(b.dataset.lxmode)));
+    qa('[data-copylog]').forEach(b => b.onclick = () => { const d = D(b.dataset.copylog); navigator.clipboard?.writeText((d.log || []).map(l => `${l.ok ? 'OK ' : 'ERR'} ${l.line}${l.ok ? '' : '  -> ' + l.err}`).join('\n')); App.ui.toast(t('Copied', 'Gekopieerd'), 'ok'); });
     // e-ink display
     const ekDev = el => D(el.closest('[data-eip]').dataset.eip);
     qa('[data-ekopen]').forEach(h => h.onclick = () => { const d = D(h.dataset.ekopen); if(C.einkOpen.has(d.ip)) C.einkOpen.delete(d.ip); else { C.einkOpen.add(d.ip); if(!EK(d).w) einkLoad(d); } paint(); einkPreviewUpdate(d); });

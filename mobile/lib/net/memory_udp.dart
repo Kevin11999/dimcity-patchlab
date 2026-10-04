@@ -11,6 +11,10 @@ import 'udp.dart';
 /// it behaves the same on every machine.
 class MemoryUdpHub {
   final List<_MemorySocket> _sockets = <_MemorySocket>[];
+
+  /// Decides whether a unicast datagram from one address to another gets through (null: always). A real laptop
+  /// has no route from 192.168.100.43 to 2.187.156.10 even though both sit on the same cable.
+  bool Function(String fromIp, String toIp)? unicastRoute;
   int _nextEphemeral = 40000;
 
   /// Opens a socket on [ip]:[port] (port 0 = a free port).
@@ -42,7 +46,7 @@ class MemoryUdpHub {
         if (s.segment == from.segment && s.groups.contains(target)) recipients.add(s);
       } else if (_isBroadcast(target)) {
         if (s.segment == from.segment) recipients.add(s);
-      } else if (s.ip == target) {
+      } else if (s.ip == target && (unicastRoute?.call(from.ip, target) ?? true)) {
         recipients.add(s);
       }
     }

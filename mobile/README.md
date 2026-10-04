@@ -46,6 +46,20 @@ Visual Studio 2022 (Desktop development with C++): `flutter build windows --rele
 
 Needs macOS 12 or newer, Apple Silicon or Intel (universal build). Built in CI on a Mac runner; not tested on a real Mac yet.
 
+## Install on iPhone / iPad (test build, not signed)
+
+Apple only runs signed apps and there is no Apple developer account behind this project, so the iOS build is an **unsigned
+`.ipa`** (`PatchLab-RDM-<version>-ios-unsigned.ipa` in the pre-release):
+
+1. Install it with **Sideloadly** or **AltStore** and your own Apple ID (free: the app runs for 7 days, then install again).
+   With a paid developer account you can also open `mobile/ios` in Xcode and run it on the phone with your team.
+2. On first start iOS asks for **Local Network** access: choose *Allow*.
+3. iOS only lets an app send and receive broadcast and multicast with Apple's **Multicast Networking** entitlement
+   (`com.apple.developer.networking.multicast`, in `ios/Runner/Runner.entitlements`). Apple grants it on request to paid accounts
+   (https://developer.apple.com/contact/request/networking-multicast). The unsigned build carries no entitlement, and a free
+   Apple ID cannot get one: expect that finding lamps by broadcast or multicast does **not** work on an iPhone then. Windows and
+   macOS do not have this limit.
+
 ## Install on Android (test build)
 
 1. Get the APK: GitHub → Actions → *Mobile* → latest run → **Artifacts** → `PatchLab-RDM-apk`
@@ -75,7 +89,12 @@ Build it yourself: `flutter build apk --release --target-platform android-arm64 
 5. **Send**: every lamp is read back and marked verified; a lamp that does not take it gets its own retry.
 6. Tap a lamp for the rest: rename, identify, set address or mode, info (hours, temperature, software), reset.
 
-It works because RDMnet lamps answer **LLRP** (ANSI E1.33): a multicast search that needs nothing configured. Two
+Lamps that speak **Art-Net** themselves (they answer ArtPoll, sit on 2.x.x.x or 10.x.x.x, set to *Art-Net* or *Auto*) are found
+in the same list: ArtPoll goes out of every network adapter, the lamp's UID comes from its poll reply or Table of Devices, and RDM
+goes unicast inside your subnet and by broadcast outside it. Give your laptop an extra address in the lamps' range (for example
+2.0.0.100 / 255.0.0.0); the app tells you when it is needed and copies the command. See [docs/PROTOCOLS.md](docs/PROTOCOLS.md) section 0a.
+
+For RDMnet lamps it works because they answer **LLRP** (ANSI E1.33): a multicast search that needs nothing configured. Two
 devices on one cable both fall back to link-local addresses (169.254.x.x) and find each other.
 On top of that the app is the **RDMnet broker** for the lamps when no other broker is on the network (DNS-SD
 advertisement, TCP broker), so lamps that look for a broker connect by themselves; LLRP remains as the fallback.

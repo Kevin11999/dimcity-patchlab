@@ -175,6 +175,42 @@ class _LampsScreenState extends State<LampsScreen> {
     );
   }
 
+  /// Art-Net lamps on 2.x / 10.x that the laptop has no address for: say so, with the command that adds one.
+  Widget? _rangeBanner() {
+    final transport = widget.backend.lampsTransport;
+    if (transport == null || transport.outOfSubnet.isEmpty) return null;
+    final first = int.tryParse(transport.outOfSubnet.first.split('.').first) ?? 2;
+    final suggest = '$first.0.0.100';
+    return NoticeCard(
+      t('lamps.range', {'ips': transport.outOfSubnet.join(', '), 'ip': suggest}),
+      icon: Icons.lan_outlined,
+      iconColor: Pal.amber,
+      action: TextButton(
+        onPressed: () async {
+          await Clipboard.setData(ClipboardData(text: _addAddressCommand(suggest)));
+          if (mounted) showMessage(context, t('lamps.range.copied'));
+        },
+        child: Text(t('lamps.range.copy')),
+      ),
+    );
+  }
+
+  /// The adapter the lamps' cable is most likely on: the one picked, else a cable address (169.254), else any real one.
+  String _cableAdapterName() {
+    final picked = widget.settings.lampsAdapter;
+    if (picked.isNotEmpty) return picked;
+    final local = widget.backend.artnet?.localAddresses ?? const [];
+    final real = local.where((a) => !a.isVirtual).toList();
+    return (real.where((a) => a.ip.startsWith('169.254.')).firstOrNull ?? real.firstOrNull ?? local.firstOrNull)?.interfaceName ?? 'Ethernet';
+  }
+
+  String _addAddressCommand(String ip) {
+    final name = _cableAdapterName();
+    if (Platform.isWindows) return 'netsh interface ip add address "$name" $ip 255.0.0.0';
+    if (Platform.isMacOS) return 'sudo ifconfig $name alias $ip 255.0.0.0';
+    return 'sudo ip addr add $ip/8 dev $name';
+  }
+
   /// One line on the broker state, null in demo mode (there is no broker).
   String? _brokerLabel() {
     final b = widget.backend.lampBroker;
@@ -192,7 +228,9 @@ class _LampsScreenState extends State<LampsScreen> {
       ..writeln('adapter setting: ${widget.settings.lampsAdapter.isEmpty ? 'automatic' : widget.settings.lampsAdapter}')
       ..writeln('all adapters: ${(await widget.backend.allAdapters()).join(' | ')}')
       ..write(llrp?.report() ?? 'LLRP not started\n')
-      ..write(widget.backend.lampBroker?.report() ?? 'no RDMnet broker (demo)\n');
+      ..write(widget.backend.lampBroker?.report() ?? 'no RDMnet broker (demo)\n')
+      ..write(widget.backend.artnet?.report() ?? 'no Art-Net\n')
+      ..write(widget.backend.lampsTransport?.report() ?? '');
     await Clipboard.setData(ClipboardData(text: text.toString()));
     if (mounted) showMessage(context, t('lamps.diag.copied'));
   }
@@ -202,6 +240,7 @@ class _LampsScreenState extends State<LampsScreen> {
         'lamps.check.cable',
         'lamps.check.power',
         'lamps.check.wait',
+        'lamps.check.range',
         if (Platform.isMacOS) 'lamps.check.mac' else 'lamps.check.firewall',
         'lamps.check.rdmnet',
       ];
@@ -299,6 +338,7 @@ class _LampsScreenState extends State<LampsScreen> {
             emptyState: _empty,
             headers: [
               _adapterBar(),
+              ?_rangeBanner(),
               if (widget.settings.demoMode)
                 NoticeCard(t('lamps.demo.on'), icon: Icons.science_outlined, iconColor: Pal.amber, action: TextButton(onPressed: () => _demo(false), child: Text(t('lamps.demo.off')))),
             ],

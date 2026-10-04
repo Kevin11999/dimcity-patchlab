@@ -1,10 +1,39 @@
 # Protocols: how the app reaches the fixtures
 
-Three routes, from easiest to most involved: **LLRP** straight to RDMnet lamps (section 0), **RDM over Art-Net**
-behind a node (sections 1 and 2) and **RDMnet through a broker** (section 3).
+Four routes, from easiest to most involved: lamps that speak **Art-Net** themselves (section 0a), **LLRP** and a broker for RDMnet lamps (section 0),
+**RDM over Art-Net** behind a node (sections 1 and 2) and **RDMnet through a broker** (section 3).
 
 This document records what was researched for the RDM part and which
 assumptions are built into the code. Read it before testing on real nodes.
+
+## 0a. Lamps that speak Art-Net themselves (the Lamps tab)
+
+Many lamps with a network port (Pixel Line IP, ACME Strobe 3 IP, ...) are Art-Net nodes with RDM of their own: they answer ArtPoll,
+sit on **2.x.x.x or 10.x.x.x** (a factory address derived from the MAC) and must be set to *Art-Net* or *Auto*. This is the route
+that was written down for an app that works on a real rig, and the lamp search follows it (`LampsTransport`,
+`ArtNetService`; test: `test/services/art_lamps_test.dart`):
+
+1. **ArtPoll out of every adapter.** A socket on 0.0.0.0 sends from the primary adapter only, and a lamp on 2.x never hears a poll
+   that leaves from 192.168.x. So the service keeps one socket per adapter address (bound to that address and port 6454) and sends the
+   poll out of each: to the directed broadcast of that adapter **and** to 255.255.255.255. The listening socket stays on
+   `0.0.0.0:6454`, otherwise broadcast answers do not come in; the same packet reaching two sockets is handled once.
+   Wait 1.2 s for the ArtPollReply (two polls, 0.6 s apart).
+2. **Table of Devices**: ArtTodRequest per port address from the replies (no flush), for ports with RDM on; a node without ports (a lamp)
+   is asked on its Net / Sub-Net address. UIDs come from the ArtTodData **and** from the *DefaultResponderUid* in the ArtPollReply
+   (offset 218): when it is not zero the node is the lamp itself.
+3. **RDM in ArtRdm without the 0xCC start code**: the payload begins with 0x01; length and checksum still count the start code. Some
+   lamps only answer that form; when decoding both forms are accepted.
+4. **Unicast only inside our subnet.** ArtRdm and TOD go unicast to a node in a subnet of one of our adapters (the mask is guessed
+   from the address class, desktops do not tell it). For a node outside every subnet, or after a unicast timeout, they are broadcast out of every
+   adapter; the answer is matched on UID, not on the sender's IP. ArtAddress (programming a node) is never broadcast.
+5. The controller UID is a prototype UID (`7FF0:xxxxxxxx`, never a product UID); reads: DEVICE_INFO, labels, DMX_PERSONALITY,
+   DMX_START_ADDRESS. DEVICE_INFO refused or shorter than 19 bytes: DMX_START_ADDRESS alone is enough to list the lamp (footprint
+   unknown = 1 channel); both refused: the UID is skipped, no empty fixture is made up. Writes are SET followed by a GET.
+
+**The laptop needs an address in the lamps' range** (an alias next to its own address works): without one the lamps' broadcast answers
+may never reach the app. The Lamps tab says so ("outside our subnets") and copies the command that adds the address, e.g.
+`netsh interface ip add address "Ethernet" 2.0.0.100 255.0.0.0` (Windows, as administrator) or `sudo ifconfig en7 alias 2.0.0.100 255.0.0.0` (macOS).
+Lamps found both ways (RDMnet and Art-Net) are one lamp; the route that worked last is asked first, the others are the fallback.
 
 ## 0. Lamps straight on the cable: LLRP (the Lamps tab)
 

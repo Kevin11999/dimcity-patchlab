@@ -336,6 +336,7 @@ class ArtPollReply {
     int status1 = 0x02 | 0xC0,
     int status2 = 0x08 | 0x10,
     int numPorts = 4,
+    List<int>? defaultResponderUid,
     int oem = 0x00FF,
     int estaManufacturer = 0x7FF0,
     String nodeReport = '#0001 [0001] OK',
@@ -373,7 +374,7 @@ class ArtPollReply {
     w.u8(status2);
     w.bytes(_pad4(goodOutputB ?? const []));
     w.u8(0); // Status3
-    w.zeros(6); // DefaultRespUID
+    w.bytes(_padN(defaultResponderUid ?? const [], 6)); // DefaultRespUID: a lamp that is its own responder
     w.zeros(4); // UserHi/Lo, RefreshRateHi/Lo
     w.u8(0); // BackgroundQueuePolicy
     w.zeros(10);

@@ -128,7 +128,7 @@ void main() {
     final answered = f.answered;
     f.mute = true;
     expect(await client.deviceModelDescription(lamps.first.fixture.uid), isNotEmpty, reason: 'answered through LLRP');
-    expect(transport.lamps.firstWhere((l) => l.onBroker).llrpFirst, isTrue);
+    expect(transport.lamps.firstWhere((l) => l.onBroker).lastGood, 'llrp');
     final again = Stopwatch()..start();
     await client.deviceModelDescription(lamps.first.fixture.uid);
     expect(again.elapsedMilliseconds, lessThan(1000), reason: 'no new broker timeout');

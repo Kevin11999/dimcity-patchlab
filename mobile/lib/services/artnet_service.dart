@@ -6,6 +6,7 @@ import '../core/artnet/artnet.dart';
 import '../core/rdm/rdm_constants.dart';
 import '../core/rdm/rdm_packet.dart';
 import '../core/uid.dart';
+import '../net/network_info.dart';
 import '../net/udp.dart';
 import 'rdm_client.dart';
 import 'stream_utils.dart';
@@ -24,6 +25,31 @@ class ArtNetNodeInfo {
   int udpPort;
   final Map<int, ArtPollReply> pages = <int, ArtPollReply>{};
   DateTime lastSeen;
+
+  /// Unicast to this node did not get through (it is not in a subnet of ours, or the route is wrong):
+  /// send to it by broadcast out of every adapter from now on.
+  bool viaBroadcast = false;
+
+  /// The responder UID the node announces in its ArtPollReply: a lamp that speaks Art-Net itself.
+  Uid? get ownUid {
+    for (final r in pages.values) {
+      final u = r.defaultResponderUid;
+      if (u.manufacturerId != 0 || u.deviceId != 0) return u;
+    }
+    return null;
+  }
+
+  /// Port addresses the node answers RDM on: its output ports, or the address of its Net / Sub-Net when it
+  /// announces none (a lamp).
+  List<PortAddress> get rdmAddresses {
+    final out = <PortAddress>{for (final p in outputPorts) if (!p.port.rdmDisabled) p.address};
+    if (out.isEmpty) {
+      for (final r in pages.values) {
+        out.add(PortAddress(r.netSwitch & 0x7F, r.subSwitch & 0x0F, r.swOut.isNotEmpty ? r.swOut.first & 0x0F : (r.swIn.isNotEmpty ? r.swIn.first & 0x0F : 0)));
+      }
+    }
+    return out.toList()..sort();
+  }
 
   ArtPollReply get first => pages[pages.keys.reduce((a, b) => a < b ? a : b)]!;
   String get shortName => first.shortName;
@@ -90,17 +116,48 @@ class TodResult {
 
 /// Art-Net 4 side of the app: node discovery (ArtPoll), port programming
 /// (ArtAddress) and RDM over Art-Net (ArtTod*, ArtRdm).
+///
+/// **Several adapters.** A laptop has Wi-Fi, a cable to the lamps and sometimes more; the lamps sit on 2.x.x.x or
+/// 10.x.x.x while the cable adapter may have a 192.168 or 169.254 address. A socket on 0.0.0.0 sends from the primary
+/// adapter only, so with [interfaces] the service also keeps one socket per adapter address: ArtPoll goes out of
+/// each of them (directed broadcast + 255.255.255.255), and RDM to a node that is not in any subnet of ours is
+/// broadcast out of all of them instead of sent unicast into a route that does not exist.
 class ArtNetService {
-  ArtNetService(this._socket, {required this.controllerUid}) {
+  ArtNetService(this._socket, {required this.controllerUid, this.interfaces, this.bindFactory}) {
     _sub = _socket.datagrams.listen(_onDatagram);
   }
 
-  static Future<ArtNetService> open({required Uid controllerUid, int port = ArtNet.port}) async =>
-      ArtNetService(await RawUdpSocket.bind(port), controllerUid: controllerUid);
+  static Future<ArtNetService> open({
+    required Uid controllerUid,
+    int port = ArtNet.port,
+    Future<List<LocalAddress>> Function()? interfaces,
+  }) async =>
+      ArtNetService(
+        await RawUdpSocket.bind(port),
+        controllerUid: controllerUid,
+        interfaces: interfaces,
+        bindFactory: (ip, port) => RawUdpSocket.bindTo(ip, port),
+      );
 
   final UdpSocket _socket;
   final Uid controllerUid;
   late final StreamSubscription<Datagram> _sub;
+
+  /// The adapter addresses to send from (null: only the one socket, as in the demo).
+  final Future<List<LocalAddress>> Function()? interfaces;
+
+  /// Opens a socket bound to one adapter address and the Art-Net port.
+  final Future<UdpSocket> Function(String ip, int port)? bindFactory;
+
+  final Map<String, _Iface> _ifaces = <String, _Iface>{};
+
+  /// Adapter addresses that could not be used, with the reason.
+  final Map<String, String> interfaceErrors = <String, String>{};
+  final Map<int, DateTime> _recent = <int, DateTime>{};
+  int pollsSent = 0;
+  int repliesSeen = 0;
+
+  List<LocalAddress> get localAddresses => [for (final i in _ifaces.values) i.address];
 
   final Map<String, ArtNetNodeInfo> nodes = <String, ArtNetNodeInfo>{};
 
@@ -123,13 +180,25 @@ class ArtNetService {
 
   int get localPort => _socket.port;
 
+  /// The same broadcast reaches the 0.0.0.0 socket and the adapter sockets: handle it once.
+  bool _duplicate(Datagram d) {
+    final now = DateTime.now();
+    _recent.removeWhere((_, t) => now.difference(t) > const Duration(milliseconds: 80));
+    final key = Object.hash(d.address.address, d.port, Object.hashAll(d.data));
+    if (_recent.containsKey(key)) return true;
+    _recent[key] = now;
+    return false;
+  }
+
   void _onDatagram(Datagram d) {
     final op = ArtNet.opcodeOf(d.data);
     if (op == null) return;
+    if (_ifaces.isNotEmpty && _duplicate(d)) return;
     switch (op) {
       case ArtNet.opPollReply:
         final r = ArtPollReply.decode(d.data);
         if (r == null) return;
+        repliesSeen++;
         // Trust the sender address over the IP field when they differ (NAT, demo node).
         final reply = d.address.address == r.ip ? r : _withIp(r, d.address.address, d.port);
         final existing = nodes[reply.ip];
@@ -150,7 +219,7 @@ class ArtNetService {
           ip: d.address.address,
           port: d.port,
           rdm: r,
-          packet: RdmPacket.tryDecode(r.rdmBytes, withStartCode: false),
+          packet: RdmPacket.tryDecodeArtNet(r.rdmBytes),
         ));
       default:
         break;
@@ -174,15 +243,86 @@ class ArtNetService {
     }
   }
 
-  /// Broadcasts ArtPoll (plus unicast to the extra targets).
+  /// Makes the adapter sockets match the adapters: a cable plugged in later gets one, an unplugged one loses it.
+  /// Call it before [poll]. Without [interfaces] there is nothing to do.
+  Future<void> syncInterfaces() async {
+    final lister = interfaces, factory = bindFactory;
+    if (lister == null || factory == null) return;
+    final List<LocalAddress> wanted;
+    try {
+      wanted = await lister();
+    } catch (_) {
+      return;
+    }
+    final wantedIps = {for (final a in wanted) a.ip};
+    for (final ip in _ifaces.keys.toList()) {
+      if (!wantedIps.contains(ip)) {
+        final i = _ifaces.remove(ip)!;
+        unawaited(i.sub.cancel());
+        i.socket.close();
+      }
+    }
+    for (final a in wanted) {
+      if (_ifaces.containsKey(a.ip)) continue;
+      try {
+        final socket = await factory(a.ip, ArtNet.port);
+        _ifaces[a.ip] = _Iface(a, socket, socket.datagrams.listen(_onDatagram));
+        interfaceErrors.remove(a.ip);
+      } catch (e) {
+        interfaceErrors[a.ip] = e.toString();
+      }
+    }
+  }
+
+  /// This address is in a subnet of one of our adapters (or the service has no adapter list: everything is local).
+  bool isLocal(String ip) => _ifaces.isEmpty || _ifaces.values.any((i) => i.address.contains(ip));
+
+  /// Broadcasts out of every adapter: its directed broadcast and the limited broadcast, from its own address.
+  void _broadcastEverywhere(Uint8List data, int port) {
+    for (final i in _ifaces.values) {
+      for (final target in {i.address.directedBroadcast, '255.255.255.255'}) {
+        if (target == null) continue;
+        try {
+          i.socket.send(data, InternetAddress(target), port);
+        } on ArgumentError {
+          // bad address literal
+        }
+      }
+    }
+  }
+
+  /// To one node: unicast when it is in a subnet of ours, otherwise (or when unicast did not get through before)
+  /// broadcast out of every adapter. Returns true when it went out as a broadcast.
+  bool _toNode(Uint8List data, ArtNetNodeInfo node) {
+    final broadcast = _ifaces.isNotEmpty && (node.viaBroadcast || !isLocal(node.ip));
+    if (broadcast) {
+      _broadcastEverywhere(data, node.udpPort);
+    } else {
+      _send(data, node.ip, node.udpPort);
+    }
+    return broadcast;
+  }
+
+  /// Broadcasts ArtPoll out of every adapter (plus unicast to the extra targets and the known nodes).
   void poll() {
     final p = ArtPoll.encode();
+    pollsSent++;
     for (final t in broadcastTargets) {
       _send(p, t, ArtNet.port);
     }
+    for (final i in _ifaces.values) {
+      for (final target in {i.address.directedBroadcast, '255.255.255.255'}) {
+        if (target == null) continue;
+        try {
+          i.socket.send(p, InternetAddress(target), ArtNet.port);
+        } on ArgumentError {
+          // bad address literal
+        }
+      }
+    }
     unicastTargets.forEach((ip, port) => _send(p, ip, port));
     for (final n in nodes.values) {
-      _send(p, n.ip, n.udpPort);
+      if (isLocal(n.ip)) _send(p, n.ip, n.udpPort);
     }
   }
 
@@ -193,7 +333,7 @@ class ArtNetService {
       (r) => r.ip == node.ip && (page == null || r.page == page),
       timeout,
     );
-    _send(ArtPoll.encode(), node.ip, node.udpPort);
+    _toNode(ArtPoll.encode(), node);
     return f;
   }
 
@@ -217,7 +357,7 @@ class ArtNetService {
   }) async {
     final deadline = DateTime.now().add(timeout);
     if (flush) {
-      _send(ArtTodControl.encode(address.net, address.subUni), node.ip, node.udpPort);
+      _toNode(ArtTodControl.encode(address.net, address.subUni), node);
       await Future<void>.delayed(settle);
     }
     final uids = <Uid>{};
@@ -258,17 +398,19 @@ class ArtNetService {
         return have >= total;
       },
     );
-    _send(ArtTodRequest.encode(address.net, [address.subUni]), node.ip, node.udpPort);
+    _toNode(ArtTodRequest.encode(address.net, [address.subUni]), node);
     return f;
   }
 
   /// Sends one RDM request through the node and waits for the matching response.
   Future<RdmPacket> sendRdm(ArtNetNodeInfo node, PortAddress address, RdmPacket request, {Duration timeout = const Duration(milliseconds: 1500)}) async {
+    // A broadcast request is answered by whichever lamp owns the UID, so its IP is not checked then.
+    var broadcast = _ifaces.isNotEmpty && (node.viaBroadcast || !isLocal(node.ip));
     final f = firstMatching<ArtNetRdmReceived>(
       rdmReceived,
       (m) {
         final p = m.packet;
-        if (p == null || m.ip != node.ip) return false;
+        if (p == null || (!broadcast && m.ip != node.ip)) return false;
         if (!p.isResponse || p.transactionNumber != request.transactionNumber) return false;
         if (!(p.destination == controllerUid || p.destination.isBroadcast)) return false;
         if (!request.destination.isBroadcast && p.source != request.destination) return false;
@@ -276,13 +418,40 @@ class ArtNetService {
       },
       timeout,
     );
-    _send(ArtRdm(net: address.net, subUni: address.subUni, rdmBytes: request.encode(withStartCode: false)).encode(), node.ip, node.udpPort);
+    broadcast = _toNode(ArtRdm(net: address.net, subUni: address.subUni, rdmBytes: request.encode(withStartCode: false)).encode(), node);
     final r = await f;
-    if (r == null) throw RdmTimeoutException('No RDM response from ${request.destination} via ${node.ip}');
+    if (r == null) {
+      // Unicast into a route that leads nowhere looks exactly like a lamp that does not answer: try the
+      // broadcast the next time (the client retries).
+      if (!broadcast && _ifaces.isNotEmpty) node.viaBroadcast = true;
+      throw RdmTimeoutException('No RDM response from ${request.destination} via ${node.ip}${broadcast ? ' (broadcast)' : ''}');
+    }
     return r.packet!;
   }
 
+  /// What this service saw, for the diagnostics.
+  String report() {
+    final b = StringBuffer('Art-Net: polls sent $pollsSent, poll replies $repliesSeen, nodes ${nodes.length}\n');
+    if (interfaces != null && _ifaces.isEmpty) b.writeln('  no adapter socket open');
+    for (final i in _ifaces.values) {
+      b.writeln('  adapter ${i.address.interfaceName.isEmpty ? '' : '${i.address.interfaceName} '}${i.address.ip} broadcast ${i.address.directedBroadcast}');
+    }
+    for (final e in interfaceErrors.entries) {
+      b.writeln('  adapter ${e.key} unusable: ${e.value}');
+    }
+    for (final n in nodes.values) {
+      final own = n.ownUid;
+      b.writeln('  ${n.ip} "${n.shortName}" ${isLocal(n.ip) ? 'in our subnet' : 'NOT in a subnet of ours'}${n.viaBroadcast ? ', via broadcast' : ''}${own == null ? '' : ', lamp UID $own'}');
+    }
+    return b.toString();
+  }
+
   void dispose() {
+    for (final i in _ifaces.values) {
+      unawaited(i.sub.cancel());
+      i.socket.close();
+    }
+    _ifaces.clear();
     unawaited(_sub.cancel());
     _socket.close();
     unawaited(_replies.close());
@@ -290,6 +459,13 @@ class ArtNetService {
     unawaited(_rdm.close());
     unawaited(_nodesChanged.close());
   }
+}
+
+class _Iface {
+  _Iface(this.address, this.socket, this.sub);
+  final LocalAddress address;
+  final UdpSocket socket;
+  final StreamSubscription<Datagram> sub;
 }
 
 /// RDM over Art-Net for one port of one node.

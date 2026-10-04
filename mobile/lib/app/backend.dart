@@ -117,7 +117,7 @@ class AppBackend extends ChangeNotifier {
   Future<void> _openReal() async {
     network = await LocalNetwork.detect();
     try {
-      artnet = await ArtNetService.open(controllerUid: settings.controllerUid);
+      artnet = await ArtNetService.open(controllerUid: settings.controllerUid, interfaces: _artNetInterfaces);
       artnet!.broadcastTargets.addAll(network.broadcastTargets);
       if (settings.extraBroadcast.isNotEmpty) artnet!.broadcastTargets.add(settings.extraBroadcast);
     } catch (e) {
@@ -149,6 +149,12 @@ class AppBackend extends ChangeNotifier {
     final only = all.where((a) => a.name == picked).toList();
     return only.isEmpty ? all : only;
   }
+
+  /// The adapter addresses Art-Net is sent from: every address of the adapters in use, link-local ones too (lamps on a
+  /// bare cable). The mask is a guess from the address class; it only decides unicast or broadcast.
+  Future<List<LocalAddress>> _artNetInterfaces() async => [
+        for (final a in await _lampAdapters()) LocalAddress(a.ip, LocalNetwork.classfulMask(a.ip), interfaceName: a.name, maskGuessed: true),
+      ];
 
   /// Adapters shown in the picker, whatever is selected.
   Future<List<AdapterInfo>> allAdapters() async => isDemo ? const [AdapterInfo('Demo (Ethernet)', _demoLampsIp)] : (adapterLister ?? listAdapters)();
@@ -213,11 +219,15 @@ class AppBackend extends ChangeNotifier {
     _rebuildTimer = Timer(const Duration(milliseconds: 150), _rebuildNodes);
   }
 
+  /// The lamp route, once the lamp search has used it.
+  LampsTransport? get lampsTransport => _lampsTransport;
+
   /// The lamps on the cable: RDMnet devices found with LLRP, addressed without a node or a broker.
   PortRoute? lampsRoute() {
     final l = llrp;
     if (l == null) return null;
-    return PortRoute(primary: _lampsTransport ??= LampsTransport(l, broker: lampBroker));
+    // In demo mode the Art-Net side is the demo node (the Nodes tab), not lamps on the cable.
+    return PortRoute(primary: _lampsTransport ??= LampsTransport(l, broker: lampBroker, artnet: isDemo ? null : artnet));
   }
 
   /// Polls the network and refreshes the node list (Art-Net nodes and RDMnet gateways).
@@ -228,6 +238,7 @@ class AppBackend extends ChangeNotifier {
     scanning = true;
     error = null;
     notifyListeners();
+    await a.syncInterfaces();
     a.poll();
     final rdmnetDone = _scanRdmnet();
     await Future<void>.delayed(const Duration(milliseconds: 600));

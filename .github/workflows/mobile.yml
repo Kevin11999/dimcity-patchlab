@@ -1,5 +1,5 @@
 # PatchLab RDM (mobile/): analyze + test on every change, then build the Android APKs and the
-# Windows installer and the macOS disk image. The builds are attached to the run (Actions -> run -> Artifacts). Pushes to
+# Windows installer, the macOS disk image and an unsigned iOS app. The builds are attached to the run (Actions -> run -> Artifacts). Pushes to
 # main and manual runs (Actions -> Mobile -> Run workflow) also publish them together as one GitHub
 # *pre-release* "mobile-v<version>-b<run>". A pre-release never counts as "latest", so the desktop
 # app's update check (which reads /releases/latest) is not affected.
@@ -176,9 +176,42 @@ jobs:
             mobile/build/dist/*.dmg
             mobile/build/dist/*.zip
 
+  ios:
+    name: iOS app (unsigned)
+    needs: test
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.6
+          cache: true
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign
+      - name: Pack an unsigned .ipa
+        # Apple only runs signed apps. This one is signed on the phone's side by the tool that installs it
+        # (Sideloadly, AltStore with the owner's Apple ID) or by Xcode with the owner's team.
+        run: |
+          V=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')
+          N=${{ github.run_number }}
+          APP="build/ios/iphoneos/Runner.app"
+          plutil -p "$APP/Info.plist" | grep -E "CFBundle(Short)?Version|CFBundleIdentifier|CFBundleDisplayName|NSLocalNetwork"
+          mkdir -p build/dist-ios/Payload
+          cp -R "$APP" build/dist-ios/Payload/
+          (cd build/dist-ios && zip -qry "PatchLab-RDM-$V-b$N-ios-unsigned.ipa" Payload && rm -rf Payload)
+          ls -la build/dist-ios
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PatchLab-RDM-ios
+          path: mobile/build/dist-ios/*.ipa
+
   publish:
     name: Publish pre-release
-    needs: [android, windows, macos]
+    needs: [android, windows, macos, ios]
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     steps:
@@ -211,6 +244,11 @@ jobs:
             not notarized, so macOS blocks the first start: open *System Settings, Privacy & Security* and press *Open Anyway*
             (or run `xattr -dr com.apple.quarantine "/Applications/PatchLab RDM.app"` in Terminal). Allow *Local Network* when macOS asks.
             If it did not ask or you said no: System Settings, Privacy & Security, Local Network. A `.zip` is attached as well.
+
+            **iPhone / iPad** (iOS 15 or newer): `PatchLab-RDM-*-ios-unsigned.ipa` is **not signed**; Apple only runs signed apps. Install it with
+            Sideloadly or AltStore and your own Apple ID (the app then runs for 7 days), or build it in Xcode with your own team.
+            iOS only lets an app send and receive broadcast / multicast with Apple's *Multicast Networking* entitlement, which Apple
+            grants on request to paid developer accounts: without it finding lamps by broadcast may not work on an iPhone.
 
             **Android** (7.0 or newer): download the `.apk` for the phone (`arm64-v8a` for almost every phone, `armeabi-v7a` for 32-bit),
             open it and allow "install unknown apps" for the browser when asked.

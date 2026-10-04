@@ -73,6 +73,20 @@ class RawUdpSocket implements UdpSocket {
     return r;
   }
 
+  /// A socket bound to the address of one network adapter: what it sends leaves through that adapter with that
+  /// source address (the system would otherwise pick the primary adapter), and it receives what is sent to that
+  /// address. Needed for Art-Net broadcasts on a laptop with several adapters or an alias address.
+  static Future<RawUdpSocket> bindTo(String ip, int port, {bool reusePort = true, bool broadcast = true}) async {
+    final s = await RawDatagramSocket.bind(
+      InternetAddress(ip),
+      port,
+      reuseAddress: true,
+      reusePort: reusePort && !Platform.isWindows,
+    );
+    s.broadcastEnabled = broadcast;
+    return RawUdpSocket._(s);
+  }
+
   /// Factory for the services.
   static Future<UdpSocket> open(int port, {bool reusePort = true, bool broadcast = true, String? localIp}) =>
       bind(port, reusePort: reusePort, broadcast: broadcast);

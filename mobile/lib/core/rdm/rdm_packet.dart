@@ -146,6 +146,13 @@ class RdmPacket {
     }
   }
 
+  /// The RDM part of an ArtRdm packet. Art-Net carries it without the 0xCC start code (so it begins with the sub-start
+  /// code 0x01; length and checksum still count the start code), but some devices leave 0xCC in: accept both.
+  static RdmPacket? tryDecodeArtNet(List<int> bytes) {
+    if (bytes.isEmpty) return null;
+    return tryDecode(bytes, withStartCode: bytes.first == Rdm.startCode && (bytes.length < 2 || bytes[1] != Rdm.startCode));
+  }
+
   RdmPacket copyWith({Uid? destination, Uid? source, int? transactionNumber, int? portIdOrResponseType}) =>
       RdmPacket(
         destination: destination ?? this.destination,

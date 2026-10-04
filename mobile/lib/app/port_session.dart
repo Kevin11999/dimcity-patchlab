@@ -152,13 +152,7 @@ class PortSession extends ChangeNotifier {
       try {
         fixtures.add(await _loadFixture(c, uid));
       } on RdmException catch (e) {
-        // A fixture that stops answering is listed without details.
-        fixtures.add(Fixture(
-          uid: uid,
-          type: _typeFor(uid.manufacturerId, 0, '', ''),
-          info: DeviceInfo(protocolVersion: 0, deviceModelId: 0, productCategory: 0, softwareVersionId: 0, dmxFootprint: 0, currentPersonality: 0, personalityCount: 0, dmxStartAddress: 0, subDeviceCount: 0, sensorCount: 0),
-          label: '',
-        ));
+        // A UID that answers neither DEVICE_INFO nor DMX_START_ADDRESS is not listed: no empty fixture is made up.
         error = e.message;
       }
     }
@@ -185,7 +179,14 @@ class PortSession extends ChangeNotifier {
   }
 
   Future<Fixture> _loadFixture(RdmClient c, Uid uid) async {
-    final info = await c.deviceInfo(uid);
+    final DeviceInfo info;
+    try {
+      info = await c.deviceInfo(uid);
+    } on RdmException {
+      return _fixtureFromAddress(c, uid);
+    } on FormatException {
+      return _fixtureFromAddress(c, uid);
+    }
     final key = FixtureType.keyFor(uid.manufacturerId, info.deviceModelId);
     var type = types[key];
     if (type == null) {
@@ -198,6 +199,26 @@ class PortSession extends ChangeNotifier {
     }
     final label = await c.deviceLabel(uid);
     return Fixture(uid: uid, type: type, info: info, label: label);
+  }
+
+  /// A lamp whose DEVICE_INFO is refused or too short: the start address alone is enough to list it (footprint
+  /// unknown counts as 1 channel). Throws when even that is not answered.
+  Future<Fixture> _fixtureFromAddress(RdmClient c, Uid uid) async {
+    final address = await c.startAddress(uid);
+    final info = DeviceInfo(
+      protocolVersion: 0,
+      deviceModelId: 0,
+      productCategory: 0,
+      softwareVersionId: 0,
+      dmxFootprint: 1,
+      currentPersonality: 0,
+      personalityCount: 0,
+      dmxStartAddress: address,
+      subDeviceCount: 0,
+      sensorCount: 0,
+    );
+    final type = _typeFor(uid.manufacturerId, 0, await c.manufacturerLabel(uid), await c.deviceModelDescription(uid));
+    return Fixture(uid: uid, type: type, info: info, label: await c.deviceLabel(uid));
   }
 
   /// Re-reads address, mode and label of one fixture.

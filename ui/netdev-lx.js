@@ -10,7 +10,7 @@
   const t = (en, nl) => (lang() === 'nl' ? nl : en);
   const I = (n, s) => App.ui.icon(n, s);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-  const LX = { user:'admin', pass:'', https:false, sim:false, withIp:false, saveSlot:'', protocol:'artnet', sw:new Map(), nd:new Map(), simDevs:null, busy:false };
+  const LX = { user:'admin', pass:'', https:false, sim:false, withIp:false, found:null, links:new Map(), ranges:'', discBusy:false, discErr:'', discInfo:'', saveSlot:'', protocol:'artnet', sw:new Map(), nd:new Map(), simDevs:null, busy:false };
   let api = null, simm = null;
   const load = async () => { if(!api){ const b = document.baseURI; api = await import(new URL('./core/luminex-api.js', b).href); simm = await import(new URL('./core/luminex-sim.js', b).href); } };
   const real = () => !!window.app?.luminexHttp && !LX.sim;
@@ -24,6 +24,7 @@
       for(const s of (window.NetSwitches?.list(dc) || [])) if(s.dev?.ip) L.push({ kind:'gigacore', dev:simm.gigacoreSim({ name:`GigaCore ${++k}`, ip:s.dev.ip, ports:Math.max(4, s.rj + s.sfp) }) });
       (App.net.getDimPlan(dc).nodes || []).forEach((n, i) => { if(!n.ip) return; const u = Array.isArray(n.universes) ? n.universes : []; const sim = simm.lumiNodeSim({ short:'LumiNode', long:'factory default', ip:n.ip, outputs:Math.max(4, Math.ceil((u.length || 4) / 4) * 4), universes:Array.from({ length:8 }, (_, j) => j) }); L.push({ kind:'lumi', dev:sim }); });
     }
+    L.push({ kind:'gigacore', dev:simm.gigacoreSim({ name:'GigaCore 12t', ip:'10.90.250.5', ports:12 }) }, { kind:'lumi', dev:simm.lumiNodeSim({ short:'LumiNode 12', long:'factory default', ip:'10.90.250.9', outputs:4 }) });
     return (LX.simDevs = L);
   }
   const simIp = d => (d.kind === 'gigacore' ? d.dev.state.ip.ip_address : d.dev.state.ip.ipaddress);
@@ -207,5 +208,74 @@
     };
     await reload();
   }
-  window.NetLx = { state:LX, switchesHtml, nodesHtml, bind, wantSwitch, wantNode, swList, ndList, readOne, sendOne, transport, openPorts };
+
+  // ---- discover: every Luminex device that answers on the network, and link each to a switch or node of the plan ----
+  const planItems = () => [...swList().map(e => ({ id:`sw:${e.key}`, kind:'sw', e, label:`${t('Switch', 'Switch')} · ${e.s.label} (${e.dc})`, ip:e.s.dev?.ip })), ...ndList().map(e => ({ id:`nd:${e.key}`, kind:'nd', e, label:`${t('Node', 'Node')} · ${e.inst.id || ''} (${e.dc})`, ip:e.inst.ip }))];
+  function autoLink(){
+    const items = planItems(), taken = new Set([...LX.links.values()]);
+    for(const d of LX.found || []){
+      if(LX.links.has(d.ip)) continue;
+      const kind = d.kind === 'gigacore' ? 'sw' : d.kind === 'lumi' || d.kind === 'artnet' ? 'nd' : null; if(!kind) continue;
+      const nm = `${d.name} ${d.longName}`.toLowerCase();
+      const it = items.find(x => x.kind === kind && !taken.has(x.id) && x.ip === d.ip) || items.find(x => x.kind === kind && !taken.has(x.id) && nm.trim() && [x.kind === 'sw' ? x.e.s.label : x.e.inst.id].filter(Boolean).some(v => nm.includes(String(v).toLowerCase())));
+      if(it){ LX.links.set(d.ip, it.id); taken.add(it.id); }
+    }
+    syncLinks();
+  }
+  // a linked device is the address to read from: "Address now" of the plan item
+  function syncLinks(){
+    for(const [ip, id] of LX.links){ const [kind, key] = [id.slice(0, 2), id.slice(3)]; const st = LX[kind].get(key) || {}; if(st.at !== ip){ st.at = ip; st.cur = null; st.plan = null; st.verified = false; st.err = ''; } LX[kind].set(key, st); }
+  }
+  async function discover(){
+    LX.discBusy = true; LX.discErr = ''; LX.discInfo = '';
+    try {
+      let list = [];
+      if(real()){
+        if(!window.app.luminexScan) throw new Error(t('This version of the app cannot scan.', 'Deze versie van de app kan niet scannen.'));
+        const r = await window.app.luminexScan({ ranges:LX.ranges, user:LX.user, pass:LX.pass, https:LX.https }); list = r.devices || [];
+        LX.discInfo = `${r.count} ${t('addresses checked', 'adressen gecontroleerd')} (${r.ranges})`;
+        if(window.app.artnetScan){ try { for(const d of await window.app.artnetScan({ timeoutMs:2000 })) if(!list.some(x => x.ip === d.ip)) list.push({ ip:d.ip, kind:'artnet', name:d.shortName, longName:d.longName, model:'Art-Net', mac:d.mac, auth:false }); } catch {} }
+      } else {
+        await load(); await new Promise(r => setTimeout(r, 600));
+        list = simNet().map(d => { const info = d.kind === 'gigacore' ? d.dev.state.device : d.dev.state.info; return d.kind === 'gigacore' ? { ip:simIp(d), kind:'gigacore', name:info.name, longName:'', model:info.model, auth:false } : { ip:simIp(d), kind:'lumi', name:info.short_name, longName:info.long_name, model:'', auth:false }; });
+        LX.discInfo = t('Simulated network', 'Gesimuleerd netwerk');
+      }
+      LX.found = list.sort((a, b) => a.ip.split('.').reduce((n, o) => n * 256 + +o, 0) - b.ip.split('.').reduce((n, o) => n * 256 + +o, 0));
+      for(const ip of [...LX.links.keys()]) if(!LX.found.some(d => d.ip === ip)) LX.links.delete(ip);
+      autoLink();
+    } catch(x) { LX.discErr = String(x.message || x); }
+    LX.discBusy = false;
+  }
+  function discoverHtml(){
+    const items = planItems(), F = LX.found, linkedIds = new Set([...LX.links.values()]);
+    const kindLabel = d => d.kind === 'gigacore' ? `<span class="tag green">GigaCore</span>` : d.kind === 'lumi' ? `<span class="tag green">LumiNode / LumiCore</span>` : d.kind === 'artnet' ? `<span class="tag">Art-Net</span>` : `<span class="tag yellow">${t('Luminex web API, login needed', 'Luminex-web-API, login nodig')}</span>`;
+    const rows = (F || []).map(d => {
+      const want = d.kind === 'gigacore' ? 'sw' : d.kind === 'unknown' ? null : 'nd', cur = LX.links.get(d.ip) || '';
+      const opts = items.filter(x => (want ? x.kind === want : true) && (x.id === cur || !linkedIds.has(x.id)));
+      const sel = d.kind === 'unknown' ? '<span class="subtle">—</span>' : `<select data-link="${esc(d.ip)}"><option value="">${t('not linked', 'niet gekoppeld')}</option>${opts.map(x => `<option value="${esc(x.id)}" ${x.id === cur ? 'selected' : ''}>${esc(x.label)}${x.ip ? ` · ${esc(x.ip)}` : ''}</option>`).join('')}</select>`;
+      const li = items.find(x => x.id === cur);
+      const act = li ? `<button data-open="${esc(d.ip)}">${li.kind === 'sw' ? t('Open switch', 'Open switch') : t('Open node', 'Open node')}</button>` : '';
+      return `<tr><td><b>${esc(d.ip)}</b></td><td>${kindLabel(d)}</td><td>${esc(d.name || '—')}<div class="subtle" style="font-size:11px">${esc([d.model, d.longName].filter(Boolean).join(' · '))}</div></td><td>${sel}${li && li.ip && li.ip !== d.ip ? `<div class="subtle" style="font-size:11px">${t('plan address', 'adres in plan')}: ${esc(li.ip)}</div>` : ''}</td><td style="text-align:right">${act}</td></tr>`;
+    }).join('');
+    const unlinked = items.filter(x => !linkedIds.has(x.id));
+    return `${common()}<div class="ex-row"><label>${t('Where to look (optional)', 'Waar zoeken (optioneel)')}<input id="lxRanges" value="${esc(LX.ranges)}" placeholder="${t('automatic: the networks of this computer', 'automatisch: de netwerken van deze computer')}" style="width:330px"></label>
+        <button class="primary" id="lxDiscover" ${LX.discBusy ? 'disabled' : ''}>${I('refresh', 14)}${LX.discBusy ? t('Searching…', 'Zoeken…') : F ? t('Discover again', 'Opnieuw ontdekken') : t('Discover devices', 'Apparaten ontdekken')}</button></div>
+      <div class="subtle" style="font-size:12px;margin:2px 0 8px">${t('Examples: 10.90.101.0/24 · 10.90.101.20-60 · 192.168.1.10. Several, separated by spaces.', 'Voorbeelden: 10.90.101.0/24 · 10.90.101.20-60 · 192.168.1.10. Meerdere, gescheiden door spaties.')} ${esc(LX.discInfo)}</div>
+      ${LX.discErr ? `<div class="su-warn">${esc(LX.discErr)}</div>` : ''}
+      ${F ? (F.length ? `<div class="table-wrap" style="max-height:340px;overflow:auto"><table class="data-table"><thead><tr><th>IP</th><th>${t('Type', 'Type')}</th><th>${t('Name on the device', 'Naam op het apparaat')}</th><th>${t('Linked to', 'Gekoppeld aan')}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+        <div class="hint" style="margin-top:8px">${I('info', 13)} ${t(`${F.length} devices found, ${LX.links.size} linked. A link makes that address the “Address now” of the switch or node, so Read, Send and Ports… talk to this device. Devices are linked automatically on IP address, then on name; change it here. ${unlinked.length} items of the plan have no device yet.`, `${F.length} apparaten gevonden, ${LX.links.size} gekoppeld. Een koppeling maakt dat adres het “Adres nu” van de switch of node, zodat Uitlezen, Sturen en Poorten… met dit apparaat praten. Apparaten worden automatisch gekoppeld op IP-adres en daarna op naam; pas het hier aan. ${unlinked.length} onderdelen uit het plan hebben nog geen apparaat.`)}</div>` : `<div class="subtle" style="margin:12px 0">${t('Nothing answered. Check the cable and the address range, and fill in the user name and password if the devices ask for a login.', 'Niets antwoordde. Controleer de kabel en het adresbereik, en vul gebruikersnaam en wachtwoord in als de apparaten om een login vragen.')}</div>`)
+        : `<div class="subtle" style="margin:12px 0">${t('Press Discover to list every Luminex switch and node on the network, then link each one to a switch or node of your plan.', 'Druk op Ontdekken om elke Luminex-switch en -node op het netwerk te tonen en koppel ze dan aan een switch of node uit je plan.')}</div>`}`;
+  }
+  function bindDiscover(root, rerender){
+    const q = s => root.querySelector(s);
+    if(q('#lxUser')) q('#lxUser').onchange = e => { LX.user = e.target.value; };
+    if(q('#lxPass')) q('#lxPass').onchange = e => { LX.pass = e.target.value; };
+    if(q('#lxTls')) q('#lxTls').onchange = e => { LX.https = e.target.checked; };
+    if(q('#lxIp')) q('#lxIp').onchange = e => { LX.withIp = e.target.checked; };
+    if(q('#lxRanges')) q('#lxRanges').onchange = e => { LX.ranges = e.target.value.trim(); };
+    if(q('#lxDiscover')) q('#lxDiscover').onclick = async () => { LX.discBusy = true; rerender(); await discover(); rerender(); };
+    root.querySelectorAll('[data-link]').forEach(sel => sel.onchange = () => { if(sel.value) LX.links.set(sel.dataset.link, sel.value); else LX.links.delete(sel.dataset.link); syncLinks(); rerender(); });
+    root.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { const id = LX.links.get(b.dataset.open); if(!id || !window.NetDev) return; window.NetDev.state.tab = id.startsWith('sw') ? 'switches' : 'lumi'; rerender(); });
+  }
+  window.NetLx = { state:LX, switchesHtml, nodesHtml, discoverHtml, bindDiscover, discover, bind, wantSwitch, wantNode, swList, ndList, readOne, sendOne, transport, openPorts };
 })();

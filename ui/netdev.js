@@ -13,7 +13,7 @@
   const M = () => App.getMODEL();
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const OFFSETS = [[-1, 'PatchLab universe 1 = Art-Net universe 0 (Luminex, most nodes)', 'PatchLab universe 1 = Art-Net universe 0 (Luminex, de meeste nodes)'], [0, 'Same number in both', 'Zelfde nummer in beide']];
-  const S = { devices:[], scanned:false, sim:false, offset:-1, extra:'', match:new Map(), sel:new Set(), withIp:false, busy:false, tab:'nodes', log:[] };
+  const S = { devices:[], scanned:false, sim:false, offset:-1, extra:'', match:new Map(), sel:new Set(), withIp:false, busy:false, tab:'discover', log:[] };
 
   // ---- the nodes of the plan ----
   function planNodes(){
@@ -133,9 +133,11 @@
   function render(){
     if(!D) return;
     const body = D.body, nodes = planNodes();
-    const tabs = `<div class="segmented" id="ndTabs"><button data-t="nodes" class="${S.tab === 'nodes' ? 'active' : ''}">${I('network', 14)}${t('Nodes (Art-Net)', 'Nodes (Art-Net)')}</button><button data-t="lumi" class="${S.tab === 'lumi' ? 'active' : ''}">${I('network', 14)}${t('LumiNode (HTTP)', 'LumiNode (HTTP)')}</button><button data-t="switches" class="${S.tab === 'switches' ? 'active' : ''}">${I('switchDev', 14)}${t('Switches', 'Switches')}</button></div>`;
+    const tabs = `<div class="segmented" id="ndTabs"><button data-t="discover" class="${S.tab === 'discover' ? 'active' : ''}">${I('search', 14)}${t('Discover', 'Ontdekken')}</button><button data-t="nodes" class="${S.tab === 'nodes' ? 'active' : ''}">${I('network', 14)}${t('Nodes (Art-Net)', 'Nodes (Art-Net)')}</button><button data-t="lumi" class="${S.tab === 'lumi' ? 'active' : ''}">${I('network', 14)}${t('LumiNode (HTTP)', 'LumiNode (HTTP)')}</button><button data-t="switches" class="${S.tab === 'switches' ? 'active' : ''}">${I('switchDev', 14)}${t('Switches', 'Switches')}</button></div>`;
     let main = '';
-    if(S.tab === 'nodes'){
+    if(S.tab === 'discover'){
+      main = `<div id="lxPanel">${window.NetLx ? window.NetLx.discoverHtml() : ''}</div>`;
+    } else if(S.tab === 'nodes'){
       const opts = nodes.map(n => `<option value="${esc(n.key)}">${esc(nodeLabel(n))}</option>`).join('');
       const rows = S.devices.map(d => {
         const id = d.mac || d.ip, key = S.match.get(id), n = nodes.find(x => x.key === key), ch = n ? diff(d, n) : [];
@@ -163,7 +165,8 @@
     body.innerHTML = `<div class="ex">${tabs}<div class="ex-box">${main}</div></div>`;
     body.querySelectorAll('#ndTabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); });
     const q = s => body.querySelector(s);
-    if(window.NetLx && q('#lxPanel')) window.NetLx.bind(q('#lxPanel'), S.tab === 'lumi' ? 'nd' : 'sw', () => { const sc = body.querySelector('.table-wrap')?.scrollTop || 0; render(); const w = body.querySelector('.table-wrap'); if(w) w.scrollTop = sc; });
+    if(window.NetLx && q('#lxPanel') && S.tab === 'discover') window.NetLx.bindDiscover(q('#lxPanel'), () => { render(); });
+    else if(window.NetLx && q('#lxPanel')) window.NetLx.bind(q('#lxPanel'), S.tab === 'lumi' ? 'nd' : 'sw', () => { const sc = body.querySelector('.table-wrap')?.scrollTop || 0; render(); const w = body.querySelector('.table-wrap'); if(w) w.scrollTop = sc; });
     if(q('#ndOff')) q('#ndOff').onchange = e => { S.offset = Number(e.target.value); render(); };
     if(q('#ndExtra')) q('#ndExtra').onchange = e => { S.extra = e.target.value; };
     if(q('#ndScan')) q('#ndScan').onclick = scan;

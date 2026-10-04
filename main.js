@@ -331,6 +331,12 @@ ipcMain.handle('artnetApply', async (_evt, job = {}) => {
 ipcMain.handle('netProbe', async (_evt, { ip, ports } = {}) => { const io = await artIo(); if(!/^\d+\.\d+\.\d+\.\d+$/.test(ip || '')) return []; return io.probe(ip, Array.isArray(ports) && ports.length ? ports.slice(0, 6) : [80, 443]); });
 
 // ---- Luminex devices over their documented HTTP API (core/luminex-http.js) ----
+ipcMain.handle('luminexScan', async (_evt, req = {}) => {
+  const lh = await import(new URL('./core/luminex-http.js', import.meta.url).href);
+  const ranges = String(req.ranges || '').trim() || (await lh.localRanges()).join(' ');
+  const ips = lh.expandRanges(ranges, 1024);
+  return { ranges, count: ips.length, devices: await lh.luminexScan({ ips, user: req.user, pass: req.pass, https: !!req.https }) };
+});
 ipcMain.handle('luminexHttp', async (_evt, req) => (await import(new URL('./core/luminex-http.js', import.meta.url).href)).luminexHttp(req));
 
 ipcMain.handle('readTextFile', async (_evt, filePath) => {

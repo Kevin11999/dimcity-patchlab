@@ -655,6 +655,7 @@ async function processRows(rows){
     flow: MODEL.flow || null,           // signaalstroom: eigen namen en posities van blokken
     labels: MODEL.labels || null,       // sticker-instellingen
     setup: MODEL.setup || null,         // stappenplan: overgeslagen stappen
+    power: MODEL.power || null,         // stroom: PD's, voedingen en armaturen uit het blad (eigen onderdeel)
     pdfTemplates: Array.isArray(MODEL.pdfTemplates) ? MODEL.pdfTemplates : [],
     libraryDismissed: Array.isArray(MODEL.libraryDismissed) ? MODEL.libraryDismissed : [],
     dimColors: MODEL.dimColors && typeof MODEL.dimColors === 'object' ? {...MODEL.dimColors} : {},
@@ -1082,6 +1083,7 @@ function renderRight(){
   else if(view === 'NET') window.NetworkPage?.render?.();
   else if(view === 'TASKS') window.Tasks?.render?.();
   else if(view === 'NETCONFIG') window.NetConfig?.render?.();
+  else if(view === 'POWER') window.Power?.render?.();
   else if(view === 'FLOW') window.Flow?.render?.();
   else renderRightHome();
   updateChrome();

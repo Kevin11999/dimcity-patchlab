@@ -33,6 +33,7 @@ Dezelfde handleiding zit in de app: druk op **?** of **F1**, of klik op **Help**
 - [QR codes](#qr)
 - [Exchange with Lightwright and Vectorworks](#exchange)
 - [Network config](#netdev)
+- [Power (PDs and Socapex)](#power)
 - [Align tool](#align)
 - [Fibres](#fibres)
 - [Node names from the CSV](#node-names)
@@ -433,6 +434,24 @@ Every card has a section **All settings**. It lists everything the Luminex API l
 
 Outside the desktop app simulated devices answer so you can try it out.
 
+<a id="power"></a>
+## Power (PDs and Socapex)
+
+The page **Power** is a part of its own: it keeps its data in the project (model.power) and is linked to the rest only by DimCity name. You can try it and check it without touching the patch, the racks or the network plan.
+
+### What it does
+- The **fixture sheet** (CSV from Vectorworks / Lightwright) is the source. Its **Circuit Name** is a Socapex cable (M101 …), **Circuit Number** the circuit 1–6, **Wattage** gives the current (watt ÷ 230 V). The first digit of M101 names the DB (M1xx = DB1). Circuits 1…6 sit on L1 L2 L3 L1 L2 L3.
+- **PD types** (like node types): input (Powerlock / CEE, amps) and outputs (Socapex with 6 circuits, CEE 16–125 A, Schuko). Two examples can be added with one click.
+- **PDs & feeds** per DimCity: add a feed (a Powerlock / CEE run with its maximum current; one feed can loop on from another, then it counts in that one too), add PDs, choose their type and feed. **Fill cables automatically** gives each PD a block of 12 cable numbers (M101–M112, M113–M124 …), packed in order as Soca A, B, C …, or choose a cable per Socapex yourself.
+- **Overview**: per DimCity the PDs and feeds with L1 / L2 / L3 in amps, and warnings: a circuit above 16 A, a feed too heavy or uneven, a cable not on a PD, a PD without a feed, fixtures straight on a DB, fixtures without wattage.
+- **A PD** opens like a page of the booklet: per Socapex the six circuits with the DMX universe, cable-circuit (M101-1), fixture numbers (401 - 406), what hangs there ("6* CLF Lighting Aorun"), the location and the amps on the phase, with totals. The other outlets (CEE, Schuko) get their load typed in by you.
+- **Booklet (PDF)**: cover, per DimCity the overview, a page per PD and the power summary.
+
+### Good to know
+- The DMX column reads “10-Var” for one universe with several addresses, “Var” for several universes, and “1-501” for a single fixture.
+- Fixtures that hang straight on a DB (Circuit Name “DB2”) are listed in the warnings and not counted on a PD.
+- Nothing here is sent to any device; it is paperwork and checks.
+
 <a id="align"></a>
 ## Align tool
 
@@ -811,6 +830,7 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 - [QR-codes](#qr-nl)
 - [Uitwisselen met Lightwright en Vectorworks](#exchange-nl)
 - [Netwerkconfig](#netdev-nl)
+- [Stroom (PD’s en Socapex)](#power-nl)
 - [Uitlijntool](#align-nl)
 - [Fibers](#fibres-nl)
 - [Nodenamen uit de CSV](#node-names-nl)
@@ -1210,6 +1230,24 @@ Elke kaart heeft een onderdeel **Alle instellingen**. Daar staat alles wat de Lu
 **Toepassen…** op een kaart, of **Alles toepassen** bovenaan, stuurt meteen, zonder extra vraag. De aanroepen gebeuren een voor een per apparaat; bij de eerste fout stopt het. Daarna wordt het apparaat opnieuw uitgelezen en vergeleken met wat je vroeg, en een venster toont elke wijziging die is gedaan (wat er per apparaat is gestuurd). Maak eerst je klaargezette wijzigingen ongedaan als je ze niet wilt sturen. Het IP-adres veranderen gebeurt altijd als laatste. Optioneel wordt een switchconfiguratie in een profielslot bewaard (Verbinding). Het werkt op GigaCore generatie 2 en LumiNode / LumiCore; generatie 1-switches vallen erbuiten.
 
 Buiten de desktop-app antwoorden gesimuleerde apparaten zodat je het kunt uitproberen.
+
+<a id="power-nl"></a>
+## Stroom (PD’s en Socapex)
+
+De pagina **Stroom** is een onderdeel op zich: de gegevens staan in het project (model.power) en zijn alleen via de DimCity-naam gekoppeld aan de rest. Je kunt het uitproberen en controleren zonder de patch, de racks of het netwerkplan aan te raken.
+
+### Wat het doet
+- Het **armaturenblad** (CSV uit Vectorworks / Lightwright) is de bron. De **Circuit Name** is een Socapex-kabel (M101 …), **Circuit Number** het circuit 1–6, **Wattage** geeft de stroom (watt ÷ 230 V). Het eerste cijfer van M101 is de DB (M1xx = DB1). Circuit 1…6 zitten op L1 L2 L3 L1 L2 L3.
+- **PD-typen** (zoals node-typen): ingang (Powerlock / CEE, ampère) en uitgangen (Socapex met 6 circuits, CEE 16–125 A, Schuko). Twee voorbeelden voeg je met één klik toe.
+- **PD’s & voedingen** per DimCity: voeg een voeding toe (een Powerlock- of CEE-run met zijn maximale stroom; een voeding kan doorlopen vanaf een andere, dan telt hij daar ook in mee), voeg PD’s toe en kies hun type en voeding. **Kabels automatisch vullen** geeft elke PD een blok van 12 kabelnummers (M101–M112, M113–M124 …), op volgorde als Soca A, B, C …, of kies zelf een kabel per Socapex.
+- **Overzicht**: per DimCity de PD’s en voedingen met L1 / L2 / L3 in ampère, en waarschuwingen: een circuit boven 16 A, een voeding te zwaar of te scheef, een kabel niet op een PD, een PD zonder voeding, armaturen direct op een DB, armaturen zonder wattage.
+- **Een PD** opent als een pagina uit het boekje: per Socapex de zes circuits met DMX-universe, kabel-circuit (M101-1), armatuurnummers (401 - 406), wat er hangt ("6* CLF Lighting Aorun"), de locatie en de ampère op de fase, met totalen. De overige uitgangen (CEE, Schuko) vul je zelf in.
+- **Boekje (PDF)**: voorblad, per DimCity het overzicht, een pagina per PD en de powersamenvatting.
+
+### Goed om te weten
+- De DMX-kolom leest “10-Var” voor één universe met meer adressen, “Var” voor meer universes en “1-501” voor één armatuur.
+- Armaturen die direct aan een DB hangen (Circuit Name “DB2”) staan in de waarschuwingen en tellen niet mee op een PD.
+- Hier wordt niets naar apparaten gestuurd; het is papierwerk en controle.
 
 <a id="align-nl"></a>
 ## Uitlijntool

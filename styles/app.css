@@ -1316,3 +1316,20 @@ body.view-flow .view{width:100%}
 .al-item{min-height:56px;line-height:1.3;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:150px;padding:10px 14px;font-size:14px;font-weight:600}
 .al-item.guess{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
 .al-item .subtle{font-weight:400;font-size:11px}
+
+/* ---- Power section ---- */
+.pw-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.pw-tabs button{padding:7px 14px;border-radius:999px}
+.pw-tabs button.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);font-weight:600}
+.pw-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:8px 2px}
+.pw-sec{margin:6px 0 18px}.pw-sec h3,.pw-dc h3{display:flex;gap:10px;align-items:center;margin:14px 0 8px;font-size:15px}
+.pw-dc{margin:16px 0 22px}.pw-dc .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.pw-t{width:100%;font-variant-numeric:tabular-nums}.pw-t td.pw-n,.pw-t th:nth-last-child(-n+3){text-align:right}
+.pw-n.warn{color:#e6b422;font-weight:600}.pw-n.bad{color:#ff5d5d;font-weight:700}
+.pw-w{display:flex;gap:8px;padding:3px 0;font-size:13px}.pw-w.err{color:#ff7a7a}.pw-w.warn{color:#e6b422}.pw-w.info{color:var(--text-2)}
+.pw-pd{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:8px 0}.pw-pdh{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.pw-slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 12px}.pw-slots label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--text-2)}
+.pw-ty{padding:9px 12px;border:1px solid var(--border);border-radius:8px;margin:6px 0;cursor:pointer;display:flex;gap:12px;align-items:baseline}.pw-ty.on{border-color:var(--accent)}
+.pw-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:6px 0}
+.pw-book td.pw-soca{font-weight:700;text-align:center;border-right:2px solid var(--border);white-space:nowrap}.pw-book tr.pw-first td{border-top:2px solid var(--border)}.pw-book tr.pw-sum td{font-weight:700;background:color-mix(in srgb,var(--text) 6%,transparent)}
+.pw-tot{max-width:420px;margin-left:auto}

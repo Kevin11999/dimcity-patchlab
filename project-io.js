@@ -159,7 +159,8 @@
       libraryDismissed: Array.isArray(M.libraryDismissed) ? M.libraryDismissed : [],
       flow: M.flow && typeof M.flow === 'object' ? M.flow : null,
       labels: M.labels && typeof M.labels === 'object' ? M.labels : null,
-      setup: M.setup && typeof M.setup === 'object' ? M.setup : null
+      setup: M.setup && typeof M.setup === 'object' ? M.setup : null,
+      power: M.power && typeof M.power === 'object' ? M.power : null
     };
   }
 
@@ -231,6 +232,7 @@
     M.flow = snap.flow && typeof snap.flow === 'object' ? snap.flow : null;
     M.labels = snap.labels && typeof snap.labels === 'object' ? snap.labels : null;
     M.setup = snap.setup && typeof snap.setup === 'object' ? snap.setup : null;
+    M.power = snap.power && typeof snap.power === 'object' ? snap.power : null;
 
     if (snap.lkBlockType){
       for (const [id, bt] of Object.entries(snap.lkBlockType)){
@@ -423,6 +425,7 @@
       flow: null,
       labels: null,
       setup: null,
+      power: null,
       issues: [],
       byDim: new Map(),
       byLK: new Map(),

@@ -11,7 +11,7 @@ const COMMANDS = [
   ['Save', 'save', 'save'], ['Save As…', 'saveAs', 'save'], ['Open Project…', 'openProject', 'folder'], ['New Project…', 'newProject', 'filePlus'],
   ['Import CSV…', 'importCsv', 'upload'], ['Imported Files…', 'csvSources', 'file'], ['Edit Patch Rows…', 'editCsv', 'edit'],
   ['Export PDF / Report Builder…', 'exportPdf', 'file'], ['Device Builder…', 'deviceBuilder', 'network'], ['Rack Builder…', 'deviceBuilder', 'rack', 'rack'],
-  ['Nodes & Splitters', 'networkPlanner', 'network'], ['Network', 'network', 'switchDev'], ['Network Config', 'view', 'sliders', 'NETCONFIG'], ['Validation', 'view', 'alert', 'ISSUES'], ['Patch List', 'view', 'table', 'TABLE'],
+  ['Nodes & Splitters', 'networkPlanner', 'network'], ['Network', 'network', 'switchDev'], ['Network Config', 'view', 'sliders', 'NETCONFIG'], ['Power', 'view', 'plug', 'POWER'], ['Validation', 'view', 'alert', 'ISSUES'], ['Patch List', 'view', 'table', 'TABLE'],
   ['Project Overview', 'view', 'home', 'HOME'], ['History…', 'history', 'clock'], ['Undo', 'undo', 'chevronLeft'], ['Redo', 'redo', 'chevronRight'],
   ['Settings…', 'settings', 'sliders'], ['Check for Updates…', 'checkUpdates', 'download'], ['Add LK…', 'addLK', 'plus'], ['Add Veam…', 'addVeam', 'plus'],
   ['Recalculate', 'rebuild', 'refresh'], ['Export Library…', 'libraryExport', 'download'], ['Import Library…', 'libraryImport', 'upload']

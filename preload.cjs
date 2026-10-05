@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('app', {
   artnetApply: (job) => ipcRenderer.invoke('artnetApply', job),
   netProbe: (args) => ipcRenderer.invoke('netProbe', args),
   luminexScan: (req) => ipcRenderer.invoke('luminexScan', req),
+  onLuminexDevice: (cb) => { const h = (_e, d) => cb(d); ipcRenderer.on('luminexScanDevice', h); return () => ipcRenderer.removeListener('luminexScanDevice', h); },
   luminexHttp: (req) => ipcRenderer.invoke('luminexHttp', req),
   showItemInFolder: (filePath) => ipcRenderer.invoke('showItemInFolder', filePath),
   appInfo: () => ipcRenderer.invoke('appInfo'),

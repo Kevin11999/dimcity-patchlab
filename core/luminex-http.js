@@ -51,7 +51,7 @@ export function expandRanges(text, max = 1024){
 // Find LumiNodes / LumiCores and GigaCores. Step 1: which addresses have port 80 open (fast, many at once).
 // Step 2: ask those — GET /api/software/version with a "current" field is a LumiNode / LumiCore, GET /api/device with a model is a GigaCore.
 // A device that asks for a login answers 401: listed as "unknown", login needed. Things with port 80 open that are neither (routers, printers) are left out.
-export async function luminexScan({ ips = [], user, pass, https: useTls, timeoutMs = 1500, tcpMs = 600, concurrency = 400 } = {}){
+export async function luminexScan({ ips = [], user, pass, https: useTls, timeoutMs = 1500, tcpMs = 600, concurrency = 400, onDevice = null } = {}){
   const net = await import('node:net');
   const list = (ips || []).filter(x => /^\d{1,3}(\.\d{1,3}){3}$/.test(x)).slice(0, 65536), open = [];
   let i = 0;
@@ -60,9 +60,8 @@ export async function luminexScan({ ips = [], user, pass, https: useTls, timeout
     const end = ok => { if(done) return; done = true; sock.destroy(); res(ok); };
     sock.setTimeout(tcpMs); sock.on('connect', () => end(true)); sock.on('timeout', () => end(false)); sock.on('error', () => end(false));
   });
-  const w1 = async () => { while(i < list.length){ const ip = list[i++]; if(await probePort(ip)) open.push(ip); } };
-  await Promise.all(Array.from({ length: Math.min(concurrency, list.length || 1) }, w1));
-  const found = []; let k = 0;
+  const found = [];
+  const add = d => { found.push(d); try { onDevice?.(d); } catch {} };
   const one = async ip => {
     const base = { ip, user, pass, https: useTls, timeoutMs };
     let auth = false;
@@ -70,17 +69,18 @@ export async function luminexScan({ ips = [], user, pass, https: useTls, timeout
       const v = await luminexHttp({ ...base, path: '/api/software/version' });
       if(v && typeof v === 'object' && v.current != null){
         let info = {}; try { info = (await luminexHttp({ ...base, path: '/api/deviceinfo' })) || {}; } catch {}
-        return found.push({ ip, kind: 'lumi', name: info.short_name || '', longName: info.long_name || '', model: '', version: String(v.current), auth: false });
+        return add({ ip, kind: 'lumi', name: info.short_name || '', longName: info.long_name || '', model: '', version: String(v.current), auth: false });
       }
     } catch(e) { if(e.status === 401) auth = true; }
     try {
       const d = await luminexHttp({ ...base, path: '/api/device' });
-      if(d && typeof d === 'object' && (d.model != null || d.name != null)) return found.push({ ip, kind: 'gigacore', name: d.name || '', longName: d.description || '', model: d.model || '', mac: d.mac_address || '', version: '', auth: false });
+      if(d && typeof d === 'object' && (d.model != null || d.name != null)) return add({ ip, kind: 'gigacore', name: d.name || '', longName: d.description || '', model: d.model || '', mac: d.mac_address || '', version: '', auth: false });
     } catch(e) { if(e.status === 401) auth = true; }
-    if(auth) found.push({ ip, kind: 'unknown', name: '', longName: '', model: '', version: '', auth: true });
+    if(auth) add({ ip, kind: 'unknown', name: '', longName: '', model: '', version: '', auth: true });
   };
-  const w2 = async () => { while(k < open.length){ const ip = open[k++]; try { await one(ip); } catch {} } };
-  await Promise.all(Array.from({ length: Math.min(32, open.length || 1) }, w2));
+  // a device is identified the moment its port answers (no waiting for the whole sweep), so it can be shown at once
+  const w = async () => { while(i < list.length){ const ip = list[i++]; if(await probePort(ip)){ open.push(ip); try { await one(ip); } catch {} } } };
+  await Promise.all(Array.from({ length: Math.min(concurrency, list.length || 1) }, w));
   const n = a => a.split('.').reduce((x, o) => x * 256 + +o, 0);
   return found.sort((a, b) => n(a.ip) - n(b.ip));
 }

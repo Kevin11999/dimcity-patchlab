@@ -334,8 +334,11 @@ ipcMain.handle('netProbe', async (_evt, { ip, ports } = {}) => { const io = awai
 ipcMain.handle('luminexScan', async (_evt, req = {}) => {
   const lh = await import(new URL('./core/luminex-http.js', import.meta.url).href);
   const ranges = String(req.ranges || '').trim() || (await lh.localRanges()).join(' ');
-  const ips = lh.expandRanges(ranges, 65536);
-  return { ranges, count: ips.length, devices: await lh.luminexScan({ ips, user: req.user, pass: req.pass, https: !!req.https }) };
+  let ips = lh.expandRanges(ranges, 65536);
+  // the /24 around this computer first: the devices on the cable in front of you show up within a second
+  try { const near = new Set((await lh.localRanges()).map(r => r.split('/')[0].split('.').slice(0, 3).join('.'))); ips = [...ips.filter(x => near.has(x.split('.').slice(0, 3).join('.'))), ...ips.filter(x => !near.has(x.split('.').slice(0, 3).join('.')))]; } catch {}
+  // every device is sent to the window as soon as it is found (luminexScanDevice); the end result is the sorted list
+  return { ranges, count: ips.length, devices: await lh.luminexScan({ ips, user: req.user, pass: req.pass, https: !!req.https, onDevice: d => { try { _evt.sender.send('luminexScanDevice', d); } catch {} } }) };
 });
 ipcMain.handle('luminexHttp', async (_evt, req) => (await import(new URL('./core/luminex-http.js', import.meta.url).href)).luminexHttp(req));
 

@@ -46,8 +46,9 @@
   // ---- actions ----
   async function find(){
     A.busy = true; A.err = ''; paint();
+    const iv = setInterval(paint, 300);                 // devices appear one by one while the search runs
     try { await NC().discover(); } catch(x) { A.err = String(x.message || x); }
-    A.busy = false; A.phase = 'find'; paint();
+    clearInterval(iv); A.busy = false; A.phase = 'find'; paint();
   }
   async function link(d, it){
     A.history.push({ ip:d.ip, prev:d.link }); d.link = it.id; d.blinking = false;
@@ -108,7 +109,7 @@
       <label class="nc-chk"><input type="checkbox" id="alIp" ${A.withIp ? 'checked' : ''}> ${t('Also set the IP addresses of the plan (the device moves to its new address; do this when the network is new)', 'Ook de IP-adressen uit het plan instellen (het apparaat gaat naar zijn nieuwe adres; doe dit bij een nieuw netwerk)')}</label>
       <div class="su-row"><button id="alFill" ${A.busy ? 'disabled' : ''}>${t('1 · Fill in from the plan', '1 · Invullen uit het plan')}</button><button class="primary" id="alSend" ${A.filled ? '' : 'disabled'}>${I('upload', 14)}${t('2 · Send config', '2 · Config sturen')}</button></div>
       <table class="data-table"><thead><tr><th>${t('Place in the plan', 'Plek in het plan')}</th><th>${t('Device', 'Apparaat')}</th><th>IP</th><th>${t('To send', 'Te sturen')}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-      <div class="hint" style="margin-top:10px">${I('info', 13)} ${t('“Fill in” puts names, VLANs, ports and universes of the plan on the devices; nothing is sent yet. “Send config” shows every call first and asks you to confirm.', '“Invullen” zet namen, VLAN’s, poorten en universes uit het plan op de apparaten; er wordt nog niets gestuurd. “Config sturen” toont eerst elke aanroep en vraagt om bevestiging.')}</div>`;
+      <div class="hint" style="margin-top:10px">${I('info', 13)} ${t('“Fill in” puts names, VLANs, ports and universes of the plan on the devices; nothing is sent yet. “Send config” sends at once and then shows in a window what was changed.', '“Invullen” zet namen, VLAN’s, poorten en universes uit het plan op de apparaten; er wordt nog niets gestuurd. “Config sturen” stuurt meteen en toont daarna in een venster wat er is aangepast.')}</div>`;
   }
   function paint(){
     if(!R) return;

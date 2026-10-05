@@ -2,7 +2,7 @@
 //   · Discover finds them all at once (HTTP: LumiNode / LumiCore and GigaCore generation 2) and links each to a switch or node of the plan.
 //   · A switch folds open into its ports: pick a VLAN (the brush), click or drag over ports and they get that VLAN. Name, PoE and speed per port.
 //   · A LumiNode folds open into its DMX ports: pick a universe, click a port. Name per port.
-//   · Nothing is sent while you paint. "Apply" shows every call first, sends after you confirm, and reads the device back.
+//   · Nothing is sent while you paint. "Apply" sends at once, reads the device back and then lists what was changed.
 // The logic that compares and builds the calls is core/luminex-api.js; outside the desktop app simulated devices answer (core/luminex-sim.js).
 (function(){
   'use strict';
@@ -161,34 +161,42 @@
       if(it){ d.link = it.id; taken.add(it.id); }
     }
   }
+  // Devices appear one by one, the moment they are found; each is read straight away (4 at a time).
+  let readRun = 0; const readQ = [];
+  function queueRead(d){
+    readQ.push(d);
+    const next = async () => { if(readRun >= 4 || !readQ.length) return; readRun++; const x = readQ.shift(); try { if(x.kind !== 'unknown' && !x.cur) await readDev(x); } catch {} readRun--; paint(); next(); };
+    next();
+  }
+  function addFound(f, old){
+    const prev = old?.get(f.ip) || C.dev.get(f.ip);
+    const d = prev && prev.kind === f.kind ? Object.assign(prev, { name:prev.name || f.name, auth:!!f.auth }) : mk(f);
+    const isNew = !C.dev.has(f.ip); C.dev.set(f.ip, d); C.found = [...C.dev.keys()];
+    autoLink(); paint(); if(isNew || !d.cur) queueRead(d);
+  }
   async function discover(){
-    C.busy = true; C.err = ''; C.info = ''; paint();
+    C.busy = true; C.err = ''; C.info = ''; const old = C.dev; C.dev = new Map(); C.found = []; paint();
+    let off = null;
     try {
-      let list;
       if(real()){
         if(!window.app.luminexScan) throw new Error(t('This version of the app cannot scan.', 'Deze versie van de app kan niet scannen.'));
-        const r = await window.app.luminexScan({ ranges:C.ranges, user:C.user, pass:C.pass, https:C.https }); list = r.devices || [];
+        off = window.app.onLuminexDevice?.(f => addFound(f, old));
+        const r = await window.app.luminexScan({ ranges:C.ranges, user:C.user, pass:C.pass, https:C.https });
+        for(const f of (r.devices || [])) if(!C.dev.has(f.ip)) addFound(f, old);
         C.info = `${r.count} ${t('addresses checked', 'adressen gecontroleerd')} · ${r.ranges}`;
       } else {
-        await load(); await new Promise(r => setTimeout(r, 500));
-        list = simNet().map(x => { const info = x.kind === 'gigacore' ? x.dev.state.device : x.dev.state.info; return x.kind === 'gigacore' ? { ip:simIp(x), kind:'gigacore', name:info.name, model:info.model } : { ip:simIp(x), kind:'lumi', name:info.short_name, longName:info.long_name, version:'v2.9.1' }; });
+        await load();
+        for(const x of simNet()){ await new Promise(r => setTimeout(r, 180)); const info = x.kind === 'gigacore' ? x.dev.state.device : x.dev.state.info; addFound(x.kind === 'gigacore' ? { ip:simIp(x), kind:'gigacore', name:info.name, model:info.model } : { ip:simIp(x), kind:'lumi', name:info.short_name, longName:info.long_name, version:'v2.9.1' }, old); }
         C.info = t('Simulated network', 'Gesimuleerd netwerk');
       }
-      const old = C.dev; C.dev = new Map();
-      for(const f of list){ const prev = old.get(f.ip); C.dev.set(f.ip, prev && prev.kind === f.kind ? Object.assign(prev, { name:prev.name || f.name, auth:!!f.auth }) : mk(f)); }
-      C.found = [...C.dev.keys()]; autoLink();
-      C.busy = false; paint();
-      await pool([...C.dev.values()].filter(d => d.kind !== 'unknown' && !d.cur), 4, async d => { await readDev(d); paint(); });
     } catch(x) { C.err = String(x.message || x); }
+    try { off?.(); } catch {}
     C.busy = false; paint();
+    while(readRun > 0 || readQ.length) await new Promise(r => setTimeout(r, 100));
   }
   async function applyDevs(devs){
     const todo = devs.map(d => ({ d, ...opsOf(d) })).filter(x => x.ops.length);
     if(!todo.length) return;
-    const html = todo.map(({ d, ops }) => `<h4 style="margin:10px 0 4px">${esc(d.name || d.model)} <span class="subtle">${esc(d.ip)}</span></h4><ol>${ops.map(o => `<li>${esc(o.text)}<div class="subtle" style="font-size:11px;font-family:monospace">${esc(o.method)} ${esc(o.path)}</div></li>`).join('')}</ol>${ops.some(o => o.kind === 'ip') ? `<p class="su-warn">${t('The IP address changes last; the device then answers on the new address.', 'Het IP-adres verandert als laatste; het apparaat antwoordt daarna op het nieuwe adres.')}</p>` : ''}`).join('');
-    const ok = await App.ui.confirmDialog({ title:`${t('Send', 'Sturen')} ${todo.reduce((n, x) => n + x.ops.length, 0)} ${t('changes to', 'wijzigingen naar')} ${todo.length} ${t('devices?', 'apparaten?')}`, okLabel:t('Send', 'Sturen'), html:true, width:'600px',
-      message:`<div style="max-height:360px;overflow:auto"><p>${real() ? t('This changes the live configuration of these devices. Check that the show is not running on them.', 'Dit verandert de actieve configuratie van deze apparaten. Controleer dat de show er niet op draait.') : t('Simulated devices — nothing real is changed.', 'Gesimuleerde apparaten — er wordt niets echts veranderd.')}</p>${html}</div>` });
-    if(!ok) return;
     let failed = 0;
     for(const { d, ops } of todo){
       d.busy = true; d.err = ''; paint();
@@ -203,7 +211,15 @@
       d.busy = false; paint();
     }
     window.PatchHistory?.label?.(t('Configuration sent to Luminex devices', 'Configuratie naar Luminex-apparaten gestuurd'));
-    App.ui.toast(failed ? `${failed} ${t('failed', 'mislukt')}` : `${todo.length} ${t('devices configured and checked', 'apparaten ingesteld en gecontroleerd')}`, failed ? 'err' : 'ok');
+    resultDialog(todo, failed);
+  }
+  // what was changed, shown after sending (nothing to confirm beforehand; the list is the record)
+  function resultDialog(todo, failed){
+    const n = todo.reduce((k, x) => k + x.ops.length, 0);
+    const body = `<div style="max-height:420px;overflow:auto">${todo.map(({ d, ops }) => `<h4 style="margin:12px 0 4px">${d.err ? I('alert', 14) : I('check', 14)} ${esc(d.name || d.model)} <span class="subtle">${esc(d.ip)}</span> <span class="subtle">${d.err ? t('failed', 'mislukt') : d.verified ? t('sent and checked', 'gestuurd en gecontroleerd') : t('sent', 'gestuurd')}</span></h4>
+        ${d.err ? `<p class="su-warn">${esc(d.err)}</p>` : ''}<ol>${ops.map(o => `<li>${esc(o.text)}</li>`).join('')}</ol>${ops.some(o => o.kind === 'ip') ? `<p class="subtle">${t('The IP address changed; the device now answers on the new address.', 'Het IP-adres is veranderd; het apparaat antwoordt nu op het nieuwe adres.')}</p>` : ''}`).join('')}</div>`;
+    const dlg = App.ui.openDialog({ title:failed ? `${failed} ${t('of', 'van')} ${todo.length} ${t('devices failed', 'apparaten mislukt')}` : `${n} ${t('changes sent to', 'wijzigingen gestuurd naar')} ${todo.length} ${t('devices', 'apparaten')}`, subtitle:real() ? '' : t('Simulated devices — nothing real was changed.', 'Gesimuleerde apparaten — er is niets echts veranderd.'), width:'620px', body, footer:`<button class="primary" data-a="ok">OK</button>` });
+    dlg.footer.querySelector('[data-a=ok]').onclick = () => dlg.close();
   }
 
 

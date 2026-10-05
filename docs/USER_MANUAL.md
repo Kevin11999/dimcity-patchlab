@@ -429,7 +429,7 @@ Every card has a section **All settings**. It lists everything the Luminex API l
 **Send to other devices…** copies your pending changes, or whole sections of this device, to as many devices of the same kind as you tick. Only the differences are prepared; names, descriptions and addresses go along only if you tick that, risky settings too. Check the result per device or under **Apply all**.
 
 ### Apply
-**Apply…** on a card, or **Apply all** at the top, shows every call per device (method and path) before anything is sent. After you confirm they are made one by one; it stops at the first error. Then the device is read again and checked against what you asked. Changing the IP address always comes last. Optionally a switch configuration is saved in a profile slot (Connection). It works on GigaCore generation 2 and LumiNode / LumiCore; generation 1 switches are not covered.
+**Apply…** on a card, or **Apply all** at the top, sends at once, with no extra question. The calls are made one by one per device; it stops at the first error. Then the device is read again and checked against what you asked, and a window lists every change that was made (what was sent, per device). Undo your pending changes first if you do not want them sent. Changing the IP address always comes last. Optionally a switch configuration is saved in a profile slot (Connection). It works on GigaCore generation 2 and LumiNode / LumiCore; generation 1 switches are not covered.
 
 Outside the desktop app simulated devices answer so you can try it out.
 
@@ -440,7 +440,7 @@ The **Align tool** is for setting up many devices quickly. Open it from the Task
 
 1. **Find** — searches the network (or the range you type) for every LumiNode and GigaCore.
 2. **Align** — the first device **blinks**: a GigaCore blinks its screen and port lights (the identify call of the switch), a LumiNode its LEDs. You stand at the device, see which one it is and press its place in the plan, for example **DB3-SW1**. The link is made and the next device blinks. The suggestion in orange is the first free place, or the one with the same IP address. **Skip** leaves a device alone, **Undo** takes the last link back.
-3. **Send** — **Fill in from the plan** puts names, VLANs, port names and universes on the devices (optionally also the IP address of the plan; the device then moves to its new address, so do that on a new network). **Send config** lists every call and asks for your OK, sends to all linked devices one by one and reads each back.
+3. **Send** — **Fill in from the plan** puts names, VLANs, port names and universes on the devices (optionally also the IP address of the plan; the device then moves to its new address, so do that on a new network). **Send config** sends at once, with no extra question, to all linked devices one by one, reads each back, and then shows a window with every change that was made.
 
 Not done yet: finding devices by IPv6 / MAC address when a new device is on another IP range than your computer. That needs a test on real devices first.
 
@@ -619,6 +619,11 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 
 <a id="whats-new"></a>
 ## What's new
+
+### Version 0.9.2 — 2026-10-05
+- Devices appear one by one while PatchLab searches the network, instead of all at once at the end; each one is read as soon as it is found. The part of the network around this computer is searched first, so the devices in front of you show up within a second. The Align tool shows them one by one too.
+- Apply, Apply all and Send config no longer ask for a confirmation. They send at once, read every device back and then show a window with every change that was made, per device (and the error, if one failed).
+- Videos: "Align the devices and send the configuration" and "Network config" show the new way of sending.
 
 ### Version 0.9.1 — 2026-10-04
 - Videos brought up to date with the new workflow: the series Build a show now has ten parts (new: "9 · Align the devices and send the configuration" and "10 · The PDF and the stickers"), the Network config video shows the current page (V L A N brush, All settings, send to other devices), and the Tasks and Setup video talks about the ten steps.
@@ -1202,7 +1207,7 @@ Elke kaart heeft een onderdeel **Alle instellingen**. Daar staat alles wat de Lu
 **Naar andere apparaten sturen…** kopieert je klaargezette wijzigingen, of hele onderdelen van dit apparaat, naar zoveel apparaten van hetzelfde soort als je aanvinkt. Alleen de verschillen worden klaargezet; namen, beschrijvingen en adressen gaan alleen mee als je dat aanvinkt, risicovolle instellingen ook. Controleer het resultaat per apparaat of onder **Alles toepassen**.
 
 ### Toepassen
-**Toepassen…** op een kaart, of **Alles toepassen** bovenaan, toont per apparaat elke aanroep (methode en pad) voordat er iets gestuurd wordt. Na je bevestiging gebeuren ze een voor een; bij de eerste fout stopt het. Daarna wordt het apparaat opnieuw uitgelezen en vergeleken met wat je vroeg. Het IP-adres veranderen gebeurt altijd als laatste. Optioneel wordt een switchconfiguratie in een profielslot bewaard (Verbinding). Het werkt op GigaCore generatie 2 en LumiNode / LumiCore; generatie 1-switches vallen erbuiten.
+**Toepassen…** op een kaart, of **Alles toepassen** bovenaan, stuurt meteen, zonder extra vraag. De aanroepen gebeuren een voor een per apparaat; bij de eerste fout stopt het. Daarna wordt het apparaat opnieuw uitgelezen en vergeleken met wat je vroeg, en een venster toont elke wijziging die is gedaan (wat er per apparaat is gestuurd). Maak eerst je klaargezette wijzigingen ongedaan als je ze niet wilt sturen. Het IP-adres veranderen gebeurt altijd als laatste. Optioneel wordt een switchconfiguratie in een profielslot bewaard (Verbinding). Het werkt op GigaCore generatie 2 en LumiNode / LumiCore; generatie 1-switches vallen erbuiten.
 
 Buiten de desktop-app antwoorden gesimuleerde apparaten zodat je het kunt uitproberen.
 
@@ -1213,7 +1218,7 @@ De **Uitlijntool** is om snel veel apparaten in te stellen. Open hem via de pagi
 
 1. **Zoeken** — zoekt in het netwerk (of het bereik dat je typt) naar elke LumiNode en GigaCore.
 2. **Uitlijnen** — het eerste apparaat **knippert**: een GigaCore laat scherm en poortlampjes knipperen (de identify-aanroep van de switch), een LumiNode zijn LED’s. Jij staat bij het apparaat, ziet welke het is en drukt op zijn plek in het plan, bijvoorbeeld **DB3-SW1**. De koppeling is gemaakt en het volgende apparaat knippert. Het voorstel in oranje is de eerste vrije plek, of die met hetzelfde IP-adres. **Overslaan** laat een apparaat met rust, **Ongedaan** neemt de laatste koppeling terug.
-3. **Sturen** — **Invullen uit het plan** zet namen, VLAN’s, poortnamen en universes op de apparaten (eventueel ook het IP-adres uit het plan; het apparaat verhuist dan naar zijn nieuwe adres, doe dat dus op een nieuw netwerk). **Config sturen** toont elke aanroep en vraagt om jouw OK, stuurt één voor één naar alle gekoppelde apparaten en leest ze terug.
+3. **Sturen** — **Invullen uit het plan** zet namen, VLAN’s, poortnamen en universes op de apparaten (eventueel ook het IP-adres uit het plan; het apparaat verhuist dan naar zijn nieuwe adres, doe dat dus op een nieuw netwerk). **Config sturen** stuurt meteen, zonder extra vraag, één voor één naar alle gekoppelde apparaten, leest ze terug en toont daarna een venster met elke wijziging die is gedaan.
 
 Nog niet gedaan: apparaten vinden via IPv6 / MAC-adres als een nieuw apparaat op een ander IP-bereik zit dan je computer. Dat moet eerst op echte apparaten getest worden.
 
@@ -1392,6 +1397,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.9.2 — 2026-10-05
+- Apparaten verschijnen één voor één terwijl PatchLab het netwerk doorzoekt, in plaats van allemaal tegelijk aan het eind; elk apparaat wordt uitgelezen zodra het is gevonden. Het deel van het netwerk rond deze computer wordt eerst doorzocht, dus de apparaten voor je neus staan binnen een seconde in beeld. De Uitlijntool toont ze ook één voor één.
+- Toepassen, Alles toepassen en Config sturen vragen niet meer om bevestiging. Ze sturen meteen, lezen elk apparaat terug en tonen daarna een venster met elke wijziging die is gedaan, per apparaat (en de fout, als er een mislukte).
+- Video’s: "De apparaten uitlijnen en de configuratie sturen" en "Netwerkconfig" laten de nieuwe manier van sturen zien.
 
 ### Versie 0.9.1 — 2026-10-04
 - Video’s bijgewerkt voor de nieuwe werkwijze: de serie Een show bouwen heeft nu tien delen (nieuw: "9 · De apparaten uitlijnen en de configuratie sturen" en "10 · De PDF en de stickers"), de video Netwerkconfig toont de huidige pagina (VLAN-kwast, Alle instellingen, naar andere apparaten sturen) en de video Taken en Setup gaat over de tien stappen.

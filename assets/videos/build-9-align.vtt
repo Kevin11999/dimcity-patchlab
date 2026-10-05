@@ -1,33 +1,33 @@
 WEBVTT
 
 1
-00:00:00.813 --> 00:00:11.509
+00:00:01.236 --> 00:00:11.932
 Steps eight and nine: the real devices. Open the Align tool from the Tasks page, or from Setup. Your devices must be switched on and connected to this computer.
 
 2
-00:00:11.814 --> 00:00:17.518
+00:00:12.409 --> 00:00:18.113
 Find searches the network for every Lumi Node and every Giga Core. It takes a few seconds.
 
 3
-00:00:17.817 --> 00:00:27.745
+00:00:18.594 --> 00:00:28.522
 Now align. One device blinks: a Giga Core blinks its screen and port lights, a Lumi Node its LED's. Go to the device that is blinking.
 
 4
-00:00:28.050 --> 00:00:37.487
+00:00:28.829 --> 00:00:38.266
 Press its place in the plan, for example DB one, switch one. The link is made, and the next device starts to blink. Orange is the suggestion.
 
 5
-00:00:37.800 --> 00:00:43.824
+00:00:38.579 --> 00:00:44.603
 You can skip a device, or undo the last link. When every device has its place, go on to send.
 
 6
-00:00:44.130 --> 00:00:52.479
+00:00:44.910 --> 00:00:53.259
 Fill in from the plan puts the names, the VLAN's, the port names and the universes on the devices. Nothing is sent yet.
 
 7
-00:00:52.782 --> 00:01:04.182
-Send config shows every single change for every device, and nothing happens until you confirm. Changing an IP address makes a device move, so do that on a new network.
+00:00:53.568 --> 00:01:02.323
+Send config sends at once, with no extra question. Changing an IP address makes a device move, so do that on a new network.
 
 8
-00:01:04.490 --> 00:01:10.215
-After sending, every device is read back and checked, so you know it really has the new settings.
+00:01:02.636 --> 00:01:11.945
+When it is done, a window lists every change that was made, per device. Every device is read back and checked, so you know it really has the new settings.

@@ -1019,6 +1019,19 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.9.2', date:'2026-10-05',
+    en:[
+      'Devices appear one by one while PatchLab searches the network, instead of all at once at the end; each one is read as soon as it is found. The part of the network around this computer is searched first, so the devices in front of you show up within a second. The Align tool shows them one by one too.',
+      'Apply, Apply all and Send config no longer ask for a confirmation. They send at once, read every device back and then show a window with every change that was made, per device (and the error, if one failed).',
+      'Videos: "Align the devices and send the configuration" and "Network config" show the new way of sending.',
+    ],
+    nl:[
+      'Apparaten verschijnen één voor één terwijl PatchLab het netwerk doorzoekt, in plaats van allemaal tegelijk aan het eind; elk apparaat wordt uitgelezen zodra het is gevonden. Het deel van het netwerk rond deze computer wordt eerst doorzocht, dus de apparaten voor je neus staan binnen een seconde in beeld. De Uitlijntool toont ze ook één voor één.',
+      'Toepassen, Alles toepassen en Config sturen vragen niet meer om bevestiging. Ze sturen meteen, lezen elk apparaat terug en tonen daarna een venster met elke wijziging die is gedaan, per apparaat (en de fout, als er een mislukte).',
+      'Video’s: "De apparaten uitlijnen en de configuratie sturen" en "Netwerkconfig" laten de nieuwe manier van sturen zien.',
+    ]
+  },
+  {
     version:'0.9.1', date:'2026-10-04',
     en:[
       'Videos brought up to date with the new workflow: the series Build a show now has ten parts (new: "9 · Align the devices and send the configuration" and "10 · The PDF and the stickers"), the Network config video shows the current page (V L A N brush, All settings, send to other devices), and the Tasks and Setup video talks about the ten steps.',

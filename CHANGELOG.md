@@ -4,6 +4,24 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.10.0 — 2026-10-05
+
+- New section Power (PDs and Socapex), a part of its own that you can try and check without touching the patch. Load a fixture sheet (CSV with Circuit Name = Socapex cable, Circuit Number = circuit, Wattage) on its own, build PD types like node types (Powerlock / CEE input; Socapex, CEE and Schuko outputs), add feeds (Powerlock runs that can loop on from each other) and PDs per DB, and let PatchLab put the cables on the PDs (blocks of 12 numbers).
+- It works out the amps on L1 / L2 / L3 per circuit, Socapex, PD and feed (circuits 1-6 on L1 L2 L3 L1 L2 L3, watt / 230 V), and warns about a circuit above 16 A, a feed that is too heavy or uneven, cables not on a PD, PDs without a feed and fixtures without wattage. A PD opens like a page of the booklet.
+- Booklet (PDF) for one DB or all DBs, portrait, with a cover, an overview per DB, a page per PD and a power summary.
+- PDF export is now portrait by default (new projects; a project that already chose landscape keeps it).
+- New video "Power: PDs and Socapex"; the PDF and sticker video was made again.
+
+<details><summary>Nederlands</summary>
+
+- Nieuwe sectie Stroom (PD’s en Socapex), een onderdeel op zich dat je kunt uitproberen en controleren zonder de patch aan te raken. Laad los een armaturenblad (CSV met Circuit Name = Socapex-kabel, Circuit Number = circuit, Wattage), bouw PD-typen zoals node-typen (Powerlock- of CEE-ingang; Socapex-, CEE- en Schuko-uitgangen), voeg voedingen (Powerlock-runs die door kunnen lopen) en PD’s per DB toe en laat PatchLab de kabels op de PD’s zetten (blokken van 12 nummers).
+- Het rekent de ampère uit op L1 / L2 / L3 per circuit, Socapex, PD en voeding (circuit 1-6 op L1 L2 L3 L1 L2 L3, watt / 230 V) en waarschuwt bij een circuit boven 16 A, een te zware of scheve voeding, kabels niet op een PD, PD’s zonder voeding en armaturen zonder wattage. Een PD opent als een pagina uit het boekje.
+- Boekje (PDF) voor één DB of alle DB’s, staand, met voorblad, een overzicht per DB, een pagina per PD en een powersamenvatting.
+- PDF-export staat nu standaard staand (nieuwe projecten; een project dat al liggend koos houdt dat).
+- Nieuwe video "Stroom: PD’s en Socapex"; de video over de PDF en de stickers is opnieuw gemaakt.
+
+</details>
+
 ## 0.9.2 — 2026-10-05
 
 - Devices appear one by one while PatchLab searches the network, instead of all at once at the end; each one is read as soon as it is found. The part of the network around this computer is searched first, so the devices in front of you show up within a second. The Align tool shows them one by one too.

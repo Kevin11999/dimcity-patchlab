@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const PLAN_IMAGE = path.join(HERE, 'video-assets', 'stage-plan.png');
+export const POWER_SAMPLE = path.join(HERE, 'video-assets', 'power-sample.csv');
 
 // only the mouse pointer and a ring where it clicks: no captions, no titles in the picture
 export const OVERLAY = `(() => {

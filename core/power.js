@@ -85,7 +85,9 @@ export const socaCount = type => outletsOf(type).filter(o => o.kind === 'soca').
 
 // ---- cable names ----
 export function cableInfo(name){ const m = String(name || '').trim().match(/^M(\d{3,4})$/i); if(!m) return null; const d = m[1]; const n = d.length === 3 ? [Number(d[0]), Number(d.slice(1))] : [Number(d.slice(0, 2)), Number(d.slice(2))]; return { name: 'M' + d, dcNum: n[0], nn: n[1] }; }
-export function dimOfCable(name, dims){ const ci = cableInfo(name); if(!ci) return null; return (dims || []).find(d => Number(String(d).replace(/\D/g, '')) === ci.dcNum) || null; }
+export function dimOfCable(name, dims){ const ci = cableInfo(name); if(!ci) return null; return (dims || []).find(d => Number(String(d).replace(/\D/g, '')) === ci.dcNum) || 'DB' + ci.dcNum; }
+// all DB names the power section knows: the DimCities of the project plus those named by the cables (M4xx → DB4), so a fixture sheet works on its own
+export function allDims(P, appDims = []){ const set = new Set(appDims); for(const f of P.fixtures){ const d = dimOfCable(f.cable, appDims) || directDim(f.cable, appDims); if(d) set.add(d); } for(const x of [...P.pds, ...P.feeds]) if(x.dc) set.add(x.dc); return [...set].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })); }
 export const directDim = (name, dims) => { const m = String(name || '').trim().match(/^DB\s*0*(\d+)$/i); return m ? (dims || []).find(d => Number(String(d).replace(/\D/g, '')) === Number(m[1])) || ('DB' + m[1]) : null; };
 
 // ---- describing what hangs on a circuit (the booklet columns) ----

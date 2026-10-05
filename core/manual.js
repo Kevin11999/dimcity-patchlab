@@ -707,7 +707,7 @@ Buiten de desktop-app antwoorden gesimuleerde apparaten zodat je het kunt uitpro
 - **PDs & feeds** per DimCity: add a feed (a Powerlock / CEE run with its maximum current; one feed can loop on from another, then it counts in that one too), add PDs, choose their type and feed. **Fill cables automatically** gives each PD a block of 12 cable numbers (M101–M112, M113–M124 …), packed in order as Soca A, B, C …, or choose a cable per Socapex yourself.
 - **Overview**: per DimCity the PDs and feeds with L1 / L2 / L3 in amps, and warnings: a circuit above 16 A, a feed too heavy or uneven, a cable not on a PD, a PD without a feed, fixtures straight on a DB, fixtures without wattage.
 - **A PD** opens like a page of the booklet: per Socapex the six circuits with the DMX universe, cable-circuit (M101-1), fixture numbers (401 - 406), what hangs there ("6* CLF Lighting Aorun"), the location and the amps on the phase, with totals. The other outlets (CEE, Schuko) get their load typed in by you.
-- **Booklet (PDF)**: cover, per DimCity the overview, a page per PD and the power summary.
+- **Booklet (PDF)**: a cover, per DB the overview, a page per PD (with the header repeated on every sheet) and the power summary, in portrait. Make it for one DB or for all. It works on its own: the fixture sheet alone is enough, the DBs are taken from the cable names (M4xx → DB4) when the project has no DimCities yet.
 
 ## Good to know
 - The DMX column reads “10-Var” for one universe with several addresses, “Var” for several universes, and “1-501” for a single fixture.
@@ -721,7 +721,7 @@ Buiten de desktop-app antwoorden gesimuleerde apparaten zodat je het kunt uitpro
 - **PD’s & voedingen** per DimCity: voeg een voeding toe (een Powerlock- of CEE-run met zijn maximale stroom; een voeding kan doorlopen vanaf een andere, dan telt hij daar ook in mee), voeg PD’s toe en kies hun type en voeding. **Kabels automatisch vullen** geeft elke PD een blok van 12 kabelnummers (M101–M112, M113–M124 …), op volgorde als Soca A, B, C …, of kies zelf een kabel per Socapex.
 - **Overzicht**: per DimCity de PD’s en voedingen met L1 / L2 / L3 in ampère, en waarschuwingen: een circuit boven 16 A, een voeding te zwaar of te scheef, een kabel niet op een PD, een PD zonder voeding, armaturen direct op een DB, armaturen zonder wattage.
 - **Een PD** opent als een pagina uit het boekje: per Socapex de zes circuits met DMX-universe, kabel-circuit (M101-1), armatuurnummers (401 - 406), wat er hangt ("6* CLF Lighting Aorun"), de locatie en de ampère op de fase, met totalen. De overige uitgangen (CEE, Schuko) vul je zelf in.
-- **Boekje (PDF)**: voorblad, per DimCity het overzicht, een pagina per PD en de powersamenvatting.
+- **Boekje (PDF)**: een voorblad, per DB het overzicht, een pagina per PD (met de kop op elk vel herhaald) en de powersamenvatting, staand. Maak het voor één DB of voor alle. Het werkt op zichzelf: het armaturenblad alleen is genoeg, de DB’s komen uit de kabelnamen (M4xx → DB4) als het project nog geen DimCities heeft.
 
 ## Goed om te weten
 - De DMX-kolom leest “10-Var” voor één universe met meer adressen, “Var” voor meer universes en “1-501” voor één armatuur.
@@ -1050,6 +1050,23 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // Release notes per version, newest first. `npm run manual` turns this into CHANGELOG.md and the
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
+  {
+    version:'0.10.0', date:'2026-10-05',
+    en:[
+      'New section Power (PDs and Socapex), a part of its own that you can try and check without touching the patch. Load a fixture sheet (CSV with Circuit Name = Socapex cable, Circuit Number = circuit, Wattage) on its own, build PD types like node types (Powerlock / CEE input; Socapex, CEE and Schuko outputs), add feeds (Powerlock runs that can loop on from each other) and PDs per DB, and let PatchLab put the cables on the PDs (blocks of 12 numbers).',
+      'It works out the amps on L1 / L2 / L3 per circuit, Socapex, PD and feed (circuits 1-6 on L1 L2 L3 L1 L2 L3, watt / 230 V), and warns about a circuit above 16 A, a feed that is too heavy or uneven, cables not on a PD, PDs without a feed and fixtures without wattage. A PD opens like a page of the booklet.',
+      'Booklet (PDF) for one DB or all DBs, portrait, with a cover, an overview per DB, a page per PD and a power summary.',
+      'PDF export is now portrait by default (new projects; a project that already chose landscape keeps it).',
+      'New video "Power: PDs and Socapex"; the PDF and sticker video was made again.',
+    ],
+    nl:[
+      'Nieuwe sectie Stroom (PD’s en Socapex), een onderdeel op zich dat je kunt uitproberen en controleren zonder de patch aan te raken. Laad los een armaturenblad (CSV met Circuit Name = Socapex-kabel, Circuit Number = circuit, Wattage), bouw PD-typen zoals node-typen (Powerlock- of CEE-ingang; Socapex-, CEE- en Schuko-uitgangen), voeg voedingen (Powerlock-runs die door kunnen lopen) en PD’s per DB toe en laat PatchLab de kabels op de PD’s zetten (blokken van 12 nummers).',
+      'Het rekent de ampère uit op L1 / L2 / L3 per circuit, Socapex, PD en voeding (circuit 1-6 op L1 L2 L3 L1 L2 L3, watt / 230 V) en waarschuwt bij een circuit boven 16 A, een te zware of scheve voeding, kabels niet op een PD, PD’s zonder voeding en armaturen zonder wattage. Een PD opent als een pagina uit het boekje.',
+      'Boekje (PDF) voor één DB of alle DB’s, staand, met voorblad, een overzicht per DB, een pagina per PD en een powersamenvatting.',
+      'PDF-export staat nu standaard staand (nieuwe projecten; een project dat al liggend koos houdt dat).',
+      'Nieuwe video "Stroom: PD’s en Socapex"; de video over de PDF en de stickers is opnieuw gemaakt.',
+    ]
+  },
   {
     version:'0.9.2', date:'2026-10-05',
     en:[

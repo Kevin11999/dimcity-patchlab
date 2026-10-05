@@ -1,29 +1,29 @@
 WEBVTT
 
 1
-00:00:00.797 --> 00:00:12.773
+00:00:01.110 --> 00:00:13.086
 The last step: print and share. Export PDF opens the report builder. Choose the sections: the patch, the racks, the signal flow, the network, the switch ports and the fibre links.
 
 2
-00:00:13.089 --> 00:00:22.868
+00:00:13.523 --> 00:00:23.301
 The QR codes section gives every DB a QR code that holds the whole DB as text, and the first page can carry one for the whole system.
 
 3
-00:00:23.508 --> 00:00:31.047
+00:00:23.830 --> 00:00:31.368
 A live preview shows every page before you export. Then export, and you have the report, ready to print or to send.
 
 4
-00:00:31.353 --> 00:00:40.748
+00:00:31.775 --> 00:00:41.169
 Stickers makes labels for Herma laser sheets: cable labels, panel strips, node ports, devices, switch ports, fibres and network cables.
 
 5
-00:00:41.302 --> 00:00:48.734
+00:00:41.820 --> 00:00:49.252
 Pick the Herma sheet, the DB, and what to print. The preview matches the sheet exactly, so you see what the printer will do.
 
 6
-00:00:49.283 --> 00:01:00.470
+00:00:49.788 --> 00:01:00.974
 Switch on DB info QR, and every DB gets stickers with a QR code that holds everything about that DB. The system QR does the same for the whole show.
 
 7
-00:01:01.158 --> 00:01:10.937
+00:01:01.748 --> 00:01:11.526
 A calibration sheet checks that your printer puts every label where the template says. And that is the whole workflow, from the CSV file to the printed show.

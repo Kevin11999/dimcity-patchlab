@@ -12,9 +12,11 @@
   let PW = null, root = null;
   const U = { tab:'overview', dc:null, pd:null, type:null, msg:'' };
   const load = async () => { if(!PW) PW = await import(new URL('./core/power.js', document.baseURI).href); };
-  const P = () => { const m = M(); m.power = PW.normalizePower(m.power); return m.power; };
+  // normalise once per object (a clone on every call would drop edits made through an older reference)
+  const seen = new WeakSet();
+  const P = () => { const m = M(); if(!m.power || !seen.has(m.power)){ m.power = PW.normalizePower(m.power); seen.add(m.power); } return m.power; };
   const dirty = () => { M().ui.dirty = true; };
-  const dims = () => App.sortedDims();
+  const dims = () => (PW && M() ? PW.allDims(P(), App.sortedDims()) : App.sortedDims());
   const r1 = x => (Math.round(x * 10) / 10).toFixed(1);
   const phaseCells = (a, max) => a.map(x => `<td class="pw-n ${max && x > max ? 'bad' : max && x / max > 0.8 ? 'warn' : ''}">${r1(x)}</td>`).join('');
   const sel = (id, opts, val, extra = '') => `<select ${id} ${extra}>${opts.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(val) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
@@ -26,7 +28,7 @@
     const R = PW.compute(p, ds), n = p.fixtures.length;
     const sc = App.$('#mainScroll'), top = sc ? sc.scrollTop : 0;
     App.pageHead?.({ eyebrow:t('Power', 'Stroom'), title:t('Power distribution', 'Stroomverdeling'), sub:t('PDs, Socapex cables and feeds: what hangs where, and how many amps each phase pulls.', 'PD’s, Socapex-kabels en voedingen: wat waar hangt en hoeveel ampère elke fase trekt.'),
-      actions:`<button id="pwImport">${I('upload', 15)}${t('Import fixture sheet…', 'Armaturenblad importeren…')}</button><button class="primary" id="pwBook" ${p.pds.length ? '' : 'disabled'}>${I('file', 15)}${t('Booklet (PDF)', 'Boekje (PDF)')}</button><input type="file" id="pwFile" accept=".csv,.txt,.tsv" style="display:none">` });
+      actions:`<button id="pwImport">${I('upload', 15)}${t('Import fixture sheet…', 'Armaturenblad importeren…')}</button><button id="pwBookDc" ${p.pds.length && U.dc ? '' : 'disabled'}>${I('file', 15)}${t('Booklet', 'Boekje')} ${esc(U.dc || '')}</button><button class="primary" id="pwBook" ${p.pds.length ? '' : 'disabled'}>${I('file', 15)}${t('Booklet, all DBs (PDF)', 'Boekje, alle DB’s (PDF)')}</button><input type="file" id="pwFile" accept=".csv,.txt,.tsv" style="display:none">` });
     const tabs = [['overview', t('Overview', 'Overzicht')], ['pds', t('PDs & feeds', 'PD’s & voedingen')], ['types', t('PD types', 'PD-typen')]];
     root.innerHTML = `<div class="stack pw">
       <div class="pw-tabs">${tabs.map(([k, l]) => `<button class="${U.tab === k && !U.pd ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}${U.pd ? `<button class="on">${esc(U.pd)}</button>` : ''}</div>
@@ -156,32 +158,56 @@
       const ao = q('#tyAddO'); if(ao) ao.onclick = () => { ty.outputs.push({ kind:'cee', count:1, amps:32, label:'32A', phases:3 }); redo(); };
       const dl = q('#tyDel'); if(dl) dl.onclick = () => { if(p.pds.some(d => d.typeId === ty.id)){ App.ui.toast(t('This type is used by a PD', 'Dit type wordt door een PD gebruikt'), 'err'); return; } p.types = p.types.filter(x => x !== ty); U.type = null; redo(); };
     }
-    const bk = dq('#pwBook'); if(bk) bk.onclick = exportBooklet;
+    const bk = dq('#pwBook'); if(bk) bk.onclick = () => exportBooklet(null);
+    const bd = dq('#pwBookDc'); if(bd) bd.onclick = () => exportBooklet(U.dc);
   }
 
   // ---------- booklet (PDF) ----------
-  function bookletHtml(p, R, ds){
-    const meta = M().projectMeta || {}, title = meta.project || 'Power', css = `@page{size:A4;margin:12mm}body{font:11px Arial,sans-serif;color:#111}h1{font-size:28px;margin:30px 0 4px}h2{font-size:20px;margin:0 0 8px}h3{font-size:14px;margin:14px 0 4px}table{border-collapse:collapse;width:100%;margin:0 0 10px}td,th{border:1px solid #333;padding:2px 5px;text-align:left}td.n{text-align:right}.pg{page-break-after:always}.cv{text-align:center;padding-top:110px}.sum td{font-weight:bold;background:#eee}small{color:#555}.hd{display:flex;justify-content:space-between;border-bottom:2px solid #333;margin-bottom:8px;font-size:12px}`;
-    const n1 = a => a.map(r1).map(x => `<td class="n">${x}</td>`).join('');
-    const pages = [`<div class="pg cv"><h1>${esc(title)}</h1><div>${esc(meta.date || '')}</div><div style="margin-top:40px;font-size:22px">${esc(meta.venue || '')}</div></div>`];
-    for(const dc of ds){
+  const CSS = `@page{size:A4 portrait;margin:14mm 12mm 16mm}*{box-sizing:border-box}body{font:10.5px/1.35 Arial,Helvetica,sans-serif;color:#14213d;margin:0}
+.pg{page-break-after:always}.pg:last-child{page-break-after:auto}
+.cover{text-align:center;padding-top:70mm}.cover h1{font-size:34px;font-weight:400;margin:0 0 6px}.cover .dt{font-size:16px;margin-bottom:60mm}.cover .vn{font-size:26px;margin-bottom:6px}.cover .db{font-size:22px}
+.bar{height:5px;background:#ff6a13;border-radius:3px;margin-bottom:6px}
+.hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}.hd .t{font-size:15px;color:#14213d}.hd .r{font-size:12px;color:#555}
+h2{font-size:24px;font-weight:400;margin:2px 0 10px}h3{font-size:13px;margin:14px 0 5px}
+table{border-collapse:collapse;width:100%;margin:0 0 10px}th,td{border:1px solid #222;padding:2px 5px;text-align:left;vertical-align:middle}
+th{background:#14213d;color:#fff;font-weight:600;font-size:9.5px}th.l1{background:#7a4a1f}th.l2{background:#1b1b1b}th.l3{background:#7d7d7d}
+td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;width:34px}td.bad{background:#ffd7d7;color:#b00020;font-weight:700}td.warn{background:#fff1c9}
+td.sc{font-weight:700;text-align:center;width:46px;border-right:2px solid #222;background:#fff}td.sc small{font-weight:400;color:#555}
+tr.g1 td:not(.sc){background:#f5f7fb}tr.sum td{font-weight:700;background:#e4e8f1;border-top:2px solid #222}tr.top td{border-top:2px solid #222}
+.small td,.small th{font-size:9px}.dim{color:#666}`;
+  function bookletHtml(p, R, ds, opt = {}){
+    const meta = M()?.projectMeta || {}, title = meta.project || (p.source?.name || 'Power').replace(/\.\w+$/, ''), only = opt.only || null;
+    const n1 = (a, max) => a.map(x => `<td class="n ${max && x > max ? 'bad' : max && x / max > 0.8 ? 'warn' : ''}">${x ? r1(x) : (x === 0 ? '0.0' : '')}</td>`).join('');
+    const LH = '<th class="l1">L1</th><th class="l2">L2</th><th class="l3">L3</th>';
+    const head = (right) => `<div class="bar"></div><div class="hd"><span class="t"><b>${esc(title)}</b></span><span class="r">${esc(right)}</span></div>`;
+    const pages = [], list = only ? ds.filter(d => d === only) : ds;
+    pages.push(`<div class="pg cover"><h1>${esc(title)}</h1><div class="dt">${esc(meta.date || '')}</div>${meta.venue ? `<div class="vn">${esc(meta.venue)}</div>` : ''}<div class="db">${only ? esc(only) : t('PD booklet', 'PD-boekje')}</div></div>`);
+    for(const dc of list){
       const pds = p.pds.filter(d => d.dc === dc), feeds = p.feeds.filter(f => f.dc === dc); if(!pds.length && !feeds.length) continue;
-      pages.push(`<div class="pg"><div class="hd"><b>${esc(title)}</b><span>${esc(dc)}</span></div><h2>${esc(dc)}</h2><table><tr><th>PD</th><th>Type</th><th>Feed</th><th>L1</th><th>L2</th><th>L3</th></tr>${pds.map(d => { const r = R.pds.get(d.id); return `<tr><td>${esc(d.id)}</td><td>${esc(r.type?.name || '')}</td><td>${esc(p.feeds.find(f => f.id === d.feedId)?.name || '')}</td>${n1(r.perPhase)}</tr>`; }).join('')}</table>
-        <table><tr><th>Feed</th><th>Type</th><th>Max A</th><th>L1</th><th>L2</th><th>L3</th></tr>${feeds.map(f => `<tr><td>${esc(f.name)}</td><td>${esc(f.kind || '')}</td><td class="n">${f.max || ''}</td>${n1(R.feeds.get(f.id).total)}</tr>`).join('')}</table></div>`);
-      for(const d of pds){ const r = R.pds.get(d.id); if(r.slots.length){ const rows = r.slots.map((s, si) => [1, 2, 3, 4, 5, 6].map(n => { const k = s.data?.circuits.get(n), fx = k?.fixtures || [], ph = k ? k.phase : PW.phaseOf(n); return `<tr>${n === 1 ? `<td rowspan="6"><b>Soca ${s.letter}</b><br><small>${esc(s.cable)}</small></td>` : ''}<td>${si + 1}.${n}</td><td>${esc(PW.dmxLabel(fx))}</td><td>${s.cable ? esc(s.cable) + '-' + n : ''}</td><td>${esc(PW.unitRanges(fx.map(f => f.unit)))}</td><td>${esc(PW.fixturesText(fx))}</td><td>${esc(PW.positionText(fx))}</td>${[1, 2, 3].map(q => `<td class="n">${k && ph === q ? r1(k.amps) : ''}</td>`).join('')}</tr>`; }).join('') + `<tr class="sum"><td colspan="7">Total Soca ${s.letter}</td>${n1(s.perPhase)}</tr>`).join('');
-        pages.push(`<div class="pg"><div class="hd"><b>${esc(title)}</b><span>${esc(d.id)} — ${esc(r.type?.name || '')}</span></div><table><tr><th></th><th>CH</th><th>DMX</th><th>Multi</th><th>Fix nr.</th><th>Fixtures</th><th>Location</th><th>L1</th><th>L2</th><th>L3</th></tr>${rows}<tr class="sum"><td colspan="7">TOTAL</td>${n1(r.perPhase)}</tr></table></div>`); }
-        else pages.push(`<div class="pg"><div class="hd"><b>${esc(title)}</b><span>${esc(d.id)} — ${esc(r.type?.name || '')}</span></div><table><tr><th>Outlet</th><th>Name</th><th>Location</th><th>L1</th><th>L2</th><th>L3</th></tr>${r.manual.map(o => `<tr><td>${esc(o.label)}</td><td>${esc(o.label2)}</td><td>${esc(o.location)}</td>${n1(o.perPhase)}</tr>`).join('')}<tr class="sum"><td colspan="3">TOTAL</td>${n1(r.perPhase)}</tr></table></div>`); }
+      pages.push(`<div class="pg">${head(dc)}<h2>${esc(dc)}</h2>
+        <table><tr><th>PD</th><th>Type</th><th>Feed</th>${LH}</tr>${pds.map(d => { const r = R.pds.get(d.id); return `<tr><td><b>${esc(d.id)}</b></td><td>${esc(r.type?.name || '')}</td><td>${esc(p.feeds.find(f => f.id === d.feedId)?.name || '')}</td>${n1(r.perPhase)}</tr>`; }).join('')}</table>
+        <table><tr><th>Feed</th><th>Type</th><th>Max A</th>${LH}</tr>${feeds.map(f => `<tr><td><b>${esc(f.name)}</b>${f.upstream ? ` <span class="dim">↪ ${esc(p.feeds.find(x => x.id === f.upstream)?.name || '')}</span>` : ''}</td><td>${esc(f.kind || '')}</td><td class="n">${f.max || ''}</td>${n1(R.feeds.get(f.id).total, f.max)}</tr>`).join('')}</table></div>`);
+      for(const d of pds){
+        const r = R.pds.get(d.id), max = p.feeds.find(f => f.id === d.feedId)?.max || 0, sub = `${esc(r.type?.name || '')}`;
+        if(r.slots.length){
+          const rows = r.slots.map((s, si) => [1, 2, 3, 4, 5, 6].map(n => { const k = s.data?.circuits.get(n), fx = k?.fixtures || [], ph = k ? k.phase : PW.phaseOf(n);
+            return `<tr class="${si % 2 ? 'g1' : ''} ${n === 1 ? 'top' : ''}">${n === 1 ? `<td class="sc" rowspan="6">Soca ${s.letter}<br><small>${esc(s.cable)}</small></td>` : ''}<td>${si + 1}.${n}</td><td>${esc(PW.dmxLabel(fx))}</td><td>${s.cable ? esc(s.cable) + '-' + n : ''}</td><td>${esc(PW.unitRanges(fx.map(f => f.unit)))}</td><td>${esc(PW.fixturesText(fx))}</td><td>${esc(PW.positionText(fx))}</td>${[1, 2, 3].map(q => `<td class="n ${k && ph === q && k.amps > p.settings.circuitMax ? 'bad' : ''}">${k && ph === q ? r1(k.amps) : ''}</td>`).join('')}</tr>`; }).join('') + `<tr class="sum"><td colspan="7">Total Soca ${s.letter}</td>${n1(s.perPhase)}</tr>`).join('');
+          pages.push(`<div class="pg small">${head(d.id)}<h2>${esc(d.id)} <span class="dim" style="font-size:13px">${sub}</span></h2><table><thead><tr><th></th><th>CH</th><th>DMX</th><th>Multi</th><th>Fix nr.</th><th>Fixtures</th><th>Location</th>${LH}</tr></thead><tbody>${rows}<tr class="sum"><td colspan="7">TOTAL ${esc(d.id)}</td>${n1(r.perPhase, max)}</tr></tbody></table></div>`);
+        }
+        if(r.manual.length) pages.push(`<div class="pg">${head(d.id)}<h2>${esc(d.id)} <span class="dim" style="font-size:13px">${sub}</span></h2><table><tr><th>Outlet</th><th>Name</th><th>Location</th>${LH}</tr>${r.manual.map(o => `<tr><td><b>${esc(o.label)}</b></td><td>${esc(o.label2)}</td><td>${esc(o.location)}</td>${n1(o.perPhase)}</tr>`).join('')}<tr class="sum"><td colspan="3">TOTAL</td>${n1(r.manual.reduce((a, o) => a.map((x, i) => x + o.perPhase[i]), [0, 0, 0]))}</tr></table></div>`);
+      }
     }
-    pages.push(`<div><div class="hd"><b>${esc(title)}</b><span>Power summary</span></div>${p.feeds.map(f => { const r = R.feeds.get(f.id); return `<h3>${esc(f.name)} <small>${esc(f.dc)} · max ${f.max || '–'} A</small></h3><table><tr><th>PD</th><th>L1</th><th>L2</th><th>L3</th></tr>${p.pds.filter(d => d.feedId === f.id).map(d => `<tr><td>${esc(d.id)}</td>${n1(R.pds.get(d.id).perPhase)}</tr>`).join('')}<tr class="sum"><td>TOTAL</td>${n1(r.total)}</tr></table>`; }).join('')}</div>`);
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css}</style></head><body>${pages.join('')}</body></html>`;
+    const fl = p.feeds.filter(f => !only || f.dc === only);
+    pages.push(`<div class="pg">${head('Power summary')}<h2>Power Summary</h2>${fl.map(f => { const r = R.feeds.get(f.id); return `<h3>${esc(f.name)} <span class="dim">${esc(f.dc)} · max ${f.max || '–'} A</span></h3><table><tr><th>PD</th>${LH}</tr>${p.pds.filter(d => d.feedId === f.id).map(d => `<tr><td>${esc(d.id)}</td>${n1(R.pds.get(d.id).perPhase)}</tr>`).join('')}<tr class="sum"><td>TOTAL</td>${n1(r.total, f.max)}</tr></table>`; }).join('')}</div>`);
+    return { html: `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${CSS}</style></head><body>${pages.join('')}</body></html>`, title };
   }
-  async function exportBooklet(){
-    const p = P(), ds = dims(), R = PW.compute(p, ds), html = bookletHtml(p, R, ds), base = ((M().projectMeta?.project) || 'Power').replace(/[^a-z0-9_-]+/gi, '_');
+  async function exportBooklet(only){
+    const p = P(), ds = dims(), R = PW.compute(p, ds), { html, title } = bookletHtml(p, R, ds, { only }), base = title.replace(/[^a-z0-9_-]+/gi, '_');
     try {
-      if(window.app?.exportPdfFromHtml){ const out = await window.app.exportPdfFromHtml({ html, defaultPath:`${base}-PD-booklet.pdf`, landscape:false, pageSize:'A4', footer:null, brand:null }); if(out) App.ui.toast(`${t('Exported', 'Geëxporteerd')} ${out.split(/[\\/]/).pop()}`, 'ok'); }
+      if(window.app?.exportPdfFromHtml){ const out = await window.app.exportPdfFromHtml({ html, defaultPath:`${base}${only ? '-' + only : ''}-PD-booklet.pdf`, landscape:false, pageSize:'A4', footer:{ left:title, center:only || '', pageNumbers:true }, brand:null }); if(out) App.ui.toast(`${t('Exported', 'Geëxporteerd')} ${out.split(/[\\/]/).pop()}`, 'ok'); }
       else { const w = window.open('', '_blank'); if(w){ w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 400); } }
     } catch(err){ App.ui.toast(`${t('PDF export failed', 'PDF-export mislukt')}: ${err?.message || err}`, 'err', { ms:7000 }); }
   }
 
-  window.Power = { render, state:U, bookletHtml: (...a) => PW && bookletHtml(...a), core: () => PW };
+  window.Power = { render, state:U, bookletHtml: (...a) => bookletHtml(...a), core: () => PW };
 })();

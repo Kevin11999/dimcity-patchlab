@@ -45,7 +45,7 @@
     return {
       version: 2,
       scope: 'ALL', dims: [], output: 'SINGLE',
-      page: { size:'A4', orientation:'landscape', margin:10 },
+      page: { size:'A4', orientation:'portrait', margin:10 },
       style: { accent:'#ff8a1f', font:'helvetica', fontSize:9.5, density:'comfortable', colorUniverses:true, dimBand:true, grayscale:false, lineWeight:'normal' },
       header: { show:true, text:'{project} · {dimcity}' },
       footer: { show:true, left:'{project} · {area}', center:'Prepared by {prepared} · {date}', pageNumbers:true },
@@ -76,7 +76,7 @@
     if(ps?.layout?.version === 2) return mergeLayout(ps.layout);
     const L = defaultLayout();
     if(!ps) return L;
-    L.page.orientation = ps.page === 'portrait' ? 'portrait' : 'landscape';
+    L.page.orientation = ps.page === 'landscape' ? 'landscape' : 'portrait';
     L.output = ps.output === 'PER_DIM' ? 'PER_DIM' : 'SINGLE';
     const map = { incNetwork:'network', incSplitters:'splitters', incPatch:'patch', incWarnings:'warnings', incProject:'summary' };
     for(const [k, sec] of Object.entries(map)) if(k in ps){ const s = L.sections.find(x=>x.key===sec); if(s) s.on = ps[k] !== false; }

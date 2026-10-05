@@ -2,7 +2,7 @@
 // start: 'demo' (the finished demo show) · 'tutorial' (patch imported, nothing built) · 'blank' (empty project)
 import fs from 'fs';
 import path from 'path';
-import { PLAN_IMAGE, doAdvice, doNodes, doSwitches, doFibres, upTo } from './scenes-common.mjs';
+import { PLAN_IMAGE, POWER_SAMPLE, doAdvice, doNodes, doSwitches, doFibres, upTo } from './scenes-common.mjs';
 const EX_FILE = '/tmp/dcpl-lightwright-edit.txt';
 
 export const TOOLS = [
@@ -146,6 +146,17 @@ export const TOOLS = [
     { say: 'All settings lists everything the device lets you change, in sections, with a search box. A column header has an all button to set one value on every row.', do: async k => { await k.click('.nc-card.open [data-setopen]'); await k.wait(1800); await k.hover('.nc-set-chips'); await k.wait(1200); } },
     { say: 'Send to other devices copies your changes, or whole sections, to as many devices of the same kind as you tick. Only the differences are prepared.', do: async k => { await k.click('.nc-card.open [data-setcopy]'); await k.wait(2200); await k.page.keyboard.press('Escape'); await k.wait(600); } },
     { say: 'Apply sends at once. Afterwards the device is read back, and a window lists exactly what was changed.', do: async k => { await k.ev(() => document.querySelector('.nc-card.open [data-apply]')?.scrollIntoView({ block: 'center' })); await k.click('.nc-card.open [data-apply]'); await k.page.waitForSelector('.modal-backdrop [data-a=ok]', { timeout: 30000 }); await k.wait(3000); await k.click('.modal-backdrop [data-a=ok]'); await k.wait(500); } }
+  ] },
+
+  { id: 'tool-power', title: 'Power: P D\'s and Socapex', desc: 'Build your P D\'s, load the fixture sheet, and see the amps on every phase.', start: 'blank', steps: [
+    { say: 'The Power page is a part of its own. It works from the fixture sheet, so you can use it without the rest of the project.', do: async k => { await k.click('[data-view=POWER]'); await k.wait(1500); } },
+    { say: 'Import the fixture sheet, the C S V from Vectorworks or Lightwright. Its circuit name is a Socapex cable, the circuit number is one to six, and the wattage gives the amps.', do: async k => { await k.page.setInputFiles('#pwFile', POWER_SAMPLE); await k.wait(2200); } },
+    { say: 'Under P D types you build your distros, like node types. Choose the input, and add Socapex, C E E and Schuko outputs. Two examples are one click away.', do: async k => { await k.click('[data-tab=types]'); await k.wait(700); await k.click('#tySamples'); await k.wait(900); await k.click('.pw-ty >> nth=0'); await k.wait(1500); } },
+    { say: 'Under P D\'s and feeds, add a feed, a Powerlock run with its maximum current, and add the P D\'s of this D B.', do: async k => { await k.click('[data-tab=pds]'); await k.wait(700); await k.click('#pwAddFeed'); await k.wait(600); await k.click('#pwAddPd'); await k.wait(500); await k.click('#pwAddPd'); await k.wait(900); } },
+    { say: 'Fill cables automatically gives every P D a block of twelve cable numbers, in order, as Soca A, B, C and so on. You can also choose a cable per Socapex yourself.', do: async k => { await k.click('#pwAuto'); await k.wait(2200); } },
+    { say: 'The overview shows every P D and feed with the amps on L one, L two and L three. Yellow and red warn you when a feed gets heavy, or a circuit goes over sixteen amps.', do: async k => { await k.click('[data-tab=overview]'); await k.wait(2500); } },
+    { say: 'Open a P D, and you see it like a page of the booklet. Every Socapex has six circuits, with the D M X, the fixture numbers, what hangs there, the location, and the amps on the phase.', do: async k => { await k.click('[data-pd]'); await k.wait(3500); } },
+    { say: 'Booklet makes the P D F: a cover, the overview per D B, a page per P D, and the power summary.', do: async k => { await k.hover('#pwBook'); await k.wait(2200); } }
   ] },
 
   { id: 'tool-tasks-setup', title: 'Tasks and Setup', desc: 'Always know what is done and what comes next.', start: 'tutorial', steps: [

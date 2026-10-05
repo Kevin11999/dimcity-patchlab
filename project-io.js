@@ -95,7 +95,7 @@
     return {
       ...e,
       preset: e.preset || 'DB_DETAILED',
-      page: e.page || 'landscape',
+      page: e.page || 'portrait',
       incProject: e.incProject ?? true,
       incNetwork: e.incNetwork ?? true,
       incSwitches: e.incSwitches ?? true,

@@ -55,17 +55,30 @@ class Lamp {
 /// A lamp that can be reached more than one way is asked the way that worked last and falls back to the others
 /// when that times out. The caller only sees one list of UIDs.
 class LampsTransport implements RdmTransport {
-  LampsTransport(this.llrp, {this.broker, this.artnet});
+  LampsTransport(this.llrp, {this.broker, this.artnet, this.searchArtNet = true});
 
   final LlrpService llrp;
   final LampBroker? broker;
   final ArtNetService? artnet;
+
+  /// Look for Art-Net lamps with ArtPoll / TOD. Off in demo mode (the demo node belongs to the Nodes tab); lamps added by hand still work.
+  final bool searchArtNet;
 
   /// Every UID a lamp is known by points at the same [Lamp].
   final Map<Uid, Lamp> _byUid = <Uid, Lamp>{};
 
   /// The lamps of the last discovery.
   List<Lamp> lamps = <Lamp>[];
+
+  /// Lamps added by hand (IP and UID): they stay in the list, found by a search or not.
+  final Map<Uid, ArtRoute> manual = <Uid, ArtRoute>{};
+
+  /// Adds a lamp that was found by IP and UID, so that RDM to it works and every search lists it.
+  void addManual(ArtRoute route) {
+    manual[route.uid] = route;
+    final lamp = _remember(Lamp(uid: route.uid, art: route));
+    if (!lamps.contains(lamp)) lamps = [...lamps, lamp];
+  }
 
   /// Art-Net lamps whose address is in none of our subnets (their IPs): the laptop needs an address in their range.
   List<String> outOfSubnet = <String>[];
@@ -94,7 +107,7 @@ class LampsTransport implements RdmTransport {
     if (b != null && b.connected && devices.any((d) => !b.lamps.any((e) => e.cid == d.cid))) {
       await _waitForBroker(b, devices);
     }
-    return _merge(devices, art);
+    return _merge(devices, {...manual, ...art});
   }
 
   /// ArtPoll out of every adapter, then the Table of Devices of every node that answered, plus the UID a node
@@ -104,7 +117,7 @@ class LampsTransport implements RdmTransport {
     final a = artnet;
     final found = <Uid, ArtRoute>{};
     outOfSubnet = <String>[];
-    if (a == null) return found;
+    if (a == null || !searchArtNet) return found;
     try {
       await a.syncInterfaces();
       final started = DateTime.now();

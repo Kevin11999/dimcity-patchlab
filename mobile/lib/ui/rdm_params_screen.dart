@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app/port_session.dart';
 import '../core/rdm/rdm_constants.dart';
@@ -119,13 +118,73 @@ class _RdmParamsScreenState extends State<RdmParamsScreen> {
     }
   }
 
+  /// Everything this screen knows, as text to paste into a message.
+  String _report() {
+    final f = widget.fixture;
+    final b = StringBuffer()
+      ..writeln('UID ${f.uid}')
+      ..writeln('${f.type.manufacturer} ${f.type.model}'.trim())
+      ..writeln('label "${f.label}", DMX address ${f.address}, mode ${f.modeLabel}')
+      ..writeln('supported parameters: ${_standard.map((p) => '${Pid.name(p)} (${_pid(p)})').join(', ')}');
+    for (final p in _own) {
+      final d = p.description;
+      b.writeln('manufacturer ${_pid(p.pid)}: ${d == null ? 'no description' : '"${d.description}" ${d.typeName} ${_access(d)} range ${d.min}..${d.max}'}'
+          ', value ${p.value == null ? '-' : (d?.format(p.value!) ?? p.value!.map((x) => x.toRadixString(16).padLeft(2, '0')).join(' '))}');
+    }
+    return b.toString();
+  }
+
+  /// One GET of any PID, shown raw: to see what a lamp answers.
+  Future<void> _readPid() async {
+    final c = widget.session.client;
+    if (c == null) return;
+    final text = await promptText(context, title: t('params.readpid'), hint: t('params.readpid.hint'));
+    if (text == null) return;
+    final pid = int.tryParse(text.trim().replaceFirst(RegExp(r'^0x', caseSensitive: false), ''), radix: 16);
+    if (pid == null || pid < 1 || pid > 0xFFFF) {
+      if (mounted) showMessage(context, t('params.readpid.invalid'));
+      return;
+    }
+    try {
+      final data = await c.get(widget.fixture.uid, pid);
+      final hex = data.map((x) => x.toRadixString(16).padLeft(2, '0')).join(' ').toUpperCase();
+      final ascii = String.fromCharCodes(data.map((x) => x >= 0x20 && x <= 0x7E ? x : 0x2E));
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('${Pid.name(pid)} (${_pid(pid)})'),
+          content: SelectableText('${data.length} bytes\n$hex\n$ascii', style: const TextStyle(fontFamily: 'monospace')),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('common.ok')))],
+        ),
+      );
+    } on RdmNackException catch (e) {
+      if (mounted) showMessage(context, t('params.readpid.nack', {'r': e.message}));
+    } catch (e) {
+      if (mounted) showMessage(context, describeError(e));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final network = _standard.where((p) => p >= Pid.listInterfaces && p <= Pid.dnsDomainName).toList();
     return Scaffold(
       appBar: AppBar(
         title: Text(t('params.title')),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _loading ? null : _load), const SizedBox(width: 4)],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.copy),
+            tooltip: t('params.copy'),
+            onPressed: _loading
+                ? null
+                : () async {
+                    await Clipboard.setData(ClipboardData(text: _report()));
+                    if (context.mounted) showMessage(context, t('params.copied'));
+                  },
+          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loading ? null : _load),
+          const SizedBox(width: 4),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.only(top: 4, bottom: 24),
@@ -148,6 +207,7 @@ class _RdmParamsScreenState extends State<RdmParamsScreen> {
                 ),
               ),
             if (network.isNotEmpty) NoticeCard(t('params.network', {'names': network.map(Pid.name).join(', ')}), icon: Icons.lan_outlined, iconColor: Pal.amber),
+            Card(child: ListTile(leading: const Icon(Icons.search), title: Text(t('params.readpid')), trailing: const Icon(Icons.chevron_right), onTap: _readPid)),
             SectionTitle(t('params.supported')),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),

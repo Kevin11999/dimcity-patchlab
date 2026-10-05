@@ -23,6 +23,8 @@ class FakeArtLamp {
     this.leaveStartCode = false,
     this.answersArtAddress = true,
     this.answersIpProg = true,
+    this.answersPoll = true,
+    this.strictAddress = false,
   }) : reportedIp = ip;
 
   final MemoryUdpHub hub;
@@ -41,6 +43,12 @@ class FakeArtLamp {
   /// Does it act on ArtAddress / answer ArtIpProg? The ACME manual only has these in the menu.
   final bool answersArtAddress;
   final bool answersIpProg;
+
+  /// Does it answer ArtPoll? (A lamp can be reachable and still stay quiet to polls.)
+  final bool answersPoll;
+
+  /// Answer ArtRdm only on its own port address, like a node that routes RDM by port.
+  final bool strictAddress;
 
   /// Leave the 0xCC start code in the ArtRdm payload of the answers (some devices do).
   final bool leaveStartCode;
@@ -86,6 +94,7 @@ class FakeArtLamp {
     if (op == null) return;
     switch (op) {
       case ArtNet.opPoll:
+        if (!answersPoll) return;
         log.add('poll from ${d.address.address}');
         _broadcast(_pollReply());
       case ArtNet.opTodRequest:
@@ -97,6 +106,7 @@ class FakeArtLamp {
         final art = ArtRdm.decode(d.data);
         final req = art == null ? null : RdmPacket.tryDecodeArtNet(art.rdmBytes);
         if (art == null || req == null || req.destination != fixture.uid) return;
+        if (strictAddress && (art.net != net || art.subUni != ((subnet << 4) | universe))) return;
         final resp = simRespond(fixture, req, log);
         if (resp == null) return;
         _broadcast(ArtRdm(net: art.net, subUni: art.subUni, rdmBytes: resp.encode(withStartCode: leaveStartCode)).encode());

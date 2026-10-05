@@ -96,6 +96,10 @@ goes unicast inside your subnet and by broadcast outside it. Give your laptop an
 Tap a lamp that speaks Art-Net for its **Network** card: the universe (ArtAddress, checked in the lamp's next poll reply) and the
 IP address and subnet mask (ArtIpProg) can be read and set; a lamp that does not support it says so and nothing changes. **Own RDM
 settings** lists what the lamp supports over RDM and its manufacturer settings (PARAMETER_DESCRIPTION), writable ones can be set.
+**Lamp by IP + UID**: when you know a lamp's IP address and UID (from its menu), the chip *Lamp op IP + UID* on the Lamps tab looks it up
+directly, with no search: an ArtPoll to its address, then RDM to its UID on the port address it reports or on Net 0 / Sub-Net 0 /
+Universe 0-15, by unicast inside your subnet and by broadcast outside it. It stays in the list; its **Own RDM settings** screen has
+a *Copy report* button and *Read a PID* (any PID in hex, shown raw).
 When nothing is found, the tab lists what the app saw in plain words (adapters, port 6454, polls sent, packets received) and **Copy diagnostics** copies all of it. See [docs/PROTOCOLS.md](docs/PROTOCOLS.md) section 0a.
 
 For RDMnet lamps it works because they answer **LLRP** (ANSI E1.33): a multicast search that needs nothing configured. Two

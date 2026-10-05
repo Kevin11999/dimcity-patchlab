@@ -10,6 +10,8 @@ import '../net/adapters.dart';
 import '../net/add_address.dart';
 import '../app/port_session.dart';
 import '../app/settings.dart';
+import '../core/uid.dart';
+import '../services/lamp_network.dart';
 import '../app/version.dart';
 import '../l10n/strings.dart';
 import 'fixture_list.dart';
@@ -165,6 +167,11 @@ class _LampsScreenState extends State<LampsScreen> {
               label: Text(t('adapter.chip', {'name': picked.isEmpty ? t('adapter.auto.short') : picked})),
               onPressed: _pickAdapter,
             ),
+            ActionChip(
+              avatar: const Icon(Icons.add_link, size: 18),
+              label: Text(t('direct.chip')),
+              onPressed: _addDirect,
+            ),
             if (_brokerLabel() case final label?)
               Tooltip(
                 message: t('broker.hint'),
@@ -178,6 +185,85 @@ class _LampsScreenState extends State<LampsScreen> {
         ),
       ),
     );
+  }
+
+  /// A lamp by its IP address and UID: no search, RDM goes straight to it.
+  Future<void> _addDirect() async {
+    final ipController = TextEditingController(text: widget.settings.directIp);
+    final uidController = TextEditingController(text: widget.settings.directUid);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t('direct.title')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t('direct.body')),
+            const SizedBox(height: 12),
+            TextField(controller: ipController, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: t('direct.ip'))),
+            TextField(controller: uidController, decoration: InputDecoration(labelText: t('direct.uid'))),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('common.cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(t('direct.go'))),
+        ],
+      ),
+    );
+    final ip = ipController.text.trim(), uidText = uidController.text.trim();
+    Future<void>.delayed(const Duration(milliseconds: 500), () {
+      ipController.dispose();
+      uidController.dispose();
+    });
+    if (ok != true || !mounted) return;
+    final ipBytes = LampNetwork.parseIp(ip), uid = Uid.tryParse(uidText);
+    if (ipBytes == null || uid == null || !LampNetwork.validHost(ipBytes)) {
+      showMessage(context, t('direct.invalid'));
+      return;
+    }
+    widget.settings.rememberDirect(ip, uid.toString());
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        content: Row(children: [const CircularProgressIndicator(), const SizedBox(width: 20), Expanded(child: Text(t('direct.searching', {'ip': ip})))]),
+      ),
+    ));
+    final probe = await widget.backend.addDirectLamp(ip, uid);
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // the progress dialog
+    if (probe == null || !probe.found) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.search_off, color: Pal.red, size: 32),
+          title: Text(t('direct.notfound.title')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t('direct.notfound', {'uid': uid.toString(), 'ip': ip})),
+                const SizedBox(height: 8),
+                if (probe != null) ...[
+                  Text('• ${t(probe.pollReplied ? 'direct.detail.poll.yes' : 'direct.detail.poll.no')}'),
+                  Text('• ${t('direct.detail.tried', {'n': probe.tried})}'),
+                  if (probe.broadcast) Text('• ${t('direct.detail.range', {'ip': ip})}'),
+                ],
+                const SizedBox(height: 8),
+                Text(t('direct.hint')),
+              ],
+            ),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('common.ok')))],
+        ),
+      );
+      return;
+    }
+    final a = probe.address!;
+    showMessage(context, t('direct.found', {'a': '${a.net}.${a.subnet}.${a.universe}'}));
+    await _search();
   }
 
   /// Art-Net lamps on 2.x / 10.x that the laptop has no address for: say so, with the command that adds one.

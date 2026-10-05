@@ -19,6 +19,8 @@ class Settings extends ChangeNotifier {
     s._manualBroker = prefs.getString('manualBroker') ?? '';
     s._extraBroadcast = prefs.getString('extraBroadcast') ?? '';
     s._lampsAdapter = prefs.getString('lampsAdapter') ?? '';
+    s._directIp = prefs.getString('directIp') ?? '';
+    s._directUid = prefs.getString('directUid') ?? '';
     final uid = Uid.tryParse(prefs.getString('controllerUid') ?? '');
     if (uid == null) {
       s._uid = Uid.randomPrototype();
@@ -54,6 +56,8 @@ class Settings extends ChangeNotifier {
   String _manualBroker = '';
   String _extraBroadcast = '';
   String _lampsAdapter = '';
+  String _directIp = '';
+  String _directUid = '';
   late Uid _uid;
   late Cid _cid;
 
@@ -65,6 +69,9 @@ class Settings extends ChangeNotifier {
 
   /// Name of the network adapter the lamp search is limited to; empty = all adapters.
   String get lampsAdapter => _lampsAdapter;
+  /// The lamp added by hand last time (IP and UID), offered again in the dialog.
+  String get directIp => _directIp;
+  String get directUid => _directUid;
   Uid get controllerUid => _uid;
   Cid get cid => _cid;
 
@@ -91,6 +98,13 @@ class Settings extends ChangeNotifier {
     _manualBroker = v.trim();
     _prefs?.setString('manualBroker', _manualBroker);
     notifyListeners();
+  }
+
+  void rememberDirect(String ip, String uid) {
+    _directIp = ip;
+    _directUid = uid;
+    _prefs?.setString('directIp', ip);
+    _prefs?.setString('directUid', uid);
   }
 
   set lampsAdapter(String v) {

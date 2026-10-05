@@ -9,6 +9,8 @@ import '../net/multicast_lock.dart';
 import '../net/network_info.dart';
 import '../net/udp.dart';
 import '../services/artnet_service.dart';
+import '../core/uid.dart';
+import '../services/direct_lamp.dart';
 import '../services/lamp_broker.dart';
 import '../services/lamp_network.dart';
 import '../services/llrp_service.dart';
@@ -228,6 +230,18 @@ class AppBackend extends ChangeNotifier {
   /// Universe and IP settings of lamps that speak Art-Net themselves.
   LampNetwork? get lampNetwork => artnet == null ? null : LampNetwork(artnet!);
 
+  /// Looks up one lamp by its IP address and UID (no search) and, when it answers, adds it to the lamps.
+  Future<DirectProbe?> addDirectLamp(String ip, Uid uid) async {
+    await start();
+    lampsRoute();
+    final a = artnet, t = _lampsTransport;
+    if (a == null || t == null) return null;
+    final probe = await probeDirectLamp(a, ip, uid);
+    final route = probe.route;
+    if (route != null) t.addManual(route);
+    return probe;
+  }
+
   /// The lamp route, once the lamp search has used it.
   LampsTransport? get lampsTransport => _lampsTransport;
 
@@ -236,7 +250,7 @@ class AppBackend extends ChangeNotifier {
     final l = llrp;
     if (l == null) return null;
     // In demo mode the Art-Net side is the demo node (the Nodes tab), not lamps on the cable.
-    return PortRoute(primary: _lampsTransport ??= LampsTransport(l, broker: lampBroker, artnet: isDemo ? null : artnet));
+    return PortRoute(primary: _lampsTransport ??= LampsTransport(l, broker: lampBroker, artnet: artnet, searchArtNet: !isDemo));
   }
 
   /// Polls the network and refreshes the node list (Art-Net nodes and RDMnet gateways).

@@ -37,6 +37,11 @@ The Add address button runs `netsh interface ipv4 add address` through an elevat
 with administrator privileges (macOS); the adapter name is checked before it goes into a command (`lib/net/add_address.dart`; the Windows and macOS
 paths are covered by tests of the command lines only, not run on those systems). On the Lamps tab `lib/app/lamp_diagnosis.dart` turns the
 adapter list, the Art-Net socket state, the polls sent and the datagrams received (`ArtNetService.received`) into plain-language findings.
+**A lamp by IP and UID** (`lib/services/direct_lamp.dart`): `probeDirectLamp` makes a node entry for the IP (`ArtNetService.attachNode`),
+polls it (unicast, or broadcast out of every adapter when the IP is in no subnet of ours), takes the port addresses from its reply
+(`rdmAddresses`) and then Net 0 / Sub-Net 0 / Universe 0 to 15, and sends DEVICE_INFO to the UID in ArtRdm on each until one answers
+(600 ms each). The address that answered goes into the route; `LampsTransport.addManual` keeps the lamp in every later search.
+
 **Universe and IP over the network** (`lib/services/lamp_network.dart`). Neither is an RDM parameter of the lamp (E1.20 has only
 DMX_START_ADDRESS; E1.37-7 ENDPOINT_TO_UNIVERSE is for the DMX ports of a node; E1.37-2 has IPV4_STATIC_ADDRESS 0x0706 and friends,
 which a lamp only has if it lists them in SUPPORTED_PARAMETERS). For a lamp that is an Art-Net node: the universe is **ArtAddress**

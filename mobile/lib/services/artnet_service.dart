@@ -299,6 +299,25 @@ class ArtNetService {
     }
   }
 
+  /// A node entry for [ip] that was never polled (a lamp added by hand with its IP and UID). The lamp's real ArtPollReply
+  /// replaces what is guessed here as soon as one arrives.
+  ArtNetNodeInfo attachNode(String ip, {int port = ArtNet.port}) {
+    final existing = nodes[ip];
+    if (existing != null) return existing;
+    final reply = ArtPollReply.decode(ArtPollReply.encode(
+      ip: ip.split('.').map(int.parse).toList(),
+      shortName: ip,
+      longName: 'added by hand',
+      netSwitch: 0,
+      subSwitch: 0,
+      swOut: const [0],
+      portTypes: const [0x80],
+      numPorts: 1,
+    ))!;
+    final info = ArtNetNodeInfo(reply)..udpPort = port;
+    return nodes[ip] = info;
+  }
+
   /// Makes the adapter sockets match the adapters: a cable plugged in later gets one, an unplugged one loses it.
   /// Call it before [poll]. Without [interfaces] there is nothing to do.
   Future<void> syncInterfaces() async {

@@ -215,7 +215,7 @@
     while(readRun > 0 || readQ.length) await new Promise(r => setTimeout(r, 100));
   }
   // The order matters when addresses change: first everything that is not an address, to every device (they are all still where
-  // they were); then the addresses, one device at a time, each one checked at its new address. A device this computer can no
+  // they were); then the addresses to all devices at the same moment, each one checked at its new address. A device this computer can no
   // longer reach is not a failure: it has its new address, and the result says what to do (add an address to this computer).
   async function applyDevs(devs){
     const todo = devs.map(d => ({ d, ...opsOf(d) })).filter(x => x.ops.length);
@@ -229,19 +229,25 @@
       catch(e) { failed++; x.dead = true; d.err = t(`Stopped after an error: ${e.message || e}. Read the device again to see what was applied.`, `Gestopt door een fout: ${e.message || e}. Lees het apparaat opnieuw uit om te zien wat is toegepast.`); }
       d.busy = false; paint();
     }
-    // 2 · the addresses, one by one
-    for(const x of todo.filter(y => y.ipOps.length && !y.dead)){
-      const { d } = x, old = d.ip; d.busy = true; paint();
+    // 2 · the addresses: to ALL devices at the same moment (so the network never ends up half moved)
+    const movers = todo.filter(y => y.ipOps.length && !y.dead);
+    movers.forEach(x => { x.d.busy = true; }); paint();
+    await Promise.all(movers.map(async x => {
+      const { d } = x, old = d.ip;
       try {
         try { await api.runOps(logged(d), x.ipOps); } catch(e) { if(!/timeout|ECONN|reset|socket|EHOST|closed/i.test(String(e.message || e))) throw e; }   // the device may drop the line while it moves
-        if(x.newIp){ d.ip = x.newIp; if(C.dev.get(old) === d){ C.dev.delete(old); C.dev.set(x.newIp, d); C.found = [...C.dev.keys()]; } }
-        if(real()) await sleep(2500);
-        d.E = new Map(); d.dev = {}; d.S = new Map(); d.tree = null; d.trunkEdit = null; await readDev(d);
-        if(!d.cur){ d.err = ''; d.moved = { from:old, to:d.ip, mask:x.mask }; }
-        x.after = true;
-      } catch(e) { failed++; x.dead = true; d.err = t(`Stopped after an error: ${e.message || e}. Read the device again to see what was applied.`, `Gestopt door een fout: ${e.message || e}. Lees het apparaat opnieuw uit om te zien wat is toegepast.`); }
+        if(x.newIp){ d.ip = x.newIp; if(C.dev.get(old) === d){ C.dev.delete(old); C.dev.set(x.newIp, d); } }
+        x.sent = old;
+      } catch(e) { failed++; x.dead = true; d.err = t(`Stopped after an error: ${e.message || e}. Read the device again to see what was applied.`, `Gestopt door een fout: ${e.message || e}. Lees het apparaat opnieuw uit om te zien wat is toegepast.`); d.busy = false; }
+    }));
+    C.found = [...C.dev.keys()];
+    if(movers.some(x => x.sent) && real()) await sleep(3000);                                  // all of them are moving: give them time
+    await pool(movers.filter(x => x.sent), 8, async x => {
+      const { d } = x;
+      try { d.E = new Map(); d.dev = {}; d.S = new Map(); d.tree = null; d.trunkEdit = null; await readDev(d); if(!d.cur){ d.err = ''; d.moved = { from:x.sent, to:d.ip, mask:x.mask }; } x.after = true; }
+      catch(e) { failed++; x.dead = true; d.err = String(e.message || e); }
       d.busy = false; paint();
-    }
+    });
     // 3 · read every device back and check it (the ones that moved out of reach are skipped)
     for(const x of todo.filter(y => !y.dead && !y.d.moved)){
       const { d } = x; d.busy = true; paint();

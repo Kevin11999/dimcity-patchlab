@@ -697,6 +697,22 @@ Elke kaart heeft een onderdeel **Alle instellingen**. Daar staat alles wat de Lu
 Buiten de desktop-app antwoorden gesimuleerde apparaten zodat je het kunt uitproberen.`
   },
   {
+    id:'racks', icon:'rack', context:['RACKS'],
+    title:{ en:'Racks & DBs', nl:'Racks & DB’s' },
+    en:`The page **Racks & DBs** (left menu, under Patch List) is the place where the DBs of the show and their racks are made.
+
+- **New DB** (and **FOH**) add a DB, also called a DimCity. A DB also appears by itself when you import a patch: it follows from the LK and Veam numbers.
+- **Rack Builder** opens the builder where you make **rack types**: choose the devices (dimmer rack, node rack, splitters …) and their height. A rack type is made once and placed in as many DBs as you like.
+- Pick a DB with its chip. For that DB you see **Place rack** (choose a type), **Custom rack…** (a rack of your own, without an article key), the advice for the best setup, **Loose devices** (a loose node, LK spider or Veam4 spider) and **Use as network plan**, which turns the racks into the nodes and splitters of the network plan.
+- PatchLab then patches every LK and Veam onto a socket of the racks and a port of a node. The same card is on the page of a DimCity; this page is only the front door.`,
+    nl:`De pagina **Racks & DB’s** (linkermenu, onder Patchlijst) is de plek waar de DB’s van de show en hun racks worden gemaakt.
+
+- **Nieuwe DB** (en **FOH**) voegen een DB toe, ook wel DimCity. Een DB verschijnt ook vanzelf als je een patch importeert: hij volgt uit de LK- en Veam-nummers.
+- **Rack Builder** opent de bouwer waar je **racktypen** maakt: kies de apparaten (dimmerrack, noderack, splitters …) en de hoogte. Een racktype maak je één keer en plaats je in zoveel DB’s als je wilt.
+- Kies een DB met zijn chip. Voor die DB zie je **Rack plaatsen** (kies een type), **Eigen rack…** (een rack van jezelf, zonder artikelsleutel), het advies voor de beste setup, **Losse apparaten** (een losse node, LK-spin of Veam4-spin) en **Gebruik als netwerkplan**, dat van de racks de nodes en splitters van het netwerkplan maakt.
+- PatchLab patcht daarna elke LK en Veam op een aansluiting van de racks en een poort van een node. Dezelfde kaart staat op de pagina van een DimCity; deze pagina is alleen de voordeur.`
+  },
+  {
     id:'power', icon:'plug', context:['POWER'],
     title:{ en:'Power (PDs and Socapex)', nl:'Stroom (PD’s en Socapex)' },
     en:`The page **Power** is a part of its own: it keeps its data in the project (model.power) and is linked to the rest only by DimCity name. You can try it and check it without touching the patch, the racks or the network plan.
@@ -1050,6 +1066,23 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // Release notes per version, newest first. `npm run manual` turns this into CHANGELOG.md and the
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
+  {
+    version:'0.11.0', date:'2026-10-06',
+    en:[
+      'New page Racks & DBs in the menu: the place where DBs are made and where the racks go in them. Add a DB or FOH, open the Rack Builder to make rack types, pick a DB and place racks, a custom rack or loose devices; the same planning as on a DimCity page, but always one click away.',
+      'New film "DimCity PatchLab — a first look": two minutes, no step by step, a quick tour of the whole app (patch, racks, network, signal flow, power, going live with the Align tool, paperwork) in 2560x1440 with a soft music bed. Find it in Help, under Videos.',
+      'Sending to the devices: first everything except the IP addresses goes to all devices, then the addresses go to all devices at the same moment, and each device is checked at its new address. A device this computer can no longer reach is marked as moved instead of failed; the button "Add address to this computer" gives the computer an address in that range (the system asks permission). The Align tool warns about it before sending.',
+      'Finding devices: the part of the network around this computer is searched first, for every address the computer has, so a computer with two addresses in two ranges finds the devices in both. The search list was cut off after 65,536 addresses; that limit is gone.',
+      'The Align tool puts devices that the plan has no place for at the end of the queue, and the video shows a node being aligned too.',
+    ],
+    nl:[
+      'Nieuwe pagina Racks & DB’s in het menu: de plek waar DB’s worden gemaakt en waar de racks erin komen. Voeg een DB of FOH toe, open de Rack Builder om racktypen te maken, kies een DB en plaats racks, een eigen rack of losse apparaten; dezelfde planning als op de pagina van een DimCity, maar altijd één klik weg.',
+      'Nieuwe film "DimCity PatchLab — een eerste blik": twee minuten, niet stap voor stap, een snelle rondgang door de hele app (patch, racks, netwerk, signaalstroom, stroom, live gaan met de Uitlijntool, papierwerk) in 2560x1440 met een zachte muziekbed. Te vinden in Help, onder Video’s.',
+      'Sturen naar de apparaten: eerst gaat alles behalve de IP-adressen naar alle apparaten, daarna gaan de adressen op hetzelfde moment naar alle apparaten en wordt elk apparaat op zijn nieuwe adres gecontroleerd. Een apparaat dat deze computer niet meer bereikt, staat als verhuisd in plaats van mislukt; de knop "Adres toevoegen aan deze computer" geeft de computer een adres in dat bereik (het systeem vraagt toestemming). De Uitlijntool waarschuwt daarvoor vóór het sturen.',
+      'Apparaten vinden: het deel van het netwerk rond deze computer wordt eerst doorzocht, voor elk adres dat de computer heeft, zodat een computer met twee adressen in twee bereiken de apparaten in beide vindt. De zoeklijst werd afgekapt na 65.536 adressen; die grens is weg.',
+      'De Uitlijntool zet apparaten waar het plan geen plek voor heeft achteraan de rij, en de video laat ook een node uitlijnen zien.',
+    ]
+  },
   {
     version:'0.10.0', date:'2026-10-05',
     en:[

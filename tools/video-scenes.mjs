@@ -4,8 +4,10 @@
 import { OVERLAY } from './scenes-common.mjs';
 import { BUILD } from './scenes-build.mjs';
 import { TOOLS } from './scenes-tools.mjs';
+import { PROMO } from './scenes-promo.mjs';
 export { OVERLAY };
 export const SERIES = [
+  { id: 'promo', title: 'First look', parts: [PROMO] },
   { id: 'build', title: 'Build a show, step by step', parts: BUILD },
   { id: 'tools', title: 'Tool guides', parts: TOOLS }
 ];

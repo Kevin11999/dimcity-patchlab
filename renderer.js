@@ -1084,6 +1084,7 @@ function renderRight(){
   else if(view === 'TASKS') window.Tasks?.render?.();
   else if(view === 'NETCONFIG') window.NetConfig?.render?.();
   else if(view === 'POWER') window.Power?.render?.();
+  else if(view === 'RACKS') window.RacksPage?.render?.();
   else if(view === 'FLOW') window.Flow?.render?.();
   else renderRightHome();
   updateChrome();

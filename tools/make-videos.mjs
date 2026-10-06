@@ -43,7 +43,8 @@ const dur = f => CHECK ? 0.2 : Number(execFileSync('ffprobe', ['-v', 'error', '-
 async function record(part){
   const dir = path.join(TMP, part.id); fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
   const browser = await chromium.launch();
-  const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: DSF });
+  const dsf = part.hq ? 2560 / VW : DSF, ow = part.hq ? 2560 : OW, oh = part.hq ? 1440 : OH;      // the first-look film is recorded at 2560x1440
+  const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: dsf });
   await ctx.addInitScript(OVERLAY);
   const page = await ctx.newPage();
   page.on('pageerror', e => console.log('  PAGEERROR', e.message));
@@ -73,7 +74,7 @@ async function record(part){
     frames.push(f.metadata.timestamp);
     try { await cdp.send('Page.screencastFrameAck', { sessionId: f.sessionId }); } catch {}
   });
-  await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 90, maxWidth: Math.round(VW * DSF), maxHeight: Math.round(VH * DSF), everyNthFrame: 1 });
+  await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 90, maxWidth: Math.round(VW * dsf), maxHeight: Math.round(VH * dsf), everyNthFrame: 1 });
   while(!frames.length) await sleep(50);
   const t0 = frames[0];
   const audio = [];
@@ -94,12 +95,17 @@ async function record(part){
   list.push(`file 'f${String(frames.length - 1).padStart(5, '0')}.jpg'`);
   fs.writeFileSync(path.join(dir, 'list.txt'), list.join('\n'));
   const inputs = audio.flatMap(a => ['-i', a.wav]);
-  const filt = audio.map((a, i) => `[${i + 1}:a]adelay=${Math.round(a.at * 1000)}:all=1[a${i}]`).join(';') + `;${audio.map((_, i) => `[a${i}]`).join('')}amix=inputs=${audio.length}:normalize=0[aout]`;
+  const music = part.music && fs.existsSync(part.music) ? part.music : null;
+  if(music) inputs.push('-i', music);
+  const nA = audio.length, total = (tEnd - t0) + 1;
+  const voice = audio.map((a, i) => `[${i + 1}:a]adelay=${Math.round(a.at * 1000)}:all=1[a${i}]`).join(';') + `;${audio.map((_, i) => `[a${i}]`).join('')}amix=inputs=${nA}:normalize=0[voice]`;
+  const filt = music ? `${voice};[${nA + 1}:a]volume=0.2,atrim=0:${total.toFixed(1)},afade=t=in:d=2,afade=t=out:st=${Math.max(0, total - 4).toFixed(1)}:d=4[mus];[voice][mus]amix=inputs=2:normalize=0:duration=first[aout]` : `${voice.replace('[voice]', '[aout]')}`;
   const outFile = path.join(OUT, `${part.id}.webm`);
+  const hqv = part.hq ? ['-crf', '23', '-b:v', '0', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '2'] : ['-crf', '35', '-b:v', '0', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '3'];
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', path.join(dir, 'list.txt'), ...inputs,
     '-filter_complex', filt, '-map', '0:v', '-map', '[aout]',
-    '-vf', `fps=25,scale=${OW}:${OH}:flags=lanczos`, '-c:v', 'libvpx-vp9', '-crf', '35', '-b:v', '0', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '3',
-    '-c:a', 'libopus', '-b:a', '56k', '-shortest', outFile], { stdio: 'inherit' });
+    '-vf', `fps=${part.hq ? 30 : 25},scale=${ow}:${oh}:flags=lanczos`, '-c:v', 'libvpx-vp9', ...hqv,
+    '-c:a', 'libopus', '-b:a', part.hq ? '128k' : '56k', '-shortest', outFile], { stdio: 'inherit' });
   // subtitles as a separate track (WebVTT)
   const ts = x => { const h = Math.floor(x / 3600), m = Math.floor(x % 3600 / 60), sec = (x % 60).toFixed(3).padStart(6, '0'); return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${sec}`; };
   fs.writeFileSync(path.join(OUT, `${part.id}.vtt`), 'WEBVTT\n\n' + audio.map((a, i) => `${i + 1}\n${ts(a.at)} --> ${ts(a.at + a.dur + 0.2)}\n${a.text}\n`).join('\n'));

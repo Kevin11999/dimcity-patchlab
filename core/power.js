@@ -69,13 +69,16 @@ export const SAMPLE_TYPES = [
   { id: 'PDT:soca12', name: 'PSU Powerlock → 12x Soca + 12x Sch/CEE + 32/63A', input: { kind: 'Powerlock', amps: 250 }, outputs: [{ kind: 'soca', count: 12, amps: 16 }, { kind: 'cee', count: 12, amps: 16, label: 'Schuko/CEE' }, { kind: 'cee', count: 1, amps: 32, label: '32A', phases: 3 }, { kind: 'cee', count: 1, amps: 63, label: '63A', phases: 3 }] },
   { id: 'PDT:pd400', name: 'PD400 → 3x 125/63/32 + 3x Schuko', input: { kind: 'Powerlock', amps: 400 }, outputs: [{ kind: 'cee', count: 3, amps: 125, label: '125A', phases: 3 }, { kind: 'cee', count: 3, amps: 63, label: '63A', phases: 3 }, { kind: 'cee', count: 3, amps: 32, label: '32A', phases: 3 }, { kind: 'schuko', count: 3, amps: 16, label: 'Schuko' }] }
 ];
+export const EXTRA_TYPES = [
+  { id: 'PDT:han8', name: 'PSU Powerlock → 8x Han 16 (8 ch) + Schuko', input: { kind: 'Powerlock', amps: 250 }, outputs: [{ kind: 'soca', conn: 'Han 16', circuits: 8, count: 4, amps: 16, bayAmps: 80, start: 0 }, { kind: 'soca', conn: 'Han 16', circuits: 8, count: 4, amps: 16, bayAmps: 80, start: 2 }, { kind: 'schuko', count: 2, amps: 16, label: 'Schuko' }] }
+];
 // the outlets of a PD type, in order: Socapex cables first (A, B, C …), then the other outlets with a running number
 export function outletsOf(type){
   const out = []; let soca = 0;
   for(const o of type?.outputs || []){
     const n = Math.max(0, Number(o.count) || 0);
     for(let i = 0; i < n; i++){
-      if(o.kind === 'soca'){ out.push({ key: 'S' + LETTERS[soca], kind: 'soca', label: 'Soca ' + LETTERS[soca], amps: num(o.amps) || 16, group: o.group || '' }); soca++; }
+      if(o.kind === 'soca'){ const conn = o.conn || 'Socapex', short = conn === 'Socapex' ? 'Soca' : conn === 'Han 16' ? 'Han' : 'Harting'; out.push({ key: 'S' + LETTERS[soca], kind: 'soca', conn, short, circuits: Math.max(1, Number(o.circuits) || (conn === 'Socapex' ? 6 : 8)), start: ((Number(o.start) || 0) % 3 + 3) % 3, label: short + ' ' + LETTERS[soca], amps: num(o.amps) || 16, bayAmps: num(o.bayAmps), group: o.group || '' }); soca++; }
       else { const lab = o.label || (o.kind === 'schuko' ? 'Schuko' : (o.amps || '') + 'A'); out.push({ key: `${lab}#${i + 1}`, kind: o.kind, label: n > 1 ? `${lab} ${i + 1}` : lab, amps: num(o.amps), phases: o.kind === 'cee' && o.phases === 3 ? 3 : 1, phase: o.kind === 'cee' && o.phases === 3 ? 0 : (Number(o.phase) || 0), group: o.group || '' }); }
     }
   }
@@ -156,17 +159,22 @@ export function compute(P, dims = []){
     socas.forEach((o, i) => {
       const name = d.cables[i] || '', c = name ? cables.get(name) : null;
       if(name) res.assigned.add(name);
-      r.slots.push({ letter: o.label.replace('Soca ', ''), cable: name, data: c || null, perPhase: c ? c.perPhase.slice() : zero() });
-      if(c) addTo(r.perPhase, c.perPhase);
+      // circuit n sits on phase ((n-1+start) mod 3)+1: a bay can start on another phase so the PD stays balanced
+      const circs = []; for(let n = 1; n <= o.circuits; n++){ const k = c?.circuits.get(n); circs.push({ n, phase: (n - 1 + o.start) % 3 + 1, amps: k ? k.amps : 0, fixtures: k ? k.fixtures : [], watt: k ? k.watt : 0 }); }
+      const per = zero(); for(const k of circs) per[k.phase - 1] += k.amps;
+      r.slots.push({ key: o.key, letter: o.label.split(' ').pop(), short: o.short, label: o.label, circuits: o.circuits, circs, cable: name, data: c || null, perPhase: per });
+      addTo(r.perPhase, per);
+      if(c) for(const k of c.circuits.keys()) if(k > o.circuits) warn('err', `${d.id} ${o.label} (${name}): circuit ${k} does not exist, this output has ${o.circuits}.`, d.id);
+      if(o.bayAmps && per.some(x => x > o.bayAmps + 1e-9)) warn('err', `${d.id} ${o.label}: ${per.map(round1).join(' / ')} A is more than the ${o.bayAmps} A of this output.`, d.id);
     });
     if(d.cables.length > socas.length) warn('err', `${d.id}: ${d.cables.length} cables but only ${socas.length} Socapex outputs.`, d.id);
     for(const o of outs.filter(o => o.kind !== 'soca')){ const m = d.manual[o.key] || {}, a = [num(m.l1), num(m.l2), num(m.l3)]; r.manual.push({ ...o, label2: m.label || '', location: m.location || '', perPhase: a }); addTo(r.perPhase, a); }
     // the breaker groups of the type (a group can carry several outlets, they share its limit)
-    r.groups = (type?.groups || []).map(g => { const per = zero(); let n = 0; for(const o of outs) if(o.group === g.id){ n++; if(o.kind === 'soca'){ const sl = r.slots.find(x => 'Soca ' + x.letter === o.label); if(sl) addTo(per, sl.perPhase); } else { const m = r.manual.find(x => x.key === o.key); if(m) addTo(per, m.perPhase); } } return { ...g, outlets: n, perPhase: per }; });
+    r.groups = (type?.groups || []).map(g => { const per = zero(); let n = 0; for(const o of outs) if(o.group === g.id){ n++; if(o.kind === 'soca'){ const sl = r.slots.find(x => x.key === o.key); if(sl) addTo(per, sl.perPhase); } else { const m = r.manual.find(x => x.key === o.key); if(m) addTo(per, m.perPhase); } } return { ...g, outlets: n, perPhase: per }; });
     for(const g of r.groups) if(num(g.amps) && g.perPhase.some(x => x > num(g.amps) + 1e-9)) warn('err', `${d.id} group ${g.name}: ${g.perPhase.map(round1).join(' / ')} A is more than ${g.amps} A.`, d.id);
     res.pds.set(d.id, r);
     if(!d.feedId) warn('warn', `${d.id} has no feed (Powerlock run).`, d.id);
-    for(const s of r.slots) for(const k of (s.data?.circuits.values() || [])) if(k.amps > S.circuitMax + 1e-9) warn('err', `${d.id} Soca ${s.letter} (${s.cable}-${k.n}): ${round1(k.amps)} A is more than ${S.circuitMax} A.`, d.id);
+    for(const s of r.slots) for(const k of s.circs) if(k.amps > (num(r.outs.find(x => x.key === s.key)?.amps) || S.circuitMax) + 1e-9) warn('err', `${d.id} ${s.label} (${s.cable}-${k.n}): ${round1(k.amps)} A is more than ${S.circuitMax} A.`, d.id);
   }
   for(const c of cables.values()) if(!res.assigned.has(c.name)){ const dc = dimOfCable(c.name, dims); warn('warn', `Cable ${c.name} (${round1(c.perPhase.reduce((a, b) => a + b, 0))} A) is not on a PD${dc ? ' of ' + dc : ''}.`, c.name); }
   const own = new Map(); for(const f of P.feeds) own.set(f.id, zero());

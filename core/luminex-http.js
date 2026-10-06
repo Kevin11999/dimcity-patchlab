@@ -53,7 +53,7 @@ export function expandRanges(text, max = 1024){
 // A device that asks for a login answers 401: listed as "unknown", login needed. Things with port 80 open that are neither (routers, printers) are left out.
 export async function luminexScan({ ips = [], user, pass, https: useTls, timeoutMs = 1500, tcpMs = 600, concurrency = 400, onDevice = null } = {}){
   const net = await import('node:net');
-  const list = (ips || []).filter(x => /^\d{1,3}(\.\d{1,3}){3}$/.test(x)).slice(0, 65536), open = [];
+  const list = (ips || []).filter(x => /^\d{1,3}(\.\d{1,3}){3}$/.test(x)).slice(0, 262144), open = [];
   let i = 0;
   const probePort = ip => new Promise(res => {
     const sock = net.connect({ host: ip, port: useTls ? 443 : 80 }); let done = false;
@@ -93,4 +93,38 @@ export async function localRanges(){
     out.push(bits >= 16 && bits <= 30 ? `${a.address}/${bits}` : a.address.split('.').slice(0, 3).join('.') + '.0/24');
   }
   return [...new Set(out)];
+}
+
+// ---- the addresses of this computer (so a device that moves to another address can be checked against them) ----
+export async function localNets(){
+  const os = await import('node:os'), out = [];
+  for(const [name, list] of Object.entries(os.networkInterfaces())) for(const a of list || []) if(a.family === 'IPv4' && !a.internal) out.push({ name, address: a.address, netmask: a.netmask || '255.255.255.0' });
+  return out;
+}
+const ip2n = s => s.split('.').reduce((n, o) => n * 256 + Number(o), 0) >>> 0;
+export const sameNet = (a, b, mask) => ((ip2n(a) & ip2n(mask)) >>> 0) === ((ip2n(b) & ip2n(mask)) >>> 0);
+export const prefixOf = mask => mask.split('.').reduce((n, o) => n + (Number(o) >>> 0).toString(2).replace(/0/g, '').length, 0);
+// Give this computer an extra address in the range of a device (needs the operating system's permission prompt).
+// Windows: netsh in an elevated cmd · macOS: ifconfig alias via osascript · Linux: ip addr add via pkexec
+export async function addLocalAddresses({ adds = [], adapter = '' } = {}){
+  const { execFile } = await import('node:child_process'), os = await import('node:os');
+  const ok4 = s => /^\d{1,3}(\.\d{1,3}){3}$/.test(s) && s.split('.').every(o => Number(o) <= 255);
+  const list = adds.filter(x => ok4(x.ip) && ok4(x.mask || '255.255.255.0'));
+  if(!list.length) throw new Error('No valid address to add');
+  const nets = await localNets(); const pick = (adapter && nets.find(n => n.name === adapter)) || nets.find(n => /^(192\.168|10\.|172\.(1[6-9]|2\d|3[01])|2\.)/.test(n.address)) || nets[0];
+  if(!pick) throw new Error('This computer has no network adapter with an address');
+  const name = pick.name; if(!/^[\w .()\-]+$/.test(name)) throw new Error('Unusual adapter name: ' + name);
+  const run = (cmd, args) => new Promise((res, rej) => execFile(cmd, args, { timeout: 90000 }, (e, so, se) => (e ? rej(new Error((se || e.message || '').toString().trim() || 'The command was refused')) : res(so))));
+  const plat = os.platform();
+  if(plat === 'win32'){
+    const cmds = list.map(x => `netsh interface ip add address name="${name}" ${x.ip} ${x.mask || '255.255.255.0'}`).join(' & ');
+    await run('powershell', ['-NoProfile', '-Command', `Start-Process cmd -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '/c ${cmds.replace(/'/g, "''")}'`]);
+  } else if(plat === 'darwin'){
+    const sh = list.map(x => `ifconfig ${name} alias ${x.ip} ${x.mask || '255.255.255.0'}`).join('; ');
+    await run('osascript', ['-e', `do shell script "${sh}" with administrator privileges`]);
+  } else {
+    const sh = list.map(x => `ip addr add ${x.ip}/${prefixOf(x.mask || '255.255.255.0')} dev ${name}`).join('; ');
+    await run('pkexec', ['sh', '-c', sh]);
+  }
+  return { adapter: name, added: list };
 }

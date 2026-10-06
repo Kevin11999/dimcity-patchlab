@@ -32,9 +32,29 @@
     return (C.simDevs = L);
   }
   const simIp = d => (d.kind === 'gigacore' ? d.dev.state.ip.ip_address : d.dev.state.ip.ipaddress);
+  // ---------- this computer's own addresses: can it still talk to a device after the device moves? ----------
+  const ipn = x => String(x).split('.').reduce((n, o) => n * 256 + Number(o), 0) >>> 0;
+  const sameNet = (a, b, mask) => ((ipn(a) & ipn(mask)) >>> 0) === ((ipn(b) & ipn(mask)) >>> 0);
+  const reaches = (ip, nets) => !nets || nets.some(n => sameNet(ip, n.address, n.netmask || '255.255.255.0'));
+  async function localNets(){ if(real()) return window.app.luminexLocalNets ? await window.app.luminexLocalNets() : null; return C.simNets || null; }
+  const hostIn = ip => { const p = ip.split('.'); p[3] = p[3] === '250' ? '251' : '250'; return p.join('.'); };
+  // the devices of this list whose pending IP change puts them where this computer has no address
+  async function moveWarnings(devs){
+    const nets = await localNets(), out = [];
+    for(const d of devs){ const to = d.dev?.ip; if(!to || to === d.ip) continue; out.push({ d, from:d.ip, to, mask:d.dev.mask || '255.255.255.0', reachable:reaches(to, nets) }); }
+    return out;
+  }
+  // give this computer an address in the range of the devices that are about to move (or just moved); the OS asks permission
+  async function addAddresses(list){
+    const adds = [], seen = new Set();
+    for(const x of list){ const k = x.to.split('.').slice(0, 3).join('.') + '/' + x.mask; if(seen.has(k)) continue; seen.add(k); adds.push({ ip:hostIn(x.to), mask:x.mask }); }
+    if(!adds.length) return { ok:true, adds };
+    if(real()){ if(!window.app.luminexAddAddress) return { ok:false, adds, error:t('This version of the app cannot do that.', 'Deze versie van de app kan dat niet.') }; try { await window.app.luminexAddAddress({ adds }); return { ok:true, adds }; } catch(x) { return { ok:false, adds, error:String(x.message || x) }; } }
+    C.simNets = [...(C.simNets || []), ...adds.map(a => ({ address:a.ip, netmask:a.mask }))]; return { ok:true, adds };
+  }
   function transport(ip){
     if(real()) return (method, path, body, opts = {}) => window.app.luminexHttp({ ip, method, path, body, user:C.user, pass:C.pass, https:C.https, ...opts });
-    return async (method, path, body, opts = {}) => { const d = simNet().find(x => simIp(x) === ip); await new Promise(r => setTimeout(r, 20)); if(!d) throw new Error('Timeout — no answer from ' + ip); return d.dev.h(method, path, body, opts); };
+    return async (method, path, body, opts = {}) => { const d = simNet().find(x => simIp(x) === ip); await new Promise(r => setTimeout(r, 20)); if(!d || !reaches(ip, C.simNets)) throw new Error('Timeout — no answer from ' + ip); return d.dev.h(method, path, body, opts); };
   }
 
   // ---------- the plan ----------
@@ -186,7 +206,7 @@
         C.info = `${r.count} ${t('addresses checked', 'adressen gecontroleerd')} · ${r.ranges}`;
       } else {
         await load();
-        for(const x of simNet()){ await new Promise(r => setTimeout(r, 180)); const info = x.kind === 'gigacore' ? x.dev.state.device : x.dev.state.info; addFound(x.kind === 'gigacore' ? { ip:simIp(x), kind:'gigacore', name:info.name, model:info.model } : { ip:simIp(x), kind:'lumi', name:info.short_name, longName:info.long_name, version:'v2.9.1' }, old); }
+        for(const x of simNet().filter(x => reaches(simIp(x), C.simNets))){ await new Promise(r => setTimeout(r, 180)); const info = x.kind === 'gigacore' ? x.dev.state.device : x.dev.state.info; addFound(x.kind === 'gigacore' ? { ip:simIp(x), kind:'gigacore', name:info.name, model:info.model } : { ip:simIp(x), kind:'lumi', name:info.short_name, longName:info.long_name, version:'v2.9.1' }, old); }
         C.info = t('Simulated network', 'Gesimuleerd netwerk');
       }
     } catch(x) { C.err = String(x.message || x); }
@@ -194,32 +214,60 @@
     C.busy = false; paint();
     while(readRun > 0 || readQ.length) await new Promise(r => setTimeout(r, 100));
   }
+  // The order matters when addresses change: first everything that is not an address, to every device (they are all still where
+  // they were); then the addresses, one device at a time, each one checked at its new address. A device this computer can no
+  // longer reach is not a failure: it has its new address, and the result says what to do (add an address to this computer).
   async function applyDevs(devs){
     const todo = devs.map(d => ({ d, ...opsOf(d) })).filter(x => x.ops.length);
     if(!todo.length) return;
-    let failed = 0;
-    for(const { d, ops } of todo){
-      d.busy = true; d.err = ''; paint();
+    let failed = 0; await load();
+    for(const x of todo){ x.cfg = x.ops.filter(o => o.kind !== 'ip'); x.ipOps = x.ops.filter(o => o.kind === 'ip'); x.newIp = x.d.dev?.ip || null; x.mask = x.d.dev?.mask || '255.255.255.0'; x.d.err = ''; x.d.moved = null; }
+    // 1 · everything but the address, to every device
+    for(const x of todo){
+      const { d } = x; d.busy = true; paint();
+      try { const h = logged(d); if(x.cfg.length) await api.runOps(h, x.cfg); if(isSw(d) && Number(C.slot) >= 1 && Number(C.slot) <= 20 && x.cfg.length) await h('PUT', `/api/config/profiles/${Number(C.slot)}/save`); }
+      catch(e) { failed++; x.dead = true; d.err = t(`Stopped after an error: ${e.message || e}. Read the device again to see what was applied.`, `Gestopt door een fout: ${e.message || e}. Lees het apparaat opnieuw uit om te zien wat is toegepast.`); }
+      d.busy = false; paint();
+    }
+    // 2 · the addresses, one by one
+    for(const x of todo.filter(y => y.ipOps.length && !y.dead)){
+      const { d } = x, old = d.ip; d.busy = true; paint();
       try {
-        await load(); const h = logged(d); await api.runOps(h, ops);
-        if(isSw(d) && Number(C.slot) >= 1 && Number(C.slot) <= 20) await h('PUT', `/api/config/profiles/${Number(C.slot)}/save`);
-        const ipOp = ops.find(o => o.kind === 'ip'); if(ipOp){ d.ip = d.dev.ip; if(real()) await new Promise(r => setTimeout(r, 2500)); }
-        d.E = new Map(); d.dev = {}; d.trunkEdit = null; d.S = new Map(); d.tree = null; await readDev(d);
-        await verifyTrunk(d, ops, h);
-        d.verified = !d.err && changeCount(d) === 0;
-      } catch(x) { failed++; d.err = t(`Stopped after an error: ${x.message || x}. Read the device again to see what was applied.`, `Gestopt door een fout: ${x.message || x}. Lees het apparaat opnieuw uit om te zien wat is toegepast.`); }
+        try { await api.runOps(logged(d), x.ipOps); } catch(e) { if(!/timeout|ECONN|reset|socket|EHOST|closed/i.test(String(e.message || e))) throw e; }   // the device may drop the line while it moves
+        if(x.newIp){ d.ip = x.newIp; if(C.dev.get(old) === d){ C.dev.delete(old); C.dev.set(x.newIp, d); C.found = [...C.dev.keys()]; } }
+        if(real()) await sleep(2500);
+        d.E = new Map(); d.dev = {}; d.S = new Map(); d.tree = null; d.trunkEdit = null; await readDev(d);
+        if(!d.cur){ d.err = ''; d.moved = { from:old, to:d.ip, mask:x.mask }; }
+        x.after = true;
+      } catch(e) { failed++; x.dead = true; d.err = t(`Stopped after an error: ${e.message || e}. Read the device again to see what was applied.`, `Gestopt door een fout: ${e.message || e}. Lees het apparaat opnieuw uit om te zien wat is toegepast.`); }
+      d.busy = false; paint();
+    }
+    // 3 · read every device back and check it (the ones that moved out of reach are skipped)
+    for(const x of todo.filter(y => !y.dead && !y.d.moved)){
+      const { d } = x; d.busy = true; paint();
+      try { if(!x.after){ d.E = new Map(); d.dev = {}; d.trunkEdit = null; d.S = new Map(); d.tree = null; await readDev(d); } await verifyTrunk(d, x.ops, logged(d)); d.verified = !d.err && changeCount(d) === 0; }
+      catch(e) { failed++; d.err = String(e.message || e); }
       d.busy = false; paint();
     }
     window.PatchHistory?.label?.(t('Configuration sent to Luminex devices', 'Configuratie naar Luminex-apparaten gestuurd'));
     resultDialog(todo, failed);
   }
+  async function fixMoved(d){
+    if(!d.moved) return;
+    const r = await addAddresses([{ to:d.moved.to, mask:d.moved.mask }]);
+    if(!r.ok){ App.ui.toast(`${t('Could not add the address', 'Kon het adres niet toevoegen')}: ${r.error}`, 'err', { ms:8000 }); return; }
+    if(real()) await sleep(1500);
+    for(const x of [...C.dev.values()].filter(y => y.moved)){ if(x !== d && !reaches(x.moved.to, await localNets())) continue; await readDev(x); if(x.cur){ x.moved = null; x.verified = changeCount(x) === 0; } }
+    if(!d.moved) App.ui.toast(t('Reached again.', 'Weer bereikbaar.'), 'ok'); paint();
+  }
   // what was changed, shown after sending (nothing to confirm beforehand; the list is the record)
   function resultDialog(todo, failed){
     const n = todo.reduce((k, x) => k + x.ops.length, 0);
-    const body = `<div style="max-height:420px;overflow:auto">${todo.map(({ d, ops }) => `<h4 style="margin:12px 0 4px">${d.err ? I('alert', 14) : I('check', 14)} ${esc(d.name || d.model)} <span class="subtle">${esc(d.ip)}</span> <span class="subtle">${d.err ? t('failed', 'mislukt') : d.verified ? t('sent and checked', 'gestuurd en gecontroleerd') : t('sent', 'gestuurd')}</span></h4>
-        ${d.err ? `<p class="su-warn">${esc(d.err)}</p>` : ''}<ol>${ops.map(o => `<li>${esc(o.text)}</li>`).join('')}</ol>${ops.some(o => o.kind === 'ip') ? `<p class="subtle">${t('The IP address changed; the device now answers on the new address.', 'Het IP-adres is veranderd; het apparaat antwoordt nu op het nieuwe adres.')}</p>` : ''}`).join('')}</div>`;
+    const body = `<div style="max-height:420px;overflow:auto">${todo.map(({ d, ops }) => `<h4 style="margin:12px 0 4px">${d.err ? I('alert', 14) : I('check', 14)} ${esc(d.name || d.model)} <span class="subtle">${esc(d.ip)}</span> <span class="subtle">${d.err ? t('failed', 'mislukt') : d.moved ? t('sent · moved, out of reach', 'gestuurd · verhuisd, buiten bereik') : d.verified ? t('sent and checked', 'gestuurd en gecontroleerd') : t('sent', 'gestuurd')}</span></h4>
+        ${d.err ? `<p class="su-warn">${esc(d.err)}</p>` : ''}${d.moved ? `<p class="su-warn">${I('alert', 13)} ${t(`Now at ${d.moved.to} (was ${d.moved.from}). This computer has no address in that range, so it cannot read the device back. Add an address to this computer (the system asks permission), or give your network adapter an address in that range yourself.`, `Nu op ${d.moved.to} (was ${d.moved.from}). Deze computer heeft geen adres in dat bereik en kan het apparaat dus niet terugcontroleren. Voeg een adres toe aan deze computer (het systeem vraagt toestemming), of geef je netwerkadapter zelf een adres in dat bereik.`)} <button class="sm" data-fix="${esc(d.ip)}">${t('Add address to this computer', 'Adres toevoegen aan deze computer')}</button></p>` : ''}<ol>${ops.map(o => `<li>${esc(o.text)}</li>`).join('')}</ol>${ops.some(o => o.kind === 'ip') ? `<p class="subtle">${t('The IP address changed; the device now answers on the new address.', 'Het IP-adres is veranderd; het apparaat antwoordt nu op het nieuwe adres.')}</p>` : ''}`).join('')}</div>`;
     const dlg = App.ui.openDialog({ title:failed ? `${failed} ${t('of', 'van')} ${todo.length} ${t('devices failed', 'apparaten mislukt')}` : `${n} ${t('changes sent to', 'wijzigingen gestuurd naar')} ${todo.length} ${t('devices', 'apparaten')}`, subtitle:real() ? '' : t('Simulated devices — nothing real was changed.', 'Gesimuleerde apparaten — er is niets echts veranderd.'), width:'620px', body, footer:`<button class="primary" data-a="ok">OK</button>` });
     dlg.footer.querySelector('[data-a=ok]').onclick = () => dlg.close();
+    dlg.body.querySelectorAll('[data-fix]').forEach(b => b.onclick = async () => { const d = C.dev.get(b.dataset.fix); if(d){ b.disabled = true; await fixMoved(d); if(!d.moved) b.closest('p').innerHTML = I('check', 13) + ' ' + t('Reached again.', 'Weer bereikbaar.'); else b.disabled = false; } });
   }
 
 
@@ -566,7 +614,7 @@
   function cardHtml(d){
     const it = planOf(d), open = C.open.has(d.ip), n = d.cur ? changeCount(d) : 0;
     const ico = d.kind === 'gigacore' ? 'switchDev' : 'network';
-    const status = d.busy ? `<span class="tag">${t('working…', 'bezig…')}</span>` : d.err ? `<span class="tag red" title="${esc(d.err)}">${t('error', 'fout')}</span>` : d.kind === 'unknown' ? `<span class="tag yellow">${t('login needed', 'login nodig')}</span>` : !d.cur ? `<span class="tag">${t('not read', 'niet gelezen')}</span>` : n ? `<span class="tag yellow">${n} ${t('changes', 'wijzigingen')}</span>` : d.verified ? `<span class="tag green">${t('sent and checked', 'verstuurd en gecontroleerd')}</span>` : `<span class="tag green">${t('up to date', 'actueel')}</span>`;
+    const status = d.busy ? `<span class="tag">${t('working…', 'bezig…')}</span>` : d.moved ? `<span class="tag yellow">${t('moved', 'verhuisd')}</span>` : d.err ? `<span class="tag red" title="${esc(d.err)}">${t('error', 'fout')}</span>` : d.kind === 'unknown' ? `<span class="tag yellow">${t('login needed', 'login nodig')}</span>` : !d.cur ? `<span class="tag">${t('not read', 'niet gelezen')}</span>` : n ? `<span class="tag yellow">${n} ${t('changes', 'wijzigingen')}</span>` : d.verified ? `<span class="tag green">${t('sent and checked', 'verstuurd en gecontroleerd')}</span>` : `<span class="tag green">${t('up to date', 'actueel')}</span>`;
     const opts = planItems().filter(x => x.kind === (isSw(d) ? 'sw' : 'nd') && (x.id === d.link || ![...C.dev.values()].some(o => o.link === x.id)));
     const head = `<div class="nc-head" data-toggle="${esc(d.ip)}"><span class="nc-chev ${open ? 'open' : ''}">${I('chevronRight', 14)}</span><span class="nc-ic ${d.kind}">${I(ico, 18)}</span>
       <span class="nc-title"><b>${esc(d.name || d.model || d.ip)}</b><small>${esc(d.ip)} · ${esc(d.kind === 'gigacore' ? (d.model || 'GigaCore') : `LumiNode${d.version ? ' ' + d.version : ''}`)}${d.cur ? ` · ${isSw(d) ? d.cur.ports.length + ' ' + t('ports', 'poorten') : d.cur.ports.length + ' DMX'}` : ''}</small></span>
@@ -575,7 +623,7 @@
     if(!open) return `<div class="nc-card">${head}</div>`;
     let body = '';
     if(d.kind === 'unknown') body = `<div class="nc-body"><div class="subtle">${t('This device asks for a login. Fill in the user name and password above and discover again.', 'Dit apparaat vraagt om een login. Vul gebruikersnaam en wachtwoord hierboven in en ontdek opnieuw.')}</div></div>`;
-    else if(!d.cur) body = `<div class="nc-body">${d.err ? `<div class="su-warn">${esc(d.err)}</div>` : ''}<button data-read="${esc(d.ip)}" ${d.busy ? 'disabled' : ''}>${I('refresh', 13)}${t('Read the device', 'Apparaat uitlezen')}</button></div>`;
+    else if(!d.cur) body = `<div class="nc-body">${d.moved ? `<div class="su-warn">${I('alert', 13)} ${t(`This device moved to ${d.moved.to} (was ${d.moved.from}). This computer has no address in that range.`, `Dit apparaat is verhuisd naar ${d.moved.to} (was ${d.moved.from}). Deze computer heeft geen adres in dat bereik.`)} <button class="sm" data-fixmoved="${esc(d.ip)}">${t('Add address to this computer', 'Adres toevoegen aan deze computer')}</button></div>` : ''}${d.err ? `<div class="su-warn">${esc(d.err)}</div>` : ''}<button data-read="${esc(d.ip)}" ${d.busy ? 'disabled' : ''}>${I('refresh', 13)}${t('Read the device', 'Apparaat uitlezen')}</button></div>`;
     else {
       const o = opsOf(d), f = d.dev;
       const grid = isSw(d)
@@ -636,6 +684,7 @@
   function bind(){
     const q = s => root.querySelector(s), qa = s => root.querySelectorAll(s), devOf = el => D(el.closest('[data-ip]')?.dataset.ip || el.dataset.ip);
     q('#ncDisc') ; const disc = document.querySelector('#ncDisc'); if(disc) disc.onclick = discover;
+    qa('[data-fixmoved]').forEach(b => b.onclick = async () => { b.disabled = true; await fixMoved(D(b.dataset.fixmoved)); });
     const bindVal = (id, fn) => { const e = q(id); if(e) e.onchange = ev => fn(ev.target); };
     bindVal('#ncUser', e => { C.user = e.value; }); bindVal('#ncPass', e => { C.pass = e.value; }); bindVal('#ncTls', e => { C.https = e.checked; }); bindVal('#ncRanges', e => { C.ranges = e.value.trim(); });
     bindVal('#ncOff', e => { C.offset = Number(e.value); paint(); }); bindVal('#ncSlot', e => { C.slot = e.value.trim(); }); bindVal('#ncIp', e => { C.withIp = e.checked; });
@@ -697,5 +746,5 @@
     await load().catch(() => {});
     paint();
   }
-  window.NetConfig = { render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D, applyDevs, autoLink, real, changeCount };
+  window.NetConfig = { moveWarnings, addAddresses, fixMoved, render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D, applyDevs, autoLink, real, changeCount };
 })();

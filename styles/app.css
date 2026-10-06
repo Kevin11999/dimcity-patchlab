@@ -1337,3 +1337,9 @@ body.view-flow .view{width:100%}
 /* ---- Racks & DBs page ---- */
 .rk-lib{margin:4px 0 14px}.rk-lib h3{margin:6px 0 8px;font-size:15px}
 .rk-types{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}.rk-type{display:flex;flex-direction:column;gap:2px;padding:9px 14px;border:1px solid var(--border);border-radius:10px;min-width:170px}
+
+.pw-front{display:flex;gap:10px;align-items:stretch;margin:10px 0 14px;padding:10px;border:1px solid var(--border);border-radius:12px;background:color-mix(in srgb,var(--text) 4%,transparent)}
+.pw-front-in{writing-mode:vertical-rl;transform:rotate(180deg);padding:6px 4px;font-weight:700;color:#ff8a1f;font-size:12px;white-space:nowrap}
+.pw-front-outs{display:flex;flex-wrap:wrap;gap:6px;flex:1}
+.pw-out{display:flex;flex-direction:column;gap:1px;min-width:92px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--bg,#111)}
+.pw-out b{font-size:12px}.pw-out.soca{border-color:#4ea8ff}.pw-out.cee{border-color:#ff8a1f}.pw-out.schuko{border-color:#35c47c}.pw-out em{font-style:normal;color:#e6b422}

@@ -75,8 +75,8 @@ export function outletsOf(type){
   for(const o of type?.outputs || []){
     const n = Math.max(0, Number(o.count) || 0);
     for(let i = 0; i < n; i++){
-      if(o.kind === 'soca'){ out.push({ key: 'S' + LETTERS[soca], kind: 'soca', label: 'Soca ' + LETTERS[soca], amps: num(o.amps) || 16 }); soca++; }
-      else { const lab = o.label || (o.kind === 'schuko' ? 'Schuko' : (o.amps || '') + 'A'); out.push({ key: `${lab}#${i + 1}`, kind: o.kind, label: n > 1 ? `${lab} ${i + 1}` : lab, amps: num(o.amps), phases: o.phases === 3 ? 3 : 1 }); }
+      if(o.kind === 'soca'){ out.push({ key: 'S' + LETTERS[soca], kind: 'soca', label: 'Soca ' + LETTERS[soca], amps: num(o.amps) || 16, group: o.group || '' }); soca++; }
+      else { const lab = o.label || (o.kind === 'schuko' ? 'Schuko' : (o.amps || '') + 'A'); out.push({ key: `${lab}#${i + 1}`, kind: o.kind, label: n > 1 ? `${lab} ${i + 1}` : lab, amps: num(o.amps), phases: o.kind === 'cee' && o.phases === 3 ? 3 : 1, phase: o.kind === 'cee' && o.phases === 3 ? 0 : (Number(o.phase) || 0), group: o.group || '' }); }
     }
   }
   return out;
@@ -161,6 +161,9 @@ export function compute(P, dims = []){
     });
     if(d.cables.length > socas.length) warn('err', `${d.id}: ${d.cables.length} cables but only ${socas.length} Socapex outputs.`, d.id);
     for(const o of outs.filter(o => o.kind !== 'soca')){ const m = d.manual[o.key] || {}, a = [num(m.l1), num(m.l2), num(m.l3)]; r.manual.push({ ...o, label2: m.label || '', location: m.location || '', perPhase: a }); addTo(r.perPhase, a); }
+    // the breaker groups of the type (a group can carry several outlets, they share its limit)
+    r.groups = (type?.groups || []).map(g => { const per = zero(); let n = 0; for(const o of outs) if(o.group === g.id){ n++; if(o.kind === 'soca'){ const sl = r.slots.find(x => 'Soca ' + x.letter === o.label); if(sl) addTo(per, sl.perPhase); } else { const m = r.manual.find(x => x.key === o.key); if(m) addTo(per, m.perPhase); } } return { ...g, outlets: n, perPhase: per }; });
+    for(const g of r.groups) if(num(g.amps) && g.perPhase.some(x => x > num(g.amps) + 1e-9)) warn('err', `${d.id} group ${g.name}: ${g.perPhase.map(round1).join(' / ')} A is more than ${g.amps} A.`, d.id);
     res.pds.set(d.id, r);
     if(!d.feedId) warn('warn', `${d.id} has no feed (Powerlock run).`, d.id);
     for(const s of r.slots) for(const k of (s.data?.circuits.values() || [])) if(k.amps > S.circuitMax + 1e-9) warn('err', `${d.id} Soca ${s.letter} (${s.cable}-${k.n}): ${round1(k.amps)} A is more than ${S.circuitMax} A.`, d.id);

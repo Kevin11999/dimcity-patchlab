@@ -59,7 +59,7 @@
 
   // ---------- the plan ----------
   const swList = () => App.sortedDims().flatMap(dc => (window.NetSwitches?.list(dc) || []).map(s => ({ id:`sw:${dc}|${s.label}`, kind:'sw', dc, s, label:s.label, ip:s.dev?.ip })));
-  const ndList = () => App.sortedDims().flatMap(dc => (App.net.getDimPlan(dc).nodes || []).map((inst, i) => ({ id:`nd:${dc}#${i}`, kind:'nd', dc, inst, label:inst.id || `Node ${i + 1}`, ip:inst.ip })));
+  const ndList = () => App.sortedDims().flatMap(dc => (App.net.getDimPlan(dc).nodes || []).map((inst, i) => ({ id:`nd:${dc}#${i}`, kind:'nd', dc, inst, i, label:inst.id || `Node ${i + 1}`, ip:inst.ip })));
   const planItems = () => [...swList(), ...ndList()];
   const planOf = d => planItems().find(x => x.id === d.link) || null;
   const mgmtVid = s => { try { return s?.dev?.ip ? (FENT().classify(s.dev.ip)?.vlan?.id ?? null) : null; } catch { return null; } };
@@ -67,18 +67,27 @@
   function wantSwitch(it){
     const dc = it.dc, s = it.s, rows = (window.FentUI?.portPlan(dc).rows || []).filter(r => r.sw === s.label && r.swPort), vset = vlansOf(dc, s.label), ports = [], fibre = [];
     for(const r of rows){ const v = (r.vlans || []).map(Number)[0]; ports.push({ port:r.swPort, vid:Number.isFinite(v) ? v : null, legend:String(r.device ?? '') }); }
+    // what was set by hand in the Network page (VLAN, trunk, name per port) goes on top of the automatic plan
+    const ov = window.PortPlan?.forSwitch(dc, s.label) || {}, trunkPorts = [];
+    for(const [pn, o] of Object.entries(ov)){
+      const n = Number(pn); let e = ports.find(x => x.port === n); if(!e){ e = { port:n, vid:null, legend:'' }; ports.push(e); }
+      if(o.name) e.legend = o.name;
+      if(o.trunk){ e.vid = null; trunkPorts.push(n); } else if(o.vid != null){ e.vid = Number(o.vid); vset.add(Number(o.vid)); }
+    }
+    ports.sort((a, b) => a.port - b.port);
     for(const l of (window.Fibers?.links(dc) || [])) for(const [me, other] of [[l.a, l.b], [l.b, l.a]]){
       if(!me || me.free || me.dc !== dc || me.sw !== s.label) continue;
       fibre.push(window.SwPorts?.no(s.type, Number(me.sfp)) ?? (s.rj + Number(me.sfp)));
       if(other && !other.free && other.sw) vlansOf(other.dc, other.sw).forEach(v => vset.add(v));
     }
+    for(const n of trunkPorts) if(!fibre.includes(n)) fibre.push(n);
     const groups = [...vset].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean).map(v => ({ vid:v.id, name:v.name, color:v.color }));
     return { name:s.dev?.id || s.label, ip:s.dev?.ip ? { address:s.dev.ip, mask:s.dev.subnet || '255.255.255.0', gateway:s.dev.gateway || '' } : null, ports, fibre, groups, mgmt:mgmtVid(s) };
   }
   function wantNode(it){
     const inst = it.inst, u = Array.isArray(inst.universes) ? inst.universes : [];
     return { shortName:inst.id, longName:inst.name, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || '255.255.255.0', gateway:inst.gateway || '' } : null,
-      ports:u.map((x, j) => (x == null || x === '' ? null : { universe:Number(x), name:`${inst.id || 'N'}.${j + 1}` })) };
+      ports:u.map((x, j) => { if(x == null || x === '') return null; const o = (window.PortPlan?.forNode(it.dc, inst, it.i) || {})[j + 1] || {}; return { universe:Number(x), name:o.name || `${inst.id || 'N'}.${j + 1}`, klass:o.klass || undefined, dir:o.dir || undefined }; }) };
   }
   const projectVlans = () => { const set = new Set(); for(const it of swList()) vlansOf(it.dc, it.s.label).forEach(v => set.add(v)); return [...set].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean); };
 
@@ -153,7 +162,7 @@
     }
     if(!isSw(d) && it.kind === 'nd'){
       const w = wantNode(it);
-      w.ports.forEach((q, j) => { if(!q || j >= d.cur.ports.length) return; const e = d.E.get(j) || {}; e.universe = q.universe; e.name = q.name; d.E.set(j, e); });
+      w.ports.forEach((q, j) => { if(!q || j >= d.cur.ports.length) return; const e = d.E.get(j) || {}; e.universe = q.universe; e.name = q.name; if(q.klass) e.klass = q.klass; if(q.dir) e.dir = q.dir; d.E.set(j, e); });
       if(w.shortName && w.shortName !== d.cur.info?.short_name) d.dev.shortName = String(w.shortName).slice(0, 17);
       if(w.longName && w.longName !== d.cur.info?.long_name) d.dev.longName = String(w.longName).slice(0, 63);
       if(C.withIp && w.ip?.address && w.ip.address !== d.cur.ip?.ipaddress) Object.assign(d.dev, { ip:w.ip.address, mask:w.ip.mask, gateway:w.ip.gateway });

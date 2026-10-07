@@ -1768,6 +1768,7 @@ function normalizeNetworkDevices(net){
     rackTypes: Array.isArray(net.rackTypes) ? net.rackTypes : [],
     cableTypes: Array.isArray(net.cableTypes) ? net.cableTypes : [],
     fiberLinks: Array.isArray(net.fiberLinks) ? net.fiberLinks : [], fiberStock: Array.isArray(net.fiberStock) ? net.fiberStock : [],
+    portPlans: net.portPlans && typeof net.portPlans === 'object' && !Array.isArray(net.portPlans) ? net.portPlans : {},
     nodes: Array.isArray(net.nodes) ? net.nodes : [],
     splitters: Array.isArray(net.splitters) ? net.splitters : [],
     switches: Array.isArray(net.switches) ? net.switches : [],

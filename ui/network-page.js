@@ -41,7 +41,7 @@
   function portsTab(){
     const dc = S.dc; if(!dc) return `<div class="empty"><p>${t('Import a patch first.', 'Importeer eerst een patch.')}</p></div>`;
     const rows = window.FentUI.portPlan(dc).rows;
-    return `${dcBar()}<div class="stack">${window.NetSwitches.card(dc)}
+    return `${dcBar()}<div class="stack">${window.PortPlan ? window.PortPlan.html(dc) : ''}${window.NetSwitches.card(dc)}
       ${App.ui.card({ key:`${dc}:netports`, title:t('Port plan', 'Poortplan'), icon:'table', meta:`${rows.length} ${t('ports', 'poorten')}`, collapsible:false, body:`<div style="padding:4px 14px 12px">${window.FentUI.portTable(dc)}</div>` })}
       ${window.NetCables?.card(dc) || ''}</div>`;
   }
@@ -87,7 +87,7 @@
     root.querySelectorAll('#netTabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); });
     root.querySelectorAll('[data-netdc]').forEach(i => i.onchange = () => { S.dc = i.dataset.netdc; render(); });
     root.querySelectorAll('[data-netopen]').forEach(b => b.onclick = () => { S.dc = b.dataset.netopen; S.tab = 'ports'; render(); });
-    if(S.tab === 'ports' && S.dc){ window.NetSwitches.bind(root, S.dc, again); window.FentUI.bindDevice(root, S.dc, again); }
+    if(S.tab === 'ports' && S.dc){ window.NetSwitches.bind(root, S.dc, again); window.PortPlan?.bind(root, S.dc, again); window.FentUI.bindDevice(root, S.dc, again); }
     if(S.tab === 'vlan') window.FentUI.bindPlanner(root, again);
     if(S.tab === 'fibers'){ window.Fibers.bind(root, again); window.Fibers.bindStock(root, again);
       const au = root.querySelector('#fibAuto'); if(au) au.onclick = () => window.Fibers.autoDialog(again);

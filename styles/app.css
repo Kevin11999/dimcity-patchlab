@@ -1343,3 +1343,19 @@ body.view-flow .view{width:100%}
 .pw-front-outs{display:flex;flex-wrap:wrap;gap:6px;flex:1}
 .pw-out{display:flex;flex-direction:column;gap:1px;min-width:92px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;font-size:11px;background:var(--bg,#111)}
 .pw-out b{font-size:12px}.pw-out.soca{border-color:#4ea8ff}.pw-out.cee{border-color:#ff8a1f}.pw-out.schuko{border-color:#35c47c}.pw-out em{font-style:normal;color:#e6b422}
+
+/* Port planning (Network page): VLAN brush bar, port tiles for switches and nodes */
+.pp-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px;position:sticky;top:0;z-index:2;background:var(--bg,var(--panel));padding:6px 0}
+.pp-bar label{display:inline-flex;gap:6px;align-items:center;font-size:12px}
+.pp-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--panel);color:inherit;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
+.pp-chip i{width:10px;height:10px;border-radius:50%;background:var(--c,#38bdf8)}
+.pp-chip.on{outline:2px solid var(--accent);background:color-mix(in srgb,var(--c,#38bdf8) 22%,var(--panel))}
+.pp-chip.trunk{--c:#38bdf8}
+.pp-sw{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:0 0 10px}
+.pp-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.pp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:6px;user-select:none}
+.pp-port{position:relative;height:68px;border-radius:8px;border:1px solid var(--border);border-left:5px solid var(--pc);background:color-mix(in srgb,var(--pc) 16%,var(--panel));color:inherit;text-align:left;padding:3px 6px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;overflow:hidden}
+.pp-port small{opacity:.7;font-size:10px}.pp-port b{font-size:15px;line-height:1}.pp-port span{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-port.man{box-shadow:0 0 0 1px var(--accent) inset}.pp-port.sel{outline:2px solid var(--text,#fff)}
+.pp-detail{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
+.pp-detail label{display:flex;flex-direction:column;gap:3px;font-size:12px}

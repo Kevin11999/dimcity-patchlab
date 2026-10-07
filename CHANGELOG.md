@@ -4,6 +4,22 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.12.0 — 2026-10-07
+
+- One port plan: the ports you set on the Network page (VLAN, trunk, name, PoE, speed) now show everywhere, in the strips under “Network switches”, the connections table, the labels, the PDF and Network config. Before, the strips and the table only showed the automatic plan.
+- Patching: choose what goes on the switch ports first (all nodes then the cables, or the other way round) and the order (by id or as planned). Drag a device from one port to another (they swap), drop it in the tray to take it off its port, or use the switch and port in the new table “Connections”. “Unlink all ports” takes everything off so you place it yourself, “Auto-assign again” fills the ports in order. What you place by hand stays.
+- Network cables (C): VLAN, location and the universes a line carries (like “1-4, 7”) can be changed per line, and cables and lines can be added or removed. This is kept apart from the CSV, so a new import does not lose it; the CSV export has the VLAN and location you chose.
+- New PDF section “Switches: ports and VLAN”: an overview of all switches and fibres, and per switch a drawing of the ports in the VLAN colours with a table of port, device or cable, name, VLAN, mode, PoE, speed, universes and address. Hand-typed port names can be left out.
+
+<details><summary>Nederlands</summary>
+
+- Eén poortplan: de poorten die je op de pagina Netwerk instelt (VLAN, trunk, naam, PoE, snelheid) zie je nu overal, in de poortstroken onder “Netwerkswitches”, de tabel met aansluitingen, de labels, de PDF en Netwerkconfig. Voorheen toonden de stroken en de tabel alleen het automatische plan.
+- Aansluiten: kies wat het eerst op de switchpoorten komt (alle nodes en dan de kabels, of andersom) en de volgorde (op id of zoals gepland). Sleep een apparaat van de ene poort naar de andere (ze wisselen), laat het los in de bak om het van zijn poort te halen, of kies de switch en poort in de nieuwe tabel “Aansluitingen”. “Ontkoppel alle poorten” haalt alles eraf zodat je het zelf plaatst, “Opnieuw automatisch indelen” vult de poorten op volgorde. Wat je met de hand plaatst blijft staan.
+- Netwerkkabels (C): VLAN, locatie en de universes die een lijn draagt (zoals “1-4, 7”) zijn per lijn te wijzigen en je kunt kabels en lijnen toevoegen of verwijderen. Dit wordt los van de CSV bewaard, dus een nieuwe import verliest het niet; de CSV-export bevat het VLAN en de locatie die je koos.
+- Nieuw PDF-onderdeel “Switches: poorten en VLAN”: een overzicht van alle switches en fibers, en per switch een tekening van de poorten in de VLAN-kleuren met een tabel van poort, apparaat of kabel, naam, VLAN, modus, PoE, snelheid, universes en adres. Poortnamen die je zelf typte kun je weglaten.
+
+</details>
+
 ## 0.11.3 — 2026-10-07
 
 - Network page, port planning: the SFP / fibre ports are tiles too, with their real numbers. A port with a fibre cable is a trunk by itself; pick another VLAN, Trunk or Automatic to change it.

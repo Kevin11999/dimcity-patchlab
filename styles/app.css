@@ -1359,3 +1359,9 @@ body.view-flow .view{width:100%}
 .pp-port.man{box-shadow:0 0 0 1px var(--accent) inset}.pp-port.sel{outline:2px solid var(--text,#fff)}
 .pp-detail{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)}
 .pp-detail label{display:flex;flex-direction:column;gap:3px;font-size:12px}
+
+.pp-patchbar{position:static;margin-bottom:6px}
+.pp-tray{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:34px;border:1px dashed var(--border);border-radius:8px;padding:6px 8px;margin:0 0 10px}
+.pp-dev{border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:12px;background:var(--panel);cursor:grab}.pp-dev.over{border-color:#ef4444}
+.pp-port.drop{outline:2px dashed var(--accent)}.pp-port[draggable=true]{cursor:grab}
+.nl-u{margin-left:6px;font-size:11px;opacity:.75}

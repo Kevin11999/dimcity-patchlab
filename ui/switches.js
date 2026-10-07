@@ -24,14 +24,28 @@
     } catch {}
     return out;
   }
-  // hand out RJ45 ports in order: rows come from FentUI.portPlan (nodes, then C lines) with a running number
-  function assign(dc, rows){
+  // hand out RJ45 ports: what was placed by hand first (pt.manual: key → { sw, port }; sw '' = deliberately not on a switch),
+  // then the rest in order on the first free ports of the switches, unless the ports were unlinked (pt.auto === false)
+  function assign(dc, rows, pt){
     const sws = list(dc); if(!sws.length) return rows;
-    let si = 0, used = 0;
+    pt = pt || { manual:{}, auto:true };
+    const taken = new Map(sws.map(s => [s.label, new Set()])), todo = [];
+    const none = r => { r.sw = ''; r.swPort = null; r.over = false; r.unplaced = true; };
     for(const r of rows){
-      while(si < sws.length && used >= sws[si].rj){ si++; used = 0; }
+      const m = pt.manual?.[r.key];
+      if(m){
+        if(!m.sw){ none(r); continue; }
+        const s = sws.find(x => x.label === m.sw), set = taken.get(m.sw);
+        if(s && m.port >= 1 && m.port <= s.rj && !set.has(m.port)){ set.add(m.port); r.sw = m.sw; r.swPort = m.port; r.over = false; r.manual = true; continue; }
+      }
+      todo.push(r);
+    }
+    if(pt.auto === false){ todo.forEach(none); return rows; }
+    let si = 0, port = 1;
+    for(const r of todo){
+      while(si < sws.length){ const set = taken.get(sws[si].label); while(port <= sws[si].rj && set.has(port)) port++; if(port <= sws[si].rj) break; si++; port = 1; }
       if(si >= sws.length){ r.sw = ''; r.swPort = null; r.over = true; continue; }
-      used++; r.sw = sws[si].label; r.swPort = used; r.over = false;
+      taken.get(sws[si].label).add(port); r.sw = sws[si].label; r.swPort = port; r.over = false; port++;
     }
     return rows;
   }
@@ -39,9 +53,14 @@
 
   // ---- UI: the card on the DimCity page ----
   function portStrip(dc, s, rows){
-    const mine = rows.filter(r => r.sw === s.label), byPort = new Map(mine.map(r => [r.swPort, r])), fib = window.Fibers && s.source === 'plan' ? window.Fibers.usage(dc, s.label) : (window.Fibers ? window.Fibers.usage(dc, s.label) : new Map());
-    const sq = (n, kind) => { const f = kind === 'sfp' ? fib.get(n) : null; if(f) return `<span class="swp sfp on" style="--c:${window.Fibers.color(f)}" title="${esc(`${window.SwPorts.label(s.type, n)} · ${f.id} · ${window.Fibers.typeName(window.Fibers.typeOf(f.typeId))} · ${window.Fibers.endLabel(f.a?.dc === dc && f.a?.sw === s.label && Number(f.a?.sfp) === n ? f.b : f.a)}`)}"><i>${window.SwPorts.short(s.type, n)}</i></span>`; const r = kind === 'rj' ? byPort.get(n) : null; const v = r?.vlans?.[0] != null ? window.Fent?.vlanById(r.vlans[0]) : null;
-      return `<span class="swp ${kind} ${r ? 'on' : ''}" style="${v?.color ? `--c:${v.color}` : ''}" title="${esc(kind === 'sfp' ? window.SwPorts.label(s.type, n) : `${t('Port', 'Poort')} ${n}${r ? ` · ${r.device}${r.ethCount > 1 ? ` ETH${r.eth}` : ''}` : ` · ${t('free', 'vrij')}`}`)}"><i>${n}</i></span>`; };
+    const mine = rows.filter(r => r.sw === s.label), byPort = new Map(mine.map(r => [r.swPort, r])), fib = window.Fibers ? window.Fibers.usage(dc, s.label) : new Map();
+    const eff = new Map((window.PortPlan?.swPorts(dc, s) || []).map(p => [p.n, p]));
+    const sq = (n, kind) => {
+      const f = kind === 'sfp' ? fib.get(n) : null;
+      if(f) return `<span class="swp sfp on" style="--c:${window.Fibers.color(f)}" title="${esc(`${window.SwPorts.label(s.type, n)} · ${f.id} · ${window.Fibers.typeName(window.Fibers.typeOf(f.typeId))} · ${window.Fibers.endLabel(f.a?.dc === dc && f.a?.sw === s.label && Number(f.a?.sfp) === n ? f.b : f.a)}`)}"><i>${window.SwPorts.short(s.type, n)}</i></span>`;
+      const r = kind === 'rj' ? byPort.get(n) : null, p = kind === 'rj' ? eff.get(n) : null, vid = p ? (p.trunk ? null : p.vid) : r?.vlans?.[0], v = vid != null ? window.Fent?.vlanById(vid) : null, on = !!(r || (p && (p.trunk || p.vid != null)));
+      return `<span class="swp ${kind} ${on ? 'on' : ''}" style="${p?.trunk ? '--c:#38bdf8' : v?.color ? `--c:${v.color}` : ''}" title="${esc(kind === 'sfp' ? window.SwPorts.label(s.type, n) : `${t('Port', 'Poort')} ${n}${r ? ` · ${r.device}${r.ethCount > 1 ? ` ETH${r.eth}` : ''}` : ` · ${t('free', 'vrij')}`}${p?.trunk ? ' · Trunk' : v ? ` · ${v.id} ${v.name}` : ''}${p?.name ? ` · ${p.name}` : ''}`)}"><i>${n}</i></span>`;
+    };
     return `<div class="swp-strip">${Array.from({ length:s.rj }, (_, i) => sq(i + 1, 'rj')).join('')}${s.sfp ? `<span class="swp-gap"></span>${Array.from({ length:s.sfp }, (_, i) => sq(i + 1, 'sfp')).join('')}` : ''}</div>`;
   }
   function card(dc){
@@ -52,7 +71,7 @@
       <button id="dimAddSwitch" ${ts.length ? '' : 'disabled'}>${I('plus', 14)}${t('Add switch', 'Switch toevoegen')}</button></div>
       ${ts.length ? '' : `<div class="hint">${I('info', 13)} ${t('Create a switch type in the Device Builder first.', 'Maak eerst een switchtype in de Device Builder.')} <a data-cmd="deviceBuilder">${t('Open Device Builder', 'Open Device Builder')}</a></div>`}`;
     const need = rows.length, cap = sws.reduce((n, s) => n + s.rj, 0);
-    const summary = `<div class="hint ${sws.length && need > cap ? 'fent-bad' : ''}" style="margin:8px 0">${sws.length && need > cap ? I('alert', 13) : I('info', 13)} ${need} ${t('ports needed', 'poorten nodig')} · ${cap} RJ45 ${t('available', 'beschikbaar')}. ${t('Nodes first (in node number order), then the network cables (C).', 'Eerst de nodes (op volgorde van nodenummer), dan de netwerkkabels (C).')}</div>`;
+    const summary = `<div class="hint ${sws.length && need > cap ? 'fent-bad' : ''}" style="margin:8px 0">${sws.length && need > cap ? I('alert', 13) : I('info', 13)} ${need} ${t('ports needed', 'poorten nodig')} · ${cap} RJ45 ${t('available', 'beschikbaar')}. ${t('The order and the ports are set under “Patching” and “Connections” above.', 'De volgorde en de poorten stel je in onder “Aansluiten” en “Aansluitingen” hierboven.')}</div>`;
     const body = tools + (sws.length ? summary : '') + `<div class="network-device-list">${sws.map(s => {
       const ty = s.type, un = rows.filter(r => r.sw === s.label).length;
       const head = `<div class="network-instance-head"><div><b>${esc(s.label)}</b> <span class="muted">${esc(s.dev?.name || '')}${s.where ? esc(` ${t('in', 'in')} ${s.where}`) : ''}</span><div class="subtle" style="font-size:12px">${esc(typeName(ty))} · ${s.rj} RJ45${s.sfp ? ` + ${s.sfp} SFP` : ''} · ${un}/${s.rj} ${t('used', 'gebruikt')}${s.source === 'rack' ? ` · ${t('from the rack', 'uit het rek')}` : ''}</div></div>${s.source === 'plan' ? `<button class="sm danger dimRemoveSwitch" data-i="${s.idx}">${I('trash', 13)}${t('Remove', 'Verwijderen')}</button>` : `<button class="sm danger dimRemoveRackSwitch" data-rack="${esc(s.rackTypeId || '')}" data-iid="${esc(s.itemIid || '')}" title="${esc(t('This switch is part of a rack. Remove it from the rack.', 'Deze switch zit in een rek. Haal hem uit het rek.'))}">${I('trash', 13)}${t('Remove from rack', 'Uit rek halen')}</button>`}</div>`;

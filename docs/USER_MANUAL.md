@@ -327,6 +327,10 @@ The **Network** page holds everything about the network, per DimCity. Pick the D
 - Add network switches to the DimCity (or place them in a rack). Every switch shows how many ports are used.
 - Ports are handed out in order: first the nodes in node-number order, then the network cables (C rows). A port carrying two VLANs becomes a trunk.
 - **Plan the ports in advance** (card “Switch ports: VLAN and names”): pick a VLAN in the bar at the top, then click or drag over the ports of a switch. **Trunk** makes a trunk, **Automatic** puts a port back on the automatic plan. Click a port (with no VLAN picked) to type its name; without a name the automatic one is used. “Automatic names” removes the names you typed. The card “Node ports” does the same for nodes: universe (the next port can get the next universe), name, sACN / Art-Net and direction. “Fill in from the plan” on Network config puts all this on the real devices.
+- **One port plan everywhere**: what you set in “Switch ports: VLAN and names” is what the strips under “Network switches”, the connections table, the labels, the PDF and Network config show.
+- **Patching**: the bar “Patching” sets what goes on the ports first (all nodes then the cables, or the other way round) and in which order (by id or as planned). Drag a device from one port to another (two devices swap), or drop it in the tray to take it off its port; the table “Connections” has a switch and a port per device too. What you place by hand stays. **Unlink all ports** takes everything off the ports so you place it yourself; **Auto-assign again** forgets what you placed and fills the ports in order.
+- **Network cables (C)**: every line has a VLAN, a location and the universes it carries (like “1-4, 7”); you can add and remove cables and lines. It is kept apart from the CSV, so a new import does not lose it; the CSV export has the VLAN and location you chose.
+- **PDF**: in Export PDF the section “Switches: ports and VLAN” gives an overview of all switches and fibres and, per switch, a drawing of the ports in the VLAN colours and a table (port, device or cable, name, VLAN, mode, PoE, speed, universes, address).
 - Print the port plan or switch-port stickers from here.
 
 ### VLAN & addresses
@@ -650,6 +654,12 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 
 <a id="whats-new"></a>
 ## What's new
+
+### Version 0.12.0 — 2026-10-07
+- One port plan: the ports you set on the Network page (VLAN, trunk, name, PoE, speed) now show everywhere, in the strips under “Network switches”, the connections table, the labels, the PDF and Network config. Before, the strips and the table only showed the automatic plan.
+- Patching: choose what goes on the switch ports first (all nodes then the cables, or the other way round) and the order (by id or as planned). Drag a device from one port to another (they swap), drop it in the tray to take it off its port, or use the switch and port in the new table “Connections”. “Unlink all ports” takes everything off so you place it yourself, “Auto-assign again” fills the ports in order. What you place by hand stays.
+- Network cables (C): VLAN, location and the universes a line carries (like “1-4, 7”) can be changed per line, and cables and lines can be added or removed. This is kept apart from the CSV, so a new import does not lose it; the CSV export has the VLAN and location you chose.
+- New PDF section “Switches: ports and VLAN”: an overview of all switches and fibres, and per switch a drawing of the ports in the VLAN colours with a table of port, device or cable, name, VLAN, mode, PoE, speed, universes and address. Hand-typed port names can be left out.
 
 ### Version 0.11.3 — 2026-10-07
 - Network page, port planning: the SFP / fibre ports are tiles too, with their real numbers. A port with a fibre cable is a trunk by itself; pick another VLAN, Trunk or Automatic to change it.
@@ -1166,6 +1176,10 @@ De pagina **Netwerk** bevat alles over het netwerk, per DimCity. Kies de DimCity
 - Voeg netwerkswitches toe aan de DimCity (of plaats ze in een rack). Elke switch toont hoeveel poorten in gebruik zijn.
 - Poorten worden op volgorde uitgedeeld: eerst de nodes op nodenummer, daarna de netwerkkabels (C-regels). Een poort met twee VLAN’s wordt een trunk.
 - **Plan de poorten van tevoren** (kaart “Switchpoorten: VLAN en namen”): kies bovenaan in de balk een VLAN en klik of sleep dan over de poorten van een switch. **Trunk** maakt een trunk, **Automatisch** zet een poort terug op het automatische plan. Klik een poort aan (zonder gekozen VLAN) om zijn naam te typen; zonder naam geldt de automatische. “Automatische namen” haalt de namen weg die je typte. De kaart “Nodepoorten” doet hetzelfde voor nodes: universe (de volgende poort kan het volgende universe krijgen), naam, sACN / Art-Net en richting. “Invullen vanuit plan” op Netwerkconfig zet dit alles op de echte apparaten.
+- **Eén poortplan overal**: wat je instelt bij “Switchpoorten: VLAN en namen” is wat de poortstroken onder “Netwerkswitches”, de tabel met aansluitingen, de labels, de PDF en Netwerkconfig tonen.
+- **Aansluiten**: de balk “Aansluiten” bepaalt wat het eerst op de poorten komt (alle nodes en dan de kabels, of andersom) en in welke volgorde (op id of zoals gepland). Sleep een apparaat van de ene poort naar de andere (twee apparaten wisselen), of laat het los in de bak om het van zijn poort te halen; de tabel “Aansluitingen” heeft ook een switch en een poort per apparaat. Wat je met de hand plaatst blijft staan. **Ontkoppel alle poorten** haalt alles van de poorten zodat je het zelf plaatst; **Opnieuw automatisch indelen** vergeet wat je plaatste en vult de poorten op volgorde.
+- **Netwerkkabels (C)**: elke lijn heeft een VLAN, een locatie en de universes die hij draagt (zoals “1-4, 7”); je kunt kabels en lijnen toevoegen en verwijderen. Het wordt los van de CSV bewaard, dus een nieuwe import verliest het niet; de CSV-export bevat het VLAN en de locatie die je koos.
+- **PDF**: in Export PDF geeft het onderdeel “Switches: poorten en VLAN” een overzicht van alle switches en fibers en per switch een tekening van de poorten in de VLAN-kleuren en een tabel (poort, apparaat of kabel, naam, VLAN, modus, PoE, snelheid, universes, adres).
 - Print vanaf hier het poortplan of switchpoort-stickers.
 
 ### VLAN & adressen
@@ -1489,6 +1503,12 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.12.0 — 2026-10-07
+- Eén poortplan: de poorten die je op de pagina Netwerk instelt (VLAN, trunk, naam, PoE, snelheid) zie je nu overal, in de poortstroken onder “Netwerkswitches”, de tabel met aansluitingen, de labels, de PDF en Netwerkconfig. Voorheen toonden de stroken en de tabel alleen het automatische plan.
+- Aansluiten: kies wat het eerst op de switchpoorten komt (alle nodes en dan de kabels, of andersom) en de volgorde (op id of zoals gepland). Sleep een apparaat van de ene poort naar de andere (ze wisselen), laat het los in de bak om het van zijn poort te halen, of kies de switch en poort in de nieuwe tabel “Aansluitingen”. “Ontkoppel alle poorten” haalt alles eraf zodat je het zelf plaatst, “Opnieuw automatisch indelen” vult de poorten op volgorde. Wat je met de hand plaatst blijft staan.
+- Netwerkkabels (C): VLAN, locatie en de universes die een lijn draagt (zoals “1-4, 7”) zijn per lijn te wijzigen en je kunt kabels en lijnen toevoegen of verwijderen. Dit wordt los van de CSV bewaard, dus een nieuwe import verliest het niet; de CSV-export bevat het VLAN en de locatie die je koos.
+- Nieuw PDF-onderdeel “Switches: poorten en VLAN”: een overzicht van alle switches en fibers, en per switch een tekening van de poorten in de VLAN-kleuren met een tabel van poort, apparaat of kabel, naam, VLAN, modus, PoE, snelheid, universes en adres. Poortnamen die je zelf typte kun je weglaten.
 
 ### Versie 0.11.3 — 2026-10-07
 - Pagina Netwerk, poorten plannen: de SFP- / fiberpoorten zijn ook tegels, met hun echte nummers. Een poort met een fiberkabel is vanzelf een trunk; kies een ander VLAN, Trunk of Automatisch om dat te wijzigen.

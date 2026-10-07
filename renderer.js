@@ -129,7 +129,7 @@ function currentRows(M = MODEL){
   for (const L of (M.lines || [])) rows.push([ L.id, String(L.port ?? ''), (L.universe ?? ''), (L.dest ?? ''), '', '', ...src(L) ]);
   for (const V of (M.veamLines || [])) rows.push([ V.id, String(V.port ?? ''), (V.universe ?? ''), (V.dest ?? ''), '', '', ...src(V) ]);
   for (const D of (M.dmxLoose || [])) rows.push([ '', '', (D.universe ?? ''), (D.dest ?? ''), '', (D.dimcity ?? ''), ...src(D) ]);
-  for (const N of (M.netLines || [])) rows.push([ N.id, String(N.port ?? ''), (N.vlan ?? ''), (N.dest ?? ''), '', '', ...src(N) ]);
+  for (const N of (window.NetCables?.effective ? window.NetCables.effective(M) : (M.netLines || []))) rows.push([ N.id, String(N.port ?? ''), (N.vlan ?? ''), (N.dest ?? ''), '', '', ...src(N) ]);
   for (const r of (M.invalidRows || [])) rows.push(r.slice());
   for (const r of (M.conflictRows || [])) rows.push(r.slice());
   return rows;
@@ -1769,6 +1769,8 @@ function normalizeNetworkDevices(net){
     cableTypes: Array.isArray(net.cableTypes) ? net.cableTypes : [],
     fiberLinks: Array.isArray(net.fiberLinks) ? net.fiberLinks : [], fiberStock: Array.isArray(net.fiberStock) ? net.fiberStock : [],
     portPlans: net.portPlans && typeof net.portPlans === 'object' && !Array.isArray(net.portPlans) ? net.portPlans : {},
+    portPatch: net.portPatch && typeof net.portPatch === 'object' && !Array.isArray(net.portPatch) ? net.portPatch : {},
+    netLineEdits: net.netLineEdits && typeof net.netLineEdits === 'object' && !Array.isArray(net.netLineEdits) ? net.netLineEdits : {},
     nodes: Array.isArray(net.nodes) ? net.nodes : [],
     splitters: Array.isArray(net.splitters) ? net.splitters : [],
     switches: Array.isArray(net.switches) ? net.switches : [],

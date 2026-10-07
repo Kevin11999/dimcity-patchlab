@@ -62,7 +62,7 @@
   async function skip(d){ A.skipped.add(d.ip); if(isSw(d)) await blink(d, false); d.blinking = false; A.cur = null; await showCurrent(); }
   async function fillAll(){
     A.busy = true; paint();
-    NC().state.withIp = !!A.withIp;
+    NC().state.withIp = !!A.withIp; NC().state.withNames = A.withNames !== false;
     for(const d of devs()) if(d.link){ if(!d.cur) await NC().readDev(d); d.E = new Map(); d.dev = {}; NC().fillFromPlan(d); }
     A.filled = true; A.moves = await NC().moveWarnings(devs().filter(d => d.link && d.cur)); A.busy = false; paint();
   }
@@ -120,6 +120,7 @@
     const rows = l.map(d => { const it = NC().planItems().find(x => x.id === d.link), n = d.cur ? NC().changeCount(d) : 0;
       return `<tr><td>${esc(it?.label || '?')}</td><td>${esc(nameOf(d))}</td><td>${esc(d.ip)}</td><td>${A.filled ? `<b>${n}</b> ${t('changes', 'wijzigingen')}` : '–'}${d.err ? `<div class="su-warn">${esc(d.err)}</div>` : ''}</td><td>${d.verified ? I('check', 14) : ''}</td></tr>`; }).join('');
     return `<div class="su-big"><b>${l.length}</b> ${t('devices linked', 'apparaten gekoppeld')}${unl.length ? ` · ${unl.length} ${t('not linked (they are left alone)', 'niet gekoppeld (die blijven ongemoeid)')}` : ''}</div>
+      <label class="nc-chk"><input type="checkbox" id="alNames" ${A.withNames !== false ? 'checked' : ''}> ${t('Also set the port names of the plan (off: the names on the devices stay)', 'Zet ook de poortnamen van het plan (uit: de namen op de apparaten blijven)')}</label>
       <label class="nc-chk"><input type="checkbox" id="alIp" ${A.withIp ? 'checked' : ''}> ${t('Also set the IP addresses of the plan (the device moves to its new address; do this when the network is new)', 'Ook de IP-adressen uit het plan instellen (het apparaat gaat naar zijn nieuwe adres; doe dit bij een nieuw netwerk)')}</label>
       ${moveBox()}
       <div class="su-row"><button id="alFill" ${A.busy ? 'disabled' : ''}>${t('1 · Fill in from the plan', '1 · Invullen uit het plan')}</button><button class="primary" id="alSend" ${A.filled ? '' : 'disabled'}>${I('upload', 14)}${t('2 · Send config', '2 · Config sturen')}</button></div>
@@ -148,6 +149,7 @@
     set('#alSkip', () => skip(NC().dev(A.cur)));
     const au = q('#alAuto'); if(au) au.onchange = async () => { A.blink = au.checked; if(!A.blink) await stopAll(); else await showCurrent(); paint(); };
     qa('[data-alpick]').forEach(b => b.onclick = () => link(NC().dev(A.cur), NC().planItems().find(x => x.id === b.dataset.alpick)));
+    const nm = q('#alNames'); if(nm) nm.onchange = () => { A.withNames = nm.checked; A.filled = false; paint(); };
     const ip = q('#alIp'); if(ip) ip.onchange = () => { A.withIp = ip.checked; A.filled = false; A.moves = null; paint(); };
     set('#alFill', fillAll); set('#alSend', send); set('#alPrep', prepare);
   }

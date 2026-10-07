@@ -68,11 +68,12 @@
     const dc = it.dc, s = it.s, rows = (window.FentUI?.portPlan(dc).rows || []).filter(r => r.sw === s.label && r.swPort), vset = vlansOf(dc, s.label), ports = [], fibre = [];
     for(const r of rows){ const v = (r.vlans || []).map(Number)[0]; ports.push({ port:r.swPort, vid:Number.isFinite(v) ? v : null, legend:String(r.device ?? '') }); }
     // what was set by hand in the Network page (VLAN, trunk, name per port) goes on top of the automatic plan
-    const ov = window.PortPlan?.forSwitch(dc, s.label) || {}, trunkPorts = [];
+    const ov = window.PortPlan?.forSwitch(dc, s.label) || {}, trunkPorts = [], vidPorts = new Set();
     for(const [pn, o] of Object.entries(ov)){
       const n = Number(pn); let e = ports.find(x => x.port === n); if(!e){ e = { port:n, vid:null, legend:'' }; ports.push(e); }
       if(o.name) e.legend = o.name;
-      if(o.trunk){ e.vid = null; trunkPorts.push(n); } else if(o.vid != null){ e.vid = Number(o.vid); vset.add(Number(o.vid)); }
+      if(o.trunk){ e.vid = null; trunkPorts.push(n); } else if(o.vid != null){ e.vid = Number(o.vid); vset.add(Number(o.vid)); vidPorts.add(n); }
+      if(o.poe) e.poe = o.poe; if(o.speed) e.speed = o.speed;
     }
     ports.sort((a, b) => a.port - b.port);
     for(const l of (window.Fibers?.links(dc) || [])) for(const [me, other] of [[l.a, l.b], [l.b, l.a]]){
@@ -80,6 +81,7 @@
       fibre.push(window.SwPorts?.no(s.type, Number(me.sfp)) ?? (s.rj + Number(me.sfp)));
       if(other && !other.free && other.sw) vlansOf(other.dc, other.sw).forEach(v => vset.add(v));
     }
+    for(let k = fibre.length - 1; k >= 0; k--) if(vidPorts.has(fibre[k])) fibre.splice(k, 1);
     for(const n of trunkPorts) if(!fibre.includes(n)) fibre.push(n);
     const groups = [...vset].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean).map(v => ({ vid:v.id, name:v.name, color:v.color }));
     return { name:s.dev?.id || s.label, ip:s.dev?.ip ? { address:s.dev.ip, mask:s.dev.subnet || '255.255.255.0', gateway:s.dev.gateway || '' } : null, ports, fibre, groups, mgmt:mgmtVid(s) };
@@ -153,7 +155,8 @@
     const it = planOf(d); if(!it || !d.cur) return false;
     if(isSw(d) && it.kind === 'sw'){
       const w = wantSwitch(it);
-      for(const p of w.ports){ if(!d.cur.ports.some(x => x.port_number === p.port)) continue; const e = d.E.get(p.port) || {}; e.legend = String(p.legend).slice(0, 16); const g = w.groups.find(x => x.vid === p.vid); if(g) e.member = { type:'vid', vid:g.vid, name:g.name, color:g.color }; d.E.set(p.port, e); }
+      const rowsNow = api.portRows(d.cur);
+      for(const p of w.ports){ if(!d.cur.ports.some(x => x.port_number === p.port)) continue; const e = d.E.get(p.port) || {}; if(C.withNames !== false) e.legend = String(p.legend).slice(0, 16); const rw = rowsNow.find(x => x.port === p.port); if(p.poe && rw?.poe != null) e.poe = p.poe === 'on'; if(p.speed && api.SPEEDS.includes(p.speed)) e.speed = p.speed; const g = w.groups.find(x => x.vid === p.vid); if(g) e.member = { type:'vid', vid:g.vid, name:g.name, color:g.color }; d.E.set(p.port, e); }
       if(w.fibre.length){ const fm = { type:'fibre', vids:w.groups.map(g => g.vid), mgmtVid:w.mgmt, groups:w.groups }; for(const no of w.fibre) if(d.cur.ports.some(x => x.port_number === no)){ const e = d.E.get(no) || {}; e.member = clone(fm); d.E.set(no, e); } }
       const pre = d.cur.trunks.find(x => x.predefined), want = w.mgmt != null ? d.cur.groups.find(g => g.vid === w.mgmt) : null;
       if(w.name && w.name !== d.cur.device?.name) d.dev.name = w.name;
@@ -162,7 +165,7 @@
     }
     if(!isSw(d) && it.kind === 'nd'){
       const w = wantNode(it);
-      w.ports.forEach((q, j) => { if(!q || j >= d.cur.ports.length) return; const e = d.E.get(j) || {}; e.universe = q.universe; e.name = q.name; if(q.klass) e.klass = q.klass; if(q.dir) e.dir = q.dir; d.E.set(j, e); });
+      w.ports.forEach((q, j) => { if(!q || j >= d.cur.ports.length) return; const e = d.E.get(j) || {}; e.universe = q.universe; if(C.withNames !== false) e.name = q.name; if(q.klass) e.klass = q.klass; if(q.dir) e.dir = q.dir; d.E.set(j, e); });
       if(w.shortName && w.shortName !== d.cur.info?.short_name) d.dev.shortName = String(w.shortName).slice(0, 17);
       if(w.longName && w.longName !== d.cur.info?.long_name) d.dev.longName = String(w.longName).slice(0, 63);
       if(C.withIp && w.ip?.address && w.ip.address !== d.cur.ip?.ipaddress) Object.assign(d.dev, { ip:w.ip.address, mask:w.ip.mask, gateway:w.ip.gateway });
@@ -677,6 +680,7 @@
           <label>${t('Where to look', 'Waar zoeken')}<input id="ncRanges" value="${esc(C.ranges)}" placeholder="${t('empty = the networks of this computer', 'leeg = de netwerken van deze computer')}" style="width:300px"></label></div>
         <div class="nc-row"><label>${t('Art-Net universe numbers', 'Art-Net-universenummers')}<select id="ncOff"><option value="0" ${C.offset === 0 ? 'selected' : ''}>${t('as the node shows them (default)', 'zoals de node ze toont (standaard)')}</option><option value="-1" ${C.offset === -1 ? 'selected' : ''}>${t('one lower (universe 1 = Art-Net 0)', 'één lager (universe 1 = Art-Net 0)')}</option></select></label>
           <label>${t('Save switch in profile slot', 'Bewaar switch in profielslot')}<input id="ncSlot" value="${esc(C.slot)}" placeholder="–" style="width:60px"></label>
+          <label class="nc-chk"><input type="checkbox" id="ncNames" ${C.withNames !== false ? 'checked' : ''}> ${t('“Fill from the plan” also sets the port names', '“Invullen uit het plan” zet ook de poortnamen')}</label>
           <label class="nc-chk"><input type="checkbox" id="ncIp" ${C.withIp ? 'checked' : ''}> ${t('“Fill from the plan” also sets the IP address', '“Invullen uit het plan” zet ook het IP-adres')}</label></div>
         <div class="subtle" style="font-size:12px">${t('Examples to look: 192.168.40.0/24 · 10.90.101.20-60 · 192.168.1.10. Leave empty to search the whole network of this computer (up to a /16, about 15 seconds).', 'Voorbeelden: 192.168.40.0/24 · 10.90.101.20-60 · 192.168.1.10. Leeg laten doorzoekt het hele netwerk van deze computer (tot een /16, ongeveer 15 seconden).')}</div>
         ${real() ? '' : `<div class="hint nd-sim">${I('info', 13)} ${t('Simulated devices — one pretend device on every planned address, so you can try this out. In the desktop app the real devices answer.', 'Gesimuleerde apparaten — één nepapparaat op elk gepland adres, zodat je dit kunt uitproberen. In de desktop-app antwoorden de echte apparaten.')}</div>`}</details>
@@ -702,7 +706,7 @@
     qa('[data-fixmoved]').forEach(b => b.onclick = async () => { b.disabled = true; await fixMoved(D(b.dataset.fixmoved)); });
     const bindVal = (id, fn) => { const e = q(id); if(e) e.onchange = ev => fn(ev.target); };
     bindVal('#ncUser', e => { C.user = e.value; }); bindVal('#ncPass', e => { C.pass = e.value; }); bindVal('#ncTls', e => { C.https = e.checked; }); bindVal('#ncRanges', e => { C.ranges = e.value.trim(); });
-    bindVal('#ncOff', e => { C.offset = Number(e.value); paint(); }); bindVal('#ncSlot', e => { C.slot = e.value.trim(); }); bindVal('#ncIp', e => { C.withIp = e.checked; });
+    bindVal('#ncOff', e => { C.offset = Number(e.value); paint(); }); bindVal('#ncSlot', e => { C.slot = e.value.trim(); }); bindVal('#ncIp', e => { C.withIp = e.checked; }); bindVal('#ncNames', e => { C.withNames = e.checked; });
     if(q('#ncReadAll')) q('#ncReadAll').onclick = async () => { await pool([...C.dev.values()].filter(d => d.kind !== 'unknown'), 4, async d => { await readDev(d); paint(); }); };
     if(q('#ncFillAll')) q('#ncFillAll').onclick = () => { let n = 0; for(const d of C.dev.values()) if(fillFromPlan(d)) n++; paint(); App.ui.toast(`${n} ${t('devices filled from the plan — nothing is sent yet', 'apparaten ingevuld uit het plan — er is nog niets gestuurd')}`, 'info'); };
     if(q('#ncApplyAll')) q('#ncApplyAll').onclick = () => applyDevs([...C.dev.values()].filter(d => d.cur));

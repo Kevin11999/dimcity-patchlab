@@ -57,6 +57,14 @@ export const BUILD = [
     { say: 'Now add the switches. The Luminex GigaCore twenty T, three U set, is a special device, drawn exactly like the real one. D B 1 gets three of them.', do: async k => { await k.select('#suSwType', 'SWITCH:LMX-GC20T-3U'); await k.click('[data-su-addsw]'); await k.click('[data-su-addsw]'); await k.click('[data-su-addsw]'); } },
     { say: 'The same switch in every other D B takes one click.', do: async k => { await k.click('[data-su-addall]'); await k.wait(500); } },
     { say: 'Open the Network page for the details. Switches and ports shows which port every node and cable takes, with the colour of its VLAN.', do: async k => { await k.click('#suStop'); await k.go('NET'); await k.click('#netTabs [data-tab=ports]'); await k.wait(900); } },
+    { say: 'Before you are on site, plan the ports yourself. Pick a VLAN in the bar at the top, then drag across the ports of a switch. They take that VLAN.', do: async k => {
+        await k.click('.pp-chip[data-ppb=vid] >> nth=1'); await k.wait(500);
+        const tiles = k.page.locator('.pp-sw').first().locator('.pp-port'); const n = await tiles.count();
+        const a = await tiles.nth(n - 3).boundingBox(), b = await tiles.nth(n - 1).boundingBox();
+        await k.page.mouse.move(a.x + 12, a.y + 12, { steps: 10 }); await k.page.mouse.down(); await k.page.mouse.move(b.x + 12, b.y + 12, { steps: 20 }); await k.page.mouse.up(); await k.wait(1200); } },
+    { say: 'Click a port to give it a name by hand. Without a name, the node or cable name is used. Later, Fill in from the plan puts all of it on the real switch.', do: async k => {
+        await k.click('.pp-chip[data-ppb=vid] >> nth=1'); await k.wait(400); await k.page.locator('.pp-sw').first().locator('.pp-port').nth(0).click(); await k.wait(600);
+        await k.page.fill('[data-ppdet] [data-ppname]', 'FOH Desk'); await k.page.keyboard.press('Tab'); await k.wait(1500); } },
     { say: 'On the VLAN tab you can rename any VLAN, change its colour, or add your own. The new name is used in the port plan, on the stickers and in the P D F.', do: async k => { await k.click('#netTabs [data-tab=vlan]'); await k.scrollTo('.vlanName[data-vlan="200"]'); await k.fill('.vlanName[data-vlan="200"]', 'Lighting FOH'); await k.wait(800); } }
   ] },
 

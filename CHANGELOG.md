@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.11.2 — 2026-10-07
+
+- The films "Network" (part 5 of the build series) and "Power" are recorded again: they now show planning switch ports in advance with the VLAN bar, naming a port by hand, and the Han 16 outputs of the PD builder.
+
+<details><summary>Nederlands</summary>
+
+- De films "Network" (deel 5 van de bouwserie) en "Power" zijn opnieuw opgenomen: ze tonen nu het vooraf plannen van switchpoorten met de VLAN-balk, een poort met de hand een naam geven en de Han 16-uitgangen van de PD-bouwer.
+
+</details>
+
 ## 0.11.1 — 2026-10-07
 
 - Network page: plan the ports before any device is on the network. Pick a VLAN in the bar at the top (numbers and names), click or drag over the ports of a switch, and they get that VLAN; Trunk and Automatic are in the bar too. Click a port to give it a name by hand; without a name the automatic one (node or cable name) is used, and “Automatic names” brings those back. Nodes get the same: universe (next port can get the next universe), name, sACN / Art-Net and direction per DMX port.

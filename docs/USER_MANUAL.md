@@ -651,6 +651,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.11.2 — 2026-10-07
+- The films "Network" (part 5 of the build series) and "Power" are recorded again: they now show planning switch ports in advance with the VLAN bar, naming a port by hand, and the Han 16 outputs of the PD builder.
+
 ### Version 0.11.1 — 2026-10-07
 - Network page: plan the ports before any device is on the network. Pick a VLAN in the bar at the top (numbers and names), click or drag over the ports of a switch, and they get that VLAN; Trunk and Automatic are in the bar too. Click a port to give it a name by hand; without a name the automatic one (node or cable name) is used, and “Automatic names” brings those back. Nodes get the same: universe (next port can get the next universe), name, sACN / Art-Net and direction per DMX port.
 - What you plan there is what “Fill in from the plan” puts on the real switches and nodes on the Network config page and in the Align tool, including hand-made VLANs, trunks, names and protocols. The plan is saved with the project.
@@ -1479,6 +1482,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.11.2 — 2026-10-07
+- De films "Network" (deel 5 van de bouwserie) en "Power" zijn opnieuw opgenomen: ze tonen nu het vooraf plannen van switchpoorten met de VLAN-balk, een poort met de hand een naam geven en de Han 16-uitgangen van de PD-bouwer.
 
 ### Versie 0.11.1 — 2026-10-07
 - Pagina Netwerk: plan de poorten voordat er een apparaat op het netwerk hangt. Kies bovenaan in de balk een VLAN (nummers en namen), klik of sleep over de poorten van een switch en ze krijgen dat VLAN; Trunk en Automatisch staan ook in de balk. Klik een poort aan om hem met de hand een naam te geven; zonder naam geldt de automatische (node- of kabelnaam) en “Automatische namen” brengt die terug. Nodes krijgen hetzelfde: universe (de volgende poort kan het volgende universe krijgen), naam, sACN / Art-Net en richting per DMX-poort.

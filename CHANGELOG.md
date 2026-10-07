@@ -4,6 +4,24 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.11.3 — 2026-10-07
+
+- Network page, port planning: the SFP / fibre ports are tiles too, with their real numbers. A port with a fibre cable is a trunk by itself; pick another VLAN, Trunk or Automatic to change it.
+- Per switch port you can now also set PoE (on / off) and speed, in the bar above the ports (then drag over ports) or in the detail of a port.
+- Copy the port settings of one switch to other switches (VLAN / trunk, PoE and speed, SFP ports, only the ports changed by hand). Port names are only copied when you choose so, because they differ with network cables and nodes. Nodes can be copied too: protocol and direction, names and universes on request. Nothing is sent; it fills the plan.
+- Node ports: direction now has the same choices as on Network config (Output, Input, Off).
+- Network config and the Align tool: “Fill in from the plan” also sets PoE, speed and the SFP ports, and a new tick “also set the port names” (on by default) lets you keep the names that are on the devices.
+
+<details><summary>Nederlands</summary>
+
+- Pagina Netwerk, poorten plannen: de SFP- / fiberpoorten zijn ook tegels, met hun echte nummers. Een poort met een fiberkabel is vanzelf een trunk; kies een ander VLAN, Trunk of Automatisch om dat te wijzigen.
+- Per switchpoort kun je nu ook PoE (aan / uit) en snelheid instellen, in de balk boven de poorten (en dan over poorten slepen) of in het detail van een poort.
+- Kopieer de poortinstellingen van één switch naar andere switches (VLAN / trunk, PoE en snelheid, SFP-poorten, alleen de poorten die je met de hand veranderde). Poortnamen worden alleen meegekopieerd als je dat kiest, want die verschillen door netwerkkabels en nodes. Nodes kun je ook kopiëren: protocol en richting, op verzoek namen en universes. Er wordt niets gestuurd; het vult het plan.
+- Nodepoorten: de richting heeft nu dezelfde keuzes als op Netwerkconfig (Uitgang, Ingang, Uit).
+- Netwerkconfig en de Uitlijntool: “Invullen vanuit plan” zet ook PoE, snelheid en de SFP-poorten, en met het nieuwe vinkje “zet ook de poortnamen” (standaard aan) kun je de namen laten staan die op de apparaten staan.
+
+</details>
+
 ## 0.11.2 — 2026-10-07
 
 - The films "Network" (part 5 of the build series) and "Power" are recorded again: they now show planning switch ports in advance with the VLAN bar, naming a port by hand, and the Han 16 outputs of the PD builder.

@@ -4,6 +4,22 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.11.1 — 2026-10-07
+
+- Network page: plan the ports before any device is on the network. Pick a VLAN in the bar at the top (numbers and names), click or drag over the ports of a switch, and they get that VLAN; Trunk and Automatic are in the bar too. Click a port to give it a name by hand; without a name the automatic one (node or cable name) is used, and “Automatic names” brings those back. Nodes get the same: universe (next port can get the next universe), name, sACN / Art-Net and direction per DMX port.
+- What you plan there is what “Fill in from the plan” puts on the real switches and nodes on the Network config page and in the Align tool, including hand-made VLANs, trunks, names and protocols. The plan is saved with the project.
+- PD builder: Han 16 and Harting outputs (8 circuits, or any number), the phase an output starts on (so a PD with several Han outputs stays balanced), and an amp limit per phase for a whole output. The circuit limit follows the amps of the output. A Han 16 example can be added with one click. The PD pages and the booklet show as many rows as the output has circuits.
+- PD builder, from earlier work now released: a phase per outlet, breaker groups that share a limit, the order of the outlets, a drawing of the front, group totals in the booklet, and the button on the Racks & DBs page.
+
+<details><summary>Nederlands</summary>
+
+- Pagina Netwerk: plan de poorten voordat er een apparaat op het netwerk hangt. Kies bovenaan in de balk een VLAN (nummers en namen), klik of sleep over de poorten van een switch en ze krijgen dat VLAN; Trunk en Automatisch staan ook in de balk. Klik een poort aan om hem met de hand een naam te geven; zonder naam geldt de automatische (node- of kabelnaam) en “Automatische namen” brengt die terug. Nodes krijgen hetzelfde: universe (de volgende poort kan het volgende universe krijgen), naam, sACN / Art-Net en richting per DMX-poort.
+- Wat je daar plant is wat “Invullen vanuit plan” op de pagina Netwerkconfig en in de Uitlijntool op de echte switches en nodes zet, inclusief met de hand gemaakte VLAN’s, trunks, namen en protocollen. Het plan wordt met het project opgeslagen.
+- PD-bouwer: Han 16- en Harting-uitgangen (8 circuits, of een ander aantal), de fase waarop een uitgang begint (zodat een PD met meerdere Han-uitgangen in balans blijft) en een ampèrelimiet per fase voor een hele uitgang. De circuitlimiet volgt de ampère van de uitgang. Een Han 16-voorbeeld voeg je met één klik toe. De PD-pagina’s en het boekje tonen zoveel rijen als de uitgang circuits heeft.
+- PD-bouwer, eerder gemaakt en nu uitgebracht: een fase per uitgang, automaatgroepen die een limiet delen, de volgorde van de uitgangen, een tekening van de voorkant, groepstotalen in het boekje en de knop op de pagina Racks & DB’s.
+
+</details>
+
 ## 0.11.0 — 2026-10-06
 
 - New page Racks & DBs in the menu: the place where DBs are made and where the racks go in them. Add a DB or FOH, open the Rack Builder to make rack types, pick a DB and place racks, a custom rack or loose devices; the same planning as on a DimCity page, but always one click away.

@@ -494,6 +494,7 @@ De snelste weg naar een compleet plan is het uit de rack-patch opbouwen: **Gebru
 ## Switches & ports
 - Add network switches to the DimCity (or place them in a rack). Every switch shows how many ports are used.
 - Ports are handed out in order: first the nodes in node-number order, then the network cables (C rows). A port carrying two VLANs becomes a trunk.
+- **Plan the ports in advance** (card “Switch ports: VLAN and names”): pick a VLAN in the bar at the top, then click or drag over the ports of a switch. **Trunk** makes a trunk, **Automatic** puts a port back on the automatic plan. Click a port (with no VLAN picked) to type its name; without a name the automatic one is used. “Automatic names” removes the names you typed. The card “Node ports” does the same for nodes: universe (the next port can get the next universe), name, sACN / Art-Net and direction. “Fill in from the plan” on Network config puts all this on the real devices.
 - Print the port plan or switch-port stickers from here.
 
 ## VLAN & addresses
@@ -511,6 +512,7 @@ Per DimCity: nodes, switches, ports used, Cat lines, fibres and a status.`,
 ## Switches & poorten
 - Voeg netwerkswitches toe aan de DimCity (of plaats ze in een rack). Elke switch toont hoeveel poorten in gebruik zijn.
 - Poorten worden op volgorde uitgedeeld: eerst de nodes op nodenummer, daarna de netwerkkabels (C-regels). Een poort met twee VLAN’s wordt een trunk.
+- **Plan de poorten van tevoren** (kaart “Switchpoorten: VLAN en namen”): kies bovenaan in de balk een VLAN en klik of sleep dan over de poorten van een switch. **Trunk** maakt een trunk, **Automatisch** zet een poort terug op het automatische plan. Klik een poort aan (zonder gekozen VLAN) om zijn naam te typen; zonder naam geldt de automatische. “Automatische namen” haalt de namen weg die je typte. De kaart “Nodepoorten” doet hetzelfde voor nodes: universe (de volgende poort kan het volgende universe krijgen), naam, sACN / Art-Net en richting. “Invullen vanuit plan” op Netwerkconfig zet dit alles op de echte apparaten.
 - Print vanaf hier het poortplan of switchpoort-stickers.
 
 ## VLAN & adressen
@@ -719,7 +721,7 @@ Buiten de desktop-app antwoorden gesimuleerde apparaten zodat je het kunt uitpro
 
 ## What it does
 - The **fixture sheet** (CSV from Vectorworks / Lightwright) is the source. Its **Circuit Name** is a Socapex cable (M101 …), **Circuit Number** the circuit 1–6, **Wattage** gives the current (watt ÷ 230 V). The first digit of M101 names the DB (M1xx = DB1). Circuits 1…6 sit on L1 L2 L3 L1 L2 L3.
-- **PD builder** (tab “PD builder”, also the button **PD builder** on the Racks & DBs page): this is where you build your own PDs, like node types. Choose the input (Powerlock / CEE, amps), add the outputs in the order they sit on the PD (Socapex with 6 circuits, CEE 16–125 A single or three phase, Schuko), choose the phase of each single-phase outlet, and make **groups** (breakers): outlets with the same group share its limit. A drawing of the front shows what you built. Two examples can be added with one click.
+- **PD builder** (tab “PD builder”, also the button **PD builder** on the Racks & DBs page): this is where you build your own PDs, like node types. Choose the input (Powerlock / CEE, amps), add the outputs in the order they sit on the PD (Socapex with 6 circuits, Han 16 or Harting with 8, CEE 16–125 A single or three phase, Schuko), choose the number of circuits and the phase it starts on for a multi outlet, an amp limit per phase for the whole outlet, choose the phase of each single-phase outlet, and make **groups** (breakers): outlets with the same group share its limit. A drawing of the front shows what you built. Two examples can be added with one click.
 - **PDs & feeds** per DimCity: add a feed (a Powerlock / CEE run with its maximum current; one feed can loop on from another, then it counts in that one too), add PDs, choose their type and feed. **Fill cables automatically** gives each PD a block of 12 cable numbers (M101–M112, M113–M124 …), packed in order as Soca A, B, C …, or choose a cable per Socapex yourself.
 - **Overview**: per DimCity the PDs and feeds with L1 / L2 / L3 in amps, and warnings: a circuit above 16 A, a feed too heavy or uneven, a cable not on a PD, a PD without a feed, fixtures straight on a DB, fixtures without wattage.
 - **A PD** opens like a page of the booklet: per Socapex the six circuits with the DMX universe, cable-circuit (M101-1), fixture numbers (401 - 406), what hangs there ("6* CLF Lighting Aorun"), the location and the amps on the phase, with totals. The other outlets (CEE, Schuko) get their load typed in by you.
@@ -733,7 +735,7 @@ Buiten de desktop-app antwoorden gesimuleerde apparaten zodat je het kunt uitpro
 
 ## Wat het doet
 - Het **armaturenblad** (CSV uit Vectorworks / Lightwright) is de bron. De **Circuit Name** is een Socapex-kabel (M101 …), **Circuit Number** het circuit 1–6, **Wattage** geeft de stroom (watt ÷ 230 V). Het eerste cijfer van M101 is de DB (M1xx = DB1). Circuit 1…6 zitten op L1 L2 L3 L1 L2 L3.
-- **PD-bouwer** (tab “PD-bouwer”, ook de knop **PD-bouwer** op de pagina Racks & DB’s): hier bouw je zelf je PD’s, zoals node-typen. Kies de ingang (Powerlock / CEE, ampère), voeg de uitgangen toe in de volgorde waarin ze op de PD zitten (Socapex met 6 circuits, CEE 16–125 A één- of driefase, Schuko), kies de fase van elke eenfase-uitgang en maak **groepen** (automaten): uitgangen met dezelfde groep delen zijn limiet. Een tekening van de voorkant toont wat je gebouwd hebt. Twee voorbeelden voeg je met één klik toe.
+- **PD-bouwer** (tab “PD-bouwer”, ook de knop **PD-bouwer** op de pagina Racks & DB’s): hier bouw je zelf je PD’s, zoals node-typen. Kies de ingang (Powerlock / CEE, ampère), voeg de uitgangen toe in de volgorde waarin ze op de PD zitten (Socapex met 6 circuits, Han 16 of Harting met 8, CEE 16–125 A één- of driefase, Schuko), kies bij een multi-uitgang het aantal circuits en de fase waarop hij begint, een ampèrelimiet per fase voor de hele uitgang, kies de fase van elke eenfase-uitgang en maak **groepen** (automaten): uitgangen met dezelfde groep delen zijn limiet. Een tekening van de voorkant toont wat je gebouwd hebt. Twee voorbeelden voeg je met één klik toe.
 - **PD’s & voedingen** per DimCity: voeg een voeding toe (een Powerlock- of CEE-run met zijn maximale stroom; een voeding kan doorlopen vanaf een andere, dan telt hij daar ook in mee), voeg PD’s toe en kies hun type en voeding. **Kabels automatisch vullen** geeft elke PD een blok van 12 kabelnummers (M101–M112, M113–M124 …), op volgorde als Soca A, B, C …, of kies zelf een kabel per Socapex.
 - **Overzicht**: per DimCity de PD’s en voedingen met L1 / L2 / L3 in ampère, en waarschuwingen: een circuit boven 16 A, een voeding te zwaar of te scheef, een kabel niet op een PD, een PD zonder voeding, armaturen direct op een DB, armaturen zonder wattage.
 - **Een PD** opent als een pagina uit het boekje: per Socapex de zes circuits met DMX-universe, kabel-circuit (M101-1), armatuurnummers (401 - 406), wat er hangt ("6* CLF Lighting Aorun"), de locatie en de ampère op de fase, met totalen. De overige uitgangen (CEE, Schuko) vul je zelf in.
@@ -1066,6 +1068,21 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // Release notes per version, newest first. `npm run manual` turns this into CHANGELOG.md and the
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
+  {
+    version:'0.11.1', date:'2026-10-07',
+    en:[
+      'Network page: plan the ports before any device is on the network. Pick a VLAN in the bar at the top (numbers and names), click or drag over the ports of a switch, and they get that VLAN; Trunk and Automatic are in the bar too. Click a port to give it a name by hand; without a name the automatic one (node or cable name) is used, and “Automatic names” brings those back. Nodes get the same: universe (next port can get the next universe), name, sACN / Art-Net and direction per DMX port.',
+      'What you plan there is what “Fill in from the plan” puts on the real switches and nodes on the Network config page and in the Align tool, including hand-made VLANs, trunks, names and protocols. The plan is saved with the project.',
+      'PD builder: Han 16 and Harting outputs (8 circuits, or any number), the phase an output starts on (so a PD with several Han outputs stays balanced), and an amp limit per phase for a whole output. The circuit limit follows the amps of the output. A Han 16 example can be added with one click. The PD pages and the booklet show as many rows as the output has circuits.',
+      'PD builder, from earlier work now released: a phase per outlet, breaker groups that share a limit, the order of the outlets, a drawing of the front, group totals in the booklet, and the button on the Racks & DBs page.',
+    ],
+    nl:[
+      'Pagina Netwerk: plan de poorten voordat er een apparaat op het netwerk hangt. Kies bovenaan in de balk een VLAN (nummers en namen), klik of sleep over de poorten van een switch en ze krijgen dat VLAN; Trunk en Automatisch staan ook in de balk. Klik een poort aan om hem met de hand een naam te geven; zonder naam geldt de automatische (node- of kabelnaam) en “Automatische namen” brengt die terug. Nodes krijgen hetzelfde: universe (de volgende poort kan het volgende universe krijgen), naam, sACN / Art-Net en richting per DMX-poort.',
+      'Wat je daar plant is wat “Invullen vanuit plan” op de pagina Netwerkconfig en in de Uitlijntool op de echte switches en nodes zet, inclusief met de hand gemaakte VLAN’s, trunks, namen en protocollen. Het plan wordt met het project opgeslagen.',
+      'PD-bouwer: Han 16- en Harting-uitgangen (8 circuits, of een ander aantal), de fase waarop een uitgang begint (zodat een PD met meerdere Han-uitgangen in balans blijft) en een ampèrelimiet per fase voor een hele uitgang. De circuitlimiet volgt de ampère van de uitgang. Een Han 16-voorbeeld voeg je met één klik toe. De PD-pagina’s en het boekje tonen zoveel rijen als de uitgang circuits heeft.',
+      'PD-bouwer, eerder gemaakt en nu uitgebracht: een fase per uitgang, automaatgroepen die een limiet delen, de volgorde van de uitgangen, een tekening van de voorkant, groepstotalen in het boekje en de knop op de pagina Racks & DB’s.',
+    ],
+  },
   {
     version:'0.11.0', date:'2026-10-06',
     en:[

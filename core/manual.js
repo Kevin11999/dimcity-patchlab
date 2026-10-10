@@ -68,15 +68,15 @@ Linksonder toont een kleine balk hoe compleet de show is: projectinfo, patch ge�
     en:`Screen recordings of the whole app window, in full HD, with a spoken explanation in English. There is no text in the picture; switch the **subtitles** on with the CC button in the player.
 
 There are two series:
-- **Build a show, step by step** — one project from an empty window to the finished report: import the patch, racks and the advice, couple LKs and Veams, nodes, network, fibres, signal flow, check and PDF, stickers. The parts play one after the other.
-- **Tool guides** — one short video per tool: Device Builder, Rack Builder and custom racks, the advice, coupling and stacking, cable types and fibre stock, the fibre overview, VLANs, the Signal Flow, the PDF builder, stickers, QR codes, exchange with Lightwright and Vectorworks, devices on the network, Tasks and Setup, search and undo.
+- **Build a show, step by step** — one project from an empty window to the finished report: import the patch, racks and devices, couple LKs and Veams, nodes, network, fibres, signal flow, check and PDF, stickers. The parts play one after the other. The videos were recorded before version 0.14: the part about racks still shows the advice card, which has been removed (you place racks and devices yourself now).
+- **Tool guides** — one short video per tool: Device Builder, Rack Builder and custom racks, coupling and stacking, cable types and fibre stock, the fibre overview, VLANs, the Signal Flow, the PDF builder, stickers, QR codes, exchange with Lightwright and Vectorworks, devices on the network, Tasks and Setup, search and undo.
 
 Everything you see you can do yourself in **Open Demo Show** on the welcome screen. The **Tasks** page and the **Setup** button walk you through the same steps for your own project.`,
     nl:`Schermopnames van het hele appvenster, in full HD, met gesproken uitleg in het Engels. Er staat geen tekst in beeld; zet de **ondertiteling** aan met de CC-knop in de speler.
 
 Er zijn twee reeksen:
-- **Bouw een show, stap voor stap** — één project van een leeg venster tot het eindrapport: patch importeren, racks en het advies, LK’s en Veams koppelen, nodes, netwerk, fibers, signaalstroom, controle en PDF, stickers. De delen spelen na elkaar af.
-- **Tool-uitleg** — één korte video per tool: Device Builder, Rack Builder en eigen rekken, het advies, koppelen en stapelen, kabeltypen en fibervoorraad, het fiberoverzicht, VLAN’s, de Signaalstroom, de PDF-bouwer, stickers, QR-codes, uitwisselen met Lightwright en Vectorworks, apparaten op het netwerk, Taken en Setup, zoeken en ongedaan maken.
+- **Bouw een show, stap voor stap** — één project van een leeg venster tot het eindrapport: patch importeren, racks en apparaten, LK’s en Veams koppelen, nodes, netwerk, fibers, signaalstroom, controle en PDF, stickers. De delen spelen na elkaar af. De video’s zijn opgenomen vóór versie 0.14: het deel over racks toont nog de adviezenkaart, die is weggehaald (je plaatst nu zelf racks en apparaten).
+- **Tool-uitleg** — één korte video per tool: Device Builder, Rack Builder en eigen rekken, koppelen en stapelen, kabeltypen en fibervoorraad, het fiberoverzicht, VLAN’s, de Signaalstroom, de PDF-bouwer, stickers, QR-codes, uitwisselen met Lightwright en Vectorworks, apparaten op het netwerk, Taken en Setup, zoeken en ongedaan maken.
 
 Alles wat je ziet kun je zelf doen in **Demo-show openen** op het welkomstscherm. De pagina **Taken** en de knop **Setup** lopen dezelfde stappen met je door voor je eigen project.`
   },
@@ -101,6 +101,9 @@ The DimCity follows from the number: **LK101 and V105 belong to DB01, LK215 to D
 - **Settings → This show** says, per show, what the first column is called: the prefix of an LK (default LK), of a Veam (V), of the network cables (C, with its number of lines) and of nodes (Node). A show that calls its LKs “K101” is read as LK101 and written back as K101 in the CSV export. You can add more cable types, each with its own prefix and number of lines.
 - **C101** (and C101.1 …) is a network cable; its third column is the VLAN group.
 - **Node601,1** (or Node 601.1) puts a universe on a node: 6 = DB06, 01 = node 01 of that DB, 1 = port 1. The DimCity follows from the number; the position text is kept as the location of that port.
+
+## Link rows: which Veams hang on an LK
+A row with an **LK in the first column** and Veams in the next three columns says which Veams belong to that LK: \`LK101,V101,V102,V103\` — the Veams of A, B and C. An empty column means none: \`LK102,,V101,V102\`. PatchLab reads these rows by itself and couples the Veams. Setup step 2 lists every LK with its three Veams and marks where they come from: **CSV**, **changed by you** (a new import then leaves your change alone) or by hand — so you can check them before the racks and devices are planned.
 
 ## Header and footer rows
 PatchLab detects which rows are real patch rows and skips the rest. Adjust with the **Skip first / last** counters; the preview shows what is included.
@@ -129,6 +132,9 @@ De DimCity volgt uit het nummer: **LK101 en V105 horen bij DB01, LK215 bij DB02*
 - **Instellingen → Deze show** bepaalt per show hoe de eerste kolom heet: het prefix van een LK (standaard LK), van een Veam (V), van de netwerkkabels (C, met zijn aantal lijnen) en van nodes (Node). Een show die zijn LK’s “K101” noemt wordt als LK101 gelezen en bij de CSV-export weer als K101 geschreven. Je kunt meer kabeltypes toevoegen, elk met een eigen prefix en aantal lijnen.
 - **C101** (en C101.1 …) is een netwerkkabel; de derde kolom is de VLAN-groep.
 - **Node601,1** (of Node 601.1) zet een universe op een node: 6 = DB06, 01 = node 01 van die DB, 1 = poort 1. De DimCity volgt uit het nummer; de positietekst blijft als locatie van die poort bewaard.
+
+## Koppelregels: welke Veams aan een LK hangen
+Een regel met een **LK in de eerste kolom** en Veams in de volgende drie kolommen zegt welke Veams bij die LK horen: \`LK101,V101,V102,V103\` — de Veams van A, B en C. Een lege kolom betekent geen: \`LK102,,V101,V102\`. PatchLab leest deze regels zelf en koppelt de Veams. Setup stap 2 toont elke LK met zijn drie Veams en markeert waar ze vandaan komen: **CSV**, **door jou aangepast** (een nieuwe import laat jouw wijziging dan met rust) of met de hand — zodat je ze kunt controleren voordat de racks en apparaten gepland worden.
 
 ## Kop- en voetregels
 PatchLab herkent welke regels echte patchregels zijn en slaat de rest over. Pas het aan met de tellers **Eerste / laatste overslaan**; het voorbeeld laat zien wat meegaat.
@@ -199,7 +205,7 @@ Voeg LK's of Veams met de hand toe met de **+** naast "DimCities" in de zijbalk.
 **Auto-detect** picks 12× XLR when more than 4 LK ports are patched; otherwise 4× XLR + 3× Veam. Choose a type yourself to override it.
 
 ## Veam slots
-Pick a Veam from the same DimCity in slot A, B or C. A slot is greyed out when all four LK ports of that range are already patched on the LK itself. A Veam can be linked to one slot only; a second link is reported as an error.
+Pick a Veam from the same DimCity in slot A, B or C. A slot is greyed out when all four LK ports of that range are already patched on the LK itself. A Veam can be linked to one slot only; a second link is reported as an error. Links also come from the CSV: a row like \`LK101,V101,V102,V103\` fills the three slots (see [[import|Importing a CSV]]); Setup step 2 marks them **CSV**, and links you changed yourself **changed by you**; the next import leaves those alone.
 
 ## Ports table
 The table merges the LK's own rows with the linked Veam's rows: universe, location, source (LK, Veam or both) and the Veam port. A **conflict** means the LK port and the Veam port carry different universes.
@@ -216,7 +222,7 @@ The table merges the LK's own rows with the linked Veam's rows: universe, locati
 **Automatisch** kiest 12× XLR als meer dan 4 LK-poorten gepatcht zijn; anders 4× XLR + 3× Veam. Kies zelf een type om dat te overrulen.
 
 ## Veam-slots
-Kies in slot A, B of C een Veam uit dezelfde DimCity. Een slot is grijs als alle vier de LK-poorten van dat bereik al op de LK zelf gepatcht zijn. Een Veam kan maar aan één slot gekoppeld zijn; een tweede koppeling wordt als fout gemeld.
+Kies in slot A, B of C een Veam uit dezelfde DimCity. Een slot is grijs als alle vier de LK-poorten van dat bereik al op de LK zelf gepatcht zijn. Een Veam kan maar aan één slot gekoppeld zijn; een tweede koppeling wordt als fout gemeld. Koppelingen komen ook uit de CSV: een regel als \`LK101,V101,V102,V103\` vult de drie slots (zie [[import|CSV importeren]]); Setup stap 2 markeert ze **CSV**, en koppelingen die je zelf gewijzigd hebt **door jou aangepast**; de volgende import laat die met rust.
 
 ## Poortentabel
 De tabel voegt de eigen regels van de LK samen met die van de gekoppelde Veam: universe, locatie, bron (LK, Veam of beide) en de Veam-poort. Een **conflict** betekent dat de LK-poort en de Veam-poort een andere universe hebben.
@@ -369,6 +375,7 @@ Het tabblad **Kabels** bevat kabeltypes: fiber (singlemode of multimode), SFP-pa
 - Drag devices from the palette on the right into the rack, or click **+** to add one at the first free position. Green rows mean it fits, red means it does not.
 - Move devices with the arrows or by dragging; remove them with the ×.
 - The summary below counts DMX ports, splitter outputs, RJ45 and the LK37 / Veam4 / XLR sockets of the rack.
+- Under the summary is the list **What DB01 needs** (it follows the DimCity you choose next to it): see per kind (LK37 sockets, Veam4 sockets, node ports) what that DimCity **needs**, what is **already** in it, what **this rack** adds and what is **still missing**, and whether it is complete or not. Add or remove a device in the rack and the numbers follow at once.
 
 A rack is a template: you place it in a DimCity on the [[racks|Racks card]], as often as you need. The article key is printed in the Racks card and on the PDF.`,
     nl:`Het tabblad **Racks** van de Device Builder bouwt 19"-racks uit je devicetypes.
@@ -377,6 +384,7 @@ A rack is a template: you place it in a DimCity on the [[racks|Racks card]], as 
 - Sleep devices uit het palet rechts in het rek, of klik op **+** om er een op de eerste vrije plek te zetten. Groene rijen betekenen dat het past, rood dat het niet past.
 - Verplaats devices met de pijltjes of door te slepen; haal ze weg met het ×.
 - De samenvatting eronder telt DMX-poorten, splitteruitgangen, RJ45 en de LK37- / Veam4- / XLR-aansluitingen van het rek.
+- Onder de samenvatting staat de lijst **Wat DB01 nodig heeft** (hij volgt de DimCity die je ernaast kiest): zie per soort (LK37-aansluitingen, Veam4-aansluitingen, nodepoorten) wat die DimCity **nodig** heeft, wat er **al** in zit, wat **dit rek** toevoegt en wat er **nog ontbreekt**, en of het compleet is of niet. Zet een apparaat in het rek of haal het eruit en de getallen volgen meteen.
 
 Een rek is een sjabloon: je plaatst het in een DimCity op de [[racks|Racks-kaart]], zo vaak als je wilt. De artikelsleutel staat in de Racks-kaart en op de PDF.`
   },
@@ -391,9 +399,10 @@ Een rek is een sjabloon: je plaatst het in een DimCity op de [[racks|Racks-kaart
 
 ## How the patch is made
 1. Every LK with data gets an **LK37 socket**: first a loose LK spider that is pinned to a node, then the rack panels, then other loose spiders.
-2. Veams that are not fed by an LK get a **Veam4 socket**: first a Veam4 spider pinned to a node, then separate Veam4s, then other spiders. The Veam4 sockets that belong to an LK37 socket are for that LK: another Veam only goes on them when you switch on *A separate Veam may go on a free Veam4 socket of an LK panel* in Settings → This show (default off).
-3. Every used line gets a **node port**. Lines of one LK or Veam stay on one node where possible. **Every LK and every Veam has a colour of its own in the whole show** — never two the same, on the rack, in the Signal Flow, in the PDF and on the labels — and a node port has the colour of the LK or Veam that sits on it. A node is told apart by its label (N1, N2 …), not by a colour.
-4. When node ports run short, universes that are used more than once go through a **splitter** in the rack.
+2. A Veam that is **linked to an LK** (a link row in the CSV, or Couple LKs and Veams) sits on a Veam4 socket **next to the LK37 socket of that LK**: the LK and its Veams are one unit, their cables come into the DB together and are plugged away together. Without room there it takes a spare Veam4 spider. Other Veams get a **Veam4 socket** of their own: first a Veam4 spider pinned to a node, then separate Veam4s, then other spiders. A separate Veam only goes on a free Veam4 socket of an LK panel when you switch on *A separate Veam may go on a free Veam4 socket of an LK panel* in Settings → This show (default off).
+3. **You always choose by hand if you want to**: in the table **Couple LKs & Veams to sockets** you pick the socket per LK and per Veam, any free LK37 or Veam4 socket of the DimCity. PatchLab never changes a choice you made.
+4. Every used line gets a **node port**. Lines of one LK or Veam stay on one node where possible. **Every LK and every Veam has a colour of its own in the whole show** — never two the same, on the rack, in the Signal Flow, in the PDF and on the labels — and a node port has the colour of the LK or Veam that sits on it. A node is told apart by its label (N1, N2 …), not by a colour.
+5. When node ports run short, universes that are used more than once go through a **splitter** in the rack.
 
 ## Racks are zones
 LK and Veam cables are short, so an LK or Veam on a rack socket only feeds nodes **in the same rack**. Only network cables (Cat, fibre) run from rack to rack. When two racks stand directly on top of each other, tick **stacked on the rack above** on the upper one, and they count as one. If a rack has lines but no free node port of its own, PatchLab says so and offers a **Fix** button that stacks the racks.
@@ -405,15 +414,25 @@ LK and Veam cables are short, so an LK or Veam on a rack socket only feeds nodes
 ## Network ports on a panel
 A rack with a panel that has etherCON ports (say 3) and three nodes behind it: every node is plugged into one of the ports, and the cable to the switch goes into that port on the front. The nodes of a rack take the ports in order by default; the table **Network ports on the panels** lets you choose a node per port. The rack drawing shows the node on the port (N1, N2 …) and the port on the node (P1.2); the Network page shows the panel port next to the switch port, and the PDF plug list too.
 
+## What is still needed
+PatchLab gives **no advice** on which racks or panels to use — you decide that. It only keeps count. Under the counters the card **What this DimCity needs** shows what you **need** (LK37 sockets, Veam4 sockets, node ports), what is **in the racks** and what is still **missing**, and says **Complete** or **Not complete**. Add or remove something and the numbers follow at once.
+- When LKs or Veams have no socket, a button adds the loose spiders that are needed ("2 LK spiders", "1 Veam4 spider"). Loose spiders are the rule only for what does not fit on the racks: as few spiders as possible, as much as possible on the rack.
+- Linked LKs and Veams are counted as a unit: an LK with its three Veams needs one LK37 socket and the Veam4 sockets next to it.
+- The Rack Builder shows the same list for the rack you are building: choose a DimCity and see what is needed, what is already in that DimCity, what this rack adds and what is still missing.
+
 ## Reading the result
 - The counters show used / available LK37 sockets, Veam4 sockets, node ports and lines.
-- **Recommendations** tell you what is missing: loose spiders to add, extra nodes, unused splitters.
+- **Notes** tell you what else is wrong: a loose node without a spider, lines without a node port, unused splitters.
 - The rack drawing shows the universe on every node port and the LK / Veam number on every socket; hover for details.
 - **Node ports** lists per node which LK or Veam port (and location) sits on which node port.
 - The **patch table** at the bottom has every line: node port, universe, via splitter, socket, LK / Veam port, location.
 
+## The nodes follow the racks
+There is no button to copy the nodes. The nodes and splitters of the racks (and the loose nodes) appear **by themselves** on the Network page: on the Nodes tab, on the patch board and in the overview, each with the next free ID and an address. Place a rack with three nodes and they are there.
+- When you take a device out of a rack, its node is **not** thrown away: it stays as **no longer in a rack**, with its ID, address, switch port and universes. On the Nodes tab choose **Replace** (the new node takes over ID, address, port and universes) or **Remove**.
+- IDs stay as they are: a gap in the numbering is fine.
+
 ## Using it
-- **Use as network plan** copies the nodes and splitters, with their universes, into the network plan of this DimCity (IP addresses are generated).
 - **Print racks** opens the Report Builder with the "Racks only" preset.`,
     nl:`De kaart **Racks** op een DimCity-pagina patcht de LK's en Veams van die DimCity automatisch op de racks en losse apparaten die je daar plaatst. Het resultaat wordt elke keer opnieuw uit de huidige show berekend, dus het loopt nooit achter.
 
@@ -423,9 +442,10 @@ A rack with a panel that has etherCON ports (say 3) and three nodes behind it: e
 
 ## Hoe de patch tot stand komt
 1. Elke LK met gegevens krijgt een **LK37-aansluiting**: eerst een losse LK-spin die aan een node hangt, dan de rekpanelen, dan andere losse spinnen.
-2. Veams die niet door een LK gevoed worden krijgen een **Veam4-aansluiting**: eerst een Veam4-spin die aan een node hangt, dan losse Veam4’s, dan andere spinnen. De Veam4-aansluitingen die bij een LK37-aansluiting horen zijn voor die LK: een andere Veam komt er alleen op als je *Een losse Veam mag op een vrije Veam4-aansluiting van een LK-paneel* aanzet in Instellingen → Deze show (standaard uit).
-3. Elke gebruikte lijn krijgt een **nodepoort**. Lijnen van één LK of Veam blijven waar mogelijk op één node. **Elke LK en elke Veam heeft in de hele show een eigen kleur** — nooit twee dezelfde, op het rek, in de Signaalstroom, in de PDF en op de labels — en een nodepoort heeft de kleur van de LK of Veam die erop zit. Een node herken je aan zijn label (N1, N2 …), niet aan een kleur.
-4. Als er nodepoorten tekortkomen, gaan universes die vaker gebruikt worden via een **splitter** in het rek.
+2. Een Veam die **aan een LK gekoppeld** is (een koppelregel in de CSV, of LK’s en Veams koppelen) komt op een Veam4-aansluiting **naast de LK37-aansluiting van die LK**: de LK en zijn Veams zijn één geheel, hun kabels komen samen de DB in en worden samen weggestoken. Is daar geen plek, dan neemt hij een vrije Veam4-spin. Andere Veams krijgen een **Veam4-aansluiting** van zichzelf: eerst een Veam4-spin die aan een node hangt, dan losse Veam4’s, dan andere spinnen. Een losse Veam komt alleen op een vrije Veam4-aansluiting van een LK-paneel als je *Een losse Veam mag op een vrije Veam4-aansluiting van een LK-paneel* aanzet in Instellingen → Deze show (standaard uit).
+3. **Je kiest altijd zelf als je dat wilt**: in de tabel **LK’s & Veams aan aansluitingen koppelen** kies je per LK en per Veam de aansluiting, elke vrije LK37- of Veam4-aansluiting van de DimCity. PatchLab verandert een keuze van jou nooit.
+4. Elke gebruikte lijn krijgt een **nodepoort**. Lijnen van één LK of Veam blijven waar mogelijk op één node. **Elke LK en elke Veam heeft in de hele show een eigen kleur** — nooit twee dezelfde, op het rek, in de Signaalstroom, in de PDF en op de labels — en een nodepoort heeft de kleur van de LK of Veam die erop zit. Een node herken je aan zijn label (N1, N2 …), niet aan een kleur.
+5. Als er nodepoorten tekortkomen, gaan universes die vaker gebruikt worden via een **splitter** in het rek.
 
 ## Rekken zijn zones
 LK- en Veam-kabels zijn kort, dus een LK of Veam op een rekaansluiting voedt alleen nodes **in hetzelfde rek**. Alleen netwerkkabels (Cat, fiber) lopen van rek naar rek. Staan twee rekken direct op elkaar, vink dan bij het bovenste **gestapeld op het rek erboven** aan; ze tellen dan als één. Heeft een rek lijnen maar geen eigen vrije nodepoort, dan meldt PatchLab dat en biedt een **Oplossen**-knop die de rekken stapelt.
@@ -437,15 +457,25 @@ LK- en Veam-kabels zijn kort, dus een LK of Veam op een rekaansluiting voedt all
 ## Netwerkpoorten op een paneel
 Een rek met een paneel met etherCON-poorten (zeg 3) en drie nodes erachter: elke node zit in een van de poorten en de kabel naar de switch gaat in die poort aan de voorkant. Standaard nemen de nodes van een rek de poorten op volgorde; met de tabel **Netwerkpoorten op de panelen** kies je per poort een node. De rektekening toont de node op de poort (N1, N2 …) en de poort op de node (P1.2); de pagina Netwerk toont de paneelpoort naast de switchpoort, en de PDF-aansluitlijst ook.
 
+## Wat is er nog nodig
+PatchLab geeft **geen advies** over welke racks of panelen je moet gebruiken — dat bepaal jij. Hij houdt alleen de tel bij. Onder de tellers toont de kaart **Wat deze DimCity nodig heeft** wat je **nodig** hebt (LK37-aansluitingen, Veam4-aansluitingen, nodepoorten), wat er **in de racks** zit en wat er nog **ontbreekt**, en zegt **Compleet** of **Niet compleet**. Voeg iets toe of haal iets weg en de getallen volgen meteen.
+- Hebben LK’s of Veams geen aansluiting, dan voegt een knop de losse spinnen toe die nodig zijn (“2 LK-spinnen”, “1 Veam4-spin”). Losse spinnen zijn er alleen voor wat niet op de racks past: zo min mogelijk spinnen, zo veel mogelijk op het rek.
+- Gekoppelde LK’s en Veams tellen als één geheel: een LK met zijn drie Veams heeft één LK37-aansluiting nodig en de Veam4-aansluitingen ernaast.
+- De Rack Builder toont dezelfde lijst voor het rek dat je bouwt: kies een DimCity en zie wat nodig is, wat er al in die DimCity zit, wat dit rek toevoegt en wat er nog ontbreekt.
+
 ## Het resultaat lezen
 - De tellers tonen gebruikt / beschikbaar voor LK37-aansluitingen, Veam4-aansluitingen, nodepoorten en lijnen.
-- **Adviezen** vertellen wat er ontbreekt: losse spinnen om toe te voegen, extra nodes, overbodige splitters.
+- **Opmerkingen** vertellen wat er verder niet klopt: een losse node zonder spin, lijnen zonder nodepoort, overbodige splitters.
 - De rektekening toont de universe op elke nodepoort en het LK- / Veam-nummer op elke aansluiting; beweeg eroverheen voor details.
 - **Nodepoorten** laat per node zien welke LK- of Veam-poort (en locatie) op welke nodepoort zit.
 - De **patchtabel** onderaan heeft elke lijn: nodepoort, universe, via splitter, aansluiting, LK- / Veam-poort, locatie.
 
+## De nodes volgen de racks
+Er is geen knop om de nodes te kopiëren. De nodes en splitters van de racks (en de losse nodes) verschijnen **vanzelf** op de pagina Netwerk: op het tabblad Nodes, op het patchbord en in het overzicht, elk met het volgende vrije ID en een adres. Plaats een rek met drie nodes en ze staan er.
+- Haal je een apparaat uit een rek, dan wordt zijn node **niet** weggegooid: hij blijft staan als **niet meer in een rek**, met zijn ID, adres, switchpoort en universes. Kies op het tabblad Nodes **Vervangen** (de nieuwe node neemt ID, adres, poort en universes over) of **Verwijderen**.
+- ID’s blijven zoals ze zijn: een gat in de nummering is geen probleem.
+
 ## Gebruiken
-- **Gebruik als netwerkplan** kopieert de nodes en splitters, met hun universes, naar het netwerkplan van deze DimCity (IP-adressen worden gegenereerd).
 - **Racks printen** opent de Rapportbouwer met de voorinstelling "Alleen racks".`
   },
   {
@@ -454,7 +484,8 @@ Een rek met een paneel met etherCON-poorten (zeg 3) en drie nodes erachter: elke
     en:`The network plan lists the DMX nodes and splitters of every DimCity with their IP addresses and universes. You find it on the **Nodes** tab of the **Network** page (all DimCities) and in the **Network nodes** and **Splitters** cards of a DimCity. The old page “Nodes & Splitters” is that tab now. Switches, ports, VLANs and fibres are on the other tabs of the **Network** page; the **Setup** wizard (toolbar) walks through everything in order.
 
 ## Nodes
-- The quickest way to a plan: **Nodes from the racks** (or **Use as network plan** on the [[racks|Racks card]]) takes the nodes and splitters from the racks of the DimCity, with the universes of the rack patch. Or choose **Plan by hand…**, pick a node type and click **Auto-assign nodes**: PatchLab fills the universes of the DimCity low to high over as many nodes as needed, keeping the **spare ports** from Settings free.
+- **The nodes follow the racks.** As soon as a DimCity has racks (or loose nodes), its nodes and splitters appear here by themselves, with the universes of the rack patch, the next free ID and an address — there is nothing to copy (see [[racks|Racks per DimCity]]). They also show on the patch board, the overview and the Signal Flow. Only a DimCity **without racks** offers **Plan by hand…**: pick a node type and click **Auto-assign nodes**; PatchLab fills the universes of the DimCity low to high over as many nodes as needed, keeping the **spare ports** from Settings free.
+- **A node whose device is gone.** Take a device out of a rack and its node stays, marked **no longer in a rack**, with its ID, address, switch port and universes. Choose **Replace** (another node of the racks takes over all of that) or **Remove**. IDs are never renumbered, so a gap is normal.
 - Every DMX port of a node shows its universe, the **LK or Veam that is patched on it** (in its own colour, with its ports) and the location.
 - Drag a universe from the **universe pool** onto a port, or click a port to pick one. Ports can be emptied.
 - ID, name, IP and subnet are editable per node. IDs and IPs follow the DimCity: node 1 of DB02 becomes ID:21 with last IP octet 21.
@@ -464,7 +495,16 @@ Een rek met een paneel met etherCON-poorten (zeg 3) en drie nodes erachter: elke
 - **Auto-calculate splitters** (under **Plan by hand…**) gives every patch point of a universe a splitter output; A/B splitters carry two universes. **Add one splitter** adds an empty one.
 - The output map shows universe, LK / Veam port and location per output.
 
-The quickest way to a complete plan is to build it from the rack patch: **Use as network plan** on the [[racks|Racks card]].
+## Consoles and other network devices
+A lighting console (or a media server, a laptop …) is a plain network device: at the bottom of the **Nodes** tab choose **Add console**, give it a **name** and say whether it has **one or two network ports**, and plug it into a switch port like a node. It gets a lighting address from the FENT scheme (change it on the Addresses tab), shows on the patch board with its name, in the Signal Flow feeding its switch, and in the PDF.
+
+## LumiNode: advanced network
+Tick **Advanced network** on a node of the Nodes tab (a LumiNode with VLAN groups instead of one address). A table opens with the **groups** of the node:
+- By default there are two: **management** (VLAN 1) and **lighting** (VLAN 200, the sACN / Art-Net data). Every group has an **address** and a **mask**, made with the FENT scheme (10.90.x.x for management, 10.40.x.x for lighting, the same last number everywhere) and **yours to change**; **Addresses from the FENT scheme** makes them again.
+- The **VLAN of a group is always the Luminex one** — group 1 = VLAN 1, group 2 = VLAN 200, group 3 = VLAN 300 … — also when the show numbers its VLANs the FENT way. Choose another group for a row, or **Add group** for more.
+- **Lighting data** says whether the group takes part in sACN / Art-Net input and output; management normally does not.
+- **Both RJ45 ports are set** (ETH1 / ETH2): tick per group which port carries it. A port with **two or more groups is a trunk** and the switch port it is plugged into becomes a trunk too; a port with one group is an access port, so the other port can have a VLAN of its own. By default everything is on ETH1 (one trunk cable) and ETH2 is free.
+- Sending it: the Align tool and Network config send the groups, the addresses and the ports to the node (validate, send, activate) and set the trunk ports on the switch. A node that is going to answer on another address is announced first. See [[align|Align tool]].
 
 ## Several addresses per device and the FENT scheme
 - A node can have **more than one address**: use **Add address** on the node. This is for a device that is managed on one VLAN and sends or scans on another: a management address (VLAN 1090) and a lighting address (VLAN 1040), optionally a scan address (VLAN 1041). For a node with two RJ45 ports you choose which port (ETH1 or ETH2) carries which address; on a node with one port both addresses share it and the switch port becomes a trunk.
@@ -480,7 +520,8 @@ The quickest way to a complete plan is to build it from the rack patch: **Use as
     nl:`Het netwerkplan somt de DMX-nodes en splitters van elke DimCity op met hun IP-adressen en universes. Je vindt het op het tabblad **Nodes** van de pagina **Netwerk** (alle DimCities) en in de kaarten **Netwerknodes** en **Splitters** van een DimCity. De oude pagina “Nodes & splitters” is dat tabblad nu. Switches, poorten, VLAN’s en fibers staan op de andere tabbladen van de pagina **Netwerk**; de **Setup**-wizard (werkbalk) loopt alles op volgorde met je door.
 
 ## Nodes
-- De snelste weg naar een plan: **Nodes uit de racks** (of **Gebruik als netwerkplan** op de [[racks|Racks-kaart]]) neemt de nodes en splitters uit de racks van de DimCity, met de universes van de rackpatch. Of kies **Zelf plannen…**, kies een nodetype en klik op **Nodes automatisch toewijzen**: PatchLab vult de universes van de DimCity van laag naar hoog over zoveel nodes als nodig, en houdt de **reservepoorten** uit Instellingen vrij.
+- **De nodes volgen de racks.** Zodra een DimCity racks (of losse nodes) heeft, verschijnen zijn nodes en splitters hier vanzelf, met de universes van de rackpatch, het volgende vrije ID en een adres — er is niets te kopiëren (zie [[racks|Racks per DimCity]]). Ze staan ook op het patchbord, in het overzicht en in de Signaalstroom. Alleen een DimCity **zonder racks** biedt **Zelf plannen…**: kies een nodetype en klik op **Nodes automatisch toewijzen**; PatchLab vult de universes van de DimCity van laag naar hoog over zoveel nodes als nodig, en houdt de **reservepoorten** uit Instellingen vrij.
+- **Een node waarvan het apparaat weg is.** Haal je een apparaat uit een rek, dan blijft zijn node staan, gemarkeerd als **niet meer in een rek**, met zijn ID, adres, switchpoort en universes. Kies **Vervangen** (een andere node uit de racks neemt dat allemaal over) of **Verwijderen**. ID’s worden nooit hernummerd, dus een gat is normaal.
 - Elke DMX-poort van een node toont zijn universe, de **LK of Veam die erop gepatcht is** (in zijn eigen kleur, met zijn poorten) en de locatie.
 - Sleep een universe uit de **universe-pool** naar een poort, of klik op een poort om er een te kiezen. Poorten kun je leegmaken.
 - ID, naam, IP en subnet zijn per node te bewerken. ID's en IP's volgen de DimCity: node 1 van DB02 wordt ID:21 met laatste IP-octet 21.
@@ -490,7 +531,16 @@ The quickest way to a complete plan is to build it from the rack patch: **Use as
 - **Splitters automatisch berekenen** (onder **Zelf plannen…**) geeft elk patchpunt van een universe een splitteruitgang; A/B-splitters dragen twee universes. **Eén splitter toevoegen** voegt een lege toe.
 - De uitgangenkaart toont per uitgang universe, LK- / Veam-poort en locatie.
 
-De snelste weg naar een compleet plan is het uit de rack-patch opbouwen: **Gebruik als netwerkplan** op de [[racks|Racks-kaart]].
+## Lichttafels en andere netwerkapparaten
+Een lichttafel (of mediaserver, laptop …) is gewoon een netwerkapparaat: kies onderaan het tabblad **Nodes** voor **Lichttafel toevoegen**, geef hem een **naam**, zeg of hij **één of twee netwerkpoorten** heeft en steek hem in een switchpoort, net als een node. Hij krijgt een lichtadres uit het FENT-schema (aan te passen op het tabblad Adressen), staat met zijn naam op het patchbord, in de Signaalstroom (hij voedt zijn switch) en in de PDF.
+
+## LumiNode: advanced netwerk
+Vink **Advanced netwerk** aan bij een node op het tabblad Nodes (een LumiNode met VLAN-groepen in plaats van één adres). Er opent een tabel met de **groepen** van de node:
+- Standaard zijn er twee: **beheer** (VLAN 1) en **licht** (VLAN 200, de sACN- / Art-Net-data). Elke groep heeft een **adres** en een **masker**, gemaakt met het FENT-schema (10.90.x.x voor beheer, 10.40.x.x voor licht, overal hetzelfde laatste getal) en **zelf aan te passen**; **Adressen volgens het FENT-schema** maakt ze opnieuw.
+- Het **VLAN van een groep is altijd dat van Luminex** — groep 1 = VLAN 1, groep 2 = VLAN 200, groep 3 = VLAN 300 … — ook als de show zijn VLAN’s op de FENT-manier nummert. Kies een andere groep voor een rij, of **Groep toevoegen** voor meer.
+- **Lichtdata** zegt of de groep meedoet met sACN- / Art-Net-ingang en -uitgang; beheer doet dat normaal niet.
+- **Beide RJ45-poorten zijn in te stellen** (ETH1 / ETH2): vink per groep aan welke poort hem draagt. Een poort met **twee of meer groepen is een trunk** en de switchpoort waar hij in zit wordt ook een trunk; een poort met één groep is een access-poort, dus de andere poort kan een eigen VLAN hebben. Standaard staat alles op ETH1 (één trunkkabel) en is ETH2 vrij.
+- Sturen: de Uitlijntool en Netwerkconfig sturen de groepen, de adressen en de poorten naar de node (controleren, sturen, activeren) en zetten de trunkpoorten op de switch. Een node die op een ander adres gaat antwoorden wordt eerst aangekondigd. Zie [[align|Uitlijntool]].
 
 ## Meerdere adressen per apparaat en het FENT-schema
 - Een node kan **meer dan één adres** hebben: gebruik **Adres toevoegen** bij de node. Dat is voor een apparaat dat op het ene VLAN wordt beheerd en op een ander VLAN data stuurt of scant: een beheeradres (VLAN 1090) en een lichtadres (VLAN 1040), eventueel een scanadres (VLAN 1041). Bij een node met twee RJ45-poorten kies je welke poort (ETH1 of ETH2) welk adres draagt; bij een node met één poort delen beide adressen die poort en wordt de switchpoort een trunk.
@@ -514,14 +564,18 @@ De snelste weg naar een compleet plan is het uit de rack-patch opbouwen: **Gebru
 - **Drag a device onto a port** — or click the device and then the port. Under the switches is the tray **Without a port**: every node RJ45 and every network cable line that has no port yet waits there. Drop a device in the tray to take it off its port. The tray stays at the bottom of the window while you scroll along the switches, so you can always drag from it.
 - A device dropped on a **used** port takes its place; the one that was there goes back to the tray, and the port the moved device came from stays empty. **Nothing is placed by itself**: a new device waits in the tray until you place it.
 - **Auto-fill ports…** fills the free ports once, in the order you choose (nodes then cables or the other way round, by id or as planned); keep what you placed or start over; this DimCity or all of them. Afterwards nothing moves by itself. **Take all off** puts everything back in the tray. A show made with an older version keeps its ports exactly as they were.
-- **Link to switch…** connects two switches through RJ45 ports, as a **trunk** that carries every VLAN — the usual way with more than one switch in a DB. **Link automatically** chains the switches with their last free ports. Linked ports cannot take a device. (Fibres between switches are on the Fibres tab.)
+- **Link to switch…** connects two switches through RJ45 ports, as a **trunk** that carries every VLAN — the usual way with more than one switch in a DB. A trunk is usually **two lines, main and backup**: the dialog sets both at once (choose **Lines: 2** and the ports of each line, or 1 for a single line). Both ports of each line become a trunk. **Link automatically** chains the switches with their last free ports and makes two lines where two ports are free on both switches. Linked ports cannot take a device.
+- **Pick a trunk link up** (the chip on the port, marked main or backup) and drop it on **another port of the same switch** to move it. The other end stays where it is. A device on the port you drop it on goes back to the tray.
+- Two lines between the same two switches are a loop unless the switches handle it (LAG or RSTP). PatchLab warns about that in the dialog but does not set it on the switches. (Fibres between switches are on the Fibres tab.)
 - **Connections as a list** below the board shows the same as a table, with a switch and a port per device. It is the secondary way: the board is the first.
 
 ## Nodes
 - Per node: the type, its name in the CSV (Node 601), and **where it has to be plugged in** — a list of every switch port; choosing a used port takes it over. A node in a rack also says which network port of the rack panel it stands behind.
 - Every DMX port shows its universe, the **LK or Veam patched on it** (own colour, ports) and the location. **Node ports: universes and names** (below) paints universes, protocol and direction onto the ports.
-- **Advanced network** (a LumiNode): tick it and every VLAN of the node becomes a group on the node itself, with its own address and a lighting setting; a port that carries two VLANs becomes a trunk. Network config sends it through the node's network API (validate, send, commit); PatchLab warns when the switch port is not a trunk although the node needs one.
-- **Nodes from the racks** and **Plan by hand…** (node type, auto-assign nodes, auto-calculate splitters) are at the top of every DimCity.
+- **Advanced network** (a LumiNode): the groups of the node with their Luminex VLAN, a FENT address you can change, the lighting data per group and what each of the two RJ45 ports carries — see [[network|Nodes, splitters & network]]. PatchLab warns when the switch port is not a trunk although the node needs one.
+- A node whose device was taken out of its rack stays as **no longer in a rack** until you **Replace** or **Remove** it.
+- **Consoles and other network devices** are added at the bottom of the tab (name, one or two network ports) and plugged into a switch port.
+- The nodes of a DimCity follow its racks by themselves. **Plan by hand…** (node type, auto-assign nodes, auto-calculate splitters) is only there for a DimCity without racks.
 
 ## Switches
 - Every switch of the show, also the ones in a rack: name, IP address and subnet, extra addresses.
@@ -548,14 +602,18 @@ Per DimCity: nodes, switches, devices on a port, Cat lines, fibres and a status.
 - **Sleep een apparaat op een poort** — of klik het apparaat en dan de poort. Onder de switches staat de bak **Zonder poort**: elke node-RJ45 en elke netwerkkabellijn die nog geen poort heeft wacht daar. Laat een apparaat in de bak los om het van zijn poort te halen. De bak blijft onderaan het venster staan terwijl je langs de switches scrolt, zodat je er altijd uit kunt slepen.
 - Een apparaat dat je op een **bezette** poort loslaat neemt zijn plek in; het apparaat dat er zat gaat terug in de bak, en de poort waar het verplaatste apparaat vandaan kwam blijft leeg. **Er wordt niets vanzelf geplaatst**: een nieuw apparaat wacht in de bak tot jij het plaatst.
 - **Poorten automatisch vullen…** vult de vrije poorten één keer, in de volgorde die je kiest (nodes en dan kabels of andersom, op id of zoals gepland); houd wat je geplaatst hebt of begin opnieuw; deze DimCity of alle. Daarna verschuift er niets vanzelf. **Alles eraf halen** zet alles terug in de bak. Een show uit een oudere versie houdt zijn poorten precies zoals ze waren.
-- **Koppel aan switch…** verbindt twee switches via RJ45-poorten, als **trunk** die elk VLAN draagt — de gebruikelijke manier met meer dan één switch in een DB. **Automatisch koppelen** ketent de switches met hun laatste vrije poorten. Gekoppelde poorten nemen geen apparaat. (Fibers tussen switches staan op het tabblad Fibers.)
+- **Koppel aan switch…** verbindt twee switches via RJ45-poorten, als **trunk** die elk VLAN draagt — de gebruikelijke manier met meer dan één switch in een DB. Een trunk is meestal **twee lijnen, main en backup**: het venster zet beide in één keer (kies **Lijnen: 2** en de poorten van elke lijn, of 1 voor één lijn). Beide poorten van elke lijn worden een trunk. **Automatisch koppelen** ketent de switches met hun laatste vrije poorten en maakt twee lijnen waar op beide switches twee poorten vrij zijn. Gekoppelde poorten nemen geen apparaat.
+- **Pak een trunklink op** (het labeltje op de poort, met main of backup) en laat hem los op **een andere poort van dezelfde switch** om hem te verplaatsen. Het andere uiteinde blijft waar het is. Een apparaat op de poort waar je hem loslaat gaat terug in de bak.
+- Twee lijnen tussen dezelfde twee switches zijn een lus, tenzij de switches dat afhandelen (LAG of RSTP). PatchLab waarschuwt daarvoor in het venster maar zet het niet op de switches. (Fibers tussen switches staan op het tabblad Fibers.)
 - **Aansluitingen als lijst** onder het bord toont hetzelfde als tabel, met een switch en een poort per apparaat. Het is de tweede weg: het bord is de eerste.
 
 ## Nodes
 - Per node: het type, zijn naam in de CSV (Node 601) en **waar hij aangesloten moet worden** — een lijst met elke switchpoort; kies je een bezette poort, dan neem je die over. Een node in een rek zegt ook achter welke netwerkpoort van het rekpaneel hij zit.
 - Elke DMX-poort toont zijn universe, de **LK of Veam die erop gepatcht is** (eigen kleur, poorten) en de locatie. **Nodepoorten: universes en namen** (eronder) schildert universes, protocol en richting op de poorten.
-- **Advanced netwerk** (een LumiNode): vink het aan en elk VLAN van de node wordt een groep op de node zelf, met een eigen adres en een lichtinstelling; een poort die twee VLAN’s draagt wordt een trunk. Netwerkconfig stuurt het via de netwerk-API van de node (valideren, sturen, bevestigen); PatchLab waarschuwt als de switchpoort geen trunk is terwijl de node dat nodig heeft.
-- **Nodes uit de racks** en **Zelf plannen…** (nodetype, nodes automatisch indelen, splitters automatisch berekenen) staan bovenaan elke DimCity.
+- **Advanced netwerk** (een LumiNode): de groepen van de node met hun Luminex-VLAN, een FENT-adres dat je kunt aanpassen, de lichtdata per groep en wat elk van de twee RJ45-poorten draagt — zie [[network|Nodes, splitters & netwerk]]. PatchLab waarschuwt als de switchpoort geen trunk is terwijl de node dat nodig heeft.
+- Een node waarvan het apparaat uit zijn rek is gehaald blijft staan als **niet meer in een rek** tot je hem **Vervangt** of **Verwijdert**.
+- **Lichttafels en andere netwerkapparaten** voeg je onderaan het tabblad toe (naam, één of twee netwerkpoorten) en steek je in een switchpoort.
+- De nodes van een DimCity volgen vanzelf zijn racks. **Zelf plannen…** (nodetype, nodes automatisch indelen, splitters automatisch berekenen) is er alleen voor een DimCity zonder racks.
 
 ## Switches
 - Elke switch van de show, ook die in een rek: naam, IP-adres en subnet, extra adressen.
@@ -581,18 +639,19 @@ Per DimCity: nodes, switches, apparaten op een poort, Cat-lijnen, fibers en een 
     title:{ en:'Setup wizard', nl:'Setup-wizard' },
     en:`The **Setup** button in the toolbar (also offered after an import, and under the File menu) walks through a new project in the right order. Nothing is locked: take the steps in order or jump to any step.
 
-**First the plan on paper (steps 1–7), then the real devices (steps 8–9), then the printouts (step 10).**
+**First the plan on paper (steps 1–8), then the real devices (steps 9–10), then the printouts (step 11).**
 
-1. **Import the patch** — LK, Veam and C rows.
-2. **Racks and devices** — read the **advice** (best setup for the LKs, Veams and universes) and apply it, or place racks and loose devices yourself.
-3. **Couple LKs and Veams** — every LK and Veam gets a socket; automatic, or choose a socket / loose spider / do not patch yourself.
-4. **Nodes** — the rack patch becomes the nodes of the network plan; DMX lines named like "Node 401.1" are put on that node port (see [[node-names|Node names]]).
-5. **Network per DB** — VLAN numbering, FENT on or off, and a network switch for every DB (the nodes take its ports).
-6. **Couple the fibres** between the DBs: auto-assign from your stock, or draw them (see [[fibres|Fibres]]).
-7. **Check the plan** — the Signal Flow and the open issues. The plan on paper is now complete.
-8. **Find and align the devices** — the [[align|Align tool]] finds every switch and node, makes them blink one by one and you say which is which.
-9. **Send the configuration** — names, IP addresses, VLANs and universes go to the devices, after you have seen every change.
-10. **Print and share** — the PDF report, stickers, QR codes and the exchange with Lightwright / Vectorworks.
+1. **Import the patch** — LK, Veam and C rows, and the link rows (see [[import|Importing a CSV]]).
+2. **Check the LK ↔ Veam links** — which Veam hangs on which LK (Veam A, B and C), read from the CSV. An LK and its Veams come into the DB together, so the racks take them together. Change what is wrong.
+3. **Racks and devices per DB** — place racks and loose devices yourself. There is no advice: the card **What this DimCity needs** says what is still missing (LK37 sockets, Veam4 sockets, node ports) and, only where the racks have no socket left, how many loose spiders to add.
+4. **Put LKs and Veams on sockets** — every LK and Veam gets a socket; automatic, or choose any free socket / loose spider / do not patch yourself.
+5. **Nodes** — the nodes of the racks appear in the network plan by themselves; DMX lines named like "Node 401.1" are put on that node port (see [[node-names|Node names]]).
+6. **Network per DB** — VLAN numbering, FENT on or off, and a network switch for every DB (the nodes take its ports).
+7. **Couple the fibres** between the DBs: auto-assign from your stock, or draw them (see [[fibres|Fibres]]).
+8. **Check the plan** — the Signal Flow and the open issues. The plan on paper is now complete.
+9. **Find and align the devices** — the [[align|Align tool]] finds every switch and node, makes them blink one by one and you say which is which.
+10. **Send the configuration** — names, IP addresses, VLANs, universes and the advanced network of the nodes go to the devices, after you have seen every change.
+11. **Print and share** — the PDF report, stickers, QR codes and the exchange with Lightwright / Vectorworks.
 
 Every step explains itself in three lines: what it is, what you do, what comes next.
 
@@ -601,18 +660,19 @@ Need more locations? Use **+ DB** or **+ FOH** (front of house, where the lighti
 Each step shows a green check when it is done. **Skip** marks a step as skipped; **Start over** clears the skipped marks; **Stop** closes the wizard whenever you like. See [[videos|the videos]] for a walk-through.`,
     nl:`De knop **Setup** in de werkbalk (ook aangeboden na een import, en in het menu Bestand) loopt een nieuw project in de juiste volgorde door. Niets zit vast: neem de stappen op volgorde of spring naar elke stap.
 
-**Eerst het plan op papier (stap 1–7), dan de echte apparaten (stap 8–9), dan het printwerk (stap 10).**
+**Eerst het plan op papier (stap 1–8), dan de echte apparaten (stap 9–10), dan het printwerk (stap 11).**
 
-1. **Patch importeren** — LK-, Veam- en C-regels.
-2. **Racks en apparaten** — lees het **advies** (beste setup voor de LK’s, Veams en universes) en pas het toe, of plaats zelf racks en losse apparaten.
-3. **LK’s en Veams koppelen** — elke LK en Veam krijgt een aansluiting; automatisch, of kies zelf een aansluiting / losse spin / niet patchen.
-4. **Nodes** — de rekpatch wordt de nodes van het netwerkplan; DMX-regels met een naam als "Node 401.1" komen op die nodepoort (zie [[node-names|Nodenamen]]).
-5. **Netwerk per DB** — VLAN-nummering, FENT aan of uit, en een netwerkswitch voor elke DB (de nodes pakken zijn poorten).
-6. **Fibers koppelen** tussen de DB’s: automatisch uit je voorraad, of tekenen (zie [[fibres|Fibers]]).
-7. **Het plan controleren** — de Signaalstroom en de open meldingen. Het plan op papier is nu compleet.
-8. **Apparaten zoeken en uitlijnen** — de [[align|Uitlijntool]] vindt elke switch en node, laat ze één voor één knipperen en jij zegt welke wat is.
-9. **De configuratie sturen** — namen, IP-adressen, VLAN’s en universes gaan naar de apparaten, nadat je elke wijziging hebt gezien.
-10. **Printen en delen** — het PDF-rapport, stickers, QR-codes en de uitwisseling met Lightwright / Vectorworks.
+1. **Patch importeren** — LK-, Veam- en C-regels, en de koppelregels (zie [[import|CSV importeren]]).
+2. **LK ↔ Veam-koppelingen controleren** — welke Veam aan welke LK hangt (Veam A, B en C), uit de CSV gelezen. Een LK en zijn Veams komen samen de DB in, dus de racks nemen ze samen op. Pas aan wat niet klopt.
+3. **Racks en apparaten per DB** — plaats zelf racks en losse apparaten. Er is geen advies: de kaart **Wat deze DimCity nodig heeft** zegt wat er nog mist (LK37-aansluitingen, Veam4-aansluitingen, nodepoorten) en, alleen waar de racks geen aansluiting meer hebben, hoeveel losse spinnen erbij moeten.
+4. **LK’s en Veams op aansluitingen zetten** — elke LK en Veam krijgt een aansluiting; automatisch, of kies zelf elke vrije aansluiting / losse spin / niet patchen.
+5. **Nodes** — de nodes van de racks komen vanzelf in het netwerkplan; DMX-regels met een naam als "Node 401.1" komen op die nodepoort (zie [[node-names|Nodenamen]]).
+6. **Netwerk per DB** — VLAN-nummering, FENT aan of uit, en een netwerkswitch voor elke DB (de nodes pakken zijn poorten).
+7. **Fibers koppelen** tussen de DB’s: automatisch uit je voorraad, of tekenen (zie [[fibres|Fibers]]).
+8. **Het plan controleren** — de Signaalstroom en de open meldingen. Het plan op papier is nu compleet.
+9. **Apparaten zoeken en uitlijnen** — de [[align|Uitlijntool]] vindt elke switch en node, laat ze één voor één knipperen en jij zegt welke wat is.
+10. **De configuratie sturen** — namen, IP-adressen, VLAN’s, universes en het advanced netwerk van de nodes gaan naar de apparaten, nadat je elke wijziging hebt gezien.
+11. **Printen en delen** — het PDF-rapport, stickers, QR-codes en de uitwisseling met Lightwright / Vectorworks.
 
 Elke stap legt zichzelf uit in drie regels: wat het is, wat je doet, wat daarna komt.
 
@@ -703,10 +763,11 @@ Click a node to open it. You see its DMX ports as tiles: number, name, direction
 - The node keeps its own rules: the name and direction are written on the DMX port, the universe and protocol on the network input (or, for a DMX input, output) that is connected to it through its process block. Changing the direction or the protocol makes a new input / output, connects it and removes the old one; the preview shows every step. A port whose set-up is not recognised, or whose input is shared with another port, is left alone and explained.
 
 ## Advanced network of a LumiNode
-A LumiNode normally has one address (basic configuration). In the **advanced network** it has **groups**: every VLAN is a group with its own address(es) and a lighting setting (does lighting come in and go out on this group), and every network port sits in one group or in a **trunk** of several. You plan it on the Network page: tick **Advanced network** on the node (Nodes tab); every VLAN of the node's addresses becomes a group, the lighting addresses listen for lighting, and a port that carries two VLANs becomes a trunk.
+A LumiNode normally has one address (basic configuration). In the **advanced network** it has **groups**: every VLAN is a group with its own address(es) and a lighting setting (does lighting come in and go out on this group), and every network port sits in one group or in a **trunk** of several. You plan it on the Network page: tick **Advanced network** on the node (Nodes tab) and set the groups there — the **VLAN of a group is always the Luminex one** (group 1 = VLAN 1, group 2 = VLAN 200 …), the **address of every group** comes from the FENT scheme and can be changed, and **both RJ45 ports** can be set: a port with two or more groups is a trunk, a port with one group is an access port (see [[network|Nodes, splitters & network]]).
 - On the card of the node, **Network of this node** shows the groups and ports the node has now and, below it, what the plan wants. **Fill from the plan** puts it in the pending changes: *check the new network configuration*, *send it* and *activate it* — three calls, shown in the list before you apply. The node can stop answering on its old address afterwards: look for it on its new one.
 - PatchLab warns (Nodes tab, Addresses tab and here) when the switch port the node is plugged into is not a trunk although the node carries two VLANs on that cable, or when the VLAN of the port is another one than the node's. It checks the plan; a node that is linked is checked against the port it sits on.
 - Older firmware without the advanced network is recognised: only the basic address is set then.
+- **Sending to all devices** (Align tool, or Fill from the plan on every card) sends the groups, their addresses and the ports of every advanced node, and sets the switch ports of the trunk cables as trunk members on the GigaCore (the management VLAN untagged). With *set the IP address* off, the groups the node has keep their addresses; with it on, a node that goes to another address is announced before sending and read back at its new address. A node counts as checked when planning it again gives nothing more to send.
 
 ## All settings and sending to other devices
 Every card has a section **All settings**. It lists everything the Luminex API lets you change, in sections (pick one, or search for a word like "jumbo" or "IGMP"). Ports, VLAN groups, outputs and so on are a table with one row each; the **all** button under a column title puts that value on every row. Changed values are marked and stay pending until you press Apply (they are in the list of calls too). Settings that can lock you out (IP, security, switching ports off) carry a warning sign.
@@ -745,10 +806,11 @@ Klik op een node om hem open te klappen. Je ziet de DMX-poorten als tegels: numm
 - De node houdt zijn eigen regels aan: naam en richting staan op de DMX-poort, universe en protocol op de netwerkingang (of, bij een DMX-ingang, netwerkuitgang) die er via zijn process block aan hangt. Een richting of protocol veranderen maakt een nieuwe ingang / uitgang, koppelt die en verwijdert de oude; het voorbeeld toont elke stap. Een poort waarvan de opzet niet herkend wordt, of waarvan de ingang gedeeld is met een andere poort, blijft ongemoeid en wordt uitgelegd.
 
 ## Advanced netwerk van een LumiNode
-Een LumiNode heeft normaal één adres (basisconfiguratie). In het **advanced netwerk** heeft hij **groepen**: elk VLAN is een groep met eigen adres(sen) en een lichtinstelling (komt licht op deze groep binnen en gaat het eruit), en elke netwerkpoort zit in één groep of in een **trunk** van meer groepen. Je plant het op de pagina Netwerk: vink **Advanced netwerk** aan bij de node (tabblad Nodes); elk VLAN van de adressen van de node wordt een groep, de lichtadressen luisteren naar licht, en een poort die twee VLAN’s draagt wordt een trunk.
+Een LumiNode heeft normaal één adres (basisconfiguratie). In het **advanced netwerk** heeft hij **groepen**: elk VLAN is een groep met eigen adres(sen) en een lichtinstelling (komt licht op deze groep binnen en gaat het eruit), en elke netwerkpoort zit in één groep of in een **trunk** van meer groepen. Je plant het op de pagina Netwerk: vink **Advanced netwerk** aan bij de node (tabblad Nodes) en stel daar de groepen in — het **VLAN van een groep is altijd dat van Luminex** (groep 1 = VLAN 1, groep 2 = VLAN 200 …), het **adres van elke groep** komt uit het FENT-schema en is aan te passen, en **beide RJ45-poorten** zijn in te stellen: een poort met twee of meer groepen is een trunk, een poort met één groep is een access-poort (zie [[network|Nodes, splitters & netwerk]]).
 - Op de kaart van de node toont **Netwerk van deze node** de groepen en poorten die de node nu heeft en daaronder wat het plan wil. **Invullen uit het plan** zet het in de wachtende wijzigingen: *de nieuwe netwerkconfiguratie controleren*, *sturen* en *activeren* — drie aanroepen, die je in de lijst ziet voor je toepast. De node kan daarna op zijn oude adres niet meer antwoorden: zoek hem op zijn nieuwe.
 - PatchLab waarschuwt (tabblad Nodes, tabblad Adressen en hier) als de switchpoort waar de node aan zit geen trunk is terwijl de node twee VLAN’s over die kabel draagt, of als het VLAN van de poort een ander is dan dat van de node. Het controleert het plan; een gekoppelde node wordt gecontroleerd tegen de poort waar hij op zit.
 - Oudere firmware zonder het advanced netwerk wordt herkend: dan wordt alleen het basisadres ingesteld.
+- **Naar alle apparaten sturen** (Uitlijntool, of Invullen uit het plan op elke kaart) stuurt de groepen, hun adressen en de poorten van elke advanced node, en zet de switchpoorten van de trunkkabels als trunklid op de GigaCore (het beheer-VLAN untagged). Staat *het IP-adres instellen* uit, dan houden de groepen die de node heeft hun adres; staat het aan, dan wordt een node die naar een ander adres gaat vóór het sturen aangekondigd en op zijn nieuwe adres teruggelezen. Een node telt als gecontroleerd als opnieuw plannen niets meer te sturen oplevert.
 
 ## Alle instellingen en naar andere apparaten sturen
 Elke kaart heeft een onderdeel **Alle instellingen**. Daar staat alles wat de Luminex API laat veranderen, in onderdelen (kies er een, of zoek op een woord als "jumbo" of "IGMP"). Poorten, VLAN-groepen, uitgangen enzovoort staan in een tabel met één rij per stuk; de knop **alle** onder een kolomtitel zet die waarde op elke rij. Gewijzigde waarden zijn gemarkeerd en blijven klaar staan tot je op Toepassen drukt (ze staan ook in de lijst met aanroepen). Instellingen waarmee je jezelf kunt buitensluiten (IP, beveiliging, poorten uitzetten) hebben een waarschuwingsteken.
@@ -767,13 +829,13 @@ Buiten de desktop-app antwoorden gesimuleerde apparaten zodat je het kunt uitpro
 
 - **New DB** (and **FOH**) add a DB, also called a DimCity. A DB also appears by itself when you import a patch: it follows from the LK and Veam numbers.
 - **Rack Builder** opens the builder where you make **rack types**: choose the devices (dimmer rack, node rack, splitters …) and their height. A rack type is made once and placed in as many DBs as you like.
-- Pick a DB with its chip. For that DB you see **Place rack** (choose a type), **Custom rack…** (a rack of your own, without an article key), the advice for the best setup, **Loose devices** (a loose node, LK spider or Veam4 spider) and **Use as network plan**, which turns the racks into the nodes and splitters of the network plan.
+- Pick a DB with its chip. For that DB you see **Place rack** (choose a type), **Custom rack…** (a rack of your own, without an article key), **What this DimCity needs** (what is still missing in sockets and node ports), **Loose devices** (a loose node, LK spider or Veam4 spider). The nodes and splitters of the racks go into the network plan by themselves.
 - PatchLab then patches every LK and Veam onto a socket of the racks and a port of a node. The same card is on the page of a DimCity; this page is only the front door.`,
     nl:`De pagina **Racks & DB’s** (linkermenu, onder Patchlijst) is de plek waar de DB’s van de show en hun racks worden gemaakt.
 
 - **Nieuwe DB** (en **FOH**) voegen een DB toe, ook wel DimCity. Een DB verschijnt ook vanzelf als je een patch importeert: hij volgt uit de LK- en Veam-nummers.
 - **Rack Builder** opent de bouwer waar je **racktypen** maakt: kies de apparaten (dimmerrack, noderack, splitters …) en de hoogte. Een racktype maak je één keer en plaats je in zoveel DB’s als je wilt.
-- Kies een DB met zijn chip. Voor die DB zie je **Rack plaatsen** (kies een type), **Eigen rack…** (een rack van jezelf, zonder artikelsleutel), het advies voor de beste setup, **Losse apparaten** (een losse node, LK-spin of Veam4-spin) en **Gebruik als netwerkplan**, dat van de racks de nodes en splitters van het netwerkplan maakt.
+- Kies een DB met zijn chip. Voor die DB zie je **Rack plaatsen** (kies een type), **Eigen rack…** (een rack van jezelf, zonder artikelsleutel), **Wat deze DimCity nodig heeft** (wat er nog mist aan aansluitingen en nodepoorten), **Losse apparaten** (een losse node, LK-spin of Veam4-spin). De nodes en splitters van de racks komen vanzelf in het netwerkplan.
 - PatchLab patcht daarna elke LK en Veam op een aansluiting van de racks en een poort van een node. Dezelfde kaart staat op de pagina van een DimCity; deze pagina is alleen de voordeur.`
   },
   {
@@ -811,18 +873,22 @@ Buiten de desktop-app antwoorden gesimuleerde apparaten zodat je het kunt uitpro
   {
     id:'align', icon:'compass', context:['align'],
     title:{ en:'Align tool', nl:'Uitlijntool' },
-    en:`The **Align tool** is for setting up many devices quickly. Open it from the Tasks page, from Network Config (**Align tool**) or from Setup step 8. Network Config stays as it is, for working on one device or port.
+    en:`The **Align tool** is for setting up many devices quickly. Open it from the Tasks page, from Network Config (**Align tool**) or from Setup step 9. Network Config stays as it is, for working on one device or port.
 
 1. **Find** — searches the network (or the range you type) for every LumiNode and GigaCore, and shows each one the moment it is found. The part around this computer is searched first, for every address this computer has (so two addresses in two ranges work), then the wider network.
 2. **Align** — switches and nodes work the same way. The first device **blinks**: a GigaCore blinks its screen and port lights (the identify call of the switch), a LumiNode its LEDs. You stand at the device, see which one it is and press its place in the plan, for example **DB3-SW1**. The link is made and the next device blinks. The suggestion in orange is the first free place, or the one with the same IP address. **Skip** leaves a device alone, **Undo** takes the last link back.
 3. **Send** — **Fill in from the plan** puts names, VLANs, port names and universes on the devices (optionally also the IP address of the plan; the device then moves to its new address, so do that on a new network). **Send config** sends at once, with no extra question: first everything except the IP addresses, to all devices; then the addresses, to all devices at the same moment, each checked at its new address. Afterwards a window shows every change that was made. If a device moves to a range this computer has no address in, PatchLab warns before sending (button **Add addresses to this computer**, the system asks permission) and, if it happens anyway, marks the device as moved instead of failed, with the same button.
 
+**A LumiNode in its advanced network** ([[network|Nodes, splitters & network]]) gets its groups, the addresses of its groups and its port settings (access or trunk) in one go: PatchLab checks the new configuration on the node first, sends it and then activates it. The switch port the node is plugged into is set as a trunk on the GigaCore when the node carries two or more groups. With **the IP address of the plan** ticked the addresses of the groups the node has are replaced and a node that moves is announced and handled like any other; with it off the groups the node has keep their addresses and only the lighting data, the ports and new groups are set. After sending, a node counts as checked only when planning it again against what it reports now gives nothing more to send.
+
 Not done yet: finding devices by IPv6 / MAC address when a new device is on another IP range than your computer. That needs a test on real devices first.`,
-    nl:`De **Uitlijntool** is om snel veel apparaten in te stellen. Open hem via de pagina Taken, via Netwerkconfig (**Uitlijntool**) of via Setup stap 8. Netwerkconfig blijft zoals het was, voor het werken aan één apparaat of poort.
+    nl:`De **Uitlijntool** is om snel veel apparaten in te stellen. Open hem via de pagina Taken, via Netwerkconfig (**Uitlijntool**) of via Setup stap 9. Netwerkconfig blijft zoals het was, voor het werken aan één apparaat of poort.
 
 1. **Zoeken** — zoekt in het netwerk (of het bereik dat je typt) naar elke LumiNode en GigaCore en toont elk apparaat zodra het gevonden is. Het deel rond deze computer wordt eerst doorzocht, voor elk adres dat deze computer heeft (dus twee adressen in twee bereiken werken), daarna het bredere netwerk.
 2. **Uitlijnen** — switches en nodes werken hetzelfde. Het eerste apparaat **knippert**: een GigaCore laat scherm en poortlampjes knipperen (de identify-aanroep van de switch), een LumiNode zijn LED’s. Jij staat bij het apparaat, ziet welke het is en drukt op zijn plek in het plan, bijvoorbeeld **DB3-SW1**. De koppeling is gemaakt en het volgende apparaat knippert. Het voorstel in oranje is de eerste vrije plek, of die met hetzelfde IP-adres. **Overslaan** laat een apparaat met rust, **Ongedaan** neemt de laatste koppeling terug.
 3. **Sturen** — **Invullen uit het plan** zet namen, VLAN’s, poortnamen en universes op de apparaten (eventueel ook het IP-adres uit het plan; het apparaat verhuist dan naar zijn nieuwe adres, doe dat dus op een nieuw netwerk). **Config sturen** stuurt meteen, zonder extra vraag: eerst alles behalve de IP-adressen naar alle apparaten; daarna de adressen, op hetzelfde moment naar alle apparaten, elk gecontroleerd op zijn nieuwe adres. Daarna toont een venster elke wijziging die is gedaan. Verhuist een apparaat naar een bereik waar deze computer geen adres in heeft, dan waarschuwt PatchLab vóór het sturen (knop **Adressen toevoegen aan deze computer**, het systeem vraagt toestemming) en markeert het apparaat, als het toch gebeurt, als verhuisd in plaats van mislukt, met dezelfde knop.
+
+**Een LumiNode in zijn advanced netwerk** ([[network|Nodes, splitters & netwerk]]) krijgt zijn groepen, de adressen van zijn groepen en zijn poortinstellingen (access of trunk) in één keer: PatchLab controleert de nieuwe configuratie eerst op de node, stuurt hem en activeert hem daarna. De switchpoort waar de node in zit wordt op de GigaCore als trunk gezet als de node twee of meer groepen draagt. Met **het IP-adres uit het plan** aangevinkt worden de adressen van de groepen die de node heeft vervangen en wordt een node die verhuist aangekondigd en behandeld als elk ander apparaat; staat het uit, dan houden de groepen die de node heeft hun adres en worden alleen de lichtdata, de poorten en nieuwe groepen ingesteld. Na het sturen telt een node pas als gecontroleerd als opnieuw plannen tegen wat hij nu meldt niets meer te sturen oplevert.
 
 Nog niet gedaan: apparaten vinden via IPv6 / MAC-adres als een nieuw apparaat op een ander IP-bereik zit dan je computer. Dat moet eerst op echte apparaten getest worden.`
   },
@@ -950,8 +1016,11 @@ Paper size and orientation, margins, accent colour, font, text size, density, **
 ## Cover and Brand
 Cover title, subtitle, fields, note and a draggable project logo. Under **Brand**: a company logo on every page and a text or logo watermark.
 
+## The LK sheet
+The section **LK / Veam patch** prints one block per LK, left to right like the real thing: the **12 ports of the LK** in a row, each with its **universe** and the **node and node port** it goes to (for example N2 · P3), the location underneath; below it the **three Veam4 blocks** (A, B and C) of that LK, four ports each, in the same width. An LK with three Veams is one unit. Veams that hang on no LK get blocks of their own. The colour of an LK and its Veams is the same everywhere. Switch the node and node port off with the option **Show the node and node port per port** if you want the plain sheet.
+
 ## Racks on the PDF
-The Racks section draws every rack as in the app, lists the node ports with the LK / Veam port on each, the loose devices and the patch table. The preset **Racks only** prints just that.
+The Racks section draws every rack as in the app, lists the node ports with the LK / Veam port on each, the loose devices and the patch table, and the notes about what is still needed. The preset **Racks only** prints just that. Consoles and other network devices are in the Network section.
 
 ## Templates and presets
 **Save as template** stores the whole layout in the project and your library; pick it from the Template menu in any show. Presets: DB detailed paperwork, Network crew, Patch crew, Compact patch sheets, Racks only.`,
@@ -968,8 +1037,11 @@ Papierformaat en richting, marges, accentkleur, lettertype, tekstgrootte, dichth
 ## Voorblad en huisstijl
 Titel, ondertitel, velden, notitie en een versleepbaar projectlogo. Onder **Huisstijl**: een bedrijfslogo op elke pagina en een tekst- of logowatermerk.
 
+## Het LK-blad
+De sectie **LK- / Veam-patch** print één blok per LK, van links naar rechts zoals het echt is: de **12 poorten van de LK** op een rij, elk met zijn **universe** en de **node en nodepoort** waar hij heen gaat (bijvoorbeeld N2 · P3), de locatie eronder; daaronder de **drie Veam4-blokken** (A, B en C) van die LK, vier poorten elk, in dezelfde breedte. Een LK met drie Veams is één geheel. Veams die aan geen LK hangen krijgen eigen blokken. De kleur van een LK en zijn Veams is overal dezelfde. Zet de node en nodepoort uit met de optie **Node en nodepoort per poort tonen** als je het gewone blad wilt.
+
 ## Racks op de PDF
-De sectie Racks tekent elk rek zoals in de app, somt de nodepoorten op met de LK- / Veam-poort die erop zit, de losse apparaten en de patchtabel. De voorinstelling **Alleen racks** print alleen dat.
+De sectie Racks tekent elk rek zoals in de app, somt de nodepoorten op met de LK- / Veam-poort die erop zit, de losse apparaten en de patchtabel, en de opmerkingen over wat er nog nodig is. De voorinstelling **Alleen racks** print alleen dat. Lichttafels en andere netwerkapparaten staan in de sectie Netwerk.
 
 ## Templates en voorinstellingen
 **Opslaan als template** bewaart de hele indeling in het project en je bibliotheek; kies hem in elke show uit het menu Template. Voorinstellingen: DB detailed paperwork, Network crew, Patch crew, Compact patch sheets, Racks only.`
@@ -1136,6 +1208,33 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // Release notes per version, newest first. `npm run manual` turns this into CHANGELOG.md and the
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
+  {
+    version:'0.14.0', date:'2026-10-10',
+    en:[
+      'The **advice is gone**. PatchLab no longer proposes racks, panels or block modes: the card “Advice, best setup”, **Apply advice** and the block-mode advice in Setup are removed — you place racks and devices yourself. What stays is a count: the card **What this DimCity needs** (and the same list in the Rack Builder, for the DimCity you choose) shows what you need — LK37 sockets, Veam4 sockets, node ports — against what the racks give and what is still missing, says **Complete** or **Not complete**, and only where the racks have no socket left it offers loose spiders (as few as possible, as much as possible on the rack).',
+      'CSV **link rows**: `LK101,V101,V102,V103` puts the Veams of A, B and C on that LK by itself (an empty column = none). Setup has a new **step 2, Check the LK ↔ Veam links**, before the racks and devices per DB. An LK and its linked Veams are counted and placed as one unit (the LK37 socket with the Veam4 sockets next to it).',
+      'The socket of every LK and Veam can **always be chosen by hand**, any free LK37 or Veam4 socket, without having to switch anything on. Loose Veams can be coupled to sockets again.',
+      'PDF: the LK / Veam patch is an **LK sheet** now: per LK the 12 ports left to right, each with its universe and the node · node port, and under it the three Veam4 blocks of four ports in the same width.',
+      'Patch board: a **trunk link can be picked up** and dropped on another port of the same switch. **Link to switch…** sets **two lines at once** (main and backup); Link automatically makes two lines where two ports are free on both switches. The dialog warns that two lines between two switches are a loop unless LAG or RSTP is set on the switches.',
+      'The **nodes follow the racks**: the nodes and splitters of the racks of a DimCity now appear on the Nodes tab, the patch board and the overview by themselves (before, they only showed in the Signal Flow). A node whose device was taken out of its rack stays as **no longer in a rack**, with its ID, address, switch port and universes: **Replace** it by another node or **Remove** it. IDs are no longer renumbered. “Nodes from the racks” and “Use as network plan” are gone.',
+      '**Consoles**: a lighting desk (or any other network device) is added on the Nodes tab with a name and one or two network ports, plugged into a switch and given an address from the FENT scheme; it shows on the patch board, the Addresses tab, in the Signal Flow and in the PDF.',
+      'LumiNode **advanced network, rebuilt**: an editor per node with its groups — the VLAN of a group is **always the Luminex one** (also when the show numbers the FENT way), the address of every group comes from the **FENT scheme and can be changed**, plus the lighting data per group. **Both RJ45 ports are set**: two or more groups on a port make it a trunk (the switch port follows), the other port can have a VLAN of its own. Sending (Align tool, Network config) sets groups, addresses and ports and the trunk ports on the switch, announces a node that moves to another address, and only counts a node as checked when planning it again gives nothing more to send.',
+      'Network config: the management VLAN of a switch now follows the VLAN numbering of the show (Luminex: VLAN 1, FENT: 1090); before it was always the FENT number. The switch ports of cables that carry two VLANs are set as trunk members.',
+      'Videos: not re-recorded. The video about the advice is no longer in the list; the video “Racks and devices” still shows the old advice card.'
+    ],
+    nl:[
+      'Het **advies is weg**. PatchLab stelt geen racks, panelen of bloktypes meer voor: de kaart “Advies, beste setup”, **Advies toepassen** en het bloktype-advies in Setup zijn verwijderd — je plaatst zelf racks en apparaten. Wat blijft is een telling: de kaart **Wat deze DimCity nodig heeft** (en dezelfde lijst in de Rack Builder, voor de DimCity die je kiest) toont wat je nodig hebt — LK37-aansluitingen, Veam4-aansluitingen, nodepoorten — tegenover wat de racks geven en wat er nog mist, zegt **Compleet** of **Niet compleet**, en biedt alleen waar de racks geen aansluiting meer hebben losse spinnen aan (zo min mogelijk, zo veel mogelijk op het rek).',
+      'CSV-**koppelregels**: `LK101,V101,V102,V103` zet de Veams van A, B en C vanzelf op die LK (een lege kolom = geen). Setup heeft een nieuwe **stap 2, LK ↔ Veam-koppelingen controleren**, vóór de racks en apparaten per DB. Een LK en zijn gekoppelde Veams worden als één geheel geteld en geplaatst (de LK37-aansluiting met de Veam4-aansluitingen ernaast).',
+      'De aansluiting van elke LK en Veam kun je **altijd zelf kiezen**, elke vrije LK37- of Veam4-aansluiting, zonder dat je iets hoeft aan te zetten. Losse Veams kun je weer aan aansluitingen koppelen.',
+      'PDF: de LK- / Veam-patch is nu een **LK-blad**: per LK de 12 poorten van links naar rechts, elk met zijn universe en de node · nodepoort, en eronder de drie Veam4-blokken van vier poorten in dezelfde breedte.',
+      'Patchbord: een **trunklink kun je oppakken** en loslaten op een andere poort van dezelfde switch. **Koppel aan switch…** zet **twee lijnen tegelijk** (main en backup); Automatisch koppelen maakt twee lijnen waar op beide switches twee poorten vrij zijn. Het venster waarschuwt dat twee lijnen tussen twee switches een lus zijn tenzij LAG of RSTP op de switches staat.',
+      'De **nodes volgen de racks**: de nodes en splitters van de racks van een DimCity verschijnen nu vanzelf op het tabblad Nodes, het patchbord en het overzicht (eerder stonden ze alleen in de Signaalstroom). Een node waarvan het apparaat uit zijn rek is gehaald blijft staan als **niet meer in een rek**, met zijn ID, adres, switchpoort en universes: **Vervang** hem door een andere node of **Verwijder** hem. ID’s worden niet meer hernummerd. “Nodes uit de racks” en “Gebruik als netwerkplan” zijn weg.',
+      '**Lichttafels**: een lichttafel (of een ander netwerkapparaat) voeg je toe op het tabblad Nodes met een naam en één of twee netwerkpoorten, je steekt hem in een switch en hij krijgt een adres uit het FENT-schema; hij staat op het patchbord, op het tabblad Adressen, in de Signaalstroom en in de PDF.',
+      'LumiNode **advanced netwerk, opnieuw gebouwd**: een editor per node met zijn groepen — het VLAN van een groep is **altijd dat van Luminex** (ook als de show op de FENT-manier nummert), het adres van elke groep komt uit het **FENT-schema en is aan te passen**, plus de lichtdata per groep. **Beide RJ45-poorten zijn in te stellen**: twee of meer groepen op een poort maken er een trunk van (de switchpoort volgt), de andere poort kan een eigen VLAN krijgen. Sturen (Uitlijntool, Netwerkconfig) zet groepen, adressen en poorten en de trunkpoorten op de switch, kondigt een node aan die naar een ander adres gaat, en telt een node pas als gecontroleerd als opnieuw plannen niets meer te sturen oplevert.',
+      'Netwerkconfig: het beheer-VLAN van een switch volgt nu de VLAN-nummering van de show (Luminex: VLAN 1, FENT: 1090); eerder was het altijd het FENT-nummer. De switchpoorten van kabels die twee VLAN’s dragen worden als trunklid gezet.',
+      'Video’s: niet opnieuw opgenomen. De video over het advies staat niet meer in de lijst; de video “Racks en apparaten” toont nog de oude adviezenkaart.'
+    ]
+  },
   {
     version:'0.13.0', date:'2026-10-10',
     en:[

@@ -60,20 +60,11 @@
       ${row.sw ? `<span class="nn-tag">${row.mode === 'trunk' ? 'Trunk' : v ? window.NetCables.vlanChip(v.id) : ''}</span>` : ''}</div>`;
   }
 
-  // advanced network (LumiNode): VLAN groups on the node itself. The groups come from the addresses of the node: every VLAN is a group with its
-  // addresses, the lighting groups listen for lighting, and a port that carries two VLANs is a trunk (so the switch port must be a trunk too).
-  let apiMod = null; import(new URL('./core/luminex-api.js', document.baseURI).href).then(m => { apiMod = m; }).catch(() => {});
+  // advanced network (LumiNode): VLAN groups on the node itself, with the Luminex VLANs, FENT addresses and a choice per RJ45 (see ui/advnet.js).
+  // The warnings of the IP plan about the switch port (trunk needed, wrong VLAN) are shown under the editor.
   function advancedHtml(dc, idx, inst, nt){
-    const eth = Math.min(2, Math.max(1, Number(nt.ethernetCount) || 1)), on = !!inst.advanced;
-    const head = `<label class="nn-adv-sw" title="${esc(t('Send the VLAN groups to the node through its network API (/api/network_config) instead of one IP address', 'Stuur de VLAN-groepen via de netwerk-API van de node (/api/network_config) in plaats van één IP-adres'))}"><input type="checkbox" data-nnadv="${idx}" ${on ? 'checked' : ''}> <b>${t('Advanced network', 'Advanced netwerk')}</b> <span class="subtle">${t('VLAN groups on the node', 'VLAN-groepen op de node')}</span></label>`;
-    if(!on || !apiMod) return `<div class="nn-adv">${head}</div>`;
-    const want = apiMod.lumiNetWant(window.Fent.ifaces(inst, eth), eth, id => window.Fent.vlanById(id));
-    const issues = (window.IpPlan?.check() || []).filter(i => i.dc === dc && i.label === (inst.id || inst.name) && (i.code === 'TRUNK' || i.code === 'PORTVLAN'));
-    if(!want.groups.length) return `<div class="nn-adv">${head}<div class="subtle" style="margin-top:4px">${t('Give this node addresses on one or more VLANs (Addresses tab); every VLAN becomes a group.', 'Geef deze node adressen op één of meer VLAN’s (tab Adressen); elk VLAN wordt een groep.')}</div></div>`;
-    return `<div class="nn-adv on">${head}
-      <table class="data-table nn-adv-t"><thead><tr><th>${t('Group', 'Groep')}</th><th>${t('Addresses', 'Adressen')}</th><th>${t('Lighting', 'Licht')}</th><th>${t('Port', 'Poort')}</th></tr></thead><tbody>
-      ${want.groups.map(g => `<tr><td>${window.NetCables ? window.NetCables.vlanChip(g.vid) : g.vid}</td><td class="mono">${g.addresses.map(a => `${esc(a.ip)}/${a.prefix}${eth > 1 ? ` <span class="subtle">ETH${a.eth}</span>` : ''}`).join('<br>')}</td><td>${g.listen ? `<span class="tag green">${t('listens', 'luistert')}</span>` : `<span class="subtle">—</span>`}${g.mgmt ? ` <span class="tag">${t('management', 'beheer')}</span>` : ''}</td><td>${want.ports.filter(p => p.vids.includes(g.vid)).map(p => `ETH${p.eth}${p.vids.length > 1 ? ' <span class="tag blue">trunk</span>' : ''}`).join(', ')}</td></tr>`).join('')}</tbody></table>
-      ${issues.map(i => `<div class="rp-adv-note warn">${I('alert', 13)} ${esc(t(i.en, i.nl))}</div>`).join('')}</div>`;
+    const issues = inst.advanced ? (window.IpPlan?.check() || []).filter(i => i.dc === dc && i.label === (inst.id || inst.name) && (i.code === 'TRUNK' || i.code === 'PORTVLAN')) : [];
+    return window.AdvNet.html(dc, idx, inst, nt, issues.map(i => `<div class="rp-adv-note warn">${I('alert', 13)} ${esc(t(i.en, i.nl))}</div>`).join(''));
   }
 
   function nodeCard(dc, idx, c, car, sws, rows, links){
@@ -86,7 +77,7 @@
         <span style="flex:1"></span><span class="subtle">${used}/${total} ${t('ports in use', 'poorten in gebruik')}</span>${inst.src ? '' : `<button class="sm ghost" data-nnrm="${idx}" title="${esc(t('Remove this node', 'Verwijder deze node'))}">${I('trash', 13)}</button>`}</div>
       <div class="nn-plugs">${mine.map(r => plugRow(dc, r, sws, rows, links)).join('') || `<div class="nn-plug warn"><span class="nn-plug-l">${t('Network', 'Netwerk')}</span><span class="subtle">${t('This node has no address yet, so it is not in the port plan. Give it one on the Addresses tab.', 'Deze node heeft nog geen adres, dus staat hij niet in het poortplan. Geef hem er een op het tabblad Adressen.')}</span></div>`}
         ${pl ? `<div class="nn-via">${I('network', 13)} ${t('The node stands behind', 'De node zit achter')} <b>${esc(pl.panel)} · etherCON ${pl.no}</b> ${t('of the rack panel: the cable to the switch goes into that port on the front.', 'van het rekpaneel: de kabel naar de switch gaat in die poort aan de voorkant.')}</div>` : (rn && !rn.loose ? `<div class="nn-via subtle">${I('info', 13)} ${t('This rack node is plugged straight into the switch (no network port on a panel).', 'Deze racknode zit rechtstreeks aan de switch (geen netwerkpoort op een paneel).')}</div>` : '')}</div>
-      ${ifs.length ? `<div class="nn-addr">${ifs.map(x => `${x.vlan != null && window.NetCables ? window.NetCables.vlanChip(x.vlan) : ''}<span class="mono">${esc(x.ip)}</span>${Number(nt.ethernetCount) > 1 ? `<span class="subtle">ETH${x.eth}</span>` : ''}`).join(' ')}</div>` : ''}
+      ${ifs.length && !inst.advanced ? `<div class="nn-addr">${ifs.map(x => `${x.vlan != null && window.NetCables ? window.NetCables.vlanChip(x.vlan) : ''}<span class="mono">${esc(x.ip)}</span>${Number(nt.ethernetCount) > 1 ? `<span class="subtle">ETH${x.eth}</span>` : ''}`).join(' ')}</div>` : ''}
       ${advancedHtml(dc, idx, inst, nt)}
       <div class="nn-ports">${dmxPorts(dc, inst, idx, car)}</div>${window.NodeLink ? window.NodeLink.selectHtml(dc, idx, inst) : ''}</div>`;
   }
@@ -124,30 +115,56 @@
       return `<div class="nn-spl-row"><b>${esc(s.id || '')}</b><span>${esc(ty ? typeName(ty) : s.typeId || '')}</span><span class="subtle">${t('input', 'ingang')}: ${(s.inputUniverses || s.universes || []).map(u => 'U' + u).join(' / ') || '—'}</span><span class="subtle">${outs}/${ty?.outputCount || (s.portAssignments || []).length} ${t('outputs used', 'uitgangen gebruikt')}</span>${s.ip ? `<span class="mono subtle">${esc(s.ip)}</span>` : ''}</div>`; }).join('')}</div>`;
   }
 
+  // consoles (lighting desks) and other plain network devices: a name, one or two network ports, plugged into a switch like a node
+  function consolesHtml(dc, sws, rows, links){
+    const list = plan(dc).consoles || [];
+    const items = list.map((c, i) => { const mine = rows.filter(r => r.kind === 'console' && r.idx === i), ifs = window.Fent ? window.Fent.ifaces(c, c.ethCount === 2 ? 2 : 1) : [];
+      return `<div class="nn-con" data-nncon="${i}"><div class="nn-con-h">${I('console', 15)}<b>${esc(c.id || '')}</b>
+          <input class="nn-con-name" data-nnconname="${i}" value="${esc(c.name || '')}" placeholder="${esc(t('Name, e.g. grandMA3 full-size', 'Naam, bv. grandMA3 full-size'))}">
+          <label class="nn-con-eth">${t('Network ports', 'Netwerkpoorten')}<select data-nnconeth="${i}"><option value="1" ${c.ethCount === 2 ? '' : 'selected'}>1</option><option value="2" ${c.ethCount === 2 ? 'selected' : ''}>2</option></select></label>
+          <button class="sm ghost" data-nnconrm="${i}" title="${esc(t('Remove this device', 'Verwijder dit apparaat'))}">${I('trash', 13)}</button></div>
+        <div class="nn-plugs">${mine.map(r => plugRow(dc, r, sws, rows, links)).join('')}</div>
+        ${ifs.length ? `<div class="nn-addr">${ifs.map(x => `${x.vlan != null && window.NetCables ? window.NetCables.vlanChip(x.vlan) : ''}<span class="mono">${esc(x.ip)}</span>${c.ethCount === 2 ? `<span class="subtle">ETH${x.eth}</span>` : ''}`).join(' ')}</div>` : `<div class="subtle" style="font-size:12px">${t('No address yet — give it one on the Addresses tab (or create the IP plan).', 'Nog geen adres — geef hem er een op het tabblad Adressen (of maak het IP-plan).')}</div>`}</div>`; }).join('');
+    return `<div class="nn-cons"><div class="rb-label" style="margin:12px 0 6px">${t('Consoles and other network devices', 'Lichttafels en andere netwerkapparaten')}</div>${items || `<div class="subtle" style="font-size:12.5px;margin-bottom:6px">${t('A lighting console sends the lighting data: add it here with its name, plug it into a switch, and it gets an address like the nodes.', 'Een lichttafel stuurt de lichtdata: voeg hem hier toe met zijn naam, steek hem in een switch en hij krijgt een adres zoals de nodes.')}</div>`}
+      <div class="nn-con-add"><input id="nnConName-${esc(dc)}" placeholder="${esc(t('Name, e.g. grandMA3 full-size', 'Naam, bv. grandMA3 full-size'))}"><select id="nnConEth-${esc(dc)}"><option value="1">${t('1 network port', '1 netwerkpoort')}</option><option value="2">${t('2 network ports', '2 netwerkpoorten')}</option></select><button class="sm primary" data-nnconadd="${esc(dc)}">${I('plus', 13)} ${t('Add console', 'Lichttafel toevoegen')}</button></div></div>`;
+  }
+
   function card(dc){
     const p = plan(dc), sws = window.NetSwitches.list(dc), rows = window.FentUI.portPlan(dc).rows, c = ctx(dc), car = carriers(dc), links = window.NetSwitches.linksOf(dc);
     const nodes = p.nodes.map((n, i) => n.gone ? '' : nodeCard(dc, i, c, car, sws, rows, links)).join('');
     const gone = p.nodes.map((n, i) => n.gone ? goneCard(dc, i, n, c, rows) : '').join('');
     const unplaced = rows.filter(r => r.kind === 'node' && r.unplaced).length;
     return `<div class="nn-db" style="--dim-color:${App.dimColor(dc)}"><div class="nn-db-h"><i class="dot" style="background:${App.dimColor(dc)}"></i><b>${esc(dc)}</b><span class="subtle">${p.nodes.length} ${t('nodes', 'nodes')}</span>${unplaced ? `<span class="tag yellow">${unplaced} ${t('without a switch port', 'zonder switchpoort')}</span>` : ''}</div>
-      ${gone}${planCard(dc)}${nodes || `<div class="nn-empty">${t('No nodes in this DimCity yet. Place a rack (or add a loose node) on the Racks card of this DimCity and its nodes appear here by themselves — or let PatchLab plan them from the universes.', 'Nog geen nodes in deze DimCity. Plaats een rek (of voeg een losse node toe) op de racks-kaart van deze DimCity en de nodes verschijnen hier vanzelf — of laat PatchLab ze plannen vanuit de universes.')}</div>`}${splittersHtml(dc)}</div>`;
+      ${gone}${planCard(dc)}${nodes || `<div class="nn-empty">${t('No nodes in this DimCity yet. Place a rack (or add a loose node) on the Racks card of this DimCity and its nodes appear here by themselves — or let PatchLab plan them from the universes.', 'Nog geen nodes in deze DimCity. Plaats een rek (of voeg een losse node toe) op de racks-kaart van deze DimCity en de nodes verschijnen hier vanzelf — of laat PatchLab ze plannen vanuit de universes.')}</div>`}${splittersHtml(dc)}${consolesHtml(dc, sws, rows, links)}</div>`;
   }
 
   function bind(root, dc, rerender){
-    root.querySelectorAll(`[data-nnnode]`).forEach(card => {
-      const idx = Number(card.dataset.nnnode);
-      card.querySelectorAll('[data-nnplug]').forEach(sel => sel.onchange = () => {
-        window.PatchHistory?.label?.(`${dc}: ${sel.dataset.nnplug} plugged in`);
-        if(!sel.value) window.PortPlan.unplace(dc, sel.dataset.nnplug);
-        else { const [sw, port] = sel.value.split('|'); window.PortPlan.place(dc, sel.dataset.nnplug, sw, Number(port)); }
-        rerender();
-      });
+    root.querySelectorAll('[data-nnplug]').forEach(sel => sel.onchange = () => {       // the plug select of a node, a splitter or a console
+      window.PatchHistory?.label?.(`${dc}: ${sel.dataset.nnplug} plugged in`);
+      if(!sel.value) window.PortPlan.unplace(dc, sel.dataset.nnplug);
+      else { const [sw, port] = sel.value.split('|'); window.PortPlan.place(dc, sel.dataset.nnplug, sw, Number(port)); }
+      rerender();
     });
-    root.querySelectorAll('[data-nnadv]').forEach(c => c.onchange = () => { const n = plan(dc).nodes[Number(c.dataset.nnadv)]; if(!n) return; window.PatchHistory?.label?.(`${dc}: advanced network ${c.checked ? 'on' : 'off'}`); if(c.checked) n.advanced = true; else delete n.advanced; dirty(); rerender(); });
+    root.querySelectorAll('[data-nnadv]').forEach(c => c.onchange = () => { const n = plan(dc).nodes[Number(c.dataset.nnadv)]; if(!n) return; window.PatchHistory?.label?.(`${dc}: advanced network ${c.checked ? 'on' : 'off'}`); window.AdvNet.toggle(dc, n, c.checked); dirty(); rerender(); });
+    window.AdvNet.bind(root, dc, rerender);
     root.querySelectorAll('[data-nnrm]').forEach(b => b.onclick = async () => {
       const idx = Number(b.dataset.nnrm), n = plan(dc).nodes[idx]; if(!n) return;
       const ok = await App.ui.confirmDialog({ title:t('Remove this node?', 'Deze node verwijderen?'), message:`${n.id || ''} ${t('is removed from the network plan of', 'wordt uit het netwerkplan van')} ${dc} ${t(`. Its address and switch port go with it.`, ` gehaald. Zijn adres en switchpoort verdwijnen mee.`)}`, okLabel:t('Remove', 'Verwijderen'), danger:true });
       if(!ok) return; window.RackPlan.removeNode(dc, idx); dirty(); rerender();
+    });
+    root.querySelectorAll('[data-nnconadd]').forEach(b => b.onclick = () => {
+      const d = b.dataset.nnconadd, name = (root.querySelector(`#nnConName-${CSS.escape(d)}`)?.value || '').trim(), eth = Number(root.querySelector(`#nnConEth-${CSS.escape(d)}`)?.value) === 2 ? 2 : 1;
+      window.PatchHistory?.label?.(`${d}: console added`);
+      const inst = App.net.createConsoleInstance(d, name, eth); plan(d).consoles.push(inst);
+      if(M().networkDevices?.prefs?.fent?.on) window.FentUI?.addressNew?.(d, 'console', inst);
+      dirty(); rerender();
+    });
+    root.querySelectorAll('[data-nnconname]').forEach(inp => inp.onchange = () => { const c = (plan(dc).consoles || [])[Number(inp.dataset.nnconname)]; if(!c) return; c.name = inp.value.trim() || c.id; dirty(); rerender(); });
+    root.querySelectorAll('[data-nnconeth]').forEach(sel => sel.onchange = () => { const c = (plan(dc).consoles || [])[Number(sel.dataset.nnconeth)]; if(!c) return; c.ethCount = Number(sel.value) === 2 ? 2 : 1; (c.ifaces || []).forEach(x => { if(x && c.ethCount === 1) x.eth = 1; }); dirty(); rerender(); });
+    root.querySelectorAll('[data-nnconrm]').forEach(b => b.onclick = async () => {
+      const i = Number(b.dataset.nnconrm), c = (plan(dc).consoles || [])[i]; if(!c) return;
+      const ok = await App.ui.confirmDialog({ title:t('Remove this device?', 'Dit apparaat verwijderen?'), message:`${c.name || c.id} ${t('is removed from', 'wordt uit')} ${dc} ${t('. Its address and switch port go with it.', ' gehaald. Zijn adres en switchpoort verdwijnen mee.')}`, okLabel:t('Remove', 'Verwijderen'), danger:true });
+      if(!ok) return; window.PatchHistory?.label?.(`${dc}: console removed`); window.PortPlan?.forget?.(dc, `n:${c.id}#`); plan(dc).consoles.splice(i, 1); dirty(); rerender();
     });
     root.querySelectorAll('[data-nnreplace]').forEach(b => b.onclick = () => {
       const gi = Number(b.dataset.nnreplace), sel = root.querySelector(`[data-nnrepl="${gi}"]`), wi = Number(sel?.value);

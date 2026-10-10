@@ -32,17 +32,38 @@
   // the links that end on a switch of this DimCity: [{ id, sw, port, to:{ dc, sw, port } }]
   function linksOf(dc){
     const out = [];
-    for(const l of linkStore()){ if(l.a?.dc === dc) out.push({ id:l.id, sw:l.a.sw, port:Number(l.a.port), to:l.b }); if(l.b?.dc === dc) out.push({ id:l.id, sw:l.b.sw, port:Number(l.b.port), to:l.a }); }
+    for(const l of linkStore()){ const x = { lane:l.lane || 0, grp:l.grp || '' }; if(l.a?.dc === dc) out.push({ id:l.id, sw:l.a.sw, port:Number(l.a.port), to:l.b, ...x }); if(l.b?.dc === dc) out.push({ id:l.id, sw:l.b.sw, port:Number(l.b.port), to:l.a, ...x }); }
     return out;
   }
   const linkAt = (dc, sw, port) => linksOf(dc).find(l => l.sw === sw && l.port === Number(port)) || null;
-  function addLink(a, b){
+  function addLink(a, b, extra = {}){
     if(!a?.sw || !b?.sw || (a.dc === b.dc && a.sw === b.sw)) return 'Pick two different switches';
     for(const x of [a, b]){ const sw = list(x.dc).find(s => s.label === x.sw); if(!sw || x.port < 1 || x.port > sw.rj) return 'That port does not exist'; if(linkAt(x.dc, x.sw, x.port)) return 'That port is in a link already'; }
     // a device that sat on one of the two ports goes back to the tray
     for(const x of [a, b]){ const pm = window.PortPlan?.patch(x.dc).manual || {}; for(const [k, v] of Object.entries(pm)) if(v?.sw === x.sw && Number(v.port) === Number(x.port)) window.PortPlan.unplace(x.dc, k); }
     const nd = M().networkDevices, n = linkStore().reduce((m, l) => Math.max(m, Number(String(l.id).replace(/\D/g, '')) || 0), 0) + 1;
-    linkStore().push({ id:`L${n}`, a:{ dc:a.dc, sw:a.sw, port:Number(a.port) }, b:{ dc:b.dc, sw:b.sw, port:Number(b.port) } }); if(M().ui) M().ui.dirty = true; return '';
+    linkStore().push({ id:`L${n}`, a:{ dc:a.dc, sw:a.sw, port:Number(a.port) }, b:{ dc:b.dc, sw:b.sw, port:Number(b.port) }, ...extra }); if(M().ui) M().ui.dirty = true; return '';
+  }
+  // a trunk usually has two lines: main and backup. The pairs are [[a, b], [a, b]]; nothing is made when one of them cannot be.
+  function addLinks(pairs){
+    const used = new Set(); let err = '';
+    pairs.forEach(([a, b]) => { if(err) return; if(!a?.sw || !b?.sw || (a.dc === b.dc && a.sw === b.sw)){ err = 'Pick two different switches'; return; }
+      for(const x of [a, b]){ const sw = list(x.dc).find(q => q.label === x.sw), k = `${x.dc}|${x.sw}|${Number(x.port)}`; if(!sw || x.port < 1 || x.port > sw.rj){ err = 'That port does not exist'; return; } if(linkAt(x.dc, x.sw, x.port) || used.has(k)){ err = 'That port is in a link already'; return; } used.add(k); } });
+    if(err) return err;
+    const grp = `G${Date.now().toString(36)}`;
+    pairs.forEach(([a, b], i) => { addLink(a, b, pairs.length > 1 ? { grp, lane:i + 1 } : {}); });
+    return '';
+  }
+  // pick up the end of a link and put it on another port of the same switch (a device that sat there goes back to the tray)
+  function moveLinkEnd(id, dc, sw, fromPort, toPort){
+    const l = linkStore().find(x => x.id === id); if(!l) return 'That link does not exist any more';
+    const end = [l.a, l.b].find(e => e && e.dc === dc && e.sw === sw && Number(e.port) === Number(fromPort)); if(!end) return 'That link end does not exist any more';
+    const s = list(dc).find(x => x.label === sw); toPort = Number(toPort);
+    if(!s || !(toPort >= 1 && toPort <= s.rj)) return 'That port does not exist';
+    if(toPort === Number(fromPort)) return '';
+    if(linkAt(dc, sw, toPort)) return 'That port is in a link already';
+    const pm = window.PortPlan?.patch(dc).manual || {}; for(const [k, v] of Object.entries(pm)) if(v?.sw === sw && Number(v.port) === toPort) window.PortPlan.unplace(dc, k);
+    end.port = toPort; if(M().ui) M().ui.dirty = true; return '';
   }
   function removeLink(id){ const nd = M().networkDevices; nd.swLinks = linkStore().filter(l => l.id !== id); if(M().ui) M().ui.dirty = true; }
   // the switches of a DimCity chained with their last free RJ45 ports (SW1 ↔ SW2, SW2 ↔ SW3 …)
@@ -52,7 +73,9 @@
     for(let i = 0; i + 1 < sws.length; i++){
       if(linksOf(dc).some(l => (l.sw === sws[i].label && l.to.sw === sws[i + 1].label && l.to.dc === dc) || (l.sw === sws[i + 1].label && l.to.sw === sws[i].label && l.to.dc === dc))) continue;
       const pa = lastFree(sws[i]), pb = lastFree(sws[i + 1]); if(!pa || !pb) continue;
-      if(!addLink({ dc, sw:sws[i].label, port:pa }, { dc, sw:sws[i + 1].label, port:pb })) made++;
+      const pa2 = lastFree(sws[i], [pa]), pb2 = lastFree(sws[i + 1], [pb]);       // a trunk usually has two lines: main and backup
+      if(pa2 && pb2 && pa2 !== pa && pb2 !== pb){ if(!addLinks([[{ dc, sw:sws[i].label, port:pa }, { dc, sw:sws[i + 1].label, port:pb }], [{ dc, sw:sws[i].label, port:pa2 }, { dc, sw:sws[i + 1].label, port:pb2 }]])) made++; }
+      else if(!addLink({ dc, sw:sws[i].label, port:pa }, { dc, sw:sws[i + 1].label, port:pb })) made++;
     }
     return made;
   }
@@ -150,5 +173,5 @@
     root.querySelectorAll('.dimRackSwField').forEach(inp => inp.onchange = () => { const s = list(dc).find(x => x.key === inp.dataset.key); if(!s) return; s.dev[inp.dataset.field] = inp.value.trim(); M().ui.dirty = true; if(inp.dataset.field === 'ip' || inp.dataset.field === 'subnet') rerender(); });
     root.querySelectorAll('.dimSwitchField').forEach(inp => inp.onchange = () => { const sw = plan(dc).switches[Number(inp.dataset.i)]; if(!sw) return; sw[inp.dataset.field] = inp.value.trim(); M().ui.dirty = true; if(inp.dataset.field === 'ip' || inp.dataset.field === 'subnet') rerender(); });
   }
-  window.NetSwitches = { list, assign, legacyAssign, usage, card, bind, typeName, linksOf, linkAt, addLink, removeLink, autoLink };
+  window.NetSwitches = { list, assign, legacyAssign, usage, card, bind, typeName, linksOf, linkAt, addLink, addLinks, moveLinkEnd, removeLink, autoLink };
 })();

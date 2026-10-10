@@ -62,11 +62,13 @@
   const ndList = () => App.sortedDims().flatMap(dc => (App.net.getDimPlan(dc).nodes || []).map((inst, i) => ({ id:`nd:${dc}#${i}`, kind:'nd', dc, inst, i, label:inst.id || `Node ${i + 1}`, ip:inst.ip })));
   const planItems = () => [...swList(), ...ndList()];
   const planOf = d => planItems().find(x => x.id === d.link) || null;
-  const mgmtVid = s => { try { return s?.dev?.ip ? (FENT().classify(s.dev.ip)?.vlan?.id ?? null) : null; } catch { return null; } };
+  // the VLAN of the management address of a switch, in the numbering of the project (Luminex: management = 1, FENT: 1090)
+  const mgmtVid = s => { try { if(!s?.dev?.ip) return null; const v = FENT().classify(s.dev.ip)?.vlan, role = v && ({ 90:'management', 40:'lighting' })[v.second]; return role ? FENT().roleVlan(role, App.getMODEL().networkDevices?.prefs?.fent?.vlanMode || 'luminex') : (v?.id ?? null); } catch { return null; } };
   const vlansOf = (dc, label) => { const set = new Set(); for(const r of (window.FentUI?.portPlan(dc).rows || [])) if(r.sw === label) (r.vlans || []).forEach(v => set.add(Number(v))); const m = mgmtVid(swList().find(x => x.dc === dc && x.label === label)?.s); if(m != null) set.add(m); return set; };
   function wantSwitch(it){
     const dc = it.dc, s = it.s, rows = (window.FentUI?.portPlan(dc).rows || []).filter(r => r.sw === s.label && r.swPort), vset = vlansOf(dc, s.label), ports = [], fibre = [];
-    for(const r of rows){ const v = (r.vlans || []).map(Number)[0]; ports.push({ port:r.swPort, vid:Number.isFinite(v) ? v : null, legend:String(r.device ?? '') }); }
+    const autoTrunk = [];
+    for(const r of rows){ const v = (r.vlans || []).map(Number)[0]; ports.push({ port:r.swPort, vid:Number.isFinite(v) ? v : null, legend:String(r.device ?? '') }); if(r.mode === 'trunk' && !r.cable) autoTrunk.push(r.swPort); }
     // what was set by hand in the Network page (VLAN, trunk, name per port) goes on top of the automatic plan
     const ov = window.PortPlan?.forSwitch(dc, s.label) || {}, trunkPorts = [], vidPorts = new Set();
     for(const [pn, o] of Object.entries(ov)){
@@ -75,6 +77,8 @@
       if(o.trunk){ e.vid = null; trunkPorts.push(n); } else if(o.vid != null){ e.vid = Number(o.vid); vset.add(Number(o.vid)); vidPorts.add(n); }
       if(o.poe) e.poe = o.poe; if(o.speed) e.speed = o.speed;
     }
+    // a cable that carries two VLANs (a node with a management and a lighting address, a LumiNode in its advanced network) needs a trunk port on the switch
+    for(const n of autoTrunk){ const e = ports.find(x => x.port === n); if(e) e.vid = null; if(!trunkPorts.includes(n)) trunkPorts.push(n); }
     ports.sort((a, b) => a.port - b.port);
     for(const l of (window.Fibers?.links(dc) || [])) for(const [me, other] of [[l.a, l.b], [l.b, l.a]]){
       if(!me || me.free || me.dc !== dc || me.sw !== s.label) continue;
@@ -89,7 +93,7 @@
   function wantNode(it){
     const inst = it.inst, u = Array.isArray(inst.universes) ? inst.universes : [];
     const nt = (App.getMODEL().networkDevices.nodeTypes || []).find(x => x.id === inst.typeId), eth = Math.min(2, Math.max(1, Number(nt?.ethernetCount) || 1));
-    return { shortName:inst.id, longName:inst.name, advanced:!!inst.advanced, net:inst.advanced ? api.lumiNetWant(FENT().ifaces(inst, eth), eth, id => FENT().vlanById(id)) : null, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || '255.255.255.0', gateway:inst.gateway || '' } : null,
+    return { shortName:inst.id, longName:inst.name, advanced:!!inst.advanced, net:inst.advanced ? api.lumiNetWant(FENT().ifaces(inst, eth), eth, id => FENT().vlanById(id), inst.advPorts || null) : null, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || '255.255.255.0', gateway:inst.gateway || '' } : null,
       ports:u.map((x, j) => { if(x == null || x === '') return null; const o = (window.PortPlan?.forNode(it.dc, inst, it.i) || {})[j + 1] || {}; return { universe:Number(x), name:o.name || `${inst.id || 'N'}.${j + 1}`, klass:o.klass || undefined, dir:o.dir || undefined }; }) };
   }
   const projectVlans = () => { const set = new Set(); for(const it of swList()) vlansOf(it.dc, it.s.label).forEach(v => set.add(v)); return [...set].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean); };
@@ -147,12 +151,23 @@
       const adv = d.dev.net && d.cur.netcfg;       // an advanced network configuration is on its way: the addresses go with it, not through /api/ipsettings
       const p = api.lumiPlan(d.cur, { shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || '255.255.255.0', gateway:d.dev.gateway || '' } : null, ports:per }, { withIp:!!d.dev.ip && !adv, artnetOffset:C.offset });
       ops.push(...p.ops); notes.push(...p.notes);
-      if(d.dev.net){ const np = api.lumiNetPlan(d.cur, d.dev.net); ops.push(...np.ops); notes.push(...np.notes); }
+      if(d.dev.net){
+        const np = api.lumiNetPlan(d.cur, d.dev.net, { currentIp:d.ip, keepAddresses:!!d.dev.netKeep });
+        // a node that is going to answer on another address moves like any other node: its network calls go with the address calls, to all devices at the same moment
+        ops.push(...(np.moveTo && d.dev.ip ? np.ops.map(o => ({ ...o, kind:'ip' })) : np.ops)); notes.push(...np.notes);
+      }
     }
     if(d.S.size && d.tree){ const so = SET.settingsOps(isSw(d) ? 'gigacore' : 'lumi', d.tree, [...d.S.values()]); ops.push(...so.ops); notes.push(...so.notes); }
     return { ops, notes };
   }
   const changeCount = d => opsOf(d).ops.length;
+  // an advanced node that was sent is only "checked" when planning it again against what it reports now gives nothing more to send
+  function netPending(d){
+    if(isSw(d) || !d.cur?.netcfg) return false;
+    const it = planOf(d); if(!it || it.kind !== 'nd' || !it.inst.advanced) return false;
+    const w = wantNode(it); if(!w.net?.groups.length) return false;
+    return api.lumiNetPlan(d.cur, w.net, { currentIp:d.ip, keepAddresses:C.withIp !== true }).ops.length > 0;
+  }
   // fill what the plan wants into the pending changes (nothing is sent)
   function fillFromPlan(d){
     const it = planOf(d); if(!it || !d.cur) return false;
@@ -171,7 +186,11 @@
       w.ports.forEach((q, j) => { if(!q || j >= d.cur.ports.length) return; const e = d.E.get(j) || {}; e.universe = q.universe; if(C.withNames !== false) e.name = q.name; if(q.klass) e.klass = q.klass; if(q.dir) e.dir = q.dir; d.E.set(j, e); });
       if(w.shortName && w.shortName !== d.cur.info?.short_name) d.dev.shortName = String(w.shortName).slice(0, 17);
       if(w.longName && w.longName !== d.cur.info?.long_name) d.dev.longName = String(w.longName).slice(0, 63);
-      if(w.advanced && w.net?.groups.length) d.dev.net = w.net;         // the node is planned in the advanced network: send the groups and the ports
+      if(w.advanced && w.net?.groups.length){                          // the node is planned in the advanced network: send the groups and the ports
+        d.dev.net = w.net; d.dev.netKeep = C.withIp !== true;            // without "set the IP addresses" the groups the node has keep their addresses
+        const np = api.lumiNetPlan(d.cur, w.net, { currentIp:d.ip, keepAddresses:d.dev.netKeep });
+        if(np.moveTo) Object.assign(d.dev, { ip:np.moveTo, mask:np.moveMask });          // …and a node that moves is announced (the "devices get a new IP address" warning)
+      }
       else if(C.withIp && w.ip?.address && w.ip.address !== d.cur.ip?.ipaddress) Object.assign(d.dev, { ip:w.ip.address, mask:w.ip.mask, gateway:w.ip.gateway });
       return true;
     }
@@ -267,7 +286,7 @@
     // 3 · read every device back and check it (the ones that moved out of reach are skipped)
     for(const x of todo.filter(y => !y.dead && !y.d.moved)){
       const { d } = x; d.busy = true; paint();
-      try { if(!x.after){ d.E = new Map(); d.dev = {}; d.trunkEdit = null; d.S = new Map(); d.tree = null; await readDev(d); } await verifyTrunk(d, x.ops, logged(d)); d.verified = !d.err && changeCount(d) === 0; }
+      try { if(!x.after){ d.E = new Map(); d.dev = {}; d.trunkEdit = null; d.S = new Map(); d.tree = null; await readDev(d); } await verifyTrunk(d, x.ops, logged(d)); d.verified = !d.err && changeCount(d) === 0 && !netPending(d); }
       catch(e) { failed++; d.err = String(e.message || e); }
       d.busy = false; paint();
     }
@@ -630,7 +649,8 @@
     const ps = nc ? Object.entries(nc.ports).filter(([, p]) => (p.type || 'rj45') === 'rj45').map(([n, p]) => `<span class="tag">${esc(n)} → ${p.trunk != null ? `trunk ${p.trunk}` : p.group != null ? `${t('group', 'groep')} ${p.group}` : '—'}</span>`).join(' ') : '';
     const pl = planned && planned.groups.length ? `<div class="nc-net-plan"><b>${t('The plan wants', 'Het plan wil')}</b>: ${planned.groups.map(x => `VLAN ${x.vid} <span class="mono">${x.addresses.map(a => a.ip + '/' + a.prefix).join(', ')}</span>${x.listen ? ' · ' + t('lighting', 'licht') : ''}`).join(' · ')} · ${planned.ports.map(p => `ETH${p.eth}: ${p.vids.length > 1 ? 'trunk ' : ''}VLAN ${p.vids.join('+') || '—'}`).join(' · ')}</div>` : '';
     const warn = it?.kind === 'nd' ? (window.IpPlan?.check() || []).filter(i => i.dc === it.dc && i.label === (it.inst.id || it.inst.name) && (i.code === 'TRUNK' || i.code === 'PORTVLAN')).map(i => `<div class="su-warn">${I('alert', 13)} ${esc(t(i.en, i.nl))}</div>`).join('') : '';
-    return `<div class="nc-net"><div class="nc-net-h"><b>${t('Network of this node', 'Netwerk van deze node')}</b> ${nc ? (nc.is_basic_config ? `<span class="tag">${t('basic: one address', 'basis: één adres')}</span>` : `<span class="tag blue">${t('advanced', 'advanced')}</span>`) : `<span class="tag">${t('basic only', 'alleen basis')}</span>`}</div>${g}${ps ? `<div style="margin:3px 0">${ps}</div>` : ''}${pl}${warn}</div>`;
+    const note = d.dev.net ? (d.dev.ip ? `<div class="su-warn">${I('alert', 13)} ${t(`After this the node answers on ${esc(d.dev.ip)}.`, `Hierna antwoordt de node op ${esc(d.dev.ip)}.`)}</div>` : d.dev.netKeep ? `<div class="subtle" style="margin-top:3px">${t('The groups the node has keep their addresses (tick “Fill from the plan also sets the IP address” to change them).', 'De groepen die de node al heeft houden hun adres (vink “Invullen uit het plan zet ook het IP-adres” aan om ze te wijzigen).')}</div>` : '') : '';
+    return `<div class="nc-net"><div class="nc-net-h"><b>${t('Network of this node', 'Netwerk van deze node')}</b> ${nc ? (nc.is_basic_config ? `<span class="tag">${t('basic: one address', 'basis: één adres')}</span>` : `<span class="tag blue">${t('advanced', 'advanced')}</span>`) : `<span class="tag">${t('basic only', 'alleen basis')}</span>`}</div>${g}${ps ? `<div style="margin:3px 0">${ps}</div>` : ''}${pl}${note}${warn}</div>`;
   }
   function brushBar(d){
     if(isSw(d)){
@@ -781,5 +801,5 @@
     await load().catch(() => {});
     paint();
   }
-  window.NetConfig = { moveWarnings, addAddresses, fixMoved, render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D, applyDevs, autoLink, real, changeCount };
+  window.NetConfig = { moveWarnings, addAddresses, fixMoved, render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D, applyDevs, autoLink, real, changeCount, netPending };
 })();

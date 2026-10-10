@@ -284,6 +284,11 @@ function buildGraph(dcs){
           }
           const cb = B.get(cbId), cr = rowOf(cb, `l${r.device.split('.')[1]}`); if(cr) cr.lines.push(key);
           from = { block:cbId, port:`l${r.device.split('.')[1]}` };
+        } else if(r.ref?.kind === 'console'){
+          // a lighting console (or other plain network device): a block of its own that feeds its switch port
+          const cid = `${dc}|console|${r.device}|${r.eth}`;
+          if(!B.has(cid)) add({ id:cid, kind:'netnode', band:'net', dc, col:0, title:r.name || r.device, sub:`${t('console', 'lichttafel')}${r.ethCount > 1 ? ` · ETH${r.eth}` : ''}`, color:'#f472b6', rows:[port('e', r.ethCount > 1 ? `ETH${r.eth}` : 'ETH', null, { dest:r.name || r.device })] });
+          rowOf(B.get(cid), 'e').lines.push(key); from = { block:cid, port:'e' };
         } else if(r.ref?.kind === 'node'){
           const en = P.nodes[r.ref.idx], ref = en ? refs.get(`eth:${en.label}:${r.eth}`) : null;
           if(ref){ tagRef(ref, key); from = ref; }

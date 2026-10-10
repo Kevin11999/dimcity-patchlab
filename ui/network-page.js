@@ -85,7 +85,7 @@
     return App.ui.card({ key:'net-issues', title:t('Checks', 'Controles'), icon:'alert', meta:`${issues.filter(i => i.level === 'err').length} ${t('errors', 'fouten')} · ${issues.filter(i => i.level === 'warn').length} ${t('warnings', 'waarschuwingen')}`, collapsible:true,
       body:`<div class="fent-issues" style="padding:6px 14px 12px">${list.map(w => `<div class="fent-i ${w.level}">${I(w.level === 'info' ? 'info' : 'alert', 13)}<b>${esc(w.dc)} · ${esc(w.label)}</b> ${w.ip ? `<span class="mono">${esc(w.ip)}</span> — ` : ''}${esc(t(w.en, w.nl))}</div>`).join('')}${issues.length > list.length ? `<div class="subtle">+ ${issues.length - list.length}</div>` : ''}</div>` });
   }
-  const KIND_NAME = { node:['node', 'node'], splitter:['splitter', 'splitter'], switch:['switch', 'switch'] };
+  const KIND_NAME = { node:['node', 'node'], splitter:['splitter', 'splitter'], switch:['switch', 'switch'], console:['console', 'lichttafel'] };
   function addressTable(issues, list){
     const rowsBy = new Map(); for(const dc of App.sortedDims()){ try { rowsBy.set(dc, window.FentUI.portPlan(dc).rows); } catch { rowsBy.set(dc, []); } }
     const dcs = App.sortedDims().filter(dc => list.some(d => d.dc === dc));
@@ -142,6 +142,7 @@
 
   function render(opts = {}){
     const root = App.$('#lkDetail'); if(!root) return;
+    try { window.RackPlan?.syncAll?.(); } catch(e){ console.error('node sync', e); }      // the nodes follow the racks
     if(opts.tab) S.tab = opts.tab; if(opts.dc) S.dc = opts.dc;
     if(!TABS.some(x => x[0] === S.tab)) S.tab = 'patch';
     { const dims = App.sortedDims(); if(!S.dc || (S.dc !== ALL && !dims.includes(S.dc))) S.dc = dims[0] || null; }

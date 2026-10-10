@@ -153,8 +153,18 @@ export function computeRackPlan(M, dc){
     if(g){ g.lk = need; give(need, g.label, g.nodeIid, g.zone); }
     else { noSocket.lk.push(need.id); give(need, 'Loose LK spider'); }
   }
-  // A Veam that is linked to an LK (slot A/B/C) sits on the Veam4 socket of that LK: it shows there, and it needs no socket of its own
-  for(const g of R.groups) if(g.lk) for(const v of g.vims) v.linked = g.lk.veamOn?.[v.slot] || null;
+  // A Veam that is linked to an LK (slot A/B/C) comes into the DB together with that LK: it sits on the Veam4 socket next to the LK socket.
+  // An LK without such sockets (a loose LK spider, or a panel that has fewer) takes a spare Veam4 spider for it, or needs one more.
+  const linkedNoSocket = [];
+  for(const g of R.groups) if(g.lk){
+    const slots = g.lk.veamOn || [];
+    for(const v of g.vims) v.linked = slots[v.slot] || null;
+    slots.forEach((vid, sl) => { if(!vid || g.vims.some(v => v.slot === sl)) return;
+      const spare = R.soloVims.find(v => !v.used && !v.linked && (!g.nodeIid || !v.nodeIid || v.nodeIid === g.nodeIid));
+      if(spare) spare.linked = vid; else linkedNoSocket.push(vid); });
+  }
+  for(const id of noSocket.lk){ const need = wanted.find(x => x.id === id); for(const vid of (need?.veamOn || [])) if(vid) linkedNoSocket.push(vid); }
+  noSocket.ve.push(...linkedNoSocket);
   // 2. Losse Veams: eigen keuzes, dan vrije Veam4 naast een LK, dan losse Veam4, dan Veam4 van lege LK-groepen
   // The Veam4 sockets of an LK panel belong to that LK: a separate Veam goes on them only when the show says so (Settings → This show)
   const onLk = !!M.rules?.veamOnLkPanel;
@@ -163,18 +173,19 @@ export function computeRackPlan(M, dc){
   freeVims.push(...R.soloVims.filter(v => !v.nodeIid));
   if(onLk) for(const g of R.groups) if(!g.lk) freeVims.push(...g.vims);
   const veWanted = D.veNeeds.filter(n => n.lines.length), veDone = new Set();
+  const anyVims = [...R.groups.flatMap(g => g.vims), ...R.soloVims];
   for(const need of veWanted){
     const a = assign[need.id];
     if(!a || a === 'auto') continue;
     if(a === 'none'){ skipped.push(need.id); veDone.add(need.id); continue; }
     if(a === 'spider'){ noSocket.ve.push(need.id); give(need, 'Loose Veam4 spider'); veDone.add(need.id); continue; }
-    const v = freeVims.find(x => x.label === a && !x.used);
+    const v = anyVims.find(x => x.label === a && !x.used && !x.linked);          // your own choice: any free Veam4 socket, also the ones of an LK panel
     if(v){ v.used = need; give(need, v.label, v.nodeIid, v.zone); veDone.add(need.id); }
     else badAssign.push(`${need.id} → ${a}`);
   }
   for(const need of veWanted){
     if(veDone.has(need.id)) continue;
-    const v = freeVims.find(x => !x.used);
+    const v = freeVims.find(x => !x.used && !x.linked);
     if(v){ v.used = need; give(need, v.label, v.nodeIid, v.zone); }
     else { noSocket.ve.push(need.id); give(need, 'Loose Veam4 spider'); }
   }
@@ -277,8 +288,21 @@ export function computeRackPlan(M, dc){
     if(R.splitters.length && usedSplit < R.splitters.length) recs.push({ level:'info', text:`${R.splitters.length - usedSplit} splitter${R.splitters.length - usedSplit > 1 ? 's are' : ' is'} not needed — there are enough node ports.` });
     if(!recs.some(r => r.level === 'warn') && lines.length) recs.unshift({ level:'ok', text:`Everything fits: ${lines.length} line${lines.length > 1 ? 's' : ''} patched on ${usedPorts} node port${usedPorts === 1 ? '' : 's'}.` });
   }
+  // the checklist: what this DimCity needs, what the racks and loose devices give, what is still missing (and so what loose spiders to add)
+  const lonelyNodes = R.nodes.filter(n => n.loose && !R.loose.some(d => (d.kind === 'lkSpider' || d.kind === 'vimSpider') && (!d.nodeIid || d.nodeIid === n.iid)));
+  const lkNeed = wanted.filter(n => !skipped.includes(n.id)), veLoose = veWanted.filter(n => !skipped.includes(n.id));
+  const needs = {
+    lk:{ need:lkNeed.length, have:lkSockets, missing:noSocket.lk.length },
+    vim:{ need:veLoose.length + lkNeed.reduce((c, n) => c + (n.veamOn || []).filter(Boolean).length, 0), have:vimSockets, missing:noSocket.ve.length },
+    ports:{ need:lines.length, have:totalPorts, missing:unfed },
+    spiders:{ lk:noSocket.lk.length, vim:noSocket.ve.length },
+    nodesToAdd:unfed ? Math.ceil(unfed / Math.max(1, num(nodeTypes[0]?.portCount, 8))) : 0,
+    lonely:lonelyNodes.length, missingTypes:R.loose.filter(d => d.missing).length
+  };
+  needs.empty = !needs.lk.need && !needs.vim.need && !needs.ports.need;
+  needs.complete = !needs.empty && !needs.lk.missing && !needs.vim.missing && !needs.ports.missing && !needs.lonely && !needs.missingTypes && !badAssign.length;
   return {
-    dc, skipped, badAssign, lonely:R.nodes.filter(n => n.loose && !R.loose.some(d => (d.kind === 'lkSpider' || d.kind === 'vimSpider') && (!d.nodeIid || d.nodeIid === n.iid))), racks:R.racks, loose:R.loose, nodes:R.nodes, splitters:R.splitters, groups:R.groups, soloVims:R.soloVims, lines, recs,
+    dc, skipped, badAssign, needs, lonely:lonelyNodes, racks:R.racks, loose:R.loose, nodes:R.nodes, splitters:R.splitters, groups:R.groups, soloVims:R.soloVims, lines, recs,
     stats:{ lkSockets, lkUsed, vimSockets, vimUsed, nodePorts:totalPorts, nodePortsUsed:usedPorts, lines:lines.length, unfed,
       spiders:{ lk:noSocket.lk.length, vim:noSocket.ve.length } }
   };

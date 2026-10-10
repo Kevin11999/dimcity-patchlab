@@ -128,9 +128,9 @@
   }
 
   // ---- the PATCH BOARD: every switch drawn like its front, devices on their ports ----
-  const KIND_ICON = { node:'network', splitter:'split', cable:'cable', link:'plug' };
+  const KIND_ICON = { node:'network', splitter:'split', cable:'cable', link:'plug', console:'console' };
   const devTip = r => [`${r.device}${r.ethCount > 1 && !r.cable ? ` ETH${r.eth}` : ''}`, r.typeFull, r.name && r.name !== r.device ? r.name : '', r.csvRef ? `Node ${r.csvRef}` : '', r.unis ? `U ${r.unis}` : '', r.dest || ''].filter(Boolean).join(' · ');
-  const devShort = r => `${r.device}${r.ethCount > 1 && !r.cable ? `·${r.eth}` : ''}`;
+  const devShort = r => `${r.kind === 'console' ? (r.name || r.device) : r.device}${r.ethCount > 1 && !r.cable ? `·${r.eth}` : ''}`;
   function chip(r, ctx, extra = ''){
     const pl = r.kind === 'node' && ctx ? ctx.panelOf(r.idx) : null;
     return `<div class="pb-dev k-${r.kind} ${r.gone ? 'gone' : ''} ${S.armed === r.key ? 'armed' : ''} ${extra}" draggable="true" data-pbdev="${esc(r.key)}" title="${esc(devTip(r) + (r.gone ? ` · ${t('no longer in a rack', 'niet meer in een rek')}` : '') + (pl ? ` · ${t('plug into', 'steek in')} ${pl.panel} etherCON ${pl.no}` : ''))}"><i>${I(KIND_ICON[r.kind] || 'network', 13)}</i><b>${esc(devShort(r))}</b><em>${esc(r.typeName || '')}</em>${pl ? `<s title="${esc(`${pl.panel} · etherCON ${pl.no}`)}">${esc(pl.panel)}.${pl.no}</s>` : ''}</div>`;
@@ -142,7 +142,8 @@
       return `<div class="pb-port sfp ${fl ? 'used' : ''}" style="--pc:${fcol}" title="${esc(p.label + (fl ? ` · ${fl.id}` : ''))}"><small>${esc(window.SwPorts ? window.SwPorts.short(s.type, idx) : p.n)}</small>${fl ? `<div class="pb-dev k-fibre"><i>${I('cable', 13)}</i><b>${esc(fl.id)}</b><em>${t('fibre', 'fiber')}</em></div>` : `<span class="pb-empty">SFP</span>`}<u class="pb-vl">${fl ? 'T' : '–'}</u></div>`;
     }
     const r = byPort.get(p.n), col = p.trunk ? '#38bdf8' : p.vid != null ? vlanColor(p.vid) : '#475569';
-    const body = p.link ? `<div class="pb-dev k-link" title="${esc(`${t('Link to', 'Koppeling naar')} ${p.link.to.sw} · ${p.link.to.port} (trunk)`)}"><i>${I('plug', 13)}</i><b>${esc(p.link.to.sw)}</b><em>⇄ ${p.link.to.port}</em></div>`
+    const lane = p.link ? (p.link.lane === 1 ? t('main', 'main') : p.link.lane === 2 ? t('backup', 'backup') : '') : '';
+    const body = p.link ? `<div class="pb-dev k-link" draggable="true" data-pblink="${esc(p.link.id)}|${esc(s.label)}|${p.n}" title="${esc(`${t('Link to', 'Koppeling naar')} ${p.link.to.sw} · ${p.link.to.port} (trunk${lane ? ', ' + lane : ''}) — ${t('drag it to another port', 'sleep hem naar een andere poort')}`)}"><i>${I('plug', 13)}</i><b>${esc(p.link.to.sw)}</b><em>⇄ ${p.link.to.port}${lane ? ` · ${lane}` : ''}</em></div>`
       : r ? chip(r, ctx) : `<span class="pb-empty">${t('free', 'vrij')}</span>`;
     return `<div class="pb-port ${r ? 'used' : ''} ${p.link ? 'link' : ''} ${sel ? 'pickable' : ''}" data-pbsw="${esc(s.label)}" data-pbport="${p.n}" style="--pc:${col}" title="${esc(`${p.label}${p.link ? ' · trunk' : p.trunk ? ' · Trunk' : p.vid != null ? ` · ${p.vid} ${vlanName(p.vid)}` : ''}`)}"><small>${p.n}</small>${body}<u class="pb-vl">${p.trunk ? 'T' : p.vid != null ? p.vid : '–'}</u></div>`;
   }
@@ -158,7 +159,7 @@
   function boardHtml(dc){
     const sws = window.NetSwitches.list(dc), rows = baseRows(dc), ctx = window.NetNodes ? window.NetNodes.ctx(dc) : null;
     const loose = rows.filter(r => r.unplaced), placed = rows.length - loose.length, cap = sws.reduce((n, s) => n + s.rj, 0);
-    const groups = [['node', t('Nodes', 'Nodes')], ['splitter', t('Splitters', 'Splitters')], ['cable', t('Network cables', 'Netwerkkabels')]].map(([k, l]) => ({ k, l, list:loose.filter(r => r.kind === k) })).filter(g => g.list.length);
+    const groups = [['node', t('Nodes', 'Nodes')], ['splitter', t('Splitters', 'Splitters')], ['console', t('Consoles', 'Lichttafels')], ['cable', t('Network cables', 'Netwerkkabels')]].map(([k, l]) => ({ k, l, list:loose.filter(r => r.kind === k) })).filter(g => g.list.length);
     const bar = `<div class="pb-bar"><span class="pb-stat"><b>${placed}</b>/${rows.length} ${t('on a port', 'op een poort')}</span>${rows.length > cap && sws.length ? `<span class="pb-stat bad">${I('alert', 13)} ${rows.length} ${t('ports needed', 'poorten nodig')}, ${cap} ${t('available', 'beschikbaar')}</span>` : ''}
         <span style="flex:1"></span>
         <button class="primary" data-pbfill title="${esc(t('Fill the free ports with the devices that have no port, once. Nothing moves by itself afterwards.', 'Vul de vrije poorten één keer met de apparaten die nog geen poort hebben. Daarna verschuift er niets vanzelf.'))}">${I('check', 14)} ${t('Auto-fill ports…', 'Poorten automatisch vullen…')}</button>
@@ -177,23 +178,43 @@
     for(const l of window.NetSwitches.linksOf(dc)){ if(seen.has(l.id)) continue; seen.add(l.id); rows.push(l); }
     return `<div class="pb-links"><div class="pb-tray-h"><b>${t('Links between switches', 'Koppelingen tussen switches')}</b><span class="subtle">${t('RJ45 ports connected to each other, as a trunk (all VLANs)', 'RJ45-poorten die met elkaar verbonden zijn, als trunk (alle VLAN’s)')}</span><span style="flex:1"></span>
         ${sws.length > 1 ? `<button class="sm" data-pbautolink>${I('plug', 13)} ${t('Link automatically', 'Automatisch koppelen')}</button>` : ''}</div>
-      ${rows.length ? rows.map(l => `<div class="pb-link"><b>${esc(l.sw)}</b> <span class="mono">${t('port', 'poort')} ${l.port}</span> <span class="pb-lk">⇄</span> <b>${esc(l.to.sw)}</b>${l.to.dc !== dc ? ` <span class="subtle">${esc(l.to.dc)}</span>` : ''} <span class="mono">${t('port', 'poort')} ${l.to.port}</span> <span class="tag blue">trunk</span><button class="sm ghost" data-pbunlink="${esc(l.id)}" title="${esc(t('Remove this link', 'Verwijder deze koppeling'))}">${I('trash', 13)}</button></div>`).join('') : `<div class="subtle" style="padding:2px 0 4px">${t('None. Switches in one DB are best linked with a trunk so every VLAN reaches them all.', 'Geen. Switches in één DB koppel je het best met een trunk, zodat elk VLAN ze allemaal bereikt.')}</div>`}</div>`;
+      ${rows.length ? rows.map(l => `<div class="pb-link"><b>${esc(l.sw)}</b> <span class="mono">${t('port', 'poort')} ${l.port}</span> <span class="pb-lk">⇄</span> <b>${esc(l.to.sw)}</b>${l.to.dc !== dc ? ` <span class="subtle">${esc(l.to.dc)}</span>` : ''} <span class="mono">${t('port', 'poort')} ${l.to.port}</span> <span class="tag blue">trunk</span>${l.lane ? ` <span class="tag">${l.lane === 1 ? t('main', 'main') : t('backup', 'backup')}</span>` : ''}<button class="sm ghost" data-pbunlink="${esc(l.id)}" title="${esc(t('Remove this link', 'Verwijder deze koppeling'))}">${I('trash', 13)}</button></div>`).join('') : `<div class="subtle" style="padding:2px 0 4px">${t('None. Switches in one DB are best linked with a trunk so every VLAN reaches them all.', 'Geen. Switches in één DB koppel je het best met een trunk, zodat elk VLAN ze allemaal bereikt.')}</div>`}</div>`;
   }
   function linkDialog(dc, from, rerender){
     const all = App.sortedDims().flatMap(d => window.NetSwitches.list(d).map(s => ({ dc:d, s }))), src = all.find(x => x.dc === dc && x.s.label === from); if(!src) return;
     const others = all.filter(x => !(x.dc === dc && x.s.label === from));
     if(!others.length){ App.ui.toast(t('Add a second switch first', 'Voeg eerst een tweede switch toe'), 'info'); return; }
     const freePorts = (d, s) => Array.from({ length:s.rj }, (_, i) => i + 1).filter(n => !window.NetSwitches.linkAt(d, s.label, n));
-    const lastFree = (d, s) => { const rows = baseRows(d), free = freePorts(d, s).filter(n => !rows.some(r => r.sw === s.label && r.swPort === n)); return free.length ? free[free.length - 1] : (freePorts(d, s).slice(-1)[0] || 1); };
-    const opts = (d, s, sel) => freePorts(d, s).map(n => { const r = baseRows(d).find(x => x.sw === s.label && x.swPort === n); return `<option value="${n}" ${n === sel ? 'selected' : ''}>${n}${r ? ` — ${esc(r.device)}` : ''}</option>`; }).join('');
-    const dlg = App.ui.openDialog({ title:t('Link two switches', 'Koppel twee switches'), subtitle:t('RJ45 to RJ45, as a trunk', 'RJ45 naar RJ45, als trunk'), width:'640px', body:`<div class="nc-copy">
-        <div class="nc-cp-col"><div class="nc-cp-h">${esc(from)} <span class="subtle">${esc(dc)}</span></div><label class="field">${t('Port', 'Poort')}<select id="lkA">${opts(dc, src.s, lastFree(dc, src.s))}</select></label></div>
-        <div class="nc-cp-col"><div class="nc-cp-h">${t('To switch', 'Naar switch')}</div><label class="field"><select id="lkSw">${others.map((x, i) => `<option value="${i}">${esc(x.s.label)} · ${esc(x.dc)}</option>`).join('')}</select></label><label class="field">${t('Port', 'Poort')}<select id="lkB"></select></label></div>
-        <div class="subtle nc-cp-note">${t('Both ports become a trunk that carries every VLAN. A device that sits on one of these ports goes back to the tray.', 'Beide poorten worden een trunk die elk VLAN draagt. Een apparaat dat op een van deze poorten zit gaat terug in de bak.')}</div></div>`,
+    // the last free ports first (the first ones are for the devices); a port with a device on it is used last
+    const pick = (d, s, skip = []) => { const rows = baseRows(d), free = freePorts(d, s).filter(n => !skip.includes(n)), empty = free.filter(n => !rows.some(r => r.sw === s.label && r.swPort === n)); return (empty.length ? empty : free).slice(-1)[0] || 0; };
+    const opts = (d, s, sel, skip = []) => freePorts(d, s).filter(n => !skip.includes(n)).map(n => { const r = baseRows(d).find(x => x.sw === s.label && x.swPort === n); return `<option value="${n}" ${n === sel ? 'selected' : ''}>${n}${r ? ` — ${esc(r.device)}` : ''}</option>`; }).join('');
+    const two = freePorts(dc, src.s).length >= 2 && others.some(x => freePorts(x.dc, x.s).length >= 2);
+    const dlg = App.ui.openDialog({ title:t('Link two switches', 'Koppel twee switches'), subtitle:t('RJ45 to RJ45, as a trunk', 'RJ45 naar RJ45, als trunk'), width:'680px', body:`<div class="nc-copy">
+        <div class="nc-cp-col"><div class="nc-cp-h">${esc(from)} <span class="subtle">${esc(dc)}</span></div><label class="field">${t('Main port', 'Hoofdpoort')}<select id="lkA"></select></label><label class="field lk-2">${t('Backup port', 'Backup-poort')}<select id="lkA2"></select></label></div>
+        <div class="nc-cp-col"><div class="nc-cp-h">${t('To switch', 'Naar switch')}</div><label class="field"><select id="lkSw">${others.map((x, i) => `<option value="${i}">${esc(x.s.label)} · ${esc(x.dc)}</option>`).join('')}</select></label><label class="field">${t('Main port', 'Hoofdpoort')}<select id="lkB"></select></label><label class="field lk-2">${t('Backup port', 'Backup-poort')}<select id="lkB2"></select></label></div>
+        <label class="field" style="grid-column:1/-1">${t('Lines', 'Lijnen')}<select id="lkN"><option value="2" ${two ? 'selected' : ''} ${two ? '' : 'disabled'}>${t('2 — main and backup (a trunk usually has two)', '2 — main en backup (een trunk heeft meestal twee)')}</option><option value="1" ${two ? '' : 'selected'}>${t('1 — a single line', '1 — één lijn')}</option></select></label>
+        <div class="subtle nc-cp-note">${t('Both ports of each line become a trunk that carries every VLAN. A device that sits on one of these ports goes back to the tray.', 'Beide poorten van elke lijn worden een trunk die elk VLAN draagt. Een apparaat dat op een van deze poorten zit gaat terug in de bak.')}<span id="lkLoop" style="display:block;margin-top:6px"></span></div></div>`,
       footer:`<button class="primary" data-a="go">${t('Link', 'Koppel')}</button><button data-a="x">${t('Cancel', 'Annuleren')}</button>` });
-    const q = x => dlg.body.querySelector(x), fillB = () => { const o = others[Number(q('#lkSw').value)]; q('#lkB').innerHTML = opts(o.dc, o.s, lastFree(o.dc, o.s)); }; q('#lkSw').onchange = fillB; fillB();
+    const q = x => dlg.body.querySelector(x), target = () => others[Number(q('#lkSw').value)];
+    const fill = () => {
+      const o = target(), n = Number(q('#lkN').value);
+      const a1 = pick(dc, src.s), b1 = pick(o.dc, o.s);
+      q('#lkA').innerHTML = opts(dc, src.s, a1); q('#lkB').innerHTML = opts(o.dc, o.s, b1);
+      q('#lkA2').innerHTML = opts(dc, src.s, pick(dc, src.s, [a1]), [a1]); q('#lkB2').innerHTML = opts(o.dc, o.s, pick(o.dc, o.s, [b1]), [b1]);
+      dlg.body.querySelectorAll('.lk-2').forEach(el => { el.style.display = n === 2 ? '' : 'none'; });
+      q('#lkLoop').innerHTML = n === 2 ? `${I('alert', 12)} ${t('Two parallel links between two switches make a loop unless the switches treat them as one group (link aggregation) or run RSTP. Set that on the switches — PatchLab only plans the ports.', 'Twee parallelle koppelingen tussen twee switches vormen een lus, tenzij de switches ze als één groep (link aggregation) behandelen of RSTP draaien. Stel dat in op de switches — PatchLab plant alleen de poorten.')}` : '';
+    };
+    // choosing the main port keeps the backup port apart from it
+    const sync = (main, back, d, s) => { const m = Number(q(main).value), keep = Number(q(back).value); q(back).innerHTML = opts(d, s, keep !== m ? keep : pick(d, s, [m]), [m]); };
+    q('#lkSw').onchange = fill; q('#lkN').onchange = fill; q('#lkA').onchange = () => sync('#lkA', '#lkA2', dc, src.s); q('#lkB').onchange = () => sync('#lkB', '#lkB2', target().dc, target().s);
+    fill();
     dlg.footer.querySelector('[data-a=x]').onclick = () => dlg.close();
-    dlg.footer.querySelector('[data-a=go]').onclick = () => { const o = others[Number(q('#lkSw').value)]; const err = window.NetSwitches.addLink({ dc, sw:from, port:Number(q('#lkA').value) }, { dc:o.dc, sw:o.s.label, port:Number(q('#lkB').value) }); if(err){ App.ui.toast(err, 'err'); return; } dlg.close(); rerender(); };
+    dlg.footer.querySelector('[data-a=go]').onclick = () => {
+      const o = target(), n = Number(q('#lkN').value), A = [Number(q('#lkA').value), Number(q('#lkA2').value)], B = [Number(q('#lkB').value), Number(q('#lkB2').value)];
+      const pairs = Array.from({ length:n }, (_, i) => [{ dc, sw:from, port:A[i] }, { dc:o.dc, sw:o.s.label, port:B[i] }]);
+      window.PatchHistory?.label?.(`${dc}: ${from} linked to ${o.s.label}`);
+      const err = window.NetSwitches.addLinks(pairs); if(err){ App.ui.toast(err, 'err'); return; } dlg.close(); rerender();
+    };
   }
   // ---- auto-fill, once ----
   function fillDialog(dc, rerender){
@@ -379,10 +400,26 @@
         el.ondragend = () => { S.dragDev = null; el.classList.remove('dragging'); pb.classList.remove('dragging'); pb.querySelectorAll('.drop').forEach(x => x.classList.remove('drop')); };
         el.onclick = ev => { ev.stopPropagation(); S.armed = S.armed === el.dataset.pbdev ? null : el.dataset.pbdev; rerender(); };
       });
+      // a link (trunk) can be picked up and put on another port of the same switch
+      const doMoveLink = el => {
+        const [id, sw0, from] = String(S.dragLink || '').split('|'); S.dragLink = null; if(!id) return;
+        const { sw, port } = portsAt(el);
+        if(sw !== sw0){ App.ui.toast(t('A link end can only move to another port of the same switch', 'Een koppeling kan alleen naar een andere poort van dezelfde switch'), 'info'); return; }
+        const before = baseRows(dc).find(r => r.sw === sw && r.swPort === port);
+        window.PatchHistory?.label?.(`${dc}: link moved to ${sw} port ${port}`);
+        const err = window.NetSwitches.moveLinkEnd(id, dc, sw, Number(from), port);
+        if(err){ App.ui.toast(t(err, err), 'err'); return; }
+        if(before) App.ui.toast(`${before.device} ${t('went back to the tray', 'is terug in de bak gezet')}`, 'info');
+        rerender();
+      };
+      pb.querySelectorAll('[data-pblink]').forEach(el => {
+        el.ondragstart = ev => { S.dragLink = el.dataset.pblink; S.dragDev = null; S.armed = null; el.classList.add('dragging'); pb.classList.add('dragging'); try { ev.dataTransfer.setData('text/plain', 'link'); ev.dataTransfer.effectAllowed = 'move'; } catch {} };
+        el.ondragend = () => { S.dragLink = null; el.classList.remove('dragging'); pb.classList.remove('dragging'); pb.querySelectorAll('.drop').forEach(x => x.classList.remove('drop')); };
+      });
       pb.querySelectorAll('.pb-port:not(.sfp)').forEach(el => {
-        el.ondragover = ev => { if(!S.dragDev || el.classList.contains('link')) return; ev.preventDefault(); el.classList.add('drop'); };
+        el.ondragover = ev => { if(S.dragLink){ if(el.classList.contains('link')) return; ev.preventDefault(); el.classList.add('drop'); return; } if(!S.dragDev || el.classList.contains('link')) return; ev.preventDefault(); el.classList.add('drop'); };
         el.ondragleave = () => el.classList.remove('drop');
-        el.ondrop = ev => { ev.preventDefault(); el.classList.remove('drop'); const k = S.dragDev; S.dragDev = null; if(k && !el.classList.contains('link')) doPlace(k, el); };
+        el.ondrop = ev => { ev.preventDefault(); el.classList.remove('drop'); if(S.dragLink){ if(!el.classList.contains('link')) doMoveLink(el); else S.dragLink = null; return; } const k = S.dragDev; S.dragDev = null; if(k && !el.classList.contains('link')) doPlace(k, el); };
         el.onclick = () => { if(S.armed && !el.classList.contains('link')) doPlace(S.armed, el); };
       });
       const tray = pb.querySelector('[data-pbtray]');

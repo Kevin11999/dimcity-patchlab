@@ -31,36 +31,31 @@ function nodePortsStrip(n, size='', owners = null){
 }
 
 
-// ---- Advice: the best setup for this DimCity from its LKs, Veams and universes ----
-function adviceHtml(dc, { compact = false } = {}){
-  const A = window.RackAdvisor?.advise(dc); if(!A) return '';
-  if(!A.lines && !A.lk && !A.veams) return '';
-  const ico = l => l === 'warn' ? 'alert' : l === 'ok' ? 'checkCircle' : 'info';
-  const items = A.items.map(i => `<tr><td><b>${i.count}×</b></td><td>${esc(typeName(i.type))}</td><td class="num">${i.u}U</td><td class="subtle">${esc(i.why)}</td></tr>`).join('');
-  const blocks = A.blocks.map(b => `<tr><td><b>${esc(b.id)}</b></td><td>${esc(b.label)}</td><td class="subtle">${esc(b.why)}</td><td>${b.differs ? `<span class="tag yellow" title="${esc(b.manual ? 'You set this mode yourself' : 'Auto-detect shows')}">now ${esc(b.currentLabel)}</span> <button class="sm" data-adv-mode="${esc(b.id)}" data-mode="${esc(b.mode)}">Use ${esc(b.label)}</button>` : '<span class="tag green">matches</span>'}</td></tr>`).join('');
-  const rackLine = A.rack.existing ? `fits in <b>${esc(A.rack.type.name || A.rack.type.id)}</b> (${A.rack.type.heightU}U) — or a rack made for it` : `needs a rack of <b>${A.rack.height}U</b> (you have no rack type that big)`;
-  const body = `<div class="adv-sum"><b>${A.lk}</b> LK · <b>${A.veams}</b> Veam · <b>${A.lines}</b> lines · <b>${A.universes}</b> universes → <b>${A.totalU}U</b> of devices, ${rackLine}.</div>
-    ${A.items.length ? `<table class="data-table adv-items"><thead><tr><th></th><th>Device</th><th class="num">Space</th><th>Why</th></tr></thead><tbody>${items}</tbody></table>` : ''}
-    ${A.notes.map(n => `<div class="rp-adv-note ${n.level}">${I(ico(n.level), 13)} ${esc(n.text)}</div>`).join('')}
-    ${!compact && blocks ? `<details class="adv-blocks" ${A.blocks.some(b => b.differs) ? 'open' : ''}><summary>Block mode per LK</summary><table class="data-table"><thead><tr><th>LK</th><th>Advice</th><th>Because</th><th></th></tr></thead><tbody>${blocks}</tbody></table></details>` : ''}
-    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="primary" data-adv-apply ${A.ok ? '' : 'disabled'}>${I('check', 14)} Apply this advice to ${esc(dc)}</button><span class="subtle" style="align-self:center;font-size:12px">It adds a rack made for this DimCity${(A.spiders.lk || A.spiders.vim) ? ' and loose spiders' : ''}. Your own racks stay.</span></div>`;
-  return App.ui.card({ key:`${dc}:advice`, title:'Advice: best setup', icon:'star', meta:A.ok ? `${A.totalU}U · ${A.items.reduce((n, i) => n + i.count, 0)} devices` : '', collapsible:true, collapsed:compact, body:`<div class="rp-advice">${body}</div>` });
+// ---- What this DimCity needs, against what its racks and loose devices give ----
+// Nothing is advised or built for you: you fill the racks yourself. This list says how much is still missing (LK37 sockets, Veam4 sockets, node
+// ports) and, where the racks have no socket left, how many loose spiders to add — as few as possible, the racks are used first.
+function needsHtml(dc, P, { compact = false } = {}){
+  const N = P?.needs; if(!N || N.empty) return '';
+  const row = (label, x, unit, fix) => `<tr class="${x.missing ? 'bad' : 'ok'}"><td><b>${label}</b></td><td class="num">${x.need}</td><td class="num">${x.have}</td><td class="num">${x.missing ? `<b>${x.missing}</b>` : '—'}</td><td>${x.missing ? fix : `<span class="tag green">${I('check', 12)} ok</span>`}</td></tr>`;
+  const spider = (kind, n) => `<button class="sm" data-need-add="${kind}" data-n="${n}">${I('plus', 12)} ${n} ${kind === 'lkSpider' ? 'LK spider' : 'Veam4 spider'}${n > 1 ? 's' : ''}</button>`;
+  const rows = [
+    row('LK37 sockets', N.lk, '', `${spider('lkSpider', N.lk.missing)} <span class="subtle">or a panel with more LK sockets</span>`),
+    row('Veam4 sockets', N.vim, '', `${spider('vimSpider', N.vim.missing)} <span class="subtle">or a panel with more Veam4 sockets</span>`),
+    row('Node ports', N.ports, '', `<span>add ${N.nodesToAdd} node${N.nodesToAdd === 1 ? '' : 's'} <span class="subtle">(or a splitter for universes that are used more than once)</span></span>`)
+  ].join('');
+  const todo = [N.lk.missing && `${N.lk.missing} LK37`, N.vim.missing && `${N.vim.missing} Veam4`, N.ports.missing && `${N.ports.missing} node port${N.ports.missing === 1 ? '' : 's'}`].filter(Boolean);
+  const status = N.complete ? `<span class="tag green">${I('checkCircle', 13)} Complete</span>` : `<span class="tag yellow">${I('alert', 13)} Not complete${todo.length ? ` — still needed: ${todo.join(', ')}` : ''}</span>`;
+  const body = `<div class="rp-needs-h">${status}<span class="subtle">${N.lk.need} LK · ${N.vim.need} Veam4 · ${N.ports.need} lines</span></div>
+    <table class="data-table rp-needs-t"><thead><tr><th></th><th class="num">Needed</th><th class="num">In the racks</th><th class="num">Missing</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    ${N.spiders.lk || N.spiders.vim ? `<div class="subtle" style="font-size:12.5px;margin-top:6px">${I('info', 12)} The racks come first: a loose spider is only needed where no socket is left. An LK that comes in with its Veams is plugged in together (the LK socket and its Veam4 sockets).</div>` : ''}`;
+  return App.ui.card({ key:`${dc}:needs`, title:'What this DimCity needs', icon:'checkCircle', meta:N.complete ? 'complete' : 'not complete', collapsible:true, collapsed:compact, body:`<div class="rp-needs">${body}</div>` });
 }
-function bindAdvice(root, dc, rerender){
-  const ap = root.querySelector('[data-adv-apply]');
-  if(ap) ap.onclick = async () => {
-    const plan = App.net.getDimPlan(dc);
-    if((plan.racks || []).some(r => r.iid !== plan.adviceRack?.iid)){
-      const ok = await App.ui.confirmDialog({ title:`Add the advice to ${dc}?`, message:`${dc} already has racks. The advice adds a rack made for it next to them (a rack from an earlier advice is replaced).`, okLabel:'Add rack' });
-      if(!ok) return;
-    }
-    const a = window.RackAdvisor.apply(dc);
-    if(a) App.ui.toast(`${dc}: advice applied — ${a.totalU}U in a new rack${(a.spiders.lk || a.spiders.vim) ? ' plus loose spiders' : ''}`);
-    rerender();
-  };
-  root.querySelectorAll('[data-adv-mode]').forEach(b => b.onclick = () => {
-    const lk = M().byLK.get(b.dataset.advMode); if(!lk) return;
-    App.applyBlockType(lk, b.dataset.mode); M().ui.dirty = true; rerender();
+function bindNeeds(root, dc, rerender){
+  root.querySelectorAll('[data-need-add]').forEach(b => b.onclick = () => {
+    const kind = b.dataset.needAdd, n = Math.max(1, Number(b.dataset.n) || 1);
+    window.PatchHistory?.label?.(`Added ${n} loose ${kind === 'lkSpider' ? 'LK' : 'Veam4'} spider${n > 1 ? 's' : ''} in ${dc}`);
+    for(let k = 0; k < n; k++) looseOf(dc).push({ iid:newIid('ls'), kind });
+    M().ui.dirty = true; rerender();
   });
 }
 
@@ -81,8 +76,8 @@ function assignRows(dc, plan){
   }
   const sockets = {
     LK: plan.groups.map(g => ({ value:g.label, text:`${g.label} · ${g.panel}${g.lk ? ` — ${g.lk.id}` : ''}`, by:g.lk?.id })),
-    // the Veam4 sockets of an LK panel belong to that LK; a separate Veam may only go there when Settings → This show says so
-    VEAM: [...(m.rules?.veamOnLkPanel ? plan.groups.flatMap(g => g.vims.map(v => ({ ...v, panel:g.panel }))) : []), ...plan.soloVims].map(v => ({ value:v.label, text:`${v.label} · ${v.panel}${v.used ? ` — ${v.used.id}` : ''}`, by:v.used?.id }))
+    // a Veam can be put on any Veam4 socket by hand — also on the ones next to an LK (the automatic way keeps those for the LK, see Settings → This show)
+    VEAM: [...plan.groups.flatMap(g => g.vims.map(v => ({ ...v, panel:g.panel, lkLabel:g.label, lkUsed:g.lk }))), ...plan.soloVims].filter(v => !v.linked).map(v => ({ value:v.label, text:`${v.label} · ${v.panel}${v.lkLabel ? ` (next to ${v.lkLabel}${v.lkUsed ? ' · ' + v.lkUsed.id : ''})` : ''}${v.used ? ` — ${v.used.id}` : ''}`, by:v.used?.id }))
   };
   return [...rows.values()].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric:true })).map(r => ({ ...r, mode:assign[r.id] || 'auto', options:sockets[r.kind] }));
 }
@@ -235,7 +230,7 @@ function cardHtml(dc){
     </div>`;
   if(!any){
     return App.ui.card({ key:`${dc}:racks`, title:'Racks', icon:'rack', meta:'none placed', collapsed:false,
-      body:`${adviceHtml(dc)}${controls}<div class="hint" style="margin-top:10px">${I('info', 13)} Place a rack and PatchLab patches the LKs and Veams of ${esc(dc)} onto its sockets and node ports automatically.${rackTypes.length ? '' : ' Build a rack in the Rack Builder first.'}</div>${looseHtml(plan, dc)}` });
+      body:`${needsHtml(dc, plan)}${controls}<div class="hint" style="margin-top:10px">${I('info', 13)} Place a rack and PatchLab patches the LKs and Veams of ${esc(dc)} onto its sockets and node ports automatically.${rackTypes.length ? '' : ' Build a rack in the Rack Builder first.'}</div>${looseHtml(plan, dc)}` });
   }
   const chip = (label, used, total, warn) => `<div class="rp-stat ${warn ? 'warn' : ''}"><span>${label}</span><b>${used}<em>/${total}</em></b></div>`;
   const stats = `<div class="rp-stats">
@@ -264,7 +259,7 @@ function cardHtml(dc){
   const warn = plan.recs.some(r => r.level === 'warn');
   const meta = [placed.length ? App.ui.plural(placed.length, 'rack') : '', loose.length ? App.ui.plural(loose.length, 'loose device') : ''].filter(Boolean).join(' + ');
   return App.ui.card({ key:`${dc}:racks`, title:'Racks', icon:'rack', meta:`${meta} · ${warn ? 'needs attention' : 'all patched'}`,
-    body:`${adviceHtml(dc)}${controls}${stats}${recs}${legend ? `<div class="rp-legend"><span class="subtle">Node per LK / Veam:</span>${legend}</div>` : ''}<div class="rp-racks">${racks}</div>${assignHtml(plan, dc)}${panelLinksHtml(plan, dc)}${nodeStrips}${looseHtml(plan, dc)}${table}` });
+    body:`${needsHtml(dc, plan)}${controls}${stats}${recs}${legend ? `<div class="rp-legend"><span class="subtle">Node per LK / Veam:</span>${legend}</div>` : ''}<div class="rp-racks">${racks}</div>${assignHtml(plan, dc)}${panelLinksHtml(plan, dc)}${nodeStrips}${looseHtml(plan, dc)}${table}` });
 }
 
 function bind(root, dc, rerender0){
@@ -272,7 +267,7 @@ function bind(root, dc, rerender0){
   const rerender = () => { syncNodes(dc); rerender0(); };
   bindAssign(root, dc, rerender);
   bindPanelLinks(root, dc, rerender);
-  bindAdvice(root, dc, rerender);
+  bindNeeds(root, dc, rerender);
   const place = root.querySelector('#rpPlace');
   if(place) place.onclick = () => {
     const id = root.querySelector('#rpRackType').value;
@@ -436,7 +431,7 @@ function replaceNode(dc, goneIdx, withIdx){
   const plan = App.net.getDimPlan(dc), old = plan.nodes[goneIdx], nu = plan.nodes[withIdx];
   if(!old || !nu || old === nu) return false;
   window.PatchHistory?.label?.(`${dc}: ${old.id} replaced`);
-  for(const k of ['id', 'name', 'ip', 'subnet', 'ifaces', 'ipRole', 'ipVlan', 'advanced', 'advPorts', 'csvRef', 'deviceNo']) if(old[k] !== undefined) nu[k] = old[k]; else delete nu[k];
+  for(const k of ['id', 'name', 'ip', 'subnet', 'ifaces', 'ipRole', 'ipVlan', 'ipListen', 'advanced', 'advPorts', 'csvRef', 'deviceNo']) if(old[k] !== undefined) nu[k] = old[k]; else delete nu[k];
   if(nu.csvRef) window.NodeLink?.refill?.(nu);
   plan.nodes.splice(goneIdx, 1);
   // the new node takes the place of the old one in the list as well
@@ -505,4 +500,4 @@ function customRack(dc, done){
   };
 }
 
-window.RackPlan = { syncNodes, syncAll, freshNodesOf, replaceNode, removeNode, fixStack: (dc, iid) => { const r = racksOf(dc).find(x => x.iid === iid); if(r){ r.stack = true; M().ui.dirty = true; } }, customRack, addLooseNode, cardHtml, bind, rackFace, nodePortsStrip, applyToNetworkPlan, assignHtml, bindAssign, adviceHtml, bindAdvice };
+window.RackPlan = { syncNodes, syncAll, freshNodesOf, replaceNode, removeNode, fixStack: (dc, iid) => { const r = racksOf(dc).find(x => x.iid === iid); if(r){ r.stack = true; M().ui.dirty = true; } }, customRack, addLooseNode, cardHtml, bind, rackFace, nodePortsStrip, applyToNetworkPlan, assignHtml, bindAssign, needsHtml, bindNeeds };

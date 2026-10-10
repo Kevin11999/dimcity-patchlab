@@ -38,9 +38,10 @@ const ROWS = [
   // DB03 — Delay towers / FOH
   ['LK301', 1, 31, 'Delay tower 1'], ['LK301', 2, 31, 'Delay tower 2'], ['LK301', 3, 32, 'Delay tower 3'], ['LK301', 4, 32, 'Delay tower 4'],
   ['V301', 1, 33, 'FOH truss L'], ['V301', 2, 33, 'FOH truss R'], ['V301', 3, 34, 'FOH house lights'],
-  ['', '', 35, 'FOH roof wash', 'DB03']
+  ['', '', 35, 'FOH roof wash', 'DB03'],
+  // Which Veam hangs on which LK: LK, then Veam A, B and C (an empty column = no Veam there)
+  ['LK102', '', 'V101', 'V102'], ['LK103', 'V104', 'V105', 'V106'], ['LK201', '', 'V201', ''], ['LK202', '', '', 'V202'], ['LK301', '', 'V301', '']
 ];
-const LINKS = { LK102:{ 2:'V101', 3:'V102' }, LK103:{ 1:'V104', 2:'V105', 3:'V106' }, LK201:{ 2:'V201' }, LK202:{ 3:'V202' }, LK301:{ 2:'V301' } };
 const BLOCKS = { LK101:'XLR12', LK103:'VEAM_ONLY' };
 
 async function standardLibrary(){
@@ -61,12 +62,11 @@ async function open({ silent=false, tutorial=false, blank=false } = {}){
   m.csvSources = blank ? [] : [{ id:'csv_demo', name:'Demo patch list.csv', path:'Demo patch list.csv', importedAt:new Date().toISOString(), updatedAt:new Date().toISOString(), rawRowCount:rows.length + 2, rowCount:rows.length, skipFirst:1, skipLast:1, map:{ id:0, port:1, uni:2, dest:3, truss:4 }, rows }];
   await App.rebuildFromCsvSources();
   const M2 = M();
-  // 2. LK103 is a 3× Veam block without rows of its own (added by hand, like Add LK), then links and block types
+  // 2. the links of the Veams to the LKs come from the link rows of the CSV (LK103 has no lines of its own); then the block types
   if(!blank && !M2.byLK.has('LK103')){
     M2.byLK.set('LK103', { id:'LK103', dimcity:'DB01', lines:[], names:{ '1-4':null, '5-8':null, '9-12':null }, veam:{ 1:null, 2:null, 3:null }, blockType:{ mode:'Manual', value:'VEAM_ONLY' }, manual:true });
     M2.byDim.get('DB01')?.lks.add('LK103');
   }
-  for(const [lk, slots] of (blank ? [] : Object.entries(LINKS))){ const rec = M2.byLK.get(lk); if(rec) for(const [s, v] of Object.entries(slots)) rec.veam[Number(s)] = v; }
   for(const [lk, type] of (blank ? [] : Object.entries(BLOCKS))){ const rec = M2.byLK.get(lk); if(rec) rec.blockType = { mode:'Manual', value:type }; }
   M2.dimColors = { DB01:'#ff8a1f', DB02:'#4ea8ff', DB03:'#1DB954' };
   // 3. device types from the standard library (Luminex / ELC), racks and loose devices

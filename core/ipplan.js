@@ -25,6 +25,7 @@
       const p = plan(dc);
       (p.nodes || []).forEach((dev, idx) => { const ty = typeOf('nodeTypes', dev.typeId), eth = Math.min(2, Math.max(1, Number(ty.ethernetCount) || 1)); out.push({ dc, kind:'node', idx, dev, gone:!!dev.gone, label:dev.id || dev.name || `Node ${idx + 1}`, typeName:SN ? SN.of(ty) : ty.name || '', eth, ifs:F().ifaces(dev, eth) }); });
       (p.splitters || []).forEach((dev, idx) => { const ty = typeOf('splitterTypes', dev.typeId); if(!(dev.ip || dev.ifaces?.length || ty.defaultIp)) return; out.push({ dc, kind:'splitter', idx, dev, gone:!!dev.gone, label:dev.id || dev.name || `Splitter ${idx + 1}`, typeName:SN ? SN.of(ty) : ty.name || '', eth:1, ifs:F().ifaces(dev, 1) }); });
+      (p.consoles || []).forEach((dev, idx) => { const eth = dev.ethCount === 2 ? 2 : 1; out.push({ dc, kind:'console', idx, dev, gone:false, label:dev.name || dev.id || `Console ${idx + 1}`, typeName:'Console', eth, ifs:F().ifaces(dev, eth) }); });
       for(const s of (window.NetSwitches?.list(dc) || [])) out.push({ dc, kind:'switch', source:s.source, idx:s.source === 'plan' ? s.idx : null, key:s.key || null, dev:s.dev, label:s.source === 'plan' ? (s.dev.id || s.label) : (s.dev?.name || s.label), swLabel:s.label, typeName:SN ? SN.of(s.type) : s.type?.name || '', eth:1, ifs:F().ifaces(s.dev, 1), where:s.where || '' });
     }
     return out;

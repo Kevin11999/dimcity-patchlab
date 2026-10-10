@@ -2,6 +2,7 @@
 (function(){
   'use strict';
   const P = {
+    console: '<rect x="2" y="10" width="20" height="10" rx="2"/><path d="M6 14v3M10 14v3M14 14v3M18 14v3"/><path d="m5 10 2.5-5h9L19 10"/>',
     home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
     alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
     table: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>',

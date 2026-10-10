@@ -101,7 +101,7 @@ const NL = {
   'No nodes yet. Choose a node type and click Auto-assign.':'Nog geen nodes. Kies een nodetype en klik op Automatisch toewijzen.',
   'No splitters yet. Choose a splitter type and click Auto-calculate.':'Nog geen splitters. Kies een splittertype en klik op Automatisch berekenen.',
   'Auto-assign nodes':'Nodes automatisch toewijzen', 'Auto-calculate splitters':'Splitters automatisch berekenen', 'Add one splitter':'Eén splitter toevoegen',
-  'IP address':'IP-adres', 'Subnet':'Subnet', 'Name':'Naam', 'Place rack':'Rek plaatsen', 'Rack Builder':'Rack Builder', 'Use as network plan':'Gebruik als netwerkplan',
+  'IP address':'IP-adres', 'Subnet':'Subnet', 'Name':'Naam', 'Place rack':'Rek plaatsen', 'Rack Builder':'Rack Builder',
   'LK37 sockets':'LK37-aansluitingen', 'Veam4 sockets':'Veam4-aansluitingen', 'Node ports':'Nodepoorten', 'Lines':'Lijnen', 'Node per LK / Veam:':'Node per LK / Veam:',
   'Patch table':'Patchtabel', 'Node port':'Nodepoort', 'Via':'Via', 'Socket':'Aansluiting', 'LK / Veam port':'LK- / Veam-poort', 'direct':'direct', 'no port':'geen poort',
   'Name in this DimCity':'Naam in deze DimCity', 'Loose devices':'Losse apparaten', 'Add loose node':'Losse node toevoegen', 'Add LK spider':'LK-spin toevoegen', 'Add Veam4 spider':'Veam4-spin toevoegen',
@@ -173,7 +173,19 @@ const NL = {
   'needs attention':'aandacht nodig', 'all patched':'alles gepatcht', 'none placed':'niets geplaatst', 'Loose LK spider':'Losse LK-spin', 'Loose Veam4 spider':'Losse Veam4-spin',
   'Direct (XLR)':'Direct (XLR)', 'Project info changed':'Projectinfo gewijzigd', 'Racks changed':'Racks gewijzigd', 'Devices changed':'Devices gewijzigd',
   'PDF layout changed':'PDF-indeling gewijzigd', 'DimCity color changed':'DimCity-kleur gewijzigd', 'Edit':'Bewerking', 'Replaced imported file':'Geïmporteerd bestand vervangen',
-  'LK / Veam patching, validation and DimCity reporting.':'LK/Veam-patching, validatie en DimCity-rapportage.', 'Your name':'Je naam', 'About DimCity PatchLab':'Over DimCity PatchLab'
+  'LK / Veam patching, validation and DimCity reporting.':'LK/Veam-patching, validatie en DimCity-rapportage.', 'Your name':'Je naam', 'About DimCity PatchLab':'Over DimCity PatchLab',
+
+  // 0.14: wat een DimCity nodig heeft (in plaats van het advies), nodes die de racks volgen
+  'What this DimCity needs':'Wat deze DimCity nodig heeft', 'Complete':'Compleet', 'Not complete':'Niet compleet', 'complete':'compleet', 'not complete':'niet compleet',
+  'Node ports (DMX lines)':'Nodepoorten (DMX-lijnen)', 'Needed':'Nodig', 'In the racks':'In de racks', 'ok':'ok',
+  'or a panel with more LK sockets':'of een paneel met meer LK-aansluitingen', 'or a panel with more Veam4 sockets':'of een paneel met meer Veam4-aansluitingen',
+  '(or a splitter for universes that are used more than once)':'(of een splitter voor universes die vaker gebruikt worden)',
+  'The racks come first: a loose spider is only needed where no socket is left. An LK that comes in with its Veams is plugged in together (the LK socket and its Veam4 sockets).':'De racks gaan voor: een losse spin is alleen nodig waar geen aansluiting meer vrij is. Een LK die met zijn Veams binnenkomt wordt samen weggestoken (de LK-aansluiting en zijn Veam4-aansluitingen).',
+  'no longer in a rack':'niet meer in een rek', 'nothing needed yet':'nog niets nodig', 'This rack':'Dit rek', 'Still missing':'Nog nodig',
+  'Loose spiders count as sockets. Add devices to the rack and this list follows; “Still missing” is what no rack or spider covers yet.':'Losse spinnen tellen als aansluitingen. Zet apparaten in het rek en deze lijst volgt; “Nog nodig” is wat nog door geen rek of spin gedekt wordt.',
+  'Couple LKs & Veams to sockets':'LK’s & Veams aan aansluitingen koppelen', 'all automatic':'alles automatisch', 'Network ports on the panels':'Netwerkpoorten op de panelen',
+  'Automatic':'Automatisch', 'Loose spider':'Losse spin', 'Do not patch':'Niet patchen', 'Now on':'Nu op', 'Choose':'Kies',
+  'Custom rack…':'Eigen rek…'
 };
 
 // "3 errors" e.d.: getal + zelfstandig naamwoord
@@ -187,6 +199,14 @@ const NOUNS = {
 };
 const RULES = [
   [/^(\d+) (.+)$/, (m, n, noun) => NOUNS[noun] ? `${n} ${NOUNS[noun]}` : null],
+  [/^(\d+) (LK|Veam4) spiders?$/, (m, n, k) => `${n} ${k}-spin${n === '1' ? '' : 'nen'}`],
+  [/^add (\d+) nodes?$/, (m, n) => `${n} node${n === '1' ? '' : 's'} toevoegen`],
+  [/^Not complete — still needed: (.+)$/, (m, x) => `Niet compleet — nog nodig: ${x.replace(/node ports/g, 'nodepoorten').replace(/node port/g, 'nodepoort')}`],
+  [/^What (\S+) needs$/, (m, dc) => `Wat ${dc} nodig heeft`],
+  [/^Already in (\S+)$/, (m, dc) => `Al in ${dc}`],
+  [/^Complete with this rack( added)?$/, (m, a) => `Compleet met dit rek${a ? ' erbij' : ''}`],
+  [/^for$/, () => 'voor'],
+  [/^The nodes of (\S+) follow its racks \(Racks card\): place or remove a rack or a loose node there and they appear and disappear here by themselves\. A node that is no longer in a rack stays until you replace or remove it on the Network page \(Nodes\)\.$/, (m, dc) => `De nodes van ${dc} volgen zijn racks (kaart Racks): plaats of verwijder daar een rek of een losse node en ze verschijnen en verdwijnen hier vanzelf. Een node die niet meer in een rek zit blijft staan tot je hem vervangt of verwijdert op de pagina Netwerk (Nodes).`],
   [/^(\d+)\/(\d+) linked$/, (m, a, b) => `${a}/${b} gekoppeld`],
   [/^Back to (.+)$/, (m, x) => `Terug naar ${x}`],
   [/^Open (\S+)$/, (m, x) => `Open ${x}`],

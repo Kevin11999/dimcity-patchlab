@@ -110,24 +110,32 @@
   // { role, vlan, ip, mask, eth }  eth = which RJ45 of the device (1 or 2) carries it
   function ifaces(dev, ethCount = 1){
     const list = [];
-    if(dev?.ip) list.push({ primary:true, role:dev.ipRole || 'management', vlan:dev.ipVlan ?? classify(dev.ip)?.vlan?.id ?? null, ip:dev.ip, mask:dev.subnet || '', eth:1 });
-    (dev?.ifaces || []).forEach((x, i) => { if(x && (x.ip || x.vlan)) list.push({ primary:false, i, role:x.role || 'lighting', vlan:x.vlan ?? ROLES[x.role || 'lighting']?.luminex ?? null, ip:x.ip || '', mask:x.mask || '', eth:Math.min(Math.max(1, ethCount), Number(x.eth) || 1) }); });
+    if(dev?.ip) list.push({ primary:true, role:dev.ipRole || 'management', vlan:dev.ipVlan ?? classify(dev.ip)?.vlan?.id ?? null, ip:dev.ip, mask:dev.subnet || '', eth:1, listen:dev.ipListen });
+    (dev?.ifaces || []).forEach((x, i) => { if(x && (x.ip || x.vlan)) list.push({ primary:false, i, role:x.role || 'lighting', vlan:x.vlan ?? ROLES[x.role || 'lighting']?.luminex ?? null, ip:x.ip || '', mask:x.mask || '', eth:Math.min(Math.max(1, ethCount), Number(x.eth) || 1), listen:x.listen }); });
     return list;
   }
   // The RJ45 ports of a device and what they carry. One VLAN on a port = access port; two or more = trunk
   // (tagged), which is what one cable with a management and a lighting address needs.
-  function portsOf(dev, ethCount = 1){
+  function portsOf(dev, ethCount = 1, all = false){
     const list = ifaces(dev, ethCount), out = [];
+    // a LumiNode in its advanced network: what every RJ45 carries is chosen per port (dev.advPorts = { 1:[VLAN ids], 2:[…] }); two or more = a trunk
+    if(dev?.advanced && dev.advPorts){
+      for(let e = 1; e <= Math.max(1, ethCount); e++){
+        const vlans = [...new Set((dev.advPorts[e] || []).map(Number).filter(Number.isFinite))];
+        out.push({ eth:e, ifs:list.filter(x => vlans.includes(Number(x.vlan))), vlans, mode:vlans.length > 1 ? 'trunk' : 'access' });
+      }
+      return all ? out : out.filter(p => p.vlans.length || p.eth === 1);
+    }
     for(let e = 1; e <= Math.max(1, ethCount); e++){
       const on = list.filter(x => x.eth === e), vlans = [...new Set(on.map(x => x.vlan).filter(v => v != null))];
       out.push({ eth:e, ifs:on, vlans, mode:vlans.length > 1 ? 'trunk' : 'access' });
     }
-    return out.filter(p => p.ifs.length || p.eth === 1);
+    return all ? out : out.filter(p => p.ifs.length || p.eth === 1);      // all: every network port gets a row (a console with two ports)
   }
   // Switch port plan: every RJ45 of every device gets the next switch port. devices: [{ label, ethCount, dev }]
   function switchPlan(devices, first = 1){
     const rows = []; let port = first;
-    for(const d of devices) for(const p of portsOf(d.dev, d.ethCount)){ rows.push({ port:port++, device:d.label, ref:d.ref || null, eth:p.eth, ethCount:d.ethCount, mode:p.mode, vlans:p.vlans, ips:p.ifs.map(x => x.ip).filter(Boolean) }); }
+    for(const d of devices) for(const p of portsOf(d.dev, d.ethCount, !!d.all)){ rows.push({ port:port++, device:d.label, ref:d.ref || null, eth:p.eth, ethCount:d.ethCount, mode:p.mode, vlans:p.vlans, ips:p.ifs.map(x => x.ip).filter(Boolean) }); }
     return rows;
   }
   // The VLAN column of a C row: a GigaCore group number (1-20) or a VLAN ID (1, 200, 300 … or a FENT number)
@@ -137,5 +145,8 @@
     if(n >= 1 && n <= 20) return n === 1 ? 1 : n * 100;
     return n;
   }
-  window.Fent = { vlanFromColumn, VLANS, LUMINEX, vlanList, roleVlan, suggestRole, MASK, ROLES, GROUPS, isIp, vlanById, classify, suggest, suggestEquipment, checkIp, checkAll, ifaces, portsOf, switchPlan };
+  // The groups of a LumiNode in its advanced network always have the Luminex VLAN IDs: group 1 = 1, group N = N × 100 (the project may number its VLANs the FENT way)
+  const groupVlan = role => (ROLES[role] || ROLES.other).luminex;
+  const luminexGroups = () => LUMINEX.map(named).concat(customs().filter(c => !LUMINEX.some(v => v.id === c.id)));
+  window.Fent = { groupVlan, luminexGroups, vlanFromColumn, VLANS, LUMINEX, vlanList, roleVlan, suggestRole, MASK, ROLES, GROUPS, isIp, vlanById, classify, suggest, suggestEquipment, checkIp, checkAll, ifaces, portsOf, switchPlan };
 })();

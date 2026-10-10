@@ -14,21 +14,23 @@
   const cfg = () => { const nd = M().networkDevices; nd.prefs ||= {}; nd.prefs.fent ||= { on:false, group:'production', scan:false }; nd.prefs.fent.vlanMode ||= 'luminex'; return nd.prefs.fent; };
   const dimNo = dc => (window.LKApp?.dimSlot ? window.LKApp.dimSlot(dc) : (/(\d+)/.exec(String(dc)) || [0, 1])[1] * 1);
   const plan = dc => M().networkDevices?.dimCityPlans?.[dc] || { nodes:[], splitters:[], switches:[] };
-  const TYPES = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes' }, LISTS = { node:'nodes', splitter:'splitters', switch:'switches' };
-  const typeOf = (kind, dev) => (M().networkDevices?.[TYPES[kind === 'rswitch' ? 'switch' : kind]] || []).find(x => x.id === dev.typeId) || {};
+  const TYPES = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes' }, LISTS = { node:'nodes', splitter:'splitters', switch:'switches', console:'consoles' };
+  // a console (lighting desk, media server …) has no type of its own: it is a name with one or two network ports
+  const typeOf = (kind, dev) => kind === 'console' ? { name:'Console', ethernetCount:dev.ethCount === 2 ? 2 : 1, console:true } : (M().networkDevices?.[TYPES[kind === 'rswitch' ? 'switch' : kind]] || []).find(x => x.id === dev.typeId) || {};
   // a switch that sits in a rack has no type of its own on its address record: take it from the switch list
   const devOfRef = (dc, kind, idxS) => kind === 'rswitch' ? (window.NetSwitches?.list(dc).find(s => s.key === idxS)?.dev || null) : (plan(dc)[LISTS[kind]] || [])[Number(idxS)];
-  const ethOf = (kind, dev) => kind === 'node' ? Math.min(2, Math.max(1, Number(typeOf(kind, dev).ethernetCount) || 1)) : 1;
+  const ethOf = (kind, dev) => kind === 'node' || kind === 'console' ? Math.min(2, Math.max(1, Number(typeOf(kind, dev).ethernetCount) || 1)) : 1;
   // devices with an address: nodes, and splitters that have (or can get) one
-  const devices = dc => { const p = plan(dc); return [...p.nodes.map((dev, idx) => ({ kind:'node', idx, dev })), ...p.splitters.map((dev, idx) => ({ kind:'splitter', idx, dev })).filter(d => d.dev.ip || d.dev.ifaces?.length || typeOf('splitter', d.dev).defaultIp)]; };
+  const devices = dc => { const p = plan(dc); return [...p.nodes.map((dev, idx) => ({ kind:'node', idx, dev })), ...p.splitters.map((dev, idx) => ({ kind:'splitter', idx, dev })).filter(d => d.dev.ip || d.dev.ifaces?.length || typeOf('splitter', d.dev).defaultIp), ...(p.consoles || []).map((dev, idx) => ({ kind:'console', idx, dev }))]; };
   const vlanChip = v => v ? `<span class="fent-chip" style="--c:${v.color || '#94a3b8'}" title="${esc(v.discipline)} · ${esc(v.net)}">${esc(v.name)} ${v.id}</span>` : '';
   const roleName = r => { const x = F().ROLES[r]; return x ? t(x.en, x.nl) : r; };
 
   // ---- the block under the first address of a node / splitter ----
   // all VLANs of the chosen numbering, plus the current one when it comes from the other list
-  function vlanOptions(cur){
-    const list = F().vlanList(cfg().vlanMode).slice(); const c = F().vlanById(cur);
-    if(c && !list.includes(c)) list.unshift(c);
+  // lumiOnly: a LumiNode in its advanced network always has the Luminex group VLANs, whatever numbering the show uses
+  function vlanOptions(cur, lumiOnly){
+    const list = (lumiOnly ? F().luminexGroups() : F().vlanList(cfg().vlanMode)).slice(); const c = F().vlanById(cur);
+    if(c && !list.some(v => v.id === c.id)) list.unshift(c);
     return list.map(v => `<option value="${v.id}" ${Number(cur) === v.id ? 'selected' : ''}>${v.id} ${esc(v.name)}</option>`).join('');
   }
   function deviceBlock(dc, kind, idx, dev){
@@ -37,10 +39,10 @@
     const first = dev.ip ? F().classify(dev.ip) : null;
     const rows = (dev.ifaces || []).map((x, i) => `<div class="fent-row" data-i="${i}">
         <select data-f="role">${Object.keys(F().ROLES).map(r => `<option value="${r}" ${x.role === r ? 'selected' : ''}>${esc(roleName(r))}</option>`).join('')}</select>
-        <select data-f="vlan" title="VLAN">${vlanOptions(x.vlan)}</select>
+        <select data-f="vlan" title="VLAN">${vlanOptions(x.vlan, dev.advanced)}</select>
         <input data-f="ip" value="${esc(x.ip || '')}" placeholder="10.40.101.11" inputmode="numeric" class="${x.ip && !F().isIp(x.ip) ? 'invalid' : ''}">
         <input data-f="mask" value="${esc(x.mask || '')}" placeholder="${F().MASK}" inputmode="numeric" style="max-width:120px">
-        ${eth > 1 ? `<select data-f="eth" title="${esc(t('Which RJ45 carries this address', 'Welke RJ45 dit adres draagt'))}"><option value="1" ${Number(x.eth) !== 2 ? 'selected' : ''}>ETH1</option><option value="2" ${Number(x.eth) === 2 ? 'selected' : ''}>ETH2</option></select>` : ''}
+        ${eth > 1 && !dev.advanced ? `<select data-f="eth" title="${esc(t('Which RJ45 carries this address', 'Welke RJ45 dit adres draagt'))}"><option value="1" ${Number(x.eth) !== 2 ? 'selected' : ''}>ETH1</option><option value="2" ${Number(x.eth) === 2 ? 'selected' : ''}>ETH2</option></select>` : ''}
         <button class="sm ghost" data-rm title="${esc(t('Remove this address', 'Verwijder dit adres'))}">${I('x', 13)}</button></div>`).join('');
     const warns = on ? F().checkAll(F().ifaces(dev, eth).map(x => ({ owner:dev.id || dev.name || kind, ip:x.ip, mask:x.mask, vlan:x.vlan, kind:kind === 'switch' || kind === 'rswitch' ? 'equipment' : 'device' })), cfg().group).filter(w => w.code !== 'DUPLICATE') : [];
     return `<div class="fent-ifaces" data-fent="${esc(dc)}|${kind}|${idx}">
@@ -56,16 +58,18 @@
       const eth = ethOf(kind, dev);
       box.querySelector('[data-add]').onclick = () => {
         const used = new Set((dev.ifaces || []).map(x => x.role)); const role = !used.has('lighting') ? 'lighting' : !used.has('scan') ? 'scan' : 'other';
-        const c = cfg(), v = F().roleVlan(role, c.vlanMode);
+        const c = cfg(), v = dev.advanced ? F().groupVlan(role) : F().roleVlan(role, c.vlanMode);
         (dev.ifaces ||= []).push({ role, vlan:v, ip:c.on ? F().suggestRole(role, c.group, dimNo(dc), Number(String(dev.ip || '').split('.')[3]) || 11) : '', mask:c.on ? F().MASK : (dev.subnet || ''), eth:eth > 1 ? 2 : 1 });
+        if(dev.advanced) window.AdvNet?.placeNew?.(dev, v);
         M().ui.dirty = true; rerender();
       };
       box.querySelectorAll('.fent-row').forEach(row => {
         const x = dev.ifaces[Number(row.dataset.i)]; if(!x) return;
-        row.querySelector('[data-rm]').onclick = () => { dev.ifaces.splice(Number(row.dataset.i), 1); M().ui.dirty = true; rerender(); };
+        row.querySelector('[data-rm]').onclick = () => { dev.ifaces.splice(Number(row.dataset.i), 1); if(dev.advanced) window.AdvNet?.prune?.(dev); M().ui.dirty = true; rerender(); };
         row.querySelectorAll('[data-f]').forEach(inp => inp.onchange = () => {
-          const f = inp.dataset.f; x[f] = (f === 'vlan' || f === 'eth') ? Number(inp.value) : inp.value.trim();
-          if(f === 'role' && F().ROLES[inp.value]) x.vlan = F().roleVlan(inp.value, cfg().vlanMode);
+          const f = inp.dataset.f, was = Number(x.vlan); x[f] = (f === 'vlan' || f === 'eth') ? Number(inp.value) : inp.value.trim();
+          if(f === 'role' && F().ROLES[inp.value]) x.vlan = dev.advanced ? F().groupVlan(inp.value) : F().roleVlan(inp.value, cfg().vlanMode);
+          if(dev.advanced && (f === 'vlan' || f === 'role')) window.AdvNet?.moved?.(dev, was, Number(x.vlan));
           M().ui.dirty = true; rerender();
         });
       });
@@ -76,6 +80,16 @@
   // the addresses of one device for host number `host`: a management address and a lighting address (and a scan address when it is switched on)
   function giveAddresses(dc, kind, dev, host){
     const c = cfg(), no = dimNo(dc), eth = ethOf(kind, dev);
+    if(kind === 'console'){ dev.ip = F().suggestRole('lighting', c.group, no, host); dev.subnet = F().MASK; dev.ipRole = 'lighting'; dev.ipVlan = F().roleVlan('lighting', c.vlanMode); dev.ifaces = []; return; }
+    // a LumiNode in its advanced network keeps the groups and VLANs the user made (always the Luminex ones); only the addresses follow the scheme
+    if(dev.advanced){
+      const at = (role, h) => ['management', 'lighting', 'scan'].includes(role) ? F().suggestRole(role, c.group, no, role === 'scan' ? Math.min(250, h + 100) : h) : '';
+      const r0 = dev.ipRole || 'management', ip0 = at(r0, host);
+      if(ip0){ dev.ip = ip0; dev.subnet = F().MASK; }
+      dev.ipRole = r0; dev.ipVlan = dev.ipVlan ?? F().groupVlan(r0);
+      for(const x of (dev.ifaces || [])){ const ip = at(x.role || 'lighting', host); if(ip){ x.ip = ip; x.mask = F().MASK; } }
+      return;
+    }
     const vm = F().roleVlan('management', c.vlanMode), vl = F().roleVlan('lighting', c.vlanMode), vs = F().roleVlan('scan', c.vlanMode);
     dev.ip = F().suggestRole('management', c.group, no, host); dev.subnet = F().MASK; dev.ipRole = 'management'; dev.ipVlan = vm;
     dev.ifaces = [{ role:'lighting', vlan:vl, ip:F().suggestRole('lighting', c.group, no, host), mask:F().MASK, eth:eth > 1 ? 2 : 1 }];
@@ -98,12 +112,21 @@
     return { n, over };
   }
   // one new device in a plan that already has addresses: it gets the next free host number, the others stay as they are
-  function addressNew(dc, kind, dev){
-    if(!cfg().on) return false;
+  // the lowest host number (last byte, from 11) that no other device of the DimCity uses; a scan address (+100) counts for its base number
+  function freeHost(dc, dev){
     const used = new Set();
     for(const d of devices(dc)) if(d.dev !== dev) for(const x of F().ifaces(d.dev, ethOf(d.kind, d.dev))) if(F().isIp(x.ip)){ const h = Number(String(x.ip).split('.')[3]); used.add(h); if(h > 100) used.add(h - 100); }
     let host = 11; while(used.has(host) && host <= 250) host++;
-    if(host > 250) return false;
+    return host > 250 ? 0 : host;
+  }
+  // the host number of a device: the one its own addresses already have (a scan address is +100), else the next free one
+  function hostOf(dc, dev){
+    for(const x of F().ifaces(dev, 2)) if(F().isIp(x.ip) && x.role !== 'scan'){ const h = Number(String(x.ip).split('.')[3]); if(h >= 11 && h <= 250) return h; }
+    return freeHost(dc, dev);
+  }
+  function addressNew(dc, kind, dev){
+    if(!cfg().on) return false;
+    const host = freeHost(dc, dev); if(!host) return false;
     giveAddresses(dc, kind, dev, host);
     return true;
   }
@@ -130,11 +153,11 @@
   function portRows(dc, o = {}){
     const pt = window.PortPlan?.patch(dc) || { order:'nodes', sort:'id' }, order = o.order || pt.order, sort = o.sort || pt.sort, SN = window.ShortName;
     const devs = devices(dc);
-    let drows = F().switchPlan(devs.map(({ kind, idx, dev }) => ({ label:dev.id || dev.name || kind, ethCount:ethOf(kind, dev), dev, ref:{ kind, idx } })));
+    let drows = F().switchPlan(devs.map(({ kind, idx, dev }) => ({ label:dev.id || dev.name || kind, ethCount:ethOf(kind, dev), dev, ref:{ kind, idx }, all:kind === 'console' })));
     const devOf = new Map(devs.map(d => [d.dev.id || d.dev.name, d]));
     drows = drows.map(r => {
       const d = devOf.get(r.device), dev = d?.dev, ty = d ? typeOf(d.kind, dev) : {};
-      return { ...r, key:`n:${r.device}#${r.eth}`, kind:d?.kind || 'node', typeName:SN ? SN.of(ty) : (ty.name || ''), typeFull:SN ? SN.full(ty) : (ty.name || ''), name:dev?.name || '', idx:d?.idx ?? null, gone:!!dev?.gone,
+      return { ...r, key:`n:${r.device}#${r.eth}`, kind:d?.kind || 'node', typeName:ty.console ? 'Console' : SN ? SN.of(ty) : (ty.name || ''), typeFull:ty.console ? 'Console' : SN ? SN.full(ty) : (ty.name || ''), name:dev?.name || '', idx:d?.idx ?? null, gone:!!dev?.gone,
         csvRef:dev?.csvRef || '', unis:dev && Array.isArray(dev.universes) && window.NetCables ? window.NetCables.uniText(dev.universes.filter(u => u != null && u !== '' && Number.isFinite(Number(u))).map(Number)) : '' };
     });
     if(sort !== 'plan') drows.sort((a, b) => nat(a.device, b.device) || a.eth - b.eth);
@@ -238,5 +261,5 @@
     const ap = root.querySelector('[data-fent-apply]'); if(ap) ap.onclick = async () => { await applyAll(App.sortedDims()); rerender(); };
   }
 
-  window.FentUI = { deviceBlock, bindDevice, vlanCard, plannerCard, bindPlanner, portPlan, portPlanBase, portRows, portTable, devices, applyAll, applyDim, addressNew, giveAddresses, typeOf, ethOf };
+  window.FentUI = { deviceBlock, bindDevice, vlanCard, plannerCard, bindPlanner, portPlan, portPlanBase, portRows, portTable, devices, applyAll, applyDim, addressNew, giveAddresses, freeHost, hostOf, vlanOptions, typeOf, ethOf };
 })();

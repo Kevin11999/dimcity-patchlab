@@ -25,7 +25,7 @@
     splitters: { title:'Splitters',                    icon:'cable',    desc:'Splitters with input feed and output map.' },
     racks:     { title:'Racks',                        icon:'rack',     desc:'Racks with sockets, node colours and patch table.' },
     flow:      { title:'Signal flow drawing',          icon:'cable',    desc:'The cabling from rack to objects, as arranged on the Signal Flow page.' },
-    patch:     { title:'LK / Veam patch',              icon:'box',      desc:'Every LK block as a port grid, grouped per Veam.' },
+    patch:     { title:'LK / Veam patch',              icon:'box',      desc:'Every LK as a row of 12 ports with its Veam4s underneath: universe, and the node and node port each one is on.' },
     universes: { title:'Universe overview',            icon:'universe', desc:'Patch points per universe (LK / Veam / DMX).' },
     patchlist: { title:'Patch list table',             icon:'table',    desc:'All rows of this DimCity sorted by universe.' },
     warnings:  { title:'Warnings & errors',            icon:'alert',    desc:'Validation results for this DimCity.' },
@@ -35,9 +35,9 @@
   const SECTION_OPTS = {
     network:   [['universeTable','Include universe overview table', true], ['switches','Show switches placeholder', false], ['addresses','All addresses of a device and the switch port plan', true]],
     switches:  [['overview','Overview of all switches and their fibres first', true], ['names','Show the port names typed by hand', true]],
-    patch:     [['standaloneVeams','Include Veams that are not linked to an LK', true], ['location','Show location per port', true], ['source','Show source (LK / Veam) per port', false], ['groupColors','Tint Veam groups A / B / C', true]],
+    patch:     [['nodePorts','Show the node and node port per port', true], ['standaloneVeams','Include Veams that are not linked to an LK', true], ['location','Show location per port', true], ['source','Show source (LK / Veam) per port', false], ['groupColors','Tint Veam groups A / B / C', true]],
     patchlist: [['dmx','Include loose DMX', true]],
-    racks:     [['drawing','Rack drawing', true], ['nodes','Node ports (which LK / Veam port is on which node port)', true], ['loose','Loose devices (nodes and spiders without a rack)', true], ['table','Patch table (node port → LK / Veam)', true], ['advice','Recommendations', true]],
+    racks:     [['drawing','Rack drawing', true], ['nodes','Node ports (which LK / Veam port is on which node port)', true], ['loose','Loose devices (nodes and spiders without a rack)', true], ['table','Patch table (node port → LK / Veam)', true], ['advice','Notes (what is still needed)', true]],
     flow:      [['legend','Cable legend', true], ['ownPage','Start on a new sheet', true], ['netOnly','Also a drawing of only the network (switches, Cat cables, fibres)', true]],
     warnings:  [['projectWide','Include project-wide issues', true]],
     qr:        [['system','Also the QR set for the whole system (first DB only)', true]]
@@ -55,7 +55,7 @@
       cover: { show:true, title:'', subtitle:'{area} · {location}', showLogo:true, logoX:1, logoY:0, logoW:60, fields:{ area:true, location:true, date:true, prepared:true, dimcities:true, totals:true }, note:'', summaryPage:true },
       sections: [
         { key:'summary', on:true }, { key:'network', on:true, opts:{ universeTable:true, switches:false, addresses:true } }, { key:'switches', on:true, opts:{ overview:true, names:true } },
-        { key:'splitters', on:true }, { key:'racks', on:true, opts:{ drawing:true, nodes:true, loose:true, table:true, advice:true } }, { key:'flow', on:true, opts:{ legend:true, ownPage:true, netOnly:true } }, { key:'patch', on:true, opts:{ standaloneVeams:true, location:true, source:false, groupColors:true } },
+        { key:'splitters', on:true }, { key:'racks', on:true, opts:{ drawing:true, nodes:true, loose:true, table:true, advice:true } }, { key:'flow', on:true, opts:{ legend:true, ownPage:true, netOnly:true } }, { key:'patch', on:true, opts:{ nodePorts:true, standaloneVeams:true, location:true, source:false, groupColors:true } },
         { key:'universes', on:false }, { key:'patchlist', on:false, opts:{ dmx:true } },
         { key:'warnings', on:true, opts:{ projectWide:true } }, { key:'qr', on:false, opts:{ system:true } }, { key:'notes', on:false, opts:{ text:'' } }
       ]
@@ -302,6 +302,13 @@
       .port .src{color:#94a3b8}
       .port.empty{border-top-color:var(--ln);border-color:var(--ln);background:#f8fafc}.port.empty .uni{color:#cbd5e1;font-weight:600}
       .port.conflict{background:#fee2e2;border-color:#dc2626}
+      .lkrow{display:grid;grid-template-columns:repeat(12,1fr);gap:${compact?.8:1.1}mm;margin-bottom:${compact?.8:1.2}mm}.lkrow .c1{min-width:0}
+      .lkv{grid-column:span 4;border:var(--bw) dashed var(--oc,#94a3b8);border-radius:1mm;padding:1mm 1.6mm;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;background:color-mix(in srgb,var(--oc,#94a3b8) 12%,#fff);font-size:${fs*1.05}px}.lkv small{font-weight:600;color:#64748b;font-size:${fs*.74}px}
+      .vb{grid-column:span 4;min-width:0;border:var(--bw) solid var(--oc,#94a3b8);border-top:1.4mm solid var(--oc,#94a3b8);border-radius:1.2mm;padding:1.2mm 1.4mm;background:color-mix(in srgb,var(--oc,#94a3b8) 7%,#fff)}
+      .vb h4{font-size:${fs*.88}px;margin:0 0 1mm;display:flex;justify-content:space-between}.vb h4 small{color:#64748b;font-weight:600}
+      .vb.none{border-style:dashed;border-color:var(--ln2);background:transparent;color:#94a3b8;display:flex;align-items:center;justify-content:center;text-align:center;font-size:${fs*.8}px}.vb.gap{border:0;background:transparent}
+      .np{font-size:${fs*.78}px;font-weight:700;color:#0f172a;background:#eef2ff;border-radius:.8mm;padding:0 .8mm;margin:.4mm 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.np.none{background:#fee2e2;color:#b91c1c}.np i{font-weight:500;color:#64748b;font-style:normal}
+      .lkrow .port .dest,.vb .port .dest{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.15}
       .lk-groups{display:grid;grid-template-columns:repeat(3,1fr);gap:${gap}mm}
       .lk-group{border:var(--bw) solid var(--ln);border-radius:1.2mm;padding:${compact?1:1.6}mm}
       .tint .g1{background:#eff6ff}.tint .g2{background:#fff7ed}.tint .g3{background:#f0fdf4}
@@ -497,13 +504,15 @@
       const addr = more.length ? `<div class="small" style="margin-bottom:1.2mm">${first ? `<b>${esc(nd.ip)}</b>${esc(' ' + first.name + ' ' + first.id)}` : esc(nd.ip || '')}${more.map(x => ` · <b>${esc(x.ip)}</b>${esc(vname(x.vlan))}${eth > 1 ? ' ETH' + x.eth : ''}`).join('')}</div>` : '';
       return `<div class="card node"><div class="card-h"><span>${esc(nd.id || 'Node')}</span><small>${esc(nd.ip || '')}${nd.subnet?' / '+esc(nd.subnet):''}${eth > 1 ? ' · 2× RJ45' : ''}</small></div><div class="card-b"><div class="small" style="margin-bottom:1.2mm">${esc(nd.name || '')}</div>${addr}<div class="ports p8">${ports || '<span class="small">No ports</span>'}</div></div></div>`;
     }).join('') : '<div class="placeholder">No nodes planned for this DimCity.</div>';
+    const consoles = (p.consoles || []).map(c => { const F = window.Fent, eth = c.ethCount === 2 ? 2 : 1, ifs = F ? F.ifaces(c, eth).filter(x => x.ip) : [];
+      return `<div class="card"><div class="card-h"><span>${esc(c.name || c.id || 'Console')}</span><small>${esc(c.id || '')}${eth > 1 ? ' · 2× RJ45' : ''}</small></div>${ifs.length ? `<div class="card-b small">${ifs.map(x => `<b>${esc(x.ip)}</b>${F?.vlanById(x.vlan) ? esc(' ' + F.vlanById(x.vlan).name + ' ' + x.vlan) : ''}`).join(' · ')}</div>` : ''}</div>`; }).join('');
     const sw = o.switches ? (switches.length ? switches.map(s=>`<div class="card"><div class="card-h"><span>${esc(s.id||'Switch')}</span><small>${esc(s.ip||'')}</small></div></div>`).join('') : '<div class="placeholder">Network switches will appear here.</div>') : '';
     const pp = o.addresses !== false ? window.FentUI?.portPlan?.(dc)?.rows || [] : [];
     const portCard = pp.length ? `<div class="card"><div class="card-h"><span>Switch ports &amp; VLAN</span><small>${pp.length} ports</small></div><div class="card-b"><table><thead><tr><th>Port</th><th>Device</th><th>Mode</th><th>VLAN</th><th>Address / location</th></tr></thead><tbody>${pp.map(r => `<tr><td><b>${r.sw ? esc(r.sw) + ' · ' + r.swPort : '—'}</b></td><td>${esc(r.device)}${r.ethCount > 1 ? ' ETH' + r.eth : ''}</td><td>${r.mode === 'trunk' ? 'Trunk (tagged)' : 'Access'}</td><td>${r.vlans.map(v => { const x = window.Fent?.vlanById(v); return x ? `<span class="tag" style="${x.color ? `border-left:2mm solid ${x.color}` : ''}">${esc(x.id + ' ' + x.name)}</span>` : esc(v); }).join(' ')}</td><td>${r.cable ? esc(r.dest) : r.ips.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div></div>` : '';
     const fl = o.addresses !== false ? (window.Fibers?.links?.(dc) || []) : [];
     const fiberCard = fl.length ? `<div class="card"><div class="card-h"><span>Fibre links</span><small>${fl.length}</small></div><div class="card-b"><table><thead><tr><th>ID</th><th>Cable</th><th>A</th><th>B</th></tr></thead><tbody>${fl.map(l => { const ty = window.Fibers.typeOf(l.typeId); return `<tr><td><b style="border-left:2mm solid ${window.Fibers.color(l)};padding-left:1mm">${esc(l.id)}</b></td><td>${esc(window.Fibers.typeName(ty))}<br><span class="small">${ty ? esc(`${ty.medium === 'smf' ? 'Singlemode' : ty.medium === 'mmf' ? 'Multimode' : ty.medium === 'dac' ? 'SFP patch' : 'Cat'} · ${ty.cores}-core · ${ty.connA || ''} · ${ty.lengthM} m`) : ''}</span></td><td>${esc(window.Fibers.endLabel(l.a))}</td><td>${esc(window.Fibers.endLabel(l.b))}</td></tr>`; }).join('')}</tbody></table></div></div>` : '';
     const right = portCard + fiberCard + (o.universeTable !== false ? `<div class="card"><div class="card-h"><span>Universe overview</span><small>physical patch points</small></div><div class="card-b">${buildUniverseTable(M, dc, L)}</div></div>` : '') + sw;
-    return `<div class="section">${h3(n, 'Network / DMX nodes', `${nodes.length} node${nodes.length===1?'':'s'}`)}<div class="grid ${right?'cols2':''}"><div>${nodeHtml}</div>${right?`<div>${right}</div>`:''}</div></div>`;
+    return `<div class="section">${h3(n, 'Network / DMX nodes', `${nodes.length} node${nodes.length===1?'':'s'}`)}<div class="grid ${right?'cols2':''}"><div>${nodeHtml}${consoles ? `<div class="small" style="margin:2mm 0 1.5mm"><b>Consoles and other network devices</b></div>${consoles}` : ''}</div>${right?`<div>${right}</div>`:''}</div></div>`;
   }
   // ---- the switches: a drawing of the ports in the VLAN colours and a table of what hangs on them ----
   function buildSwitches(M, dc, L, n, o){
@@ -648,20 +657,36 @@
     const linked = new Set(); for(const lk of lks) for(const s of [1,2,3]) if(lk.veam?.[s]) linked.add(lk.veam[s]);
     const loose = o.standaloneVeams === false ? [] : listFromMap(M.byVeam).filter(v=>v.dimcity===dc && !linked.has(v.id)).sort(byId);
     const loc = lk => App()?.lkAutoLocation?.(lk) || '';
+    // which node and node port every port is on (needs racks in this DimCity; without them only the universe is shown)
+    const E = window.RackEngine; let P = null, owners = new Map();
+    if(o.nodePorts !== false && E && (E.hasRackPlan ? E.hasRackPlan(M, dc) : false)){ try { P = E.computeRackPlan(M, dc); owners = E.ownerColors(P); } catch { P = null; } }
+    const ownerCol = id => owners.get(id) || null;
+    const feedOf = (owner, port) => { if(!P) return ''; const l = P.lines.find(x => x.owner === owner && Number(x.port) === Number(port)); if(!l) return ''; return l.feed?.node ? `<div class="np"><b>${esc(l.feed.node)}</b>·${esc(l.feed.port)}${l.feed.splitter ? ` <i>via ${esc(l.feed.splitter)}</i>` : ''}</div>` : '<div class="np none">no node port</div>'; };
+    // one port: number, universe, node · node port, location
+    const cell = (m, nr, owner, ownerPort) => {
+      const has = m.universe != null && m.universe !== '';
+      return `<div class="port ${has?'':'empty'} ${m.conflict?'conflict':''}" style="--uni:${has?uniColor(m.universe,L):'#e2e8f0'}"><div class="nr">${nr}</div><div class="uni">${has?'U'+esc(m.universe):'—'}</div>${has ? feedOf(owner, ownerPort) : ''}${o.location!==false?`<div class="dest">${esc(m.dest||'')}</div>`:''}${o.source && has?`<div class="src">${esc(m.source||'')}${m.veamId?' · '+esc(m.veamId)+'/'+esc(m.veamPort):''}</div>`:''}</div>`;
+    };
     const lkHtml = lks.map(lk=>{
-      const mode = effBlock(lk);
+      const mode = effBlock(lk), col = ownerCol(lk.id);
+      const head = `<div class="card-h"><span>${col ? `<i class="dot" style="background:${col}"></i>` : ''}${esc(lk.id)} <small>${esc(loc(lk))}</small></span><small>${esc(blockLabel(mode))}</small></div>`;
       if(mode === 'XLR12'){
-        return `<div class="card"><div class="card-h"><span>${esc(lk.id)} <small>${esc(loc(lk))}</small></span><small>${esc(blockLabel(mode))}</small></div><div class="card-b"><div class="ports p12">${Array.from({length:12},(_,i)=>portHtml(merged(lk,i+1), i+1, L, o)).join('')}</div></div></div>`;
+        return `<div class="card">${head}<div class="card-b"><div class="lkrow">${Array.from({length:12},(_,i)=>`<div class="c1">${cell(merged(lk,i+1), i+1, lk.id, i+1)}</div>`).join('')}</div></div></div>`;
       }
-      const groups = [1,2,3].map(slot=>{
-        const start = (slot-1)*4 + 1;
-        const title = slot===1 && mode==='MIXED' ? 'XLR 1–4 / Veam A' : `Veam ${'ABC'[slot-1]}`;
-        const vid = lk.veam?.[slot] || '';
-        return `<div class="lk-group g${slot}"><h4><span>${title}</span>${vid?`<small>${esc(vid)}</small>`:'<small class="none">not linked</small>'}</h4><div class="ports p4">${[0,1,2,3].map(i=>portHtml(merged(lk,start+i), start+i, L, o)).join('')}</div></div>`;
+      // the LK with its 12 ports on top; underneath, each Veam that hangs on it as a block of 4 (12 wide in all)
+      const top = [1,2,3].map(slot=>{
+        const start = (slot-1)*4 + 1, vid = lk.veam?.[slot] || '';
+        if(vid) return `<div class="lkv" style="--oc:${ownerCol(vid) || '#94a3b8'}"><span>${esc(vid)}</span><small>ports ${start}–${start+3}</small></div>`;
+        return [0,1,2,3].map(i=>`<div class="c1">${cell(merged(lk,start+i), start+i, lk.id, start+i)}</div>`).join('');
       }).join('');
-      return `<div class="card"><div class="card-h"><span>${esc(lk.id)} <small>${esc(loc(lk))}</small></span><small>${esc(blockLabel(mode))}</small></div><div class="card-b"><div class="lk-groups ${o.groupColors!==false?'tint':''}">${groups}</div></div></div>`;
+      const under = [1,2,3].map(slot=>{
+        const start = (slot-1)*4 + 1, vid = lk.veam?.[slot] || '';
+        if(!vid) return mode === 'VEAM_ONLY' ? `<div class="vb none">Veam ${'ABC'[slot-1]}<br>not linked</div>` : `<div class="vb gap"></div>`;
+        return `<div class="vb" style="--oc:${ownerCol(vid) || '#94a3b8'}"><h4><span>${esc(vid)}</span><small>Veam ${'ABC'[slot-1]}</small></h4><div class="ports p4">${[0,1,2,3].map(i=>cell(merged(lk,start+i), i+1, lk.id, start+i)).join('')}</div></div>`;
+      }).join('');
+      return `<div class="card">${head}<div class="card-b"><div class="lkrow top">${top}</div><div class="lkrow under">${under}</div></div></div>`;
     }).join('') || '<div class="placeholder">No LK blocks in this DimCity.</div>';
-    const veHtml = loose.length ? `<div style="margin-top:2mm" class="small"><b>Veams not linked to an LK</b></div><div class="grid cols3" style="margin-top:1.5mm">${loose.map(v=>`<div class="card"><div class="card-h"><span>${esc(v.id)}</span><small>Veam · 4 ports</small></div><div class="card-b"><div class="ports p4">${[1,2,3,4].map(i=>{ const r = portRec(v.lines,i) || {}; return portHtml({ universe:r.universe, dest:r.dest, source:'Veam' }, i, L, o); }).join('')}</div></div></div>`).join('')}</div>` : '';
+    const veHtml = loose.length ? `<div style="margin-top:2mm" class="small"><b>Veams not linked to an LK</b></div><div class="grid cols3" style="margin-top:1.5mm">${loose.map(v=>`<div class="card"><div class="card-h"><span>${ownerCol(v.id) ? `<i class="dot" style="background:${ownerCol(v.id)}"></i>` : ''}${esc(v.id)}</span><small>Veam · 4 ports</small></div><div class="card-b"><div class="ports p4">${[1,2,3,4].map(i=>{ const r = portRec(v.lines,i) || {}; return cell({ universe:r.universe, dest:r.dest, source:'Veam' }, i, v.id, i); }).join('')}</div></div></div>`).join('')}</div>` : '';
     return `<div class="section">${h3(n, 'LK / Veam patch', `${lks.length} LK block${lks.length===1?'':'s'}`)}${lkHtml}${veHtml}</div>`;
   }
   function buildUniverses(M, dc, L, n){

@@ -67,7 +67,7 @@ const FIELDS = {
     F_WIDTH, F_HEIGHT, F_COLOR('panel')]
 };
 
-const S = { d:null, tab:'node', sel:{}, draft:null, origId:null, base:'', rackId:null, drag:null };
+const S = { d:null, tab:'node', sel:{}, draft:null, origId:null, base:'', rackId:null, drag:null, needDc:null };
 const M = () => App.getMODEL();
 const clone = x => JSON.parse(JSON.stringify(x));
 const num = (v, d=0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
@@ -414,6 +414,29 @@ function rackSummary(rack){
     ${stat('Panels', t.panel, [p.lk && `${p.lk}× LK37`, p.vim && `${p.vim}× Veam4`, p.xlr && `${p.xlr}× XLR`, p.ec && `${p.ec}× etherCON`].filter(Boolean).join(' · ') || '—')}
   </div>`;
 }
+// What a DimCity needs against what this rack gives: LK37 sockets, Veam4 sockets and node ports. Pick the DimCity (the rack itself belongs to none).
+function rackNeeds(rack){
+  const E = window.RackEngine, M = App.getMODEL(), dims = App.sortedDims?.() || [];
+  if(!E || !dims.length) return '';
+  const info = dc => { try { return E.computeRackPlan(M, dc); } catch { return null; } };
+  let dc = S.needDc;
+  if(!dc || !dims.includes(dc)) dc = (M.selected?.kind === 'DIM' && dims.includes(M.selected.id) ? M.selected.id : null) || dims.find(d => info(d)?.needs && !info(d).needs.complete && !info(d).needs.empty) || dims[0];
+  S.needDc = dc;
+  const P = info(dc), N = P?.needs; if(!N) return '';
+  // what this rack gives
+  const give = { lk:0, vim:0, ports:0 };
+  for(const it of rack.items || []){ const ty = findType(it.kind, it.typeId); if(!ty) continue; if(it.kind === 'panel'){ give.lk += num(ty.lkCount); give.vim += num(ty.vimCount); } if(it.kind === 'node') give.ports += num(ty.portCount, 8); }
+  // placed in the DimCity already (without this rack, when it is placed there)
+  const k = ((M.networkDevices?.dimCityPlans?.[dc]?.racks) || []).filter(r => r.rackId === rack.id).length;
+  const row = (label, need, have, add) => { const base = Math.max(0, have - k * add), miss = Math.max(0, need - base - add); return { label, need, base, add, miss }; };
+  const rows = [row('LK37 sockets', N.lk.need, N.lk.have, give.lk), row('Veam4 sockets', N.vim.need, N.vim.have, give.vim), row('Node ports (DMX lines)', N.ports.need, N.ports.have, give.ports)];
+  const missing = rows.filter(r => r.miss);
+  const ok = !N.empty && !missing.length;
+  return `<div class="rk-needs"><div class="rk-needs-h"><b>What ${esc(dc)} needs</b><label class="rk-needs-dc">for <select data-rk-needdc>${dims.map(d => `<option value="${esc(d)}" ${d === dc ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></label>
+      ${N.empty ? '<span class="tag">nothing needed yet</span>' : ok ? `<span class="tag green">${I('checkCircle', 13)} Complete with this rack${k ? '' : ' added'}</span>` : `<span class="tag yellow">${I('alert', 13)} Not complete — still needed: ${missing.map(r => `${r.miss} ${r.label.split(' (')[0].replace(' sockets', '')}`).join(', ')}</span>`}</div>
+    ${N.empty ? '' : `<table class="data-table rk-needs-t"><thead><tr><th></th><th class="num">Needed</th><th class="num">Already in ${esc(dc)}</th><th class="num">This rack</th><th class="num">Still missing</th></tr></thead><tbody>${rows.map(r => `<tr class="${r.miss ? 'bad' : 'ok'}"><td><b>${r.label}</b></td><td class="num">${r.need}</td><td class="num">${r.base}</td><td class="num">+${r.add}</td><td class="num">${r.miss ? `<b>${r.miss}</b>` : '<span class="tag green">0</span>'}</td></tr>`).join('')}</tbody></table>
+    <div class="subtle" style="font-size:12px;margin-top:4px">Loose spiders count as sockets. Add devices to the rack and this list follows; “Still missing” is what no rack or spider covers yet.</div>`}</div>`;
+}
 function rackHtml(rack){
   const H = rack.heightU;
   const label = r => H - r + 1;            // U1 onderaan, zoals op een echt rek
@@ -473,7 +496,7 @@ function renderRackTab(){
         <button class="sm danger" data-rkdel>${I('trash', 13)}Delete</button></div>
     </div>
     <div class="rk-canvas">${rackHtml(rack)}</div>
-    ${rackSummary(rack)}`
+    ${rackSummary(rack)}${rackNeeds(rack)}`
     : `<div class="empty">${I('rack', 30)}<h3>No racks yet</h3><p>Build a rack from your nodes, splitters, switches and panels.</p><button class="primary" data-newrack>${I('plus', 14)}New Rack</button></div>`;
   return `<div class="db-split rk-split">
     <aside class="db-side">
@@ -512,6 +535,7 @@ function bindRackTab(){
     card.onclick = go; card.onkeydown = e => { if(e.key === 'Enter') go(); };
   });
   body.querySelectorAll('[data-tab]').forEach(a => a.onclick = () => switchTab(a.dataset.tab));
+  const nd = body.querySelector('[data-rk-needdc]'); if(nd) nd.onchange = () => { S.needDc = nd.value; render(); };
   const rack = currentRack();
   if(!rack) return;
   body.querySelector('[data-rk="name"]').onchange = e => { rack.name = e.target.value.trim() || rack.id; saveRack(rack); };

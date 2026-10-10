@@ -80,6 +80,11 @@ function looksLikeImportRow(r){
   const uni = (r[WIZ.map?.uni ?? 2] ?? r[2] ?? '').toString().trim();
   const dest = (r[WIZ.map?.dest ?? 3] ?? r[3] ?? '').toString().trim();
   const idOk = !!window.CsvRules.classify(id);
+  // an LK ↔ Veam link row (LK101,V101,V102,V103) belongs to the patch as well
+  if(window.CsvRules.classify(id)?.kind === 'LK'){
+    const cells = [port, uni, dest];
+    if(cells.some(Boolean) && cells.every(v => !v || window.CsvRules.classify(v)?.kind === 'V')) return true;
+  }
   const portOk = /^\d+$/.test(port);
   const uniOk = uni==='' || /^\d+$/.test(uni);
   return idOk && portOk && uniOk && dest !== '';
@@ -471,6 +476,7 @@ async function processRows(rows){
   const veLines = [];
   const dmxLoose = [];                 // << NIEUW
   const netRaw = [];                   // netwerkkabels (Cat): C101 + poort 1-4, kolom 3 = VLAN-groep
+  const linkRows = [];                 // LK ↔ Veam koppelregels: LK101,V101,V102,V103
   const issues = [];
   const veamPool = new Map();
   // Ongeldige rijen bewaren (niet weggooien), zodat ze vanuit Validation hersteld kunnen worden
@@ -521,6 +527,15 @@ async function processRows(rows){
 
     // --- Wat is dit voor een ID? (voorvoegsels uit de regels van de show: LK, V, Node, looms) ---
     const cls = window.CsvRules.classify(id);
+
+    // --- LK ↔ Veam koppelregel: LK101,V101,V102,V103 — kolom 1 = LK, dan de Veam op Veam A, B en C; een lege kolom = geen Veam op die plek ---
+    if(cls?.kind === 'LK'){
+      const cells = [r[1], r[2], r[3]].map(v => (v ?? '').toString().trim()), vs = cells.map(v => v ? window.CsvRules.classify(v) : null);
+      if(cells.some(Boolean) && cells.every((v, i) => !v || vs[i]?.kind === 'V')){
+        linkRows.push({ lk:normLK(cls.id), veams:vs.map(v => v ? v.id : null), sourceName });
+        continue;
+      }
+    }
 
     // --- Netwerkkabel (loom): C101 (poort in kolom 2) of C101.1 (poort achter de punt); elk loomtype heeft eigen voorvoegsel en aantal lijnen ---
     if(cls?.kind === 'NET'){
@@ -653,6 +668,28 @@ async function processRows(rows){
   // Handmatige instellingen uit het vorige model meenemen, zodat een (her)import
   // geen Veam-koppelingen, bloktypes of handmatig toegevoegde LK/Veam/DimCities wist.
   carryOverManualState(MODEL, { byLK, byVeam, byDim, veamPool });
+  // De koppelregels uit de CSV: die zijn de bron voor de Veam-koppelingen van die LK (een lege kolom = geen Veam op die plek)
+  for(const L of linkRows){
+    const dc = dimCityFromId(L.lk); if(!dc){ issues.push({ severity:'YELLOW', code:'LINK_ROW', message:`Link row ${L.lk}: unknown DimCity` }); continue; }
+    let rec = byLK.get(L.lk);
+    if(!rec){
+      rec = { id:L.lk, dimcity:dc, lines:[], names:{'1-4':null,'5-8':null,'9-12':null}, veam:{1:null,2:null,3:null}, blockType:{ mode:'Auto', value:'MIXED' } };
+      byLK.set(L.lk, rec);
+      if(!byDim.has(dc)) byDim.set(dc, emptyDimStats());
+      byDim.get(dc).lks.add(L.lk);
+    }
+    rec.csvVeam = { 1:L.veams[0] || null, 2:L.veams[1] || null, 3:L.veams[2] || null, source:L.sourceName };
+    for(const sl of [1, 2, 3]){
+      rec.veam[sl] = rec.csvVeam[sl];
+      const vid = rec.csvVeam[sl]; if(!vid || byVeam.has(vid)) continue;
+      const vdc = dimCityFromId(vid) || dc;      // a Veam that is only named here (no lines of its own) still exists as a device
+      byVeam.set(vid, { id:vid, dimcity:vdc, lines:[], fromLink:true });
+      if(!byDim.has(vdc)) byDim.set(vdc, emptyDimStats());
+      byDim.get(vdc).veams.add(vid);
+      if(!veamPool.has(vdc)) veamPool.set(vdc, new Set());
+      veamPool.get(vdc).add(vid);
+    }
+  }
 
   // --- MODEL opbouwen, inclusief DMX ---
   MODEL = {
@@ -1887,6 +1924,9 @@ function formatNodeId(dc, index){
 function formatSplitterId(dc, index){
   return `SP:${String(dimDeviceNumber(dc, index)).padStart(2,'0')}`;
 }
+function formatConsoleId(dc, index){
+  return `CON:${String(dimDeviceNumber(dc, index)).padStart(2,'0')}`;
+}
 function ipWithLastOctet(ip, last){
   if(!isValidIpv4(ip, true) || !ip) return '';
   const parts = String(ip).split('.').map(Number);
@@ -1970,11 +2010,18 @@ function createSplitterInstance(dc, sp, index, universes=[]){
     universes: Array.isArray(universes) ? universes.slice() : []
   };
 }
+// A lighting console (or any other plain network device): just a name and one or two network ports; it is plugged into a switch like a node
+function createConsoleInstance(dc, name, ethCount, universes){
+  const list = getDimPlan(dc).consoles, used = new Set(list.map(x => x.id));
+  let index = 0; while(used.has(formatConsoleId(dc, index)) && index < 999) index++;
+  return { id:formatConsoleId(dc, index), name:String(name || '').trim() || 'Lighting console', ethCount:ethCount === 2 ? 2 : 1, ip:'', subnet:'', ifaces:[] };
+}
 function refreshDimDeviceIdentity(dc){
   const plan = getDimPlan(dc);
   // ids stay as they are (they are on the cables and in the port plan): a new device gets the lowest free one, a removed device leaves a gap
   const freeId = (list, make) => { const used = new Set(list.map(x => x.id).filter(Boolean)); return () => { for(let i = 0; i < 999; i++){ const id = make(dc, i); if(!used.has(id)){ used.add(id); return id; } } return make(dc, list.length); }; };
-  const nextNode = freeId(plan.nodes, formatNodeId), nextSplit = freeId(plan.splitters, formatSplitterId);
+  const nextNode = freeId(plan.nodes, formatNodeId), nextSplit = freeId(plan.splitters, formatSplitterId), nextCon = freeId(plan.consoles, formatConsoleId);
+  plan.consoles.forEach(c => { if(!c.id) c.id = nextCon(); });
   plan.nodes.forEach((n,idx)=>{
     const nt = MODEL.networkDevices.nodeTypes.find(x=>x.id===n.typeId);
     const num = dimDeviceNumber(dc, idx);
@@ -2082,6 +2129,7 @@ function getDimPlan(dc){
   if(!Array.isArray(plan.nodes)) plan.nodes = [];
   if(!Array.isArray(plan.splitters)) plan.splitters = [];
   if(!Array.isArray(plan.switches)) plan.switches = [];
+  if(!Array.isArray(plan.consoles)) plan.consoles = [];
   return plan;
 }
 function autoAssignDimCityNodes(dc, nodeTypeId){
@@ -2317,10 +2365,11 @@ window.LKApp = {
   pageHead,
 
   applyBlockType,
+  applyVeamSlot, veamSlotSelectHtml, slotState, blockTypeSelectHtml, bindLkControls,
   currentRows,
 
   // network device helpers (Device Builder / Library)
-  net: { normalizeNetworkDevices, nextTypedId, safeHex, isValidIpv4, bindIpv4Input, esc, getDimPlan, createNodeInstance, createSplitterInstance, refreshDimDeviceIdentity, autoAssignDimCityNodes, autoAddSplittersForDim, uniqueUniversesInDim, calculateNodeNeedForDim, addSplitterToDimCity },
+  net: { normalizeNetworkDevices, nextTypedId, safeHex, isValidIpv4, bindIpv4Input, esc, getDimPlan, createNodeInstance, createSplitterInstance, createConsoleInstance, refreshDimDeviceIdentity, autoAssignDimCityNodes, autoAddSplittersForDim, uniqueUniversesInDim, calculateNodeNeedForDim, addSplitterToDimCity },
 
   // DOM helpers
   $,el

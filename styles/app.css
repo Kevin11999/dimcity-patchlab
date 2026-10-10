@@ -1403,7 +1403,7 @@ body.view-flow .view{width:100%}
 .pb-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px;font-size:13px}.pb-head b{font-size:14px}.pb-count{font-size:12px;color:var(--text-2)}.pb-count b{color:var(--text);font-size:13px}
 .pb-ports{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch}
 .pb-gap{width:14px;flex:none}
-.pb-port{position:relative;width:96px;min-height:82px;display:flex;flex-direction:column;gap:3px;padding:4px 5px 0;border-radius:8px;border:1px solid var(--border);border-top:3px solid var(--pc,#475569);background:color-mix(in srgb,var(--pc,#475569) 9%,var(--bg-sunken));transition:border-color .1s,background .1s,box-shadow .1s}
+.pb-port{position:relative;width:112px;min-height:84px;display:flex;flex-direction:column;gap:3px;padding:4px 5px 0;border-radius:8px;border:1px solid var(--border);border-top:3px solid var(--pc,#475569);background:color-mix(in srgb,var(--pc,#475569) 9%,var(--bg-sunken));transition:border-color .1s,background .1s,box-shadow .1s}
 .pb-port>small{font-size:10.5px;font-weight:700;color:var(--text-3);line-height:1}
 .pb-port .pb-empty{flex:1;display:grid;place-items:center;font-size:11px;color:var(--text-3);border:1px dashed var(--border);border-radius:6px;margin-bottom:3px}
 .pb-port .pb-vl{display:block;text-align:center;font-size:10px;font-weight:700;text-decoration:none;color:var(--text);background:color-mix(in srgb,var(--pc,#475569) 55%,var(--bg-sunken));margin:0 -5px;border-radius:0 0 7px 7px;padding:1px 0;line-height:14px}
@@ -1422,8 +1422,9 @@ body.view-flow .view{width:100%}
 .pb-dev.armed{outline:2px solid var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
 .pb-dev.dragging{opacity:.45}
 .pb-dev:hover{border-color:var(--accent-line)}
-.pb-tray{margin-top:12px;border:1px dashed var(--border-strong);border-radius:var(--radius-lg);padding:8px 10px;background:var(--bg-sunken);min-height:52px}
-.pb-tray.drop{border-color:var(--accent);background:var(--accent-soft)}
+/* the tray stays at the bottom of the window while the switches scroll, so a device is always one drag away from any port */
+.pb-tray{position:sticky;bottom:8px;z-index:6;margin-top:12px;border:1px dashed var(--border-strong);border-radius:var(--radius-lg);padding:8px 10px;background:var(--bg-sunken);min-height:52px;max-height:34vh;overflow:auto;box-shadow:0 -8px 18px rgba(0,0,0,.2)}
+.pb-tray.drop{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,var(--bg-sunken))}
 .pb-tray-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 6px;font-size:12.5px}
 .pb-tray-g{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0}.pb-tray-l{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);min-width:84px}
 .pb-tray .pb-dev{flex:none;min-width:118px;max-width:170px}
@@ -1465,3 +1466,10 @@ tr.bad>td{background:var(--red-soft)}
 .nn-adv-sw{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}.nn-adv-t{margin-top:6px}
 .nc-net{margin:8px 0;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-2);font-size:12.5px}.nc-net-h{display:flex;gap:8px;align-items:center;margin:0 0 4px}
 .nc-net-g{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0}.nc-net-g i{width:9px;height:9px;border-radius:3px;display:inline-block}.nc-net-plan{margin-top:6px;padding-top:6px;border-top:1px dashed var(--border-strong)}
+/* Signal Flow: holding a block, the grid, the landing outline */
+.fb.grab{filter:drop-shadow(0 10px 16px rgba(0,0,0,.6));cursor:grabbing !important}
+.fb.grab .fb-selbox{stroke:var(--accent);stroke-width:2.2;stroke-dasharray:none;fill:var(--accent-soft)}
+.fb.grab.bump .fb-selbox{stroke:var(--red);fill:var(--red-soft)}
+.fl-canvas.holding{cursor:grabbing !important}.fl-canvas.holding .fb{cursor:grabbing !important}
+.fl-canvas.dragging .fb:not(.grab){opacity:.5;transition:opacity .12s}.fl-canvas.dragging .fe{opacity:.35}
+.fl-ghost{fill:var(--accent-soft);stroke:var(--accent);stroke-width:2;stroke-dasharray:7 5;pointer-events:none}

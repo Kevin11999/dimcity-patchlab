@@ -57,7 +57,7 @@
   // ---- Nodes ----
   function nodesTab(){
     if(!S.dc) return nothing();
-    return `${dcBar(true)}<div class="stack">${dcsOf().map(dc => `<div class="net-sec" data-dcsec="${esc(dc)}">${window.NetNodes.card(dc)}</div>`).join('')}</div>`;
+    return `${dcBar(true)}<div class="stack">${dcsOf().map(dc => `<div class="net-sec" data-dcsec="${esc(dc)}">${window.NetNodes.card(dc)}${window.PortPlan.nodesCard(dc)}</div>`).join('')}</div>`;
   }
   // ---- Switches ----
   function switchesTab(){
@@ -158,7 +158,7 @@
     if(!ready) return;
     const sec = dc => root.querySelector(`[data-dcsec="${CSS.escape(dc)}"]`);
     if(S.tab === 'patch') for(const dc of dcsOf()) if(sec(dc)) window.PortPlan.bind(sec(dc), dc, again);
-    if(S.tab === 'nodes') for(const dc of dcsOf()) if(sec(dc)) window.NetNodes.bind(sec(dc), dc, again);
+    if(S.tab === 'nodes') for(const dc of dcsOf()) if(sec(dc)){ window.NetNodes.bind(sec(dc), dc, again); window.PortPlan.bind(sec(dc), dc, again); }
     if(S.tab === 'switches'){ for(const dc of dcsOf()) if(sec(dc)){ window.NetSwitches.bind(sec(dc), dc, again); window.PortPlan.bind(sec(dc), dc, again); window.FentUI.bindDevice(sec(dc), dc, again); } const nc = root.querySelector('[data-netcables]'); if(nc) window.NetCables?.bind(nc, S.dc === ALL ? App.sortedDims()[0] : S.dc, again); }
     if(S.tab === 'addr') bindAddr(root, again);
     if(S.tab === 'fibers'){ window.Fibers.bind(root, again); window.Fibers.bindStock(root, again);

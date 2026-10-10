@@ -6,3 +6,5 @@ out/
 .env
 *.log
 *.zip
+# stray test screenshots in the project root
+/*.png

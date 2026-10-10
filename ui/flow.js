@@ -39,6 +39,8 @@ function flowState(){
   m.flow.labels ||= {}; m.flow.pos ||= {}; m.flow.view ||= {}; m.flow.dir = 'ltr'; m.flow.spacing ||= 1;   // one direction: the ports sit on the sides of the blocks
   return m.flow;
 }
+// the grid of the drawing: shown or not, blocks snap to it or not (hold Alt while moving to ignore it once)
+const gridCfg = () => { const g = (flowState().grid ||= { show:true, snap:true, size:20 }); g.size = [10, 20, 40].includes(Number(g.size)) ? Number(g.size) : 20; g.show = g.show !== false; g.snap = g.snap !== false; return g; };
 const label = (dc, lkId) => flowState().labels?.[dc]?.[lkId] || lkId;
 const trim = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 const linesAttr = ls => esc((ls || []).join(' '));
@@ -484,29 +486,66 @@ function layout(graph, dcs){
     const saved = f.pos?.[dc]?.[dir] || {};
     for(const b of bl) if(saved[b.id] && Number.isFinite(saved[b.id].x) && Number.isFinite(saved[b.id].y)) b.rel = { x:saved[b.id].x, y:saved[b.id].y };
     const minX = Math.min(...bl.map(b => b.rel.x)), minY = Math.min(...bl.map(b => b.rel.y)), maxX = Math.max(...bl.map(b => b.rel.x + b.size.w)), maxY = Math.max(...bl.map(b => b.rel.y + b.size.h));
-    const origin = { x:-minX, y:off - minY };
+    const gs = gridCfg().size, origin = { x:Math.round(-minX / gs) * gs, y:Math.round((off - minY) / gs) * gs };
     graph.origins[dc] = { x:origin.x, y:origin.y, box:{ x:0, y:off, w:maxX - minX, h:maxY - minY } };
     for(const b of bl) b.pos = { x:origin.x + b.rel.x, y:origin.y + b.rel.y };
     off += (maxY - minY) + DC_GAP();
   }
+  routeFibers(graph);
   return graph;
 }
 // blocks never overlap: after a drag the moved blocks (kept together) go to the nearest free spot,
-// tried along the edges of the blocks they bump into
+// tried along the edges of the blocks they bump into — on the grid when the blocks snap. With apply = false nothing moves: the answer is
+// where they would land ({ dx, dy }), which the drag shows as a dashed outline.
 const overlaps = (a, b, pad) => a.pos.x < b.pos.x + b.size.w + pad && a.pos.x + a.size.w + pad > b.pos.x && a.pos.y < b.pos.y + b.size.h + pad && a.pos.y + a.size.h + pad > b.pos.y;
-function settle(graph, moved){
-  const arr = [...moved], statics = graph.blocks.filter(b => !moved.has(b)), pad = 8;
+function settle(graph, moved, apply = true){
+  const arr = [...moved], statics = graph.blocks.filter(b => !moved.has(b)), pad = 8, g = gridCfg().snap ? gridCfg().size : 0;
   const free = (dx, dy) => arr.every(b => statics.every(o => !overlaps({ pos:{ x:b.pos.x + dx, y:b.pos.y + dy }, size:b.size }, o, pad)));
-  if(free(0, 0)) return;
+  if(free(0, 0)) return { dx:0, dy:0 };
   const u = { x:Math.min(...arr.map(b => b.pos.x)), y:Math.min(...arr.map(b => b.pos.y)) };
   u.w = Math.max(...arr.map(b => b.pos.x + b.size.w)) - u.x; u.h = Math.max(...arr.map(b => b.pos.y + b.size.h)) - u.y;
   const near = statics.filter(o => overlaps({ pos:{ x:u.x - 700, y:u.y - 700 }, size:{ w:u.w + 1400, h:u.h + 1400 } }, o, 0));
   const xs = new Set([0]), ys = new Set([0]);
-  for(const o of near){ xs.add((o.pos.x - pad) - (u.x + u.w)); xs.add((o.pos.x + o.size.w + pad) - u.x); ys.add((o.pos.y - pad) - (u.y + u.h)); ys.add((o.pos.y + o.size.h + pad) - u.y); }
+  const up = (v, st) => st ? Math.ceil(v / st) * st : v, down = (v, st) => st ? Math.floor(v / st) * st : v;
+  for(const o of near){
+    xs.add(down(o.pos.x - pad - u.w, g) - u.x); xs.add(up(o.pos.x + o.size.w + pad, g) - u.x);
+    ys.add(down(o.pos.y - pad - u.h, g) - u.y); ys.add(up(o.pos.y + o.size.h + pad, g) - u.y);
+  }
   let best = null;
   for(const dx of xs) for(const dy of ys){ const d = Math.hypot(dx, dy); if(best && d >= best.d) continue; if(free(dx, dy)) best = { dx, dy, d }; }
-  if(!best) return;
-  for(const b of arr) b.pos = { x:Math.round(b.pos.x + best.dx), y:Math.round(b.pos.y + best.dy) };
+  if(!best) return { dx:0, dy:0, stuck:true };
+  if(apply) for(const b of arr) b.pos = { x:Math.round(b.pos.x + best.dx), y:Math.round(b.pos.y + best.dy) };
+  return { dx:best.dx, dy:best.dy };
+}
+
+// ---------- Fibres go around the blocks (and the texts), with right angles ----------
+function ptsPath(pts, r = 8){
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for(let i = 1; i < pts.length - 1; i++){
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], [x2, y2] = pts[i + 1], l1 = Math.hypot(x1 - x0, y1 - y0), l2 = Math.hypot(x2 - x1, y2 - y1), k = Math.min(r, l1 / 2, l2 / 2);
+    d += ` L${x1 + (x0 - x1) / l1 * k},${y1 + (y0 - y1) / l1 * k} Q${x1},${y1} ${x1 + (x2 - x1) / l2 * k},${y1 + (y2 - y1) / l2 * k}`;
+  }
+  const last = pts[pts.length - 1]; return d + ` L${last[0]},${last[1]}`;
+}
+function routeFibers(graph){
+  const fib = graph.edges.filter(e => e.cable === 'fiber' && !e.inner);
+  for(const e of fib) e.pts = null;
+  if(!fib.length || !window.EdgeRouter) return;
+  const byId = new Map(graph.blocks.map(b => [b.id, b])), bs = graph.blocks.filter(b => b.pos); if(!bs.length) return;
+  const pad = 240, r = window.EdgeRouter.make({ x0:Math.min(...bs.map(b => b.pos.x)) - pad, y0:Math.min(...bs.map(b => b.pos.y)) - pad - 40, x1:Math.max(...bs.map(b => b.pos.x + b.size.w)) + pad, y1:Math.max(...bs.map(b => b.pos.y + b.size.h)) + pad, cell:10 });
+  for(const b of bs) r.block(b.pos.x, b.pos.y, b.size.w, b.size.h, 12);
+  if(Object.keys(graph.origins || {}).length > 1) for(const o of Object.values(graph.origins)) r.block(o.box.x - 6, o.box.y - 40, 260, 36, 4);   // the DimCity titles
+  const side = (b, key, s) => { const x = b.pos.x + (s === 'E' ? b.size.w : 0), y = anchorPt(b, key, 'out').y; return { x, y, dx:s === 'E' ? 1 : -1, dy:0 }; };
+  const dist = e => { const A = byId.get(e.from.block), Z = byId.get(e.to.block); return Math.hypot(A.pos.x - Z.pos.x, A.pos.y - Z.pos.y); };
+  for(const e of fib.slice().sort((p, q) => dist(p) - dist(q))){
+    const A = byId.get(e.from.block), Z = byId.get(e.to.block); if(!A || !Z) continue;
+    let best = null;
+    for(const sa of ['E', 'W']) for(const sz of ['E', 'W']){
+      const res = r.route({ from:side(A, e.from.port, sa), to:side(Z, e.to.port, sz) }); if(!res) continue;
+      const cost = res.len + res.bends * 40; if(!best || cost < best.cost) best = { ...res, cost };
+    }
+    if(best){ e.pts = best.pts; r.mark(best.pts); }
+  }
 }
 
 // ---------- SVG ----------
@@ -588,7 +627,7 @@ function portSvg(p, cx, cy, s, TH){
 }
 const cableName = e => ({ lk:t('LK multicore', 'LK-multicore'), veam:t('Veam cable', 'Veam-kabel'), dmx:'DMX', patch:t('Patch', 'Patch'), cat:t('Network cable (Cat)', 'Netwerkkabel (Cat)'), fiber:t('Fibre', 'Fiber') }[e.cable]);
 function edgesSvg(graph, byId, print){
-  return graph.edges.filter(e => !e.inner).map(e => { const d = edgePath(e, byId); const a = byId.get(e.from.block), z = byId.get(e.to.block); return `<path class="fe c-${e.cable}" data-edge="${e.id}" data-lines="${linesAttr(e.lines)}" data-from="${esc(e.from.block)}" data-to="${esc(e.to.block)}" d="${d}" style="--c:${e.color}" ${print ? `stroke="${e.color}"` : ''}/>${print ? '' : `<path class="fe-hit" data-hit="${e.id}" data-lines="${linesAttr(e.lines)}" d="${d}"><title>${esc(cableName(e))}${e.universe != null ? ` U${e.universe}` : ''} · ${esc(a?.title || '')} → ${esc(z?.title || '')}${e.lines.length > 1 ? ` · ${e.lines.length} ${t('lines', 'lijnen')}` : ''}</title></path>`}`; }).join('');
+  return graph.edges.filter(e => !e.inner).map(e => { const d = e.pts ? ptsPath(e.pts) : edgePath(e, byId); const a = byId.get(e.from.block), z = byId.get(e.to.block); return `<path class="fe c-${e.cable}" data-edge="${e.id}" data-lines="${linesAttr(e.lines)}" data-from="${esc(e.from.block)}" data-to="${esc(e.to.block)}" d="${d}" style="--c:${e.color}" ${print ? `stroke="${e.color}"` : ''}/>${print ? '' : `<path class="fe-hit" data-hit="${e.id}" data-lines="${linesAttr(e.lines)}" d="${d}"><title>${esc(cableName(e))}${e.universe != null ? ` U${e.universe}` : ''} · ${esc(a?.title || '')} → ${esc(z?.title || '')}${e.lines.length > 1 ? ` · ${e.lines.length} ${t('lines', 'lijnen')}` : ''}</title></path>`}`; }).join('');
 }
 function bandsSvg(graph, dcs){
   if(dcs.length < 2) return '';
@@ -596,6 +635,9 @@ function bandsSvg(graph, dcs){
   return dcs.map(dc => { const o = graph.origins[dc]; if(!o) return ''; const { box } = o; const n = graph.blocks.filter(b => b.dc === dc); const lk = n.filter(b => b.kind === 'lk').length, ve = n.filter(b => b.kind === 'veam').length;
     return `<g class="fl-band" style="--c:${App.dimColor(dc)}"><rect x="${box.x - 6}" y="${box.y - 36}" width="10" height="10" rx="3" fill="${App.dimColor(dc)}"/><text class="fl-band-t" x="${box.x + 10}" y="${box.y - 27}">${esc(dc)}${m.dimNames?.[dc] ? ` · ${esc(m.dimNames[dc])}` : ''}</text><text class="fl-band-s" x="${box.x + 10}" y="${box.y - 13}">${lk} LK · ${ve} Veam</text><line x1="${box.x - 6}" x2="${box.x + box.w + 6}" y1="${box.y - 6}" y2="${box.y - 6}"/></g>`; }).join('');
 }
+// the grid (only in the app, never in the print): thin lines every `size`, a stronger line every five
+const gridSvg = () => { const g = gridCfg(); if(!g.show) return ''; const z = S.zoom || 1;
+  return `<defs><pattern id="flGridMin" width="${g.size}" height="${g.size}" patternUnits="userSpaceOnUse"><path d="M${g.size},0 H0 V${g.size}" fill="none" style="stroke:var(--text);stroke-opacity:.07" stroke-width="${1 / z}"/></pattern><pattern id="flGridMaj" width="${g.size * 5}" height="${g.size * 5}" patternUnits="userSpaceOnUse"><path d="M${g.size * 5},0 H0 V${g.size * 5}" fill="none" style="stroke:var(--text);stroke-opacity:.14" stroke-width="${1.2 / z}"/></pattern></defs><rect id="flGridMinR" x="-60000" y="-60000" width="120000" height="120000" fill="url(#flGridMin)" pointer-events="none" ${g.size * z < 7 ? 'display="none"' : ''}/><rect id="flGridMajR" x="-60000" y="-60000" width="120000" height="120000" fill="url(#flGridMaj)" pointer-events="none" ${g.size * 5 * z < 7 ? 'display="none"' : ''}/>`; };
 const defsSvg = () => `<defs><marker id="flArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker><linearGradient id="flFace" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2f38"/><stop offset="1" stop-color="#1d2129"/></linearGradient></defs>`;
 function bounds(graph){
   const bs = graph.blocks.filter(b => b.pos); if(!bs.length) return null;
@@ -649,6 +691,7 @@ function render(){
     <div class="fl-sec"><div class="rb-label">${t('Nodes', 'Nodes')}</div>${graph.nodes.map(n => `<div class="fl-node"><i style="background:${n.color}"></i><span>${esc(n.title)}</span><em title="${esc(n.where)}">${esc(n.where)}</em></div>`).join('') || `<div class="subtle" style="padding:4px 8px">${t('Place a rack or loose node first', 'Plaats eerst een rek of losse node')}</div>`}</div>
     <div class="fl-sec"><div class="rb-label">${t('Cables', 'Kabels')}</div><div class="fl-legend"><span><i class="lk"></i>${t('LK multicore', 'LK-multicore')}</span><span><i class="veam"></i>${t('Veam cable', 'Veam-kabel')}</span><span><i class="dmx"></i>${t('DMX line (universe colour)', 'DMX-lijn (universe-kleur)')}</span><span><i class="patch"></i>${t('Patch in the rack (shown when lit)', 'Patch in het rek (zichtbaar als hij oplicht)')}</span><span><i class="cat"></i>${t('Network cable (VLAN colour)', 'Netwerkkabel (VLAN-kleur)')}</span><span><i class="fiber"></i>${t('Fibre', 'Fiber')}</span></div></div>
     <div class="fl-sec"><div class="rb-label">${t('Layout', 'Indeling')}</div>
+      <label class="field">${t('Grid size', 'Rastergrootte')}<select id="flGridSize">${[10, 20, 40].map(n => `<option value="${n}" ${gridCfg().size === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       <label class="field">${t('Spacing', 'Afstand')} <span class="subtle" id="flSpVal">${Math.round((f.spacing || 1) * 100)}%</span><input type="range" id="flSpacing" min="50" max="250" step="10" value="${Math.round((f.spacing || 1) * 100)}"></label>
       <div class="hint" style="margin-top:8px">${t('The arrangement, zoom and LK names of every DimCity are saved with the project and printed with Export PDF.', 'De indeling, zoom en LK-namen van elke DimCity worden met het project opgeslagen en geprint bij Export PDF.')}</div></div>
   </aside>`;
@@ -658,12 +701,13 @@ function render(){
     <button class="ghost sm icon-only" id="flZoomOut" title="${esc(t('Zoom out (−)', 'Uitzoomen (−)'))}">${I('zoomOut', 15)}</button><input type="range" id="flZoom" min="20" max="300" step="5" value="${Math.round(S.zoom * 100)}" title="Zoom"><button class="ghost sm icon-only" id="flZoomIn" title="${esc(t('Zoom in (+)', 'Inzoomen (+)'))}">${I('zoomIn', 15)}</button><span class="fl-pct" id="flPct">${Math.round(S.zoom * 100)}%</span>
     <button class="sm" id="flFit" title="${esc(t('Fit the whole drawing in view (0)', 'Hele tekening in beeld (0)'))}">${I('compass', 14)}${t('Fit', 'Passend')}</button>
     <span class="fl-sep"></span>
+    <div class="segmented" id="flGridTools"><button data-g="show" class="${gridCfg().show ? 'active' : ''}" title="${esc(t('Show the grid', 'Toon het raster'))}">${I('grid', 14)}${t('Grid', 'Raster')}</button><button data-g="snap" class="${gridCfg().snap ? 'active' : ''}" title="${esc(t('Blocks snap to the grid while you move them (hold Alt to move freely)', 'Blokken snappen op het raster als je ze verplaatst (houd Alt ingedrukt om vrij te verplaatsen)'))}">${I('grip', 14)}${t('Snap', 'Snap')}</button></div>
     <button class="sm" id="flAuto" title="${esc(t('Put every block of the DimCities in view back in its automatic place', 'Zet elk blok van de DimCities in beeld terug op zijn automatische plek'))}">${I('layout', 14)}${t('Auto layout', 'Auto-indeling')}</button>
     <button class="sm" id="flShare" title="${esc(t('Copy the drawing as a picture to paste in a chat or e-mail', 'Kopieer de tekening als afbeelding om in een chat of e-mail te plakken'))}">${I('copy', 14)}${t('Share image', 'Afbeelding delen')}</button>
     <button class="sm" id="flSave" title="${esc(t('Save the drawing as an SVG image', 'Sla de tekening op als SVG-afbeelding'))}">${I('download', 14)}${t('Save image', 'Afbeelding opslaan')}</button>
     <span class="fl-hint">${t('Hover = follow · click = pin · Esc = release · drag = move', 'Beweeg = volgen · klik = vastzetten · Esc = loslaten · sleep = verplaatsen')}</span></div>`;
   for(const b of graph.blocks) b.graphEdges = graph.edges;
-  const svg = `<svg id="flSvg" xmlns="http://www.w3.org/2000/svg">${defsSvg()}<g id="flView" transform="translate(${S.tx},${S.ty}) scale(${S.zoom})"><g id="flBg">${window.FlowBg ? window.FlowBg.svg(S.layer, (() => { const b = bounds(graph); return b ? { minX:b.minX, minY:b.minY, maxX:b.maxX, maxY:b.maxY } : null; })()) : ''}</g><g id="flBands">${bandsSvg(graph, dcs)}</g><g id="flEdges">${edgesSvg(graph, byId, false)}</g><g id="flBlocks">${graph.blocks.map(b => blockSvg(b, THEME.app, false)).join('')}</g></g></svg><div class="fl-marquee" id="flMarquee" hidden></div>`;
+  const svg = `<svg id="flSvg" xmlns="http://www.w3.org/2000/svg">${defsSvg()}<g id="flView" transform="translate(${S.tx},${S.ty}) scale(${S.zoom})"><g id="flGrid">${gridSvg()}</g><g id="flBg">${window.FlowBg ? window.FlowBg.svg(S.layer, (() => { const b = bounds(graph); return b ? { minX:b.minX, minY:b.minY, maxX:b.maxX, maxY:b.maxY } : null; })()) : ''}</g><g id="flBands">${bandsSvg(graph, dcs)}</g><g id="flEdges">${edgesSvg(graph, byId, false)}</g><g id="flGhost"></g><g id="flBlocks">${graph.blocks.map(b => blockSvg(b, THEME.app, false)).join('')}</g></g></svg><div class="fl-marquee" id="flMarquee" hidden></div>`;
   const empty = graph.edges.length ? '' : `<div class="empty fl-empty">${I('cable', 30)}<h3>${t('Nothing to draw yet', 'Nog niets te tekenen')}</h3><p>${t('Import a patch and place a rack or loose node in a DimCity; the flow appears here.', 'Importeer een patch en plaats een rek of losse node in een DimCity; de stroom verschijnt hier.')}</p></div>`;
   root.innerHTML = `<div class="fl-wrap">${side}<div class="fl-main">${bar}<div class="fl-canvas tool-${S.tool}" id="flCanvas">${svg}${empty}</div></div></div>`;
   bind(root, graph, byId);
@@ -679,6 +723,8 @@ function setView(){
   const v = document.getElementById('flView'); if(v) v.setAttribute('transform', `translate(${S.tx},${S.ty}) scale(${S.zoom})`);
   const z = document.getElementById('flZoom'), p = document.getElementById('flPct');
   if(z) z.value = Math.round(S.zoom * 100); if(p) p.textContent = `${Math.round(S.zoom * 100)}%`;
+  const gs = gridCfg().size, gmin = document.getElementById('flGridMinR'), gmaj = document.getElementById('flGridMajR');
+  if(gmin){ gmin.setAttribute('display', gs * S.zoom < 7 ? 'none' : 'inline'); gmaj.setAttribute('display', gs * 5 * S.zoom < 7 ? 'none' : 'inline'); document.querySelector('#flGridMin path')?.setAttribute('stroke-width', 1 / S.zoom); document.querySelector('#flGridMaj path')?.setAttribute('stroke-width', 1.2 / S.zoom); }
   const view = { zoom:S.zoom, tx:Math.round(S.tx), ty:Math.round(S.ty) };
   S.view[S.dc] = view; flowState().view[S.dc] = view;   // remembered per DimCity (saved with the project, no 'unsaved' flag for just looking)
 }
@@ -722,6 +768,8 @@ function bind(root, graph, byId){
   root.querySelectorAll('#flLayer button').forEach(b => b.onclick = () => setLayer(b.dataset.v));
   window.FlowBg?.bind(root, S.layer, () => render());
   root.querySelectorAll('#flTool button').forEach(b => b.onclick = () => setTool(b.dataset.tool));
+  root.querySelectorAll('#flGridTools button').forEach(b => b.onclick = () => { const g = gridCfg(); g[b.dataset.g] = !g[b.dataset.g]; M().ui.dirty = true; render(); });
+  const gsz = root.querySelector('#flGridSize'); if(gsz) gsz.onchange = () => { gridCfg().size = Number(gsz.value); M().ui.dirty = true; S.fitNext = false; render(); };
   root.querySelector('#flZoomIn').onclick = () => zoomCenter(S.zoom * 1.25);
   root.querySelector('#flZoomOut').onclick = () => zoomCenter(S.zoom / 1.25);
   root.querySelector('#flZoom').oninput = e => zoomCenter(Number(e.target.value) / 100);
@@ -737,8 +785,17 @@ function bind(root, graph, byId){
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   const toWorld = (cx, cy) => { const r = canvas.getBoundingClientRect(); return { x:(cx - r.left - S.tx) / S.zoom, y:(cy - r.top - S.ty) / S.zoom }; };
   const edgeEls = new Map(); root.querySelectorAll('.fe[data-edge]').forEach(p => edgeEls.set(p.dataset.edge, p)); const hitEls = new Map(); root.querySelectorAll('.fe-hit').forEach(p => hitEls.set(p.dataset.hit, p));
-  const redrawEdges = ids => { for(const e of graph.edges){ if(e.inner || !(ids.has(e.from.block) || ids.has(e.to.block))) continue; const d = edgePath(e, byId); edgeEls.get(e.id)?.setAttribute('d', d); hitEls.get(e.id)?.setAttribute('d', d); } };
+  const redrawEdges = ids => { for(const e of graph.edges){ if(e.inner || !(ids.has(e.from.block) || ids.has(e.to.block))) continue; const d = e.pts ? ptsPath(e.pts) : edgePath(e, byId); edgeEls.get(e.id)?.setAttribute('d', d); hitEls.get(e.id)?.setAttribute('d', d); } };
   const place = b => root.querySelector(`.fb[data-block="${CSS.escape(b.id)}"]`)?.setAttribute('transform', `translate(${b.pos.x},${b.pos.y})`);
+  // every fibre edge drawn again (they find their way around the blocks, so one block moving can change any of them)
+  const redrawFibres = () => { for(const e of graph.edges){ if(e.cable !== 'fiber') continue; const d = e.pts ? ptsPath(e.pts) : edgePath(e, byId); edgeEls.get(e.id)?.setAttribute('d', d); hitEls.get(e.id)?.setAttribute('d', d); } };
+  // the dashed outline where the moved blocks will come to rest (not where they overlap others, or between grid lines)
+  const showLanding = (d, g) => {
+    const moved = new Set(d.blocks.map(it => it.b)), land = settle(g, moved, false), gh = root.querySelector('#flGhost'); if(!gh) return;
+    const bump = !!(land.dx || land.dy);
+    root.querySelectorAll('.fb.grab').forEach(el => el.classList.toggle('bump', bump));
+    gh.innerHTML = bump ? [...moved].map(b => `<rect class="fl-ghost" x="${b.pos.x + land.dx}" y="${b.pos.y + land.dy}" width="${b.size.w}" height="${b.size.h}" rx="8"/>`).join('') : '';
+  };
   svg.addEventListener('mousedown', e => {
     if(e.button === 2) return;
     if(e.button === 1 || S.tool === 'pan' || S.space){ S.pan = { sx:e.clientX, sy:e.clientY, tx:S.tx, ty:S.ty, moved:false }; canvas.classList.add('panning'); e.preventDefault(); return; }
@@ -749,6 +806,9 @@ function bind(root, graph, byId){
       if(!S.sel.has(b.id)){ if(!e.shiftKey) S.sel.clear(); S.sel.add(b.id); applySel(); }
       const group = [...S.sel].map(id => byId.get(id)).filter(Boolean);
       S.drag = { blocks:group.map(x => ({ b:x, x0:x.pos.x, y0:x.pos.y })), sx:e.clientX, sy:e.clientY, moved:false, pressed:b, hover:S.hoverEl, rename:e.target.closest('[data-rename]')?.dataset.rename || null, shift:e.shiftKey };
+      // you see at once that you hold it: the block lifts (shadow, outline) and goes on top of the others
+      for(const it of S.drag.blocks){ const el = root.querySelector(`.fb[data-block="${CSS.escape(it.b.id)}"]`); if(el){ el.classList.add('grab'); el.parentNode.appendChild(el); } }
+      canvas.classList.add('holding');
     } else {
       const m = root.querySelector('#flMarquee');
       S.marquee = { sx:e.clientX, sy:e.clientY, moved:false, shift:e.shiftKey, el:m };
@@ -759,9 +819,13 @@ function bind(root, graph, byId){
     if(S.drag){
       const d = S.drag, dx = (e.clientX - d.sx) / S.zoom, dy = (e.clientY - d.sy) / S.zoom;
       if(!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4) return;
+      if(!d.moved){ canvas.classList.add('dragging'); for(const e2 of graph.edges) if(e2.cable === 'fiber') e2.pts = null; redrawFibres(); }   // while moving, fibres are simple curves; they find their way around again when you let go
       d.moved = true;
-      for(const it of d.blocks){ it.b.pos = { x:Math.round(it.x0 + dx), y:Math.round(it.y0 + dy) }; place(it.b); }
+      const gc = gridCfg(); let mx = dx, my = dy;
+      if(gc.snap && !e.altKey){ const ux = Math.min(...d.blocks.map(it => it.x0)), uy = Math.min(...d.blocks.map(it => it.y0)); mx = Math.round((ux + dx) / gc.size) * gc.size - ux; my = Math.round((uy + dy) / gc.size) * gc.size - uy; }
+      for(const it of d.blocks){ it.b.pos = { x:Math.round(it.x0 + mx), y:Math.round(it.y0 + my) }; place(it.b); }
       redrawEdges(new Set(d.blocks.map(it => it.b.id)));
+      showLanding(d, graph);
     } else if(S.marquee){
       const q = S.marquee; if(!q.moved && Math.hypot(e.clientX - q.sx, e.clientY - q.sy) < 4) return;
       q.moved = true; const r = canvas.getBoundingClientRect();
@@ -775,11 +839,12 @@ function bind(root, graph, byId){
   const up = () => {
     if(S.drag){
       const d = S.drag; S.drag = null;
+      root.querySelectorAll('.fb.grab').forEach(el => el.classList.remove('grab', 'bump')); canvas.classList.remove('holding', 'dragging'); const gh = root.querySelector('#flGhost'); if(gh) gh.innerHTML = '';
       if(d.moved){
         const moved = new Set(d.blocks.map(it => it.b));
         settle(graph, moved);
         for(const b of moved){ place(b); const o = graph.origins[b.dc]; ((f.pos[b.dc] ||= {})[f.dir] ||= {})[b.id] = { x:b.pos.x - o.x, y:b.pos.y - o.y }; }
-        redrawEdges(new Set([...moved].map(b => b.id)));
+        routeFibers(graph); redrawEdges(new Set([...moved].map(b => b.id))); redrawFibres();
         M().ui.dirty = true; window.PatchHistory?.label?.(t('Moved blocks in the signal flow', 'Blokken verplaatst in de signaalstroom'));
       } else if(d.rename) renameLk(d.pressed.dc, d.rename);
       else { const el = d.hover || root.querySelector(`.fb[data-block="${CSS.escape(d.pressed.id)}"]`); pinToggle({ key:`el:${d.pressed.id}|${el?.dataset.port || el?.dataset.unit || el?.dataset.hit || ''}`, lines:linesOf(el) }); }

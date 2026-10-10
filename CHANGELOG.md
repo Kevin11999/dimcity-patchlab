@@ -4,6 +4,34 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.13.0 — 2026-10-10
+
+- Network page, rebuilt: the first tab is a **patch board**. Every switch is drawn like its front; drag a node or a cable onto a port (or click the device, then the port). Every device shows what it is (icon, id and type: LumiNode 12, Cat loom …). A device dropped on a used port takes its place, the other one goes back to the tray and the port it came from stays empty. Nothing is placed by itself any more: **Auto-fill ports…** fills the free ports once. A show from an older version keeps its ports as they were. The list of connections with the drop-downs stays below the board.
+- Two switches in one DB can be **linked through RJ45 ports as a trunk** (Link to switch…, or Link automatically); linked ports carry every VLAN and take no device.
+- New tabs: **Nodes** (per node the universes with the name of the LK or Veam on them, the location, and a list to choose the switch port it is plugged into; the old page “Nodes & Splitters” is part of it now), **Switches** (every switch, also those in racks: address, VLAN / trunk / name / PoE / speed per port, copy to other switches, network cables) and **Addresses**.
+- Addresses: every address of every node, splitter and switch in one table, editable, with the **IP plan**: switch 1 of every DB is .1, switch 2 is .2 … and nodes and splitters count on from .11. You see old → new before anything changes. Checks for **duplicate addresses** (also between DimCities and between the extra addresses of one device), addresses outside the scheme, devices of one VLAN in different networks, and a port that is not a trunk although the device on it carries two VLANs.
+- LumiNode **advanced network**: tick it on a node and every VLAN becomes a group on the node with its own address and a lighting setting, ports go to a group or a trunk. Network config reads the node’s network configuration, shows what the plan wants and sends it (check, send, activate). The simulator answers the new calls.
+- Racks: the Veam4 sockets of an LK37 socket belong to that LK (2× LK37 + 6× Veam4: Veam 1–3 on LK1, 4–6 on LK2; set in the Panel Builder). A separate Veam is no longer patched on them, unless you switch on *A Veam may go on a free Veam4 socket of an LK panel* in Settings → This show (off by default). The network (etherCON) ports of a rack panel now connect to the nodes in the rack.
+- **Every LK and every Veam has a colour of its own** — never two the same, also not an LK and a Veam — on the rack, in the Signal Flow, in the PDF and on the labels. Nodes are told apart by their label.
+- Settings → **This show**: the prefixes of LK, Veam, network cables and nodes, extra network cable types (own prefix and number of lines), and the rule above. CSV rows like **Node601,1** (node 01 of DB06, port 1) are read and put on that node. LK7-1 is called **LK37** everywhere. A DB can be **deleted**.
+- Signal Flow: a block you press lifts at once (shadow, outline) and the cables follow while you move it; a dashed outline shows where it will land. A **grid** with **Snap**, both switchable (size 10 / 20 / 40, hold Alt to move freely). **Fibres run around** the blocks and the texts with right angles, in the Signal Flow and in the fibre overview.
+- Device Builder: the preview shows half-width devices as half width (all kinds of devices). The dialogs to copy a switch or a node to others have their left column neatly aligned. The PDF section Switches has a plug list.
+
+<details><summary>Nederlands</summary>
+
+- Pagina Netwerk, opnieuw opgebouwd: het eerste tabblad is een **patchbord**. Elke switch is getekend zoals zijn voorkant; sleep een node of kabel op een poort (of klik het apparaat en dan de poort). Elk apparaat toont wat het is (icoon, id en type: LumiNode 12, Cat loom …). Een apparaat op een bezette poort neemt zijn plek in, het andere gaat terug in de bak en de poort waar het vandaan kwam blijft leeg. Er wordt niets meer vanzelf geplaatst: **Poorten automatisch vullen…** vult de vrije poorten één keer. Een show uit een oudere versie houdt zijn poorten zoals ze waren. De lijst met aansluitingen met de uitklappers blijft onder het bord.
+- Twee switches in één DB kun je **via RJ45-poorten als trunk koppelen** (Koppel aan switch…, of Automatisch koppelen); gekoppelde poorten dragen elk VLAN en nemen geen apparaat.
+- Nieuwe tabbladen: **Nodes** (per node de universes met de naam van de LK of Veam erop, de locatie, en een lijst om de switchpoort te kiezen waar hij aan zit; de oude pagina “Nodes & splitters” is er onderdeel van), **Switches** (elke switch, ook die in racks: adres, VLAN / trunk / naam / PoE / snelheid per poort, kopiëren naar andere switches, netwerkkabels) en **Adressen**.
+- Adressen: elk adres van elke node, splitter en switch in één tabel, te bewerken, met het **IP-plan**: switch 1 van elke DB is .1, switch 2 is .2 … en nodes en splitters tellen door vanaf .11. Je ziet oud → nieuw voor er iets verandert. Controles op **dubbele adressen** (ook tussen DimCities en tussen de extra adressen van één apparaat), adressen buiten het schema, apparaten van één VLAN in verschillende netwerken, en een poort die geen trunk is terwijl het apparaat erop twee VLAN’s draagt.
+- LumiNode **advanced netwerk**: vink het aan bij een node en elk VLAN wordt een groep op de node met een eigen adres en een lichtinstelling, poorten gaan naar een groep of een trunk. Netwerkconfig leest de netwerkconfiguratie van de node, toont wat het plan wil en stuurt het (controleren, sturen, activeren). De simulator beantwoordt de nieuwe aanroepen.
+- Racks: de Veam4-aansluitingen van een LK37-aansluiting horen bij die LK (2× LK37 + 6× Veam4: Veam 1–3 op LK1, 4–6 op LK2; in te stellen in de Paneelbouwer). Een losse Veam wordt er niet meer op gepatcht, tenzij je *Een Veam mag op een vrije Veam4-aansluiting van een LK-paneel* aanzet in Instellingen → Deze show (standaard uit). De netwerkpoorten (etherCON) van een rekpaneel sluiten nu aan op de nodes in het rek.
+- **Elke LK en elke Veam heeft een eigen kleur** — nooit twee dezelfde, ook niet een LK en een Veam — op het rek, in de Signaalstroom, in de PDF en op de labels. Nodes herken je aan hun label.
+- Instellingen → **Deze show**: de prefixen van LK, Veam, netwerkkabels en nodes, extra netwerkkabeltypes (eigen prefix en aantal lijnen), en de regel hierboven. CSV-regels als **Node601,1** (node 01 van DB06, poort 1) worden gelezen en op die node gezet. LK7-1 heet overal **LK37**. Een DB kun je **verwijderen**.
+- Signaalstroom: een blok dat je indrukt komt meteen omhoog (schaduw, rand) en de kabels volgen terwijl je hem verplaatst; een gestippelde rand toont waar hij terechtkomt. Een **raster** met **Snap**, allebei uit te zetten (grootte 10 / 20 / 40, houd Alt ingedrukt om vrij te verplaatsen). **Fibers lopen om** de blokken en de teksten heen met rechte hoeken, in de Signaalstroom en in het fiberoverzicht.
+- Device Builder: de voorvertoning toont halve devices als halve breedte (alle soorten devices). De dialogen om een switch of node naar andere te kopiëren hebben hun linkerkolom netjes uitgelijnd. Het PDF-onderdeel Switches heeft een aansluitlijst.
+
+</details>
+
 ## 0.12.0 — 2026-10-07
 
 - One port plan: the ports you set on the Network page (VLAN, trunk, name, PoE, speed) now show everywhere, in the strips under “Network switches”, the connections table, the labels, the PDF and Network config. Before, the strips and the table only showed the automatic plan.
@@ -506,7 +534,7 @@ All notable changes to DimCity PatchLab. The entry of a version is also the text
 
 - Update check via GitHub Releases, with download and install from the app.
 - Light theme and a Dutch interface (Settings → Language).
-- Racks per DimCity with automatic LK7-1 / Veam4 patching, node colours, recommendations and "Use as network plan".
+- Racks per DimCity with automatic LK37 / Veam4 patching, node colours, recommendations and "Use as network plan".
 - Search everything with Cmd/Ctrl+K.
 - Undo / redo with a readable history, fixable validation issues, autosave, backups and crash recovery.
 - Report Builder: company brand tab with logo and watermark, movable cover image.
@@ -516,7 +544,7 @@ All notable changes to DimCity PatchLab. The entry of a version is also the text
 
 - Updatecontrole via GitHub Releases, met downloaden en installeren vanuit de app.
 - Licht thema en een Nederlandse interface (Instellingen → Taal).
-- Racks per DimCity met automatische LK7-1- / Veam4-patching, nodekleuren, adviezen en "Gebruik als netwerkplan".
+- Racks per DimCity met automatische LK37- / Veam4-patching, nodekleuren, adviezen en "Gebruik als netwerkplan".
 - Overal zoeken met Cmd/Ctrl+K.
 - Ongedaan maken / opnieuw met leesbare geschiedenis, oplosbare validatiemeldingen, automatisch opslaan, back-ups en crashherstel.
 - Rapportbouwer: tabblad huisstijl met logo en watermerk, verplaatsbare voorbladafbeelding.

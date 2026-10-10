@@ -56,7 +56,37 @@
   }
   const keyOf = e => `${e.dc}|${e.sw}|${e.sfp}`;
 
-  // ---- cables: straight lines with right angles; where one crosses another it hops over with a little bridge ----
+  // ---- cables go around the switches and the texts (grid router), with right angles; where one crosses another it hops over with a little bridge ----
+  function makeRouter(g){
+    const b = bounds(); if(!b || !window.EdgeRouter) return null;
+    const r = window.EdgeRouter.make({ x0:b.x0 - 160, y0:b.y0 - 160, x1:b.x1 + 160, y1:b.y1 + 160, cell:8 });
+    g.obst = [];
+    const hard = (x, y, w, h, m, kind, of) => { r.block(x, y, w, h, m); g.obst.push({ x, y, w, h, kind, of }); };
+    g.locs.forEach((l, i) => {
+      l.zone = i + 1; r.zone(l.zone, l.x, l.y, l.w, l.h);
+      l.titleBox = { x:l.x + 10, y:l.y + 5, w:Math.max(30, String(l.free || l.dc).length * 8 + 12), h:20 };     // the name of the location
+      hard(l.titleBox.x, l.titleBox.y, l.titleBox.w, l.titleBox.h, 4, 'title', l);
+      if(l.free) hard(l.x + 10, l.y + 30, 90, 20, 4, 'title', l);
+      for(const s of l.sws){ s.nameBox = { x:s.x + SWW - 12 - String(s.label).length * 7.4, y:s.y + 3, w:String(s.label).length * 7.4 + 8, h:16 }; hard(s.x, s.y, SWW, SH, 6, 'switch', s); }
+    });
+    return r;
+  }
+  // leaving a port upwards or downwards must not run into another switch of the same card, nor through a text (the name of the card or of the switch)
+  const inX = (b, x) => x > b.x - 4 && x < b.x + b.w + 4;
+  const exitOk = (p, dir) => !p.loc.sws.some(o => o !== p.sw && p.x > o.x - 6 && p.x < o.x + SWW + 6 && (dir === 'down' ? o.y > p.sw.y : o.y < p.sw.y))
+    && (dir === 'down' || (!(p.loc.titleBox && inX(p.loc.titleBox, p.x)) && !(p.sw.nameBox && inX(p.sw.nameBox, p.x))));
+  function routeAround(link, g, router){
+    const a = g.ports.get(keyOf(link.a || {})), b = g.ports.get(keyOf(link.b || {}));
+    if(!a || !b || !router) return null;
+    let best = null;
+    for(const da of ['down', 'up']) for(const db of ['down', 'up']){
+      if(!exitOk(a, da) || !exitOk(b, db)) continue;
+      const res = router.route({ from:{ x:a.x, y:da === 'down' ? a.y + PH / 2 : a.y - PH / 2, dx:0, dy:da === 'down' ? 1 : -1 }, to:{ x:b.x, y:db === 'down' ? b.y + PH / 2 : b.y - PH / 2, dx:0, dy:db === 'down' ? 1 : -1 }, zones:[a.loc.zone, b.loc.zone] });
+      if(!res) continue; const cost = res.len + res.bends * 30; if(!best || cost < best.cost) best = { ...res, cost };
+    }
+    if(!best) return null;
+    router.mark(best.pts); return { link, pts:best.pts, a, b };
+  }
   function route(link, g, idx){
     const a = g.ports.get(keyOf(link.a || {})), b = g.ports.get(keyOf(link.b || {}));
     if(!a || !b) return null;
@@ -100,17 +130,21 @@
       for(const o of all) if(o !== rt) for(let j = 1; j < o.pts.length; j++){ const [ux1, uy1] = o.pts[j - 1], [ux2, uy2] = o.pts[j]; if(ux1 === ux2 && Math.min(uy1, uy2) + 3 < y1 && Math.max(uy1, uy2) - 3 > y1 && ux1 > Math.min(x1, x2) + 8 && ux1 < Math.max(x1, x2) - 8) return true; } }
     return false;
   }
-  function cablesSvg(g){
-    const routes = F().all().map((l, i) => route(l, g, i)).filter(Boolean);
+  function cablesSvg(g, quick){
+    const router = quick ? null : makeRouter(g), links = F().all();
+    // the short cables first: they get the straightest way, the longer ones go around them
+    const len = l => { const a = g.ports.get(keyOf(l.a || {})), b = g.ports.get(keyOf(l.b || {})); return a && b ? Math.abs(a.x - b.x) + Math.abs(a.y - b.y) : 0; };
+    const done = new Map(links.slice().sort((p, q) => len(p) - len(q)).map(l => [l, routeAround(l, g, router)]));
+    const routes = links.map((l, i) => done.get(l) || route(l, g, i)).filter(Boolean);
     const ordered = routes.slice().sort((p, q) => (hasHop(p, routes) ? 1 : 0) - (hasHop(q, routes) ? 1 : 0));   // cables that hop over others are drawn on top
     return ordered.map(rt => {
       const link = rt.link, col = F().color(link), sel = S.sel === link.id, d = pathOf(rt, routes);
       // the label sits on the longest horizontal piece
       let best = null; for(let i = 1; i < rt.pts.length; i++){ const [x1, y1] = rt.pts[i - 1], [x2, y2] = rt.pts[i]; if(y1 === y2 && (!best || Math.abs(x2 - x1) > best.len)) best = { len:Math.abs(x2 - x1), x:(x1 + x2) / 2, y:y1 }; }
-      best ||= { x:rt.pts[1][0], y:(rt.pts[0][1] + rt.pts[2][1]) / 2 };
+      best ||= { x:rt.pts[0][0], y:(rt.pts[0][1] + rt.pts[rt.pts.length - 1][1]) / 2 };
       const label = F().code(link.typeId), w = label.length * 7 + 12;
       const dot = (p) => `<circle cx="${p[0]}" cy="${p[1]}" r="3.6" fill="${col}"/>`;
-      return `<g class="fv-cable ${sel ? 'sel' : ''}" data-link="${esc(link.id)}" style="--c:${col}"><path class="fv-hit" d="${d}"/><path class="fv-halo" d="${d}"/><path class="fv-line" d="${d}" stroke="${col}"/>${dot(rt.pts[0])}${dot(rt.pts[3])}<rect x="${best.x - w / 2}" y="${best.y - 9}" width="${w}" height="16" rx="4" fill="#0e1117" stroke="${col}"/><text x="${best.x}" y="${best.y + 3}" text-anchor="middle" class="fv-code" fill="${col}">${esc(label)}</text><title>${esc(link.id)} · ${esc(F().typeName(F().typeOf(link.typeId)))} · ${esc(F().endLabel(link.a))} ⇄ ${esc(F().endLabel(link.b))}</title></g>`;
+      return `<g class="fv-cable ${sel ? 'sel' : ''}" data-link="${esc(link.id)}" style="--c:${col}"><path class="fv-hit" d="${d}"/><path class="fv-halo" d="${d}"/><path class="fv-line" d="${d}" stroke="${col}"/>${dot(rt.pts[0])}${dot(rt.pts[rt.pts.length - 1])}<rect x="${best.x - w / 2}" y="${best.y - 9}" width="${w}" height="16" rx="4" fill="#0e1117" stroke="${col}"/><text x="${best.x}" y="${best.y + 3}" text-anchor="middle" class="fv-code" fill="${col}">${esc(label)}</text><title>${esc(link.id)} · ${esc(F().typeName(F().typeOf(link.typeId)))} · ${esc(F().endLabel(link.a))} ⇄ ${esc(F().endLabel(link.b))}</title></g>`;
     }).join('');
   }
   function locSvg(l, usage){
@@ -179,7 +213,7 @@
     const v = root.querySelector('#fvView'); if(!v) return;
     const g = build(); S.layout = g;
     const usage = new Map(); for(const l of F().all()) for(const e of [l.a, l.b]) if(e && !e.free) usage.set(keyOf(e), l);
-    v.innerHTML = `<g>${g.locs.map(l => locSvg(l, usage)).join('')}</g><g id="fvCables">${cablesSvg(g)}</g>`;
+    v.innerHTML = `<g>${g.locs.map(l => locSvg(l, usage)).join('')}</g><g id="fvCables">${cablesSvg(g, true)}</g>`;
   }
   function bind(root){
     const again = () => render(root);

@@ -10,6 +10,7 @@ const clip = (s, n) => String(s ?? '').slice(0, n);
 export const gcName = s => String(s ?? '').replace(/[^a-zA-Z0-9\-_ ]/g, '').trim().slice(0, 64);       // device name pattern ^[a-zA-Z0-9\-_ ]*$
 export const prefixOf = mask => String(mask || '255.255.255.0').split('.').reduce((n, o) => n + (Number(o) >>> 0).toString(2).replace(/0/g, '').length, 0);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const clone = x => JSON.parse(JSON.stringify(x));
 
 // ===================== GigaCore generation 2 =====================
 export async function gigacoreRead(h){
@@ -248,7 +249,7 @@ export const einkClear = async h => { await h('PUT', '/api/eink/custom/clear', {
 const NET = new Set(['artnet', 'sacn']);
 const idsIn = v => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v) : v == null ? [] : [v]).map(Number).filter(Number.isFinite);
 export async function lumiRead(h){
-  const [info, ip, ios, blocks, ver] = await Promise.all([h('GET', '/api/deviceinfo'), h('GET', '/api/ipsettings'), h('GET', '/api/IO'), h('GET', '/api/processblock'), h('GET', '/api/software/version').catch(() => null)]);
+  const [info, ip, ios, blocks, ver, netcfg] = await Promise.all([h('GET', '/api/deviceinfo'), h('GET', '/api/ipsettings'), h('GET', '/api/IO'), h('GET', '/api/processblock'), h('GET', '/api/software/version').catch(() => null), h('GET', '/api/network_config').catch(() => null)]);
   const list = Array.isArray(ios) ? ios : [];
   const dmx = list.filter(x => x.io_class === 'dmx').sort((a, b) => (a.port_number ?? a.id) - (b.port_number ?? b.id));   // IO 100000 = port 1
   const byId = new Map(list.map(x => [x.id, x]));
@@ -266,7 +267,77 @@ export async function lumiRead(h){
     if(net && !NET.has(net.io_class)) net = null;
     return { index: i, io, name: io.name ?? '', dir, block, freeBlock, net, input: net, universe: net?.universe ?? null, klass: net?.io_class || null, shared: net ? usedBy(net.id) > 1 : false, understood: !!block || dir === 'idle' || !!freeBlock };
   });
-  return { info, ip, ios: list, blocks: pb, ports, version: typeof ver === 'object' && ver ? ver.current : null };
+  return { info, ip, ios: list, blocks: pb, ports, version: typeof ver === 'object' && ver ? ver.current : null, netcfg: netcfg && typeof netcfg === 'object' && netcfg.groups ? netcfg : null };
+}
+
+// ---- LumiNode advanced network (/api/network_config) ----
+// A LumiNode in its basic configuration has one address (/api/ipsettings). In the advanced configuration it has VLAN groups, each with its own
+// addresses (CIDR) and a "pipeline" (does lighting go in / out on this group), and every RJ45 port sits in one group or in a trunk of several.
+//   GET  /api/network_config            { is_basic_config, groups:{ id:{ name, vid, color, editable, network_settings:{ addresses:[{ ip:'10.40.101.11/16', mode, preferred_output }], routes, pipeline_setting, allow_config } } },
+//                                         ports:{ name:{ group, trunk, link_speed, link_state, type } }, trunks:{ id:{ name, groups:[ids], untagged_group, color } }, stp_mode }
+//   POST /api/network_config/validate   the same body → 204 or an error;  PUT /api/network_config  (with configuration_identifier it waits)  ·  POST /api/network_config/commit { configuration_identifier, timeout }
+export const maskToPrefix = m => { const p = String(m || '').split('.').map(Number); if(p.length !== 4 || p.some(x => !(x >= 0 && x <= 255))) return 24; let n = 0; for(const x of p) for(let i = 7; i >= 0; i--) if((x >> i) & 1) n++; return n; };
+// what the plan wants on a node: ifs = [{ role, vlan, ip, mask, eth }] (Fent.ifaces), vlanOf(id) → { name, color }
+export function lumiNetWant(ifs, ethCount = 1, vlanOf = () => null){
+  const groups = new Map();
+  for(const x of ifs || []){
+    if(x.vlan == null || !x.ip) continue;
+    const v = vlanOf(x.vlan) || {}, g = groups.get(x.vlan) || { vid:Number(x.vlan), name:String(v.name || `VLAN ${x.vlan}`).slice(0, 31), color:/^#[0-9a-f]{6}$/i.test(v.color || '') ? v.color : '#808080', addresses:[], listen:false, mgmt:false };
+    g.addresses.push({ ip:x.ip, prefix:maskToPrefix(x.mask || '255.255.0.0'), eth:Number(x.eth) || 1, role:x.role || 'lighting' });
+    if(x.role === 'management') g.mgmt = true; else g.listen = true;
+    groups.set(x.vlan, g);
+  }
+  if(groups.size && ![...groups.values()].some(g => g.listen)) for(const g of groups.values()) g.listen = true;     // only management addresses: that group carries the lighting too
+  const ports = Array.from({ length:Math.max(1, ethCount) }, (_, i) => ({ eth:i + 1, vids:[...new Set((ifs || []).filter(x => (Number(x.eth) || 1) === i + 1 && x.vlan != null && x.ip).map(x => Number(x.vlan)))] }));
+  return { groups:[...groups.values()].sort((a, b) => a.vid - b.vid), ports };
+}
+const sameSet = (a, b) => a.length === b.length && [...a].sort((x, y) => x - y).every((x, i) => x === [...b].sort((p, q) => p - q)[i]);
+// the calls that bring a node to the wanted network: validate, send, commit. want = lumiNetWant(...)
+export function lumiNetPlan(cur, want, { id = Date.now() } = {}){
+  const ops = [], notes = [], changes = [], nc = cur?.netcfg;
+  if(!want?.groups?.length) return { ops, notes, changes };
+  if(!nc){ notes.push('This LumiNode does not offer the advanced network (no /api/network_config) — only its basic IP address can be set.'); return { ops, notes, changes }; }
+  const next = { groups:clone(nc.groups || {}), trunks:clone(nc.trunks || {}), ports:clone(nc.ports || {}), stp_mode:nc.stp_mode || 'rstp', allow_ipv6_only_configurability:!!nc.allow_ipv6_only_configurability };
+  const gid = new Map(Object.entries(next.groups).map(([k, g]) => [Number(g.vid), Number(k)]));
+  let top = Math.max(0, ...Object.keys(next.groups).map(Number)), ttop = Math.max(0, ...Object.keys(next.trunks).map(Number));
+  const cidr = a => `${a.ip}/${a.prefix}`;
+  for(const g of want.groups){
+    let k = gid.get(g.vid), fresh = false;
+    if(k == null){ if(top >= 255){ notes.push(`No room for a group for VLAN ${g.vid} (a node holds 255 groups).`); continue; } k = ++top; fresh = true; next.groups[k] = { name:g.name, vid:g.vid, color:g.color, editable:true, network_settings:{ addresses:[], routes:[], pipeline_setting:'', allow_config:true } }; gid.set(g.vid, k); }
+    const ns = (next.groups[k].network_settings ||= { addresses:[], routes:[], pipeline_setting:'', allow_config:true });
+    const old = (ns.addresses || []).map(a => a.ip), wantIps = g.addresses.map(cidr);
+    const addrs = g.addresses.map((a, i) => ({ ip:cidr(a), mode:'static', ...(g.addresses.length > 1 && i === 0 ? { preferred_output:true } : {}) }));
+    const pipe = g.listen ? 'input+output' : '';
+    if(fresh) changes.push(`New group ${k} “${g.name}” (VLAN ${g.vid}): ${wantIps.join(', ')}${g.listen ? ' · lighting' : ''}`);
+    else {
+      if(old.join() !== wantIps.join()) changes.push(`Group ${k} “${next.groups[k].name}” (VLAN ${g.vid}): ${old.join(', ') || 'no address'} → ${wantIps.join(', ')}`);
+      if((ns.pipeline_setting || '') !== pipe) changes.push(`Group ${k} “${next.groups[k].name}”: lighting ${ns.pipeline_setting ? `“${ns.pipeline_setting}”` : 'off'} → ${pipe ? `“${pipe}”` : 'off'}`);
+    }
+    ns.addresses = addrs; ns.pipeline_setting = pipe; if(g.mgmt) ns.allow_config = true;
+  }
+  const rj = Object.entries(next.ports).filter(([, p]) => (p.type || 'rj45') === 'rj45').map(([name]) => name);
+  (want.ports || []).forEach((wp, i) => {
+    const name = rj[i]; if(!name){ if(wp.vids.length) notes.push(`This node has no network port ${i + 1}.`); return; }
+    const ids = wp.vids.map(v => gid.get(v)).filter(x => x != null); if(!ids.length) return;
+    const port = next.ports[name];
+    if(ids.length === 1){
+      if(port.group !== ids[0] || port.trunk != null) changes.push(`Port ${name}: ${port.trunk != null ? `trunk ${port.trunk}` : port.group != null ? `group ${port.group}` : 'no group'} → group ${ids[0]}`);
+      port.group = ids[0]; port.trunk = null;
+    } else {
+      let tid = Object.entries(next.trunks).find(([, tr]) => sameSet(tr.groups || [], ids))?.[0];
+      if(tid == null){ tid = ++ttop; const mg = want.groups.find(g => g.mgmt && ids.includes(gid.get(g.vid))); next.trunks[tid] = { name:`Trunk ${wp.vids.join('+')}`.slice(0, 31), groups:[...ids], untagged_group:mg ? gid.get(mg.vid) : null, color:'#38bdf8', editable:true }; changes.push(`New trunk ${tid} “${next.trunks[tid].name}” with groups ${ids.join(', ')}`); }
+      if(Number(port.trunk) !== Number(tid)) changes.push(`Port ${name}: ${port.trunk != null ? `trunk ${port.trunk}` : port.group != null ? `group ${port.group}` : 'no group'} → trunk ${tid} (VLAN ${wp.vids.join(' + ')})`);
+      port.trunk = Number(tid); port.group = null;
+    }
+  });
+  if(nc.is_basic_config) changes.unshift('Switch the node to the advanced network configuration');
+  if(!changes.length && !nc.is_basic_config) return { ops, notes, changes };
+  const ports = Object.fromEntries(Object.entries(next.ports).map(([k, p]) => [k, { group:p.group ?? null, trunk:p.trunk ?? null, ...(p.link_speed ? { link_speed:p.link_speed } : {}), ...(p.type ? { type:p.type } : {}) }]));
+  const body = { is_basic_config:false, allow_ipv6_only_configurability:next.allow_ipv6_only_configurability, configuration_identifier:id, groups:next.groups, trunks:next.trunks, ports, stp_mode:next.stp_mode };
+  ops.push({ method:'POST', path:'/api/network_config/validate', body, text:`Check the new network configuration (${changes.length} change${changes.length === 1 ? '' : 's'})`, kind:'net' });
+  ops.push({ method:'PUT', path:'/api/network_config', body, text:changes.join(' · '), kind:'net' });
+  ops.push({ method:'POST', path:'/api/network_config/commit', body:{ configuration_identifier:id, timeout:0 }, text:'Activate it — the node may stop answering on its old address', kind:'net' });
+  return { ops, notes, changes };
 }
 
 // What PatchLab shows as a universe number: sACN as it is; Art-Net as the node shows it, minus `offset` (0 = the same number, the default).

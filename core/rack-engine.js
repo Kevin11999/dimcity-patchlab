@@ -354,4 +354,9 @@ export function ownerColors(plan){
   return out;
 }
 
-window.RackEngine = { zoneOk, computeRackPlan, placedRacks, looseDevices, hasRackPlan, ownerColors, panelPorts, demand, NODE_COLORS };
+// the colour of one LK or Veam of the show (the same colour as on the rack and in the flow), or null
+export function ownerColor(id){
+  const M = App.getMODEL(), all = [...M.byLK.keys(), ...M.byVeam.keys()].sort((a, b) => byNum(a.replace(/^\D+/, ''), b.replace(/^\D+/, '')) || (/^V/i.test(a) ? 1 : -1) - (/^V/i.test(b) ? 1 : -1));
+  const pal = ownerPalette(all); return pal.get(id) || null;
+}
+window.RackEngine = { zoneOk, computeRackPlan, placedRacks, looseDevices, hasRackPlan, ownerColors, ownerColor, panelPorts, demand, NODE_COLORS };

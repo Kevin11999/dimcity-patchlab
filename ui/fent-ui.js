@@ -15,7 +15,9 @@
   const dimNo = dc => (window.LKApp?.dimSlot ? window.LKApp.dimSlot(dc) : (/(\d+)/.exec(String(dc)) || [0, 1])[1] * 1);
   const plan = dc => M().networkDevices?.dimCityPlans?.[dc] || { nodes:[], splitters:[], switches:[] };
   const TYPES = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes' }, LISTS = { node:'nodes', splitter:'splitters', switch:'switches' };
-  const typeOf = (kind, dev) => (M().networkDevices?.[TYPES[kind]] || []).find(x => x.id === dev.typeId) || {};
+  const typeOf = (kind, dev) => (M().networkDevices?.[TYPES[kind === 'rswitch' ? 'switch' : kind]] || []).find(x => x.id === dev.typeId) || {};
+  // a switch that sits in a rack has no type of its own on its address record: take it from the switch list
+  const devOfRef = (dc, kind, idxS) => kind === 'rswitch' ? (window.NetSwitches?.list(dc).find(s => s.key === idxS)?.dev || null) : (plan(dc)[LISTS[kind]] || [])[Number(idxS)];
   const ethOf = (kind, dev) => kind === 'node' ? Math.min(2, Math.max(1, Number(typeOf(kind, dev).ethernetCount) || 1)) : 1;
   // devices with an address: nodes, and splitters that have (or can get) one
   const devices = dc => { const p = plan(dc); return [...p.nodes.map((dev, idx) => ({ kind:'node', idx, dev })), ...p.splitters.map((dev, idx) => ({ kind:'splitter', idx, dev })).filter(d => d.dev.ip || d.dev.ifaces?.length || typeOf('splitter', d.dev).defaultIp)]; };
@@ -40,7 +42,7 @@
         <input data-f="mask" value="${esc(x.mask || '')}" placeholder="${F().MASK}" inputmode="numeric" style="max-width:120px">
         ${eth > 1 ? `<select data-f="eth" title="${esc(t('Which RJ45 carries this address', 'Welke RJ45 dit adres draagt'))}"><option value="1" ${Number(x.eth) !== 2 ? 'selected' : ''}>ETH1</option><option value="2" ${Number(x.eth) === 2 ? 'selected' : ''}>ETH2</option></select>` : ''}
         <button class="sm ghost" data-rm title="${esc(t('Remove this address', 'Verwijder dit adres'))}">${I('x', 13)}</button></div>`).join('');
-    const warns = on ? F().checkAll(F().ifaces(dev, eth).map(x => ({ owner:dev.id || dev.name || kind, ip:x.ip, mask:x.mask, vlan:x.vlan, kind:kind === 'switch' ? 'equipment' : 'device' })), cfg().group).filter(w => w.code !== 'DUPLICATE') : [];
+    const warns = on ? F().checkAll(F().ifaces(dev, eth).map(x => ({ owner:dev.id || dev.name || kind, ip:x.ip, mask:x.mask, vlan:x.vlan, kind:kind === 'switch' || kind === 'rswitch' ? 'equipment' : 'device' })), cfg().group).filter(w => w.code !== 'DUPLICATE') : [];
     return `<div class="fent-ifaces" data-fent="${esc(dc)}|${kind}|${idx}">
       <div class="fent-head"><span class="rb-label" style="margin:0">${t('Addresses', 'Adressen')}</span> ${first?.vlan ? vlanChip(first.vlan) : ''}
         <button class="sm" data-add>${I('plus', 13)}${t('Add address', 'Adres toevoegen')}</button></div>
@@ -50,7 +52,7 @@
   function bindDevice(root, dc, rerender){
     root.querySelectorAll('.fent-ifaces').forEach(box => {
       const [bdc, kind, idxS] = box.dataset.fent.split('|'); if(bdc !== dc) return;
-      const dev = (plan(dc)[LISTS[kind]] || [])[Number(idxS)]; if(!dev) return;
+      const dev = devOfRef(dc, kind, idxS); if(!dev) return;
       const eth = ethOf(kind, dev);
       box.querySelector('[data-add]').onclick = () => {
         const used = new Set((dev.ifaces || []).map(x => x.role)); const role = !used.has('lighting') ? 'lighting' : !used.has('scan') ? 'scan' : 'other';
@@ -82,10 +84,11 @@
       if(c.scan && host + 100 <= 250) dev.ifaces.push({ role:'scan', vlan:vs, ip:F().suggestRole('scan', c.group, no, host + 100), mask:F().MASK, eth:eth > 1 ? 2 : 1 });
       host++; n++;
     }
-    // switches are network equipment: management address from 1 to 10
-    (p.switches || []).forEach((sw, i) => {
+    // switches are network equipment: management address .1, .2, .3 … per DimCity (switch 1 of DB01 is 10.90.101.1, switch 1 of DB02 is 10.90.102.1),
+    // the ones in the plan first, then the ones in the racks
+    (window.NetSwitches?.list(dc) || []).forEach((s, i) => {
       if(i >= 10) return;
-      const vm = F().roleVlan('management', c.vlanMode);
+      const sw = s.dev, vm = F().roleVlan('management', c.vlanMode); if(!sw) return;
       sw.ip = F().suggestEquipment(vm, c.group, no, i + 1); sw.subnet = F().MASK; sw.ipRole = 'management'; sw.ipVlan = vm; sw.ifaces = sw.ifaces || []; n++;
     });
     return { n, over };
@@ -106,20 +109,31 @@
       return { n, rj, sfp };
     } catch { return { n:0, rj:0, sfp:0 }; }
   }
-  // The port plan of a DimCity: every node port and every network cable line gets a switch port.
-  // Order (set per DimCity, see PortPlan): nodes first or cables first, sorted by id or as planned. What you placed by hand stays where you put it.
   const nat = (a, b) => String(a).localeCompare(String(b), undefined, { numeric:true });
-  function portPlanBase(dc){
-    const pt = window.PortPlan?.patch(dc) || { order:'nodes', sort:'id', auto:true, manual:{} };
-    let drows = F().switchPlan(devices(dc).map(({ kind, idx, dev }) => ({ label:dev.id || dev.name || kind, ethCount:ethOf(kind, dev), dev, ref:{ kind, idx } })));
-    const devOf = new Map(devices(dc).map(({ dev }) => [dev.id || dev.name, dev]));
-    drows = drows.map(r => { const dev = devOf.get(r.device); return { ...r, key:`n:${r.device}#${r.eth}`, unis:dev && Array.isArray(dev.universes) && window.NetCables ? window.NetCables.uniText(dev.universes.filter(u => u != null && u !== '' && Number.isFinite(Number(u))).map(Number)) : '' }; });
-    if(pt.sort !== 'plan') drows.sort((a, b) => nat(a.device, b.device) || a.eth - b.eth);
+  // The rows of a DimCity's port plan: every RJ45 of every node / splitter and every network cable line, each with what it is
+  // (kind, type) so the patch board can show more than an id. Where a row sits (sw, swPort) is what was placed by hand (PortPlan).
+  // `order` / `sort` only decide the order of the rows, which matters to "Auto-fill ports".
+  function portRows(dc, o = {}){
+    const pt = window.PortPlan?.patch(dc) || { order:'nodes', sort:'id' }, order = o.order || pt.order, sort = o.sort || pt.sort, SN = window.ShortName;
+    const devs = devices(dc);
+    let drows = F().switchPlan(devs.map(({ kind, idx, dev }) => ({ label:dev.id || dev.name || kind, ethCount:ethOf(kind, dev), dev, ref:{ kind, idx } })));
+    const devOf = new Map(devs.map(d => [d.dev.id || d.dev.name, d]));
+    drows = drows.map(r => {
+      const d = devOf.get(r.device), dev = d?.dev, ty = d ? typeOf(d.kind, dev) : {};
+      return { ...r, key:`n:${r.device}#${r.eth}`, kind:d?.kind || 'node', typeName:SN ? SN.of(ty) : (ty.name || ''), typeFull:SN ? SN.full(ty) : (ty.name || ''), name:dev?.name || '', idx:d?.idx ?? null,
+        csvRef:dev?.csvRef || '', unis:dev && Array.isArray(dev.universes) && window.NetCables ? window.NetCables.uniText(dev.universes.filter(u => u != null && u !== '' && Number.isFinite(Number(u))).map(Number)) : '' };
+    });
+    if(sort !== 'plan') drows.sort((a, b) => nat(a.device, b.device) || a.eth - b.eth);
     const crows = [];
-    for(const c of (window.NetCables?.cables(dc) || [])) for(const l of c.lines) if(!l.empty) crows.push({ port:0, device:`${c.id}.${l.port}`, key:`c:${c.id}.${l.port}`, eth:1, ethCount:1, mode:'access', vlans:l.vlan != null ? [l.vlan] : [], ips:[], dest:l.dest || '', unis:l.universes || '', cable:true });
-    const rows = pt.order === 'cables' ? [...crows, ...drows] : [...drows, ...crows];
+    for(const c of (window.NetCables?.cables(dc) || [])){ const loom = window.CsvRules?.loomOf(c.id); for(const l of c.lines) if(!l.empty) crows.push({ port:0, device:`${c.id}.${l.port}`, key:`c:${c.id}.${l.port}`, eth:1, ethCount:1, mode:'access', vlans:l.vlan != null ? [l.vlan] : [], ips:[], dest:l.dest || '', unis:l.universes || '', cable:true, kind:'cable', typeName:loom?.name || 'Cat loom', typeFull:loom?.name || 'Cat loom', name:l.dest || '' }); }
+    const rows = order === 'cables' ? [...crows, ...drows] : [...drows, ...crows];
     rows.forEach((r, i) => { r.port = i + 1; });
-    window.NetSwitches?.assign(dc, rows, pt);
+    return rows;
+  }
+  function portPlanBase(dc){
+    window.PortPlan?.ensureV2?.();
+    const rows = portRows(dc);
+    window.NetSwitches?.assign(dc, rows, window.PortPlan?.patch(dc));
     return { rows, cap:switchCapacity(dc) };
   }
   // …and with the choices made per switch port (VLAN, trunk, name, PoE, speed) on top, so every page and the PDF show the same
@@ -128,7 +142,7 @@
     const eff = new Map(); for(const s of (window.NetSwitches?.list(dc) || [])) for(const p of PP.swPorts(dc, s)) eff.set(`${s.label}|${p.n}`, p);
     for(const r of base.rows){
       const p = r.sw && r.swPort ? eff.get(`${r.sw}|${r.swPort}`) : null; if(!p) continue;
-      if(p.trunk){ r.vlans = []; r.mode = 'trunk'; } else if(p.manualVlan && p.vid != null){ r.vlans = [p.vid]; r.mode = 'access'; }
+      if(p.trunk){ if(r.mode !== 'trunk') r.vlans = []; r.mode = 'trunk'; r.trunk = true; } else if(p.manualVlan && p.vid != null){ r.vlans = [p.vid]; r.mode = 'access'; }
       r.portName = p.manualName ? p.name : ''; r.poe = p.poe; r.speed = p.speed;
     }
     return base;
@@ -210,5 +224,5 @@
     const ap = root.querySelector('[data-fent-apply]'); if(ap) ap.onclick = async () => { await applyAll(App.sortedDims()); rerender(); };
   }
 
-  window.FentUI = { deviceBlock, bindDevice, vlanCard, plannerCard, bindPlanner, portPlan, portPlanBase, portTable, devices, applyAll, applyDim };
+  window.FentUI = { deviceBlock, bindDevice, vlanCard, plannerCard, bindPlanner, portPlan, portPlanBase, portRows, portTable, devices, applyAll, applyDim, typeOf, ethOf };
 })();

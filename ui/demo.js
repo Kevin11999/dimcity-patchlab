@@ -135,6 +135,7 @@ async function open({ silent=false, tutorial=false, blank=false } = {}){
   M2.networkDevices.prefs.fent = { on:true, group:'production', scan:false, vlanMode:'luminex' };
   for(const dc of ['DB01', 'DB02', 'DB03', 'FOH']) window.FentUI?.applyDim?.(dc);
   window.NodeLink?.autoLink?.();   // “Node 201.1” / “Node 201.2” go on ports 1 and 2 of node 01 of DB02
+  for(const dc of ['DB01', 'DB02', 'DB03', 'FOH']) window.PortPlan?.autoFill?.(dc, { order:'nodes', sort:'id', keep:false });   // the demo starts with every device on a port
   // fibres: the three switches of DB01 are chained with the short cable, the locations form a ring with the long one
   window.Fibers?.autoAssign?.({ topology:'ring', intraType:'CABLE:DEMO-OC75', interType:'CABLE:DEMO-OC250' });
   App.fullRebuildAndRender();

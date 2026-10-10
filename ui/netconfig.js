@@ -88,7 +88,8 @@
   }
   function wantNode(it){
     const inst = it.inst, u = Array.isArray(inst.universes) ? inst.universes : [];
-    return { shortName:inst.id, longName:inst.name, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || '255.255.255.0', gateway:inst.gateway || '' } : null,
+    const nt = (App.getMODEL().networkDevices.nodeTypes || []).find(x => x.id === inst.typeId), eth = Math.min(2, Math.max(1, Number(nt?.ethernetCount) || 1));
+    return { shortName:inst.id, longName:inst.name, advanced:!!inst.advanced, net:inst.advanced ? api.lumiNetWant(FENT().ifaces(inst, eth), eth, id => FENT().vlanById(id)) : null, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || '255.255.255.0', gateway:inst.gateway || '' } : null,
       ports:u.map((x, j) => { if(x == null || x === '') return null; const o = (window.PortPlan?.forNode(it.dc, inst, it.i) || {})[j + 1] || {}; return { universe:Number(x), name:o.name || `${inst.id || 'N'}.${j + 1}`, klass:o.klass || undefined, dir:o.dir || undefined }; }) };
   }
   const projectVlans = () => { const set = new Set(); for(const it of swList()) vlansOf(it.dc, it.s.label).forEach(v => set.add(v)); return [...set].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean); };
@@ -143,8 +144,10 @@
     } else {
       const n = d.cur.ports.length, per = Array(n).fill(null);
       for(const [i, e] of d.E) if(i < n) per[i] = clone(e);
-      const p = api.lumiPlan(d.cur, { shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || '255.255.255.0', gateway:d.dev.gateway || '' } : null, ports:per }, { withIp:!!d.dev.ip, artnetOffset:C.offset });
+      const adv = d.dev.net && d.cur.netcfg;       // an advanced network configuration is on its way: the addresses go with it, not through /api/ipsettings
+      const p = api.lumiPlan(d.cur, { shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || '255.255.255.0', gateway:d.dev.gateway || '' } : null, ports:per }, { withIp:!!d.dev.ip && !adv, artnetOffset:C.offset });
       ops.push(...p.ops); notes.push(...p.notes);
+      if(d.dev.net){ const np = api.lumiNetPlan(d.cur, d.dev.net); ops.push(...np.ops); notes.push(...np.notes); }
     }
     if(d.S.size && d.tree){ const so = SET.settingsOps(isSw(d) ? 'gigacore' : 'lumi', d.tree, [...d.S.values()]); ops.push(...so.ops); notes.push(...so.notes); }
     return { ops, notes };
@@ -168,7 +171,8 @@
       w.ports.forEach((q, j) => { if(!q || j >= d.cur.ports.length) return; const e = d.E.get(j) || {}; e.universe = q.universe; if(C.withNames !== false) e.name = q.name; if(q.klass) e.klass = q.klass; if(q.dir) e.dir = q.dir; d.E.set(j, e); });
       if(w.shortName && w.shortName !== d.cur.info?.short_name) d.dev.shortName = String(w.shortName).slice(0, 17);
       if(w.longName && w.longName !== d.cur.info?.long_name) d.dev.longName = String(w.longName).slice(0, 63);
-      if(C.withIp && w.ip?.address && w.ip.address !== d.cur.ip?.ipaddress) Object.assign(d.dev, { ip:w.ip.address, mask:w.ip.mask, gateway:w.ip.gateway });
+      if(w.advanced && w.net?.groups.length) d.dev.net = w.net;         // the node is planned in the advanced network: send the groups and the ports
+      else if(C.withIp && w.ip?.address && w.ip.address !== d.cur.ip?.ipaddress) Object.assign(d.dev, { ip:w.ip.address, mask:w.ip.mask, gateway:w.ip.gateway });
       return true;
     }
     return false;
@@ -617,6 +621,17 @@
       <label>Universe<input data-f="universe" type="number" min="0" max="63999" value="${esc(v.uni ?? '')}" style="width:90px"></label>
       ${!p.understood ? `<span class="su-warn">${t('The set-up of this port is not recognised, so it is not changed.', 'De opzet van deze poort wordt niet herkend, dus hij wordt niet gewijzigd.')}</span>` : ''}</div>`;
   }
+  // the network of a LumiNode: basic (one address) or advanced (groups and ports), and what the plan wants on it
+  function advNetHtml(d, it){
+    if(isSw(d) || !d.cur) return '';
+    const nc = d.cur.netcfg, planned = d.dev.net || (it?.kind === 'nd' && it.inst.advanced ? wantNode(it).net : null);
+    if(!nc && !planned) return '';
+    const g = nc ? Object.entries(nc.groups).map(([id, x]) => `<div class="nc-net-g"><i style="background:${esc(x.color || '#808080')}"></i><b>${t('Group', 'Groep')} ${id}</b> ${esc(x.name || '')} <span class="subtle">VLAN ${x.vid}</span> <span class="mono">${(x.network_settings?.addresses || []).map(a => esc(a.ip)).join(', ') || '—'}</span>${x.network_settings?.pipeline_setting ? ` <span class="tag green">${t('lighting', 'licht')} ${esc(x.network_settings.pipeline_setting)}</span>` : ''}</div>`).join('') : '';
+    const ps = nc ? Object.entries(nc.ports).filter(([, p]) => (p.type || 'rj45') === 'rj45').map(([n, p]) => `<span class="tag">${esc(n)} → ${p.trunk != null ? `trunk ${p.trunk}` : p.group != null ? `${t('group', 'groep')} ${p.group}` : '—'}</span>`).join(' ') : '';
+    const pl = planned && planned.groups.length ? `<div class="nc-net-plan"><b>${t('The plan wants', 'Het plan wil')}</b>: ${planned.groups.map(x => `VLAN ${x.vid} <span class="mono">${x.addresses.map(a => a.ip + '/' + a.prefix).join(', ')}</span>${x.listen ? ' · ' + t('lighting', 'licht') : ''}`).join(' · ')} · ${planned.ports.map(p => `ETH${p.eth}: ${p.vids.length > 1 ? 'trunk ' : ''}VLAN ${p.vids.join('+') || '—'}`).join(' · ')}</div>` : '';
+    const warn = it?.kind === 'nd' ? (window.IpPlan?.check() || []).filter(i => i.dc === it.dc && i.label === (it.inst.id || it.inst.name) && (i.code === 'TRUNK' || i.code === 'PORTVLAN')).map(i => `<div class="su-warn">${I('alert', 13)} ${esc(t(i.en, i.nl))}</div>`).join('') : '';
+    return `<div class="nc-net"><div class="nc-net-h"><b>${t('Network of this node', 'Netwerk van deze node')}</b> ${nc ? (nc.is_basic_config ? `<span class="tag">${t('basic: one address', 'basis: één adres')}</span>` : `<span class="tag blue">${t('advanced', 'advanced')}</span>`) : `<span class="tag">${t('basic only', 'alleen basis')}</span>`}</div>${g}${ps ? `<div style="margin:3px 0">${ps}</div>` : ''}${pl}${warn}</div>`;
+  }
   function brushBar(d){
     if(isSw(d)){
       const b = d.brush;
@@ -654,6 +669,7 @@
         <div class="nc-row">${devFields}<span style="flex:1"></span>${it ? `<button data-fill="${esc(d.ip)}">${t('Fill from the plan', 'Invullen uit het plan')}</button>` : ''}<button data-read="${esc(d.ip)}">${I('refresh', 13)}${t('Read again', 'Opnieuw lezen')}</button></div>
         ${f.ip && f.ip !== (isSw(d) ? d.cur.ip?.ip_address : d.cur.ip?.ipaddress) ? `<div class="su-warn">${t('The IP address changes when you apply; the device then moves to the new address.', 'Het IP-adres verandert bij het toepassen; het apparaat verhuist dan naar het nieuwe adres.')}</div>` : ''}
         ${isSw(d) && d.cur.mode === 'advanced' ? `<div class="su-warn">${t('This switch is in “advanced” configuration mode: it is also set with its command line, so groups and trunks made here may not show correctly.', 'Deze switch staat in “advanced” configuratiemodus: hij wordt ook met zijn commandoregel ingesteld, dus groepen en trunks die hier gemaakt worden kunnen verkeerd getoond worden.')} <button data-lxmode="${esc(d.ip)}">${t('Switch to Luminex mode…', 'Naar Luminex-modus…')}</button></div>` : ''}
+        ${advNetHtml(d, it)}
         ${brushBar(d)}${grid}${detailHtml(d)}
         ${isSw(d) ? trunkHtml(d) + einkHtml(d) + lightsHtml(d) : ''}
         ${settingsHtml(d)}

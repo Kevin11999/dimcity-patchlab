@@ -118,5 +118,5 @@
     });
     root.querySelectorAll('[data-ncdelcable]').forEach(b => b.onclick = () => { const c = cables(dc).find(x => x.id === b.closest('[data-nccable]').dataset.nccable); if(c){ removeCable(c); rerender(); } });
   }
-  window.NetCables = { cables, card, bind, vlanChip, effective, setLine, uniList, uniText };
+  window.NetCables = { cables, card, bind, vlanChip, effective, setLine, uniList, uniText, addCable, removeCable, removeLine };
 })();

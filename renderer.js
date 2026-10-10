@@ -937,6 +937,7 @@ function confirmDialog({ title='Are you sure?', message='', okLabel='Continue', 
 
 // ---- Navigatie ----
 function navigate(view){
+  if(view === 'NETWORK') view = 'NET';   // the page "Nodes & Splitters" is the Nodes tab of the Network page now
   MODEL.ui.view = view;
   MODEL.ui.rightMode = 'HOME';
   MODEL.selected = { kind:null, id:null };
@@ -1727,7 +1728,8 @@ function showCsvSourcesModal(){
 
 // ===== Network Devices: data helpers =====
 function normalizeNetworkDevices(net){
-  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0, fent:{ on:false, group:'production', scan:false, vlanMode:'luminex' } }, nodeTypes:[], splitterTypes:[], switchTypes:[], panelTypes:[], rackTypes:[], cableTypes:[], fiberLinks:[], nodes:[], splitters:[], switches:[], dimCityPlans:{} };
+  // portPatchV 2 = the ports are only filled by hand (or by "Auto-fill ports"); a project without it is from 0.12 or older and gets its ports frozen once
+  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0, fent:{ on:false, group:'production', scan:false, vlanMode:'luminex' } }, nodeTypes:[], splitterTypes:[], switchTypes:[], panelTypes:[], rackTypes:[], cableTypes:[], fiberLinks:[], nodes:[], splitters:[], switches:[], dimCityPlans:{}, portPatchV:2, swLinks:[] };
   if(!net || typeof net !== 'object') return base;
 
   const nodeTypes = Array.isArray(net.nodeTypes) ? net.nodeTypes.slice() : [];
@@ -1781,6 +1783,8 @@ function normalizeNetworkDevices(net){
     fiberLinks: Array.isArray(net.fiberLinks) ? net.fiberLinks : [], fiberStock: Array.isArray(net.fiberStock) ? net.fiberStock : [],
     portPlans: net.portPlans && typeof net.portPlans === 'object' && !Array.isArray(net.portPlans) ? net.portPlans : {},
     portPatch: net.portPatch && typeof net.portPatch === 'object' && !Array.isArray(net.portPatch) ? net.portPatch : {},
+    portPatchV: net.portPatchV === 2 ? 2 : undefined,
+    swLinks: Array.isArray(net.swLinks) ? net.swLinks : [],
     netLineEdits: net.netLineEdits && typeof net.netLineEdits === 'object' && !Array.isArray(net.netLineEdits) ? net.netLineEdits : {},
     nodes: Array.isArray(net.nodes) ? net.nodes : [],
     splitters: Array.isArray(net.splitters) ? net.splitters : [],
@@ -2309,7 +2313,7 @@ window.LKApp = {
   currentRows,
 
   // network device helpers (Device Builder / Library)
-  net: { normalizeNetworkDevices, nextTypedId, safeHex, isValidIpv4, bindIpv4Input, esc, getDimPlan, createNodeInstance, createSplitterInstance, refreshDimDeviceIdentity },
+  net: { normalizeNetworkDevices, nextTypedId, safeHex, isValidIpv4, bindIpv4Input, esc, getDimPlan, createNodeInstance, createSplitterInstance, refreshDimDeviceIdentity, autoAssignDimCityNodes, autoAddSplittersForDim, uniqueUniversesInDim, calculateNodeNeedForDim, addSplitterToDimCity },
 
   // DOM helpers
   $,el
@@ -2347,7 +2351,7 @@ async function runCommand(cmd, arg){
     case 'splitterBuilder': return window.DeviceBuilder?.open?.('splitter');
     case 'libraryExport':   return window.Library?.exportFile?.();
     case 'libraryImport':   return window.Library?.importFile?.();
-    case 'networkPlanner':  return navigate('NETWORK');
+    case 'networkPlanner':  navigate('NET'); window.NetworkPage?.render?.({ tab:'nodes' }); return;
     case 'network':         navigate('NET'); if(arg) window.NetworkPage?.render?.({ dc:arg }); return;
     case 'setup':           return window.Setup?.open?.();
     case 'signalFlow':      return navigate('FLOW');

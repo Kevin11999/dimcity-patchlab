@@ -2,7 +2,7 @@
 // The cabling the way it is on the floor: the rack, drawn like in the Rack Builder (rails, U numbers, the
 // faces of nodes, splitters and panels with their sockets) → one thick LK multicore per LK block → a Veam
 // cable per linked Veam → thin DMX lines to the objects (locations). Line thickness = cable type
-// (LK > Veam > DMX); LK and Veam cables take the colour of the node that feeds them, DMX lines the colour
+// (LK > Veam > DMX); every LK and every Veam has a colour of its own (never twice the same), DMX lines the colour
 // of their universe. Every line leaves a block straight out of its side and never runs through a block.
 // The patch inside a rack (node port → splitter → socket) is drawn only while that path is lit.
 // Hover a universe, a port, a line or a block and that path comes alive; click to pin it. Blocks can be
@@ -82,7 +82,7 @@ function buildGraph(dcs){
         if(n){
           u.badge = n.label; u.badgeColor = n.color;
           nodes.push({ label:n.label, title:`${n.label} · ${u.name}`, color:n.color, where:n.loose ? (n.name || t('Loose node', 'Losse node')) : rackName(ri) });
-          grp(n.ports.map((p, i) => { const k = `n${i + 1}`; refs.set(`node:${n.label}:${i + 1}`, { block:blockId, port:k }); return pp(k, 'dmx', p ? `U${p.universe}` : i + 1, n.color, { free:!p, title:p ? `${n.label} ${t('port', 'poort')} ${i + 1} · U${p.universe} → ${p.to}` : `${n.label} ${t('port', 'poort')} ${i + 1} · ${t('free', 'vrij')}` }); }));
+          grp(n.ports.map((p, i) => { const k = `n${i + 1}`; refs.set(`node:${n.label}:${i + 1}`, { block:blockId, port:k }); return pp(k, 'dmx', p ? `U${p.universe}` : i + 1, (p && owners.get(p.owner)) || n.color, { free:!p, title:p ? `${n.label} ${t('port', 'poort')} ${i + 1} · U${p.universe} → ${p.to}` : `${n.label} ${t('port', 'poort')} ${i + 1} · ${t('free', 'vrij')}` }); }));
           const eth = Math.min(2, Math.max(1, Number(ty.ethernetCount) || 1));
           grp(Array.from({ length:eth }, (_, i) => { refs.set(`eth:${n.label}:${i + 1}`, { block:blockId, port:`e${i + 1}` }); return pp(`e${i + 1}`, 'rj', eth > 1 ? i + 1 : '', null, { title:eth > 1 ? `${t('Network', 'Netwerk')} ${i + 1}` : t('Network', 'Netwerk') }); }));
         }
@@ -91,14 +91,15 @@ function buildGraph(dcs){
         if(s){
           u.badge = s.label; u.badgeColor = '#475569';
           grp(s.inputs.length ? s.inputs.map((uni, i) => { refs.set(`split:${s.label}:in${i}`, { block:blockId, port:`i${i}` }); return pp(`i${i}`, 'in', `U${uni}`, s.feedColor, { title:`${s.label} ${t('input', 'ingang')} · U${uni}` }); }) : [pp('i0', 'in', 'A', null, { free:true, title:t('Input — not used', 'Ingang — niet gebruikt') })]);
-          grp(s.outputs.map((o, i) => { refs.set(`split:${s.label}:out${i + 1}`, { block:blockId, port:`o${i + 1}` }); return pp(`o${i + 1}`, 'dmx', o ? String(o.owner).replace(/^(LK|V)/, '') : i + 1, o?.feed?.color, { free:!o, title:o ? `${s.label} ${t('out', 'uit')} ${i + 1} → ${o.label}` : `${s.label} ${t('out', 'uit')} ${i + 1} · ${t('free', 'vrij')}` }); }));
+          grp(s.outputs.map((o, i) => { refs.set(`split:${s.label}:out${i + 1}`, { block:blockId, port:`o${i + 1}` }); return pp(`o${i + 1}`, 'dmx', o ? String(o.owner).replace(/^(LK|V)/, '') : i + 1, (o && owners.get(o.owner)) || o?.feed?.color, { free:!o, title:o ? `${s.label} ${t('out', 'uit')} ${i + 1} → ${o.label}` : `${s.label} ${t('out', 'uit')} ${i + 1} · ${t('free', 'vrij')}` }); }));
         }
       } else if(it.kind === 'panel'){
         const gs = P.groups.filter(g => g.iid === it.iid && inRack(g)), vs = P.soloVims.filter(v => v.iid === it.iid && inRack(v));
         for(const g of gs){
           const ps = [pp(`s${g.label}`, 'lk', g.lk ? g.lk.id.replace(/^LK/, '') : '', g.lk ? owners.get(g.lk.id) : null, { free:!g.lk, owner:g.lk?.id, title:`${g.label}: ${g.lk ? g.lk.id : t('free', 'vrij')}` })];
           if(g.lk) refs.set(`owner:${g.lk.id}`, { block:blockId, port:`s${g.label}` });
-          for(const v of g.vims){ ps.push(pp(`s${v.label}`, 'vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? owners.get(v.used.id) : null, { free:!v.used, owner:v.used?.id, title:`${v.label}: ${v.used ? v.used.id : t('free', 'vrij')}` })); if(v.used) refs.set(`owner:${v.used.id}`, { block:blockId, port:`s${v.label}` }); }
+          // the Veam4 sockets of an LK belong to that LK: a Veam linked to it shows there (its cable runs through the LK, not from this socket)
+          for(const v of g.vims){ const vid = v.used?.id || v.linked || null; ps.push(pp(`s${v.label}`, 'vim', vid ? vid.replace(/^V/, '') : '', vid ? owners.get(vid) : null, { free:!vid, owner:v.used?.id, title:`${v.label}: ${vid ? vid : t('belongs to', 'hoort bij') + ' ' + (g.lk?.id || g.label)}` })); if(v.used) refs.set(`owner:${v.used.id}`, { block:blockId, port:`s${v.label}` }); }
           grp(ps);
         }
         for(const g of window.SwPorts.panelGroups(ty)) grp(g.items.map(x => pp(`st${g.sub || g.cls}${x.no}`, g.cls, x.no, null, { title:x.title })));
@@ -193,7 +194,7 @@ function buildGraph(dcs){
     const tagRow = (b, key, lk) => { const r = b && rowOf(b, key); if(r && !r.lines.includes(lk)) r.lines.push(lk); };
     const tagRef = (ref, lk) => { if(!ref) return; const b = B.get(ref.block); for(const u of b?.units || []){ const p = u.groups.flat().find(x => x.key === ref.port); if(p){ if(!p.lines.includes(lk)) p.lines.push(lk); if(!u.lines.includes(lk)) u.lines.push(lk); return; } } };
     for(const l of P.lines){
-      const key = lineKey(l), color = l.feed?.color || '#94a3b8';
+      const key = lineKey(l), color = owners.get(l.owner) || l.feed?.color || '#94a3b8';
       const target = l.ownerKind === 'LK' ? B.get(`${dc}|lk|${l.owner}`) : l.ownerKind === 'VEAM' ? B.get(`${dc}|veam|${l.owner}`) : B.get(`${dc}|dmx`);
       if(!target) continue;
       const np = l.feed?.node ? refs.get(`node:${l.feed.node}:${l.feed.port}`) : null;

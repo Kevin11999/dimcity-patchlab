@@ -1490,7 +1490,7 @@ function renderDimCityDetail(dc){
     crumbs:`<a data-nav-view="HOME">Overview</a>${I('chevronRight',12)}<span>DimCities</span>`,
     title:`<span class="dim-dot" style="width:14px;height:14px;border-radius:4px;background:${color}"></span>${esc(dc)}`,
     sub:`${plural(lks.length,'LK block')} · ${plural(veams.length,'Veam')} · ${plural(uniCount,'universe')} · ${plural(pointCount,'patch point')}`,
-    actions:`<button id="dimColorBtn">${I('sliders',15)}Color</button><button data-cmd="addLK">${I('plus',15)}Add LK</button><button data-cmd="stickers" data-arg="${esc(dc)}" title="Print the stickers of this DimCity">${I('grid',15)}Stickers</button><button class="primary" id="dimExport">${I('file',15)}Export ${esc(dc)}</button>`
+    actions:`<button id="dimColorBtn">${I('sliders',15)}Color</button><button data-cmd="addLK">${I('plus',15)}Add LK</button><button data-cmd="stickers" data-arg="${esc(dc)}" title="Print the stickers of this DimCity">${I('grid',15)}Stickers</button><button class="primary" id="dimExport">${I('file',15)}Export ${esc(dc)}</button><button class="danger" id="dimDelete" title="Delete this DB with everything that belongs to it">${I('trash',15)}Delete ${esc(dc)}</button>`
   });
 
   const kpis = `<div class="kpis">
@@ -1544,6 +1544,7 @@ function renderDimCityDetail(dc){
   const rerender = ()=> renderDimCityDetail(dc);
   const exp = $('#dimExport'); if(exp) exp.onclick = ()=> window.PdfExport?.open?.({ dcs:[dc] });
   const colorBtn = $('#dimColorBtn'); if(colorBtn) colorBtn.onclick = e=> openDimColorPicker(e.currentTarget, dc);
+  const delBtn = $('#dimDelete'); if(delBtn) delBtn.onclick = () => deleteDimCity(dc);
   root.querySelectorAll('.uni-card[data-uni]').forEach(chip=>{
     chip.onclick = ()=>{
       if(!MODEL.ui.dimFocusUniverse) MODEL.ui.dimFocusUniverse = {};
@@ -2587,6 +2588,55 @@ window.LKApp.rebuild = async () => {
   MODEL.ui.dirty = true; renderAll();
 };
 window.LKApp.csvRows = () => (MODEL.csvSources || []).length ? rowsFromCsvSources() : currentRows(MODEL);
+// ===== Een DB verwijderen (met alles wat erbij hoort) =====
+async function deleteDimCity(dc){
+  const dim = MODEL.byDim.get(dc); if(!dim) return false;
+  const R = window.CsvRules, inDc = r => R.rowDim(r, MODEL) === dc;
+  const nd = MODEL.networkDevices || {}, plan = nd.dimCityPlans?.[dc] || {};
+  const lks = [...MODEL.byLK.values()].filter(x => x.dimcity === dc), veams = [...MODEL.byVeam.values()].filter(x => x.dimcity === dc);
+  const dmx = (MODEL.dmxLoose || []).filter(d => d.dimcity === dc).length, net = (MODEL.netLines || []).filter(n => n.dimcity === dc).length;
+  const fibres = (nd.fiberLinks || []).filter(l => l.a?.dc === dc || l.b?.dc === dc).length;
+  const pw = MODEL.power ? (MODEL.power.pds || []).filter(x => x.dc === dc).length + (MODEL.power.feeds || []).filter(x => x.dc === dc).length : 0;
+  const parts = [];
+  if(lks.length) parts.push(plural(lks.length, 'LK block'));
+  if(veams.length) parts.push(plural(veams.length, 'Veam'));
+  if(dmx || net) parts.push(plural(dmx + net, 'other patch row'));
+  if((plan.racks || []).length) parts.push(plural(plan.racks.length, 'rack'));
+  if((plan.nodes || []).length) parts.push(plural(plan.nodes.length, 'node'));
+  if((plan.switches || []).length) parts.push(plural(plan.switches.length, 'switch', 'switches'));
+  if(fibres) parts.push(plural(fibres, 'fibre link'));
+  if(pw) parts.push(plural(pw, 'PD / feed'));
+  const ok = await confirmDialog({
+    title:`Delete ${dc}?`,
+    message:`${dc} is removed from the show${parts.length ? ` together with ${parts.join(', ')}` : ''}.\n\nThe CSV file on your disk is not changed. You can undo this in the history.`,
+    okLabel:`Delete ${dc}`, danger:true
+  });
+  if(!ok) return false;
+  window.PatchHistory?.label?.(`Deleted ${dc}`);
+  // the rows of this DB leave the show and every stored CSV file, or they come back at the next import
+  const rows = currentRows(MODEL).filter(r => !inDc(r));
+  const custom = (MODEL.customRows || []).filter(r => (r.kind === 'DMX' ? String(r.dimcity || '').toUpperCase() : R.dimOfId(r.id, MODEL)) !== dc);
+  for(const src of (MODEL.csvSources || [])){ src.rows = (src.rows || []).filter(r => !inDc(r)); src.rowCount = src.rows.length; }
+  MODEL.dimFromManual?.delete(dc); MODEL.dimFromCSV?.delete(dc);
+  for(const [id, x] of [...MODEL.byLK]) if(x.dimcity === dc) MODEL.byLK.delete(id);
+  for(const [id, x] of [...MODEL.byVeam]) if(x.dimcity === dc) MODEL.byVeam.delete(id);
+  MODEL.veamPool?.delete(dc); MODEL.byDim.delete(dc); delete MODEL.dimColors?.[dc];
+  // the plan of the DB: racks, nodes, switches, fibres, port choices, power
+  if(nd.dimCityPlans) delete nd.dimCityPlans[dc];
+  nd.fiberLinks = (nd.fiberLinks || []).filter(l => l.a?.dc !== dc && l.b?.dc !== dc);
+  for(const k of Object.keys(nd.portPlans || {})) if(k.startsWith(`sw:${dc}|`) || k.startsWith(`nd:${dc}|`)) delete nd.portPlans[k];
+  if(nd.portPatch) delete nd.portPatch[dc];
+  for(const [k, e] of Object.entries(nd.netLineEdits || {})) if(R.dimOfId(e.id || k.split('.')[0], MODEL) === dc || e.dimcity === dc) delete nd.netLineEdits[k];
+  if(MODEL.power){ MODEL.power.pds = (MODEL.power.pds || []).filter(x => x.dc !== dc); MODEL.power.feeds = (MODEL.power.feeds || []).filter(x => x.dc !== dc); }
+  if(MODEL.flow?.pos) delete MODEL.flow.pos[dc];
+  await processRows(rows);
+  MODEL.customRows = custom;
+  MODEL.ui.dirty = true;
+  navigate('HOME'); renderAll();
+  toast(`${dc} deleted`);
+  return true;
+}
+window.LKApp.deleteDimCity = deleteDimCity;
 window.LKApp.deleteLK = deleteLK;
 window.LKApp.deleteVeam = deleteVeam;
 

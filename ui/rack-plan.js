@@ -21,11 +21,11 @@ const typeName = t => [t?.brand, t?.name].filter(Boolean).join(' ') || t?.id || 
 const newIid = p => `${p}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 
 // Poortstrook van een node: per poort universe + de LK-/Veam-poort die erop zit
-function nodePortsStrip(n, size=''){
+function nodePortsStrip(n, size='', owners = null){
   const cells = n.ports.map((p, i) => {
     if(!p) return `<span class="np ${size} free" title="${esc(n.label)} port ${i + 1} · free"><b>${i + 1}</b><span>—</span></span>`;
     const to = p.ownerPort === 'in' ? `${esc(p.owner)} in` : `${esc(p.owner)} · ${esc(p.ownerPort)}`;
-    return `<span class="np ${size}" style="--c:${n.color}" title="${esc(n.label)} port ${i + 1} · U${p.universe} → ${esc(p.to)}${p.dest ? ` (${esc(p.dest)})` : ''}"><b>${i + 1}</b><em>U${p.universe}</em><span>${to}</span></span>`;
+    return `<span class="np ${size}" style="--c:${(owners && owners.get(p.owner)) || n.color}" title="${esc(n.label)} port ${i + 1} · U${p.universe} → ${esc(p.to)}${p.dest ? ` (${esc(p.dest)})` : ''}"><b>${i + 1}</b><em>U${p.universe}</em><span>${to}</span></span>`;
   }).join('');
   return `<div class="np-strip">${cells}</div>`;
 }
@@ -81,7 +81,8 @@ function assignRows(dc, plan){
   }
   const sockets = {
     LK: plan.groups.map(g => ({ value:g.label, text:`${g.label} · ${g.panel}${g.lk ? ` — ${g.lk.id}` : ''}`, by:g.lk?.id })),
-    VEAM: [...plan.groups.flatMap(g => g.vims.map(v => ({ ...v, panel:g.panel }))), ...plan.soloVims].map(v => ({ value:v.label, text:`${v.label} · ${v.panel}${v.used ? ` — ${v.used.id}` : ''}`, by:v.used?.id }))
+    // the Veam4 sockets of an LK panel belong to that LK; a separate Veam may only go there when Settings → This show says so
+    VEAM: [...(m.rules?.veamOnLkPanel ? plan.groups.flatMap(g => g.vims.map(v => ({ ...v, panel:g.panel }))) : []), ...plan.soloVims].map(v => ({ value:v.label, text:`${v.label} · ${v.panel}${v.used ? ` — ${v.used.id}` : ''}`, by:v.used?.id }))
   };
   return [...rows.values()].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric:true })).map(r => ({ ...r, mode:assign[r.id] || 'auto', options:sockets[r.kind] }));
 }
@@ -107,6 +108,31 @@ function bindAssign(root, dc, rerender){
   if(rs) rs.onclick = () => { App.net.getDimPlan(dc).assign = {}; M().ui.dirty = true; rerender(); };
 }
 
+// ---- Network ports of the panels: which node is plugged into which etherCON port (automatic in order; every port can be chosen) ----
+function panelLinksHtml(plan, dc){
+  if(!E().panelPorts) return '';
+  const ports = E().panelPorts(M(), dc, plan); if(!ports.length) return '';
+  const own = ports.filter(p => p.manual).length;
+  const rows = ports.map(p => `<tr><td><b>${esc(p.panel)}</b> <span class="subtle">${esc(p.panelName)}</span></td><td>etherCON ${p.no}</td>
+      <td><select class="rp-plsel ${p.manual ? 'own' : ''}" data-pl-panel="${esc(p.panelIid)}" data-pl-port="${p.no}" data-pl-rack="${p.rack}"><option value="">—</option>${plan.nodes.filter(n => n.rack === p.rack).map(n => `<option value="${esc(n.iid)}" ${p.node === n ? 'selected' : ''}>${esc(n.label)} · ${esc(typeName(n.type))}</option>`).join('')}</select></td></tr>`).join('');
+  const free = plan.nodes.filter(n => !n.loose && !ports.some(p => p.node === n));
+  return `<details class="rp-table" open><summary>${I('network', 14)} Network ports on the panels <span class="subtle">${ports.filter(p => p.node).length}/${ports.length} used${own ? ` · ${own} chosen by hand` : ''}</span></summary>
+    <div style="padding:6px 14px 12px"><div class="subtle" style="font-size:12.5px;margin:0 0 8px">A node in a rack is plugged into a network port on the front of the panel; the cable to the switch goes to that port. The nodes take the ports in order — choose another node to change it. The Network page shows this port next to the switch port.</div>
+    <table class="data-table"><thead><tr><th>Panel</th><th>Port</th><th>Node plugged in</th></tr></thead><tbody>${rows}</tbody></table>
+    ${free.length ? `<div class="rp-adv-note warn" style="margin-top:8px">${I('alert', 13)} ${free.map(n => esc(n.label)).join(', ')} ${free.length > 1 ? 'have' : 'has'} no network port on a panel — it is plugged straight into the switch.</div>` : ''}</div></details>`;
+}
+function bindPanelLinks(root, dc, rerender){
+  root.querySelectorAll('.rp-plsel').forEach(sel => sel.onchange = () => {
+    const plan = App.net.getDimPlan(dc); plan.panelLinks ||= {};
+    const panelIid = sel.dataset.plPanel, no = Number(sel.dataset.plPort), P = E().computeRackPlan(M(), dc);
+    const here = E().panelPorts(M(), dc, P).find(p => p.panelIid === panelIid && p.no === no && String(p.rack) === sel.dataset.plRack);
+    window.PatchHistory?.label?.(`${dc}: panel port ${no}`);
+    if(here?.node) plan.panelLinks[here.node.iid] = null;          // the node that was on this port goes off the panel (until chosen again)
+    if(sel.value) plan.panelLinks[sel.value] = { panelIid, port:no };
+    M().ui.dirty = true; rerender();
+  });
+}
+
 // Rek met de berekende patch erin: nodes met universes, panelen met aangesloten LK/Veam
 function rackFace(plan, ri){
   const R = plan.racks[ri];
@@ -118,6 +144,7 @@ function rackFace(plan, ri){
   const groupsBy = new Map(); plan.groups.filter(g => g.rack === ri).forEach(g => { if(!groupsBy.has(g.iid)) groupsBy.set(g.iid, []); groupsBy.get(g.iid).push(g); });
   const soloBy = new Map(); plan.soloVims.filter(v => v.rack === ri).forEach(v => { if(!soloBy.has(v.iid)) soloBy.set(v.iid, []); soloBy.get(v.iid).push(v); });
   const find = (key, id) => (M().networkDevices?.[key] || []).find(x => x.id === id);
+  const pPorts = E().panelPorts ? E().panelPorts(M(), plan.dc, plan) : [];
   const port = (cls, label, title, color, empty) => `<span class="rp ${cls} ${empty ? 'free' : ''}" style="${color ? `--c:${color}` : ''}" title="${esc(title)}"><i>${esc(label)}</i></span>`;
   const H = rack.heightU;
   const rows = (rack.items || []).slice().sort((a, b) => (a.u - b.u) || ((a.side === 'R') - (b.side === 'R'))).map(it => {
@@ -130,18 +157,22 @@ function rackFace(plan, ri){
       const n = nodeBy.get(it.iid);
       badge = n ? `<span class="rk-badge" style="--c:${n.color}">${n.label}</span>` : '';
       const eth = Math.min(2, Math.max(1, Number(t.ethernetCount) || 1));
-      ports = `<span class="ru-grp">${(n?.ports || []).map((p, i) => port('dmx', p ? `U${p.universe}` : i + 1, p ? `${n.label} port ${i + 1} · U${p.universe} → ${p.to}` : `${n.label} port ${i + 1} · free`, n.color, !p)).join('')}</span>`
-        + `<span class="ru-grp">${Array.from({ length:eth }, (_, i) => port('rj', eth > 1 ? i + 1 : '', eth > 1 ? `Network ${i + 1}` : 'Network')).join('')}</span>`;
+      ports = `<span class="ru-grp">${(n?.ports || []).map((p, i) => port('dmx', p ? `U${p.universe}` : i + 1, p ? `${n.label} port ${i + 1} · U${p.universe} → ${p.to}` : `${n.label} port ${i + 1} · free`, (p && owners.get(p.owner)) || n.color, !p)).join('')}</span>`
+        + `<span class="ru-grp">${Array.from({ length:eth }, (_, i) => { const pl = i === 0 ? pPorts.find(q => q.node === n) : null; return port('rj', pl ? `${pl.panel}.${pl.no}` : (eth > 1 ? i + 1 : ''), pl ? `Network${eth > 1 ? ` ${i + 1}` : ''} → ${pl.panel} etherCON ${pl.no}` : (eth > 1 ? `Network ${i + 1}` : 'Network')); }).join('')}</span>`;
     } else if(it.kind === 'splitter'){
       const s = splitBy.get(it.iid);
       badge = s ? `<span class="rk-badge">${s.label}</span>` : '';
       ports = `<span class="ru-grp">${s?.inputs.length ? s.inputs.map(u => port('dmx in', `U${u}`, `${s.label} input · U${u}`, s.feedColor)).join('') : port('dmx in', 'A', 'Input — not used', null, true)}</span>
-        <span class="ru-grp">${(s?.outputs || []).map((o, i) => port('dmx', o ? o.port : i + 1, o ? `${s.label} out ${i + 1} → ${o.label}` : `${s.label} out ${i + 1} · free`, o?.feed?.color, !o)).join('')}</span>`;
+        <span class="ru-grp">${(s?.outputs || []).map((o, i) => port('dmx', o ? o.port : i + 1, o ? `${s.label} out ${i + 1} → ${o.label}` : `${s.label} out ${i + 1} · free`, (o && owners.get(o.owner)) || o?.feed?.color, !o)).join('')}</span>`;
     } else if(it.kind === 'panel'){
       const gs = groupsBy.get(it.iid) || [], vs = soloBy.get(it.iid) || [];
-      const statics = window.SwPorts.panelGroups(t).map(g => `<span class="ru-grp">${g.items.map(x => port(`${g.cls} ${g.sub}`, x.no, x.title)).join('')}</span>`).join('');
-      ports = statics + gs.map(g => `<span class="ru-grp">${port('lk', g.lk ? g.lk.id.replace(/^LK/, '') : '', g.lk ? `${g.label}: ${g.lk.id}` : `${g.label}: free`, g.lk ? owners.get(g.lk.id) : null, !g.lk)}${g.vims.map(v => port('vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? `${v.label}: ${v.used.id}` : `${v.label}: free`, v.used ? owners.get(v.used.id) : null, !v.used)).join('')}</span>`).join('')
-        + (vs.length ? `<span class="ru-grp">${vs.map(v => port('vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? `${v.label}: ${v.used.id}` : `${v.label}: free`, v.used ? owners.get(v.used.id) : null, !v.used)).join('')}</span>` : '');
+      // the etherCON (network) ports of a panel show which node is plugged into each
+      const onPort = x => pPorts.find(q => q.panelIid === it.iid && q.no === x.no && q.rack === ri)?.node || null;
+      const statics = window.SwPorts.panelGroups(t).map(g => `<span class="ru-grp">${g.items.map(x => { const n = g.sub === 'ec' ? onPort(x) : null; return port(`${g.cls} ${g.sub}`, n ? n.label : x.no, n ? `${x.title} → ${n.label} (${typeName(n.type)})` : x.title, null, false); }).join('')}</span>`).join('');
+      // the Veam4 sockets of a group belong to that LK: a Veam that is linked to the LK (slot A/B/C) shows on its socket
+      const vimPort = (v, ofLk) => { const id = v.used?.id || v.linked || null; return port('vim', id ? id.replace(/^V/, '') : '', id ? `${v.label}: ${id}${v.linked && !v.used ? ` (on ${ofLk}, slot ${'ABC'[v.slot]})` : ''}` : `${v.label}: ${ofLk ? `belongs to ${ofLk}` : 'free'}`, id ? owners.get(id) : null, !id); };
+      ports = statics + gs.map(g => `<span class="ru-grp">${port('lk', g.lk ? g.lk.id.replace(/^LK/, '') : '', g.lk ? `${g.label}: ${g.lk.id}` : `${g.label}: free`, g.lk ? owners.get(g.lk.id) : null, !g.lk)}${g.vims.map(v => vimPort(v, g.lk?.id || g.label)).join('')}</span>`).join('')
+        + (vs.length ? `<span class="ru-grp">${vs.map(v => vimPort(v, null)).join('')}</span>` : '');
     } else {
       const SP = window.SwPorts, panels = (rack.items || []).filter(x => x.kind === 'panel').map(x => find('panelTypes', x.typeId));
       ports = `<span class="ru-grp">${Array.from({ length:SP.front(t) }, (_, i) => port(t.jack === 'etherCON' ? 'rj ec' : 'rj', i + 1, `Port ${i + 1}`)).join('')}</span>`
@@ -174,7 +205,7 @@ function looseHtml(plan, dc){
       const n = plan.nodes.find(x => x.iid === d.iid);
       if(!n) return `<div class="rp-loose missing"><div class="rp-loose-head">${I('alert', 14)}<b>Loose node</b><span class="subtle">${esc(d.typeId)} is not in this show any more</span>${rm}</div></div>`;
       return `<div class="rp-loose" style="--c:${n.color}"><div class="rp-loose-head"><span class="rk-badge" style="--c:${n.color}">${n.label}</span><b>${esc(typeName(n.type))}</b>
-          <input type="text" class="rp-name" data-loose-name="${esc(d.iid)}" value="${esc(d.name || '')}" placeholder="Name / location">${rm}</div>${nodePortsStrip(n)}</div>`;
+          <input type="text" class="rp-name" data-loose-name="${esc(d.iid)}" value="${esc(d.name || '')}" placeholder="Name / location">${rm}</div>${nodePortsStrip(n, '', owners)}</div>`;
     }
     const isLk = d.kind === 'lkSpider';
     const sock = isLk ? plan.groups.find(g => g.iid === d.iid) : plan.soloVims.find(v => v.iid === d.iid);
@@ -230,15 +261,16 @@ function cardHtml(dc){
     </tbody></table></div></details>`;
   // Per node in een rek: welke LK-/Veam-poort op welke nodepoort zit (de rekweergave is daar te klein voor)
   const rackNodes = plan.nodes.filter(n => !n.loose);
-  const nodeStrips = rackNodes.length ? `<details class="rp-table" open><summary>${I('network', 14)} Node ports <span class="subtle">${App.ui.plural(rackNodes.length, 'node')}</span></summary><div class="rp-nodes">${rackNodes.map(n => `<div class="rp-loose" style="--c:${n.color}"><div class="rp-loose-head"><span class="rk-badge" style="--c:${n.color}">${n.label}</span><b>${esc(typeName(n.type))}</b><span class="subtle">${esc(plan.racks[n.rack]?.placement.name || plan.racks[n.rack]?.rack?.name || '')}</span></div>${nodePortsStrip(n)}</div>`).join('')}</div></details>` : '';
+  const nodeStrips = rackNodes.length ? `<details class="rp-table" open><summary>${I('network', 14)} Node ports <span class="subtle">${App.ui.plural(rackNodes.length, 'node')}</span></summary><div class="rp-nodes">${rackNodes.map(n => `<div class="rp-loose" style="--c:${n.color}"><div class="rp-loose-head"><span class="rk-badge" style="--c:${n.color}">${n.label}</span><b>${esc(typeName(n.type))}</b><span class="subtle">${esc(plan.racks[n.rack]?.placement.name || plan.racks[n.rack]?.rack?.name || '')}</span></div>${nodePortsStrip(n, '', owners)}</div>`).join('')}</div></details>` : '';
   const warn = plan.recs.some(r => r.level === 'warn');
   const meta = [placed.length ? App.ui.plural(placed.length, 'rack') : '', loose.length ? App.ui.plural(loose.length, 'loose device') : ''].filter(Boolean).join(' + ');
   return App.ui.card({ key:`${dc}:racks`, title:'Racks', icon:'rack', meta:`${meta} · ${warn ? 'needs attention' : 'all patched'}`,
-    body:`${adviceHtml(dc)}${controls}${stats}${recs}${legend ? `<div class="rp-legend"><span class="subtle">Node per LK / Veam:</span>${legend}</div>` : ''}<div class="rp-racks">${racks}</div>${assignHtml(plan, dc)}${nodeStrips}${looseHtml(plan, dc)}${table}` });
+    body:`${adviceHtml(dc)}${controls}${stats}${recs}${legend ? `<div class="rp-legend"><span class="subtle">Node per LK / Veam:</span>${legend}</div>` : ''}<div class="rp-racks">${racks}</div>${assignHtml(plan, dc)}${panelLinksHtml(plan, dc)}${nodeStrips}${looseHtml(plan, dc)}${table}` });
 }
 
 function bind(root, dc, rerender){
   bindAssign(root, dc, rerender);
+  bindPanelLinks(root, dc, rerender);
   bindAdvice(root, dc, rerender);
   const place = root.querySelector('#rpPlace');
   if(place) place.onclick = () => {

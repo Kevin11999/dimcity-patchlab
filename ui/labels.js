@@ -82,7 +82,7 @@
       }
     }
     if(L.kinds.strips) for(const s of sockets) out.push({ kind:'strip', dc, title:s.label, sub:`→ ${s.owner}`, lines:[s.where, dests(s.owner)].filter(Boolean), color:owners.get(s.owner), badge:feeders(s.owner)[0] || '', copies:1 });
-    if(L.kinds.nodePorts) for(const n of P.nodes) n.ports.forEach((p, i) => { if(p) out.push({ kind:'port', dc, title:`${n.label} · ${i + 1}`, sub:`U${p.universe}`, lines:[`${p.owner} ${p.ownerPort === 'in' ? 'in' : p.ownerPort}`, trim(p.dest, 24)].filter(Boolean), color:n.color, badge:n.label, copies:1 }); });
+    if(L.kinds.nodePorts) for(const n of P.nodes) n.ports.forEach((p, i) => { if(p) out.push({ kind:'port', dc, title:`${n.label} · ${i + 1}`, sub:`U${p.universe}`, lines:[`${p.owner} ${p.ownerPort === 'in' ? 'in' : p.ownerPort}`, trim(p.dest, 24)].filter(Boolean), color:owners.get(p.owner) || n.color, badge:n.label, copies:1 }); });
     if(L.kinds.devices){
       P.racks.forEach((R, ri) => { if(!R.rack) return; out.push({ kind:'device', dc, title:rackName(ri), sub:`${R.rack.heightU}U${R.rack.articleKey ? ` · ${R.rack.articleKey}` : ''}`, lines:[dc], color:'#475569', badge:'', copies:1 });
         let sw = 0; for(const it of (R.rack.items || [])) if(it.kind === 'switch'){ const ty = (m.networkDevices?.switchTypes || []).find(x => x.id === it.typeId); out.push({ kind:'device', dc, title:`SW${++sw}`, sub:typeName(ty), lines:[rackName(ri), dc], color:'#a78bfa', badge:'', copies:1 }); } });

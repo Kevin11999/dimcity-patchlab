@@ -568,13 +568,13 @@
         const x = nodes.get(it.iid);
         tag = x ? `<b class="prk-tag" style="--c:${x.color}">${x.label}</b>` : '';
         const eth = Math.min(2, Math.max(1, Number(t.ethernetCount) || 1));
-        ports = grp((x?.ports || []).map((p, i) => pp('dmx', p ? `U${p.universe}` : String(i + 1), x.color, !p)).join('')) + grp(Array.from({ length:eth }, (_, i) => pp('rj', eth > 1 ? String(i + 1) : '', null)).join(''));
+        ports = grp((x?.ports || []).map((p, i) => pp('dmx', p ? `U${p.universe}` : String(i + 1), (p && owners.get(p.owner)) || x.color, !p)).join('')) + grp(Array.from({ length:eth }, (_, i) => pp('rj', eth > 1 ? String(i + 1) : '', null)).join(''));
       } else if(it.kind === 'splitter'){
         const x = splits.get(it.iid);
         tag = x ? `<b class="prk-tag" style="--c:#475569">${x.label}</b>` : '';
-        ports = grp(x?.inputs.length ? x.inputs.map(u => pp('dmx in', `U${u}`, x.feedColor)).join('') : pp('dmx in', 'A', null, true)) + grp((x?.outputs || []).map((l, i) => pp('dmx', l ? l.owner.replace(/^(LK|V)/, '') : String(i + 1), l?.feed?.color, !l)).join(''));
+        ports = grp(x?.inputs.length ? x.inputs.map(u => pp('dmx in', `U${u}`, x.feedColor)).join('') : pp('dmx in', 'A', null, true)) + grp((x?.outputs || []).map((l, i) => pp('dmx', l ? l.owner.replace(/^(LK|V)/, '') : String(i + 1), (l && owners.get(l.owner)) || l?.feed?.color, !l)).join(''));
       } else if(it.kind === 'panel'){
-        ports = P.groups.filter(g => g.iid === it.iid && g.rack === ri).map(g => grp(pp('lk', g.lk ? g.lk.id.replace(/^LK/, '') : '', g.lk ? owners.get(g.lk.id) : null, !g.lk) + g.vims.map(v => pp('vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? owners.get(v.used.id) : null, !v.used)).join(''))).join('')
+        ports = P.groups.filter(g => g.iid === it.iid && g.rack === ri).map(g => grp(pp('lk', g.lk ? g.lk.id.replace(/^LK/, '') : '', g.lk ? owners.get(g.lk.id) : null, !g.lk) + g.vims.map(v => { const id = v.used?.id || v.linked; return pp('vim', id ? id.replace(/^V/, '') : '', id ? owners.get(id) : null, !id); }).join(''))).join('')
           + window.SwPorts.panelGroups(t).map(g => grp(g.items.map(x => pp(g.cls, String(x.no), null)).join(''))).join('')
           + grp(P.soloVims.filter(v => v.iid === it.iid && v.rack === ri).map(v => pp('vim', v.used ? v.used.id.replace(/^V/, '') : '', v.used ? owners.get(v.used.id) : null, !v.used)).join(''));
       } else {
@@ -589,9 +589,9 @@
     return `<div class="card prk-card"><div class="card-h"><span>${esc(R.placement.name || R.rack.name || R.rack.id)}</span><small>${H}U${R.rack.articleKey ? ` · ${esc(R.rack.articleKey)}` : ''}</small></div>
       <div class="card-b"><div class="prk" style="--h:${H};--uh:${uh}mm">${rail}<div class="prk-bay">${slots}${items}</div>${rail}</div></div></div>`;
   }
-  function nodePortsPrint(P, n, where){
+  function nodePortsPrint(P, n, where, owners){
     const cells = n.ports.map((p, i) => p
-      ? `<span class="pnp" style="--c:${n.color}"><b>${i + 1}</b><em>U${p.universe}</em><span>${p.ownerPort === 'in' ? `${esc(p.owner)} in` : `${esc(p.owner)} · ${esc(p.ownerPort)}`}</span>${p.dest ? `<i>${esc(p.dest)}</i>` : ''}</span>`
+      ? `<span class="pnp" style="--c:${owners.get(p.owner) || n.color}"><b>${i + 1}</b><em>U${p.universe}</em><span>${p.ownerPort === 'in' ? `${esc(p.owner)} in` : `${esc(p.owner)} · ${esc(p.ownerPort)}`}</span>${p.dest ? `<i>${esc(p.dest)}</i>` : ''}</span>`
       : `<span class="pnp free"><b>${i + 1}</b><em>—</em><span>free</span></span>`).join('');
     return `<div class="pnp-node" style="--c:${n.color}"><div class="pnp-head"><b class="prk-tag" style="--c:${n.color}">${n.label}</b><b>${esc(typeNameOf(n.type))}</b><small>${esc(where)}</small></div><div class="pnp-strip">${cells}</div></div>`;
   }
@@ -599,7 +599,7 @@
   function buildFlow(M, dc, L, n, o={}){
     const r = window.Flow?.printSvg?.(dc);
     if(!r) return '';
-    const legend = o.legend === false ? '' : `<div class="pflow-legend"><span><i style="height:1.6mm"></i>LK multicore</span><span><i style="height:1.1mm"></i>Veam cable</span><span><i style="height:.6mm;background:linear-gradient(90deg,#f87171,#60a5fa,#4ade80)"></i>DMX line (universe colour)</span><span><i style="height:.8mm;background:linear-gradient(90deg,#325197,#E80000,#32CD32)"></i>Network cable (VLAN colour)</span><span><i style="height:1.3mm;background:#22c3d6"></i>Fibre</span><span>LK and Veam cables have the colour of the node that feeds them</span></div>`;
+    const legend = o.legend === false ? '' : `<div class="pflow-legend"><span><i style="height:1.6mm"></i>LK multicore</span><span><i style="height:1.1mm"></i>Veam cable</span><span><i style="height:.6mm;background:linear-gradient(90deg,#f87171,#60a5fa,#4ade80)"></i>DMX line (universe colour)</span><span><i style="height:.8mm;background:linear-gradient(90deg,#325197,#E80000,#32CD32)"></i>Network cable (VLAN colour)</span><span><i style="height:1.3mm;background:#22c3d6"></i>Fibre</span><span>Every LK and every Veam has its own colour, on the rack, in the flow and on the node ports</span></div>`;
     const sub = [r.racks ? `${r.racks} rack${r.racks===1?'':'s'}` : '', `${r.lk} LK`, `${r.veams} Veam`, `${r.lines} lines`].filter(Boolean).join(' · ');
     const net = o.netOnly !== false ? window.Flow?.printSvg?.(dc, 'net') : null;
     const netBlock = net ? `<div class="pflow-sub">Network only</div><div class="pflow">${net.svg}</div>` : '';
@@ -612,7 +612,7 @@
     const owners = E.ownerColors(P);
     const drawing = o.drawing === false ? '' : `<div class="prk-row">${P.racks.map((R, ri) => R.rack ? rackDrawing(M, P, R, ri, L, owners) : '').join('')}</div>`;
     const whereOf = x => x.loose ? (x.name ? `Loose · ${x.name}` : 'Loose node') : (P.racks[x.rack]?.placement.name || P.racks[x.rack]?.rack?.name || '');
-    const nodeList = o.nodes === false || !P.nodes.length ? '' : `<div class="pnp-grid">${P.nodes.map(x => nodePortsPrint(P, x, whereOf(x))).join('')}</div>`;
+    const nodeList = o.nodes === false || !P.nodes.length ? '' : `<div class="pnp-grid">${P.nodes.map(x => nodePortsPrint(P, x, whereOf(x), owners)).join('')}</div>`;
     const loose = P.loose || [];
     let looseHtml = '';
     if(o.loose !== false && loose.length){

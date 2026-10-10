@@ -8,7 +8,8 @@
 // The result is computed from the current show every time — nothing goes stale.
 const App = window.LKApp;
 
-export const NODE_COLORS = ['#4c9dff', '#35c47c', '#f2b33d', '#e05dd8', '#22c3d6', '#ff7a45', '#a78bfa', '#94d82d', '#ff6b8b', '#5ee7c8'];
+// Nodes are told apart by their label (N1, N2 …); their colour stays neutral so the colours are for the LKs and Veams only
+export const NODE_COLORS = ['#94a3b8', '#8190a6', '#a3afc0', '#74839a', '#aeb9c8', '#8896ab'];
 const num = (v, d=0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
 const byNum = (a, b) => String(a).localeCompare(String(b), undefined, { numeric:true });
 const typeName = t => [t?.brand, t?.name].filter(Boolean).join(' ') || t?.id || '';
@@ -54,8 +55,9 @@ function demand(M, dc){
       lines.push({ universe:num(m.universe), port:p, dest:m.dest || '', label:`${lk.id} · ${p}`, owner:lk.id, ownerKind:'LK', via:m.source === 'Veam' && m.ve?.veamId ? `${m.ve.veamId} · ${m.ve.veamPort}` : '' });
     }
     // gekoppelde Veams worden via de LK gevoed en hebben geen eigen aansluiting nodig
-    for(const s of [1, 2, 3]) if(lk.veam?.[s] && App.effectiveBlockType(lk) !== 'XLR12') { linked.add(lk.veam[s]); slotUsed[s - 1] = true; }
-    return { kind:'LK', id:lk.id, lines, slotUsed };
+    const veamOn = [null, null, null];
+    for(const s of [1, 2, 3]) if(lk.veam?.[s] && App.effectiveBlockType(lk) !== 'XLR12') { linked.add(lk.veam[s]); slotUsed[s - 1] = true; veamOn[s - 1] = lk.veam[s]; }
+    return { kind:'LK', id:lk.id, lines, slotUsed, veamOn };
   });
   const veams = [...M.byVeam.values()].filter(v => v.dimcity === dc && !linked.has(v.id) && !(M.veamUse?.get(v.id) || []).length).sort((a, b) => byNum(a.id, b.id));
   const veNeeds = veams.map(ve => ({
@@ -90,11 +92,11 @@ function resources(M, dc){
         splitters.push({ rack:ri, zone:zones[ri], iid:it.iid, type:t, label:`S${splitters.length + 1}`, inputs:[], maxInputs:inputs, outputs:Array.from({ length:Math.max(1, num(t.outputCount, 10)) }, () => null) });
       } else if(it.kind === 'panel'){
         const lk = num(t.lkCount), vim = num(t.vimCount);
-        // Veam4-aansluitingen delen de lijnen van een LK-aansluiting (3 per LK); de rest is los
-        const shared = Math.min(vim, lk * 3);
+        // Veam4-aansluitingen delen de lijnen van een LK-aansluiting (standaard 3 per LK, in de paneel-builder in te stellen); de rest is los
+        const per = Math.min(3, Math.max(0, num(t.vimPerLk, 3))), shared = Math.min(vim, lk * per);
         for(let g = 0; g < lk; g++){
           lkNo++;
-          groups.push({ rack:ri, zone:zones[ri], panel:typeName(t), iid:it.iid, label:`LK${lkNo}`, vims:[0, 1, 2].filter(k => g * 3 + k < shared).map(k => ({ label:`Veam${++vimNo}`, slot:k, used:null, zone:zones[ri] })), lk:null });
+          groups.push({ rack:ri, zone:zones[ri], panel:typeName(t), iid:it.iid, label:`LK${lkNo}`, vims:Array.from({ length:per }, (_, k) => k).filter(k => g * per + k < shared).map(k => ({ label:`Veam${++vimNo}`, slot:k, used:null, zone:zones[ri] })), lk:null });
         }
         for(let k = shared; k < vim; k++) soloVims.push({ rack:ri, zone:zones[ri], panel:typeName(t), iid:it.iid, label:`Veam${++vimNo}`, used:null });
       }
@@ -151,11 +153,15 @@ export function computeRackPlan(M, dc){
     if(g){ g.lk = need; give(need, g.label, g.nodeIid, g.zone); }
     else { noSocket.lk.push(need.id); give(need, 'Loose LK spider'); }
   }
+  // A Veam that is linked to an LK (slot A/B/C) sits on the Veam4 socket of that LK: it shows there, and it needs no socket of its own
+  for(const g of R.groups) if(g.lk) for(const v of g.vims) v.linked = g.lk.veamOn?.[v.slot] || null;
   // 2. Losse Veams: eigen keuzes, dan vrije Veam4 naast een LK, dan losse Veam4, dan Veam4 van lege LK-groepen
+  // The Veam4 sockets of an LK panel belong to that LK: a separate Veam goes on them only when the show says so (Settings → This show)
+  const onLk = !!M.rules?.veamOnLkPanel;
   const freeVims = [...R.soloVims.filter(v => v.nodeIid)];               // Veam4-spin aan een losse node eerst
-  for(const g of R.groups) if(g.lk) g.vims.forEach(v => { if(!g.lk.slotUsed[v.slot]) freeVims.push(v); });
+  if(onLk) for(const g of R.groups) if(g.lk) g.vims.forEach(v => { if(!g.lk.slotUsed[v.slot] && !v.linked) freeVims.push(v); });
   freeVims.push(...R.soloVims.filter(v => !v.nodeIid));
-  for(const g of R.groups) if(!g.lk) freeVims.push(...g.vims);
+  if(onLk) for(const g of R.groups) if(!g.lk) freeVims.push(...g.vims);
   const veWanted = D.veNeeds.filter(n => n.lines.length), veDone = new Set();
   for(const need of veWanted){
     const a = assign[need.id];
@@ -237,8 +243,9 @@ export function computeRackPlan(M, dc){
   // 4. Adviezen
   const usedPorts = R.nodes.reduce((n, x) => n + x.ports.filter(Boolean).length, 0);
   const lkSockets = R.groups.length, lkUsed = R.groups.filter(g => g.lk).length;
-  const vimSockets = R.groups.reduce((n, g) => n + g.vims.length, 0) + R.soloVims.length;
-  const vimUsed = freeVims.filter(v => v.used).length;
+  const allVims = [...R.groups.flatMap(g => g.vims), ...R.soloVims];
+  const vimSockets = allVims.length;
+  const vimUsed = allVims.filter(v => v.used || v.linked).length;
   const nodeTypes = [...new Set(R.nodes.map(n => n.type))];
   if(badAssign.length) recs.push({ level:'warn', text:`Your socket choice is not possible any more for ${badAssign.join(', ')} → automatic instead.` });
   if(skipped.length) recs.push({ level:'info', text:`Not patched on purpose: ${skipped.join(', ')}.` });
@@ -277,18 +284,74 @@ export function computeRackPlan(M, dc){
   };
 }
 
-// Kleur per LK/Veam: de node waar de meeste lijnen op zitten
-export function ownerColors(plan){
-  const tally = new Map();
-  for(const l of plan.lines){
-    if(!l.feed?.color) continue;
-    const t = tally.get(l.owner) || new Map();
-    t.set(l.feed.color, (t.get(l.feed.color) || 0) + 1);
-    tally.set(l.owner, t);
+// Network ports on the panels of the racks: a rack with a panel of 3 etherCON ports and 3 nodes behind it — every node is plugged into one
+// of them (the cable to the switch goes to that port on the front). By default the nodes of a rack take the ports of its panels in order;
+// plan.panelLinks = { [nodeIid]: { panelIid, port } | null } holds what was chosen by hand (null = this node is not on a panel).
+// -> [{ rack, panelIid, panel:'P1', no, title, node:<plan node>|null, manual }]
+export function panelPorts(M, dc, P = computeRackPlan(M, dc)){
+  const { find } = types(M), chosen = M.networkDevices?.dimCityPlans?.[dc]?.panelLinks || {};
+  const ports = []; let pn = 0;
+  P.racks.forEach((R, ri) => {
+    for(const it of (R.rack?.items || []).slice().sort((a, b) => (a.u - b.u) || ((a.side === 'R') - (b.side === 'R')))){
+      if(it.kind !== 'panel') continue;
+      const t = find('panelTypes', it.typeId), n = num(t?.etherconCount); if(!n) continue;
+      pn++; const first = num(t.etherconFirst, 1) || 1;
+      for(let i = 0; i < n; i++) ports.push({ rack:ri, panelIid:it.iid, panel:`P${pn}`, panelName:typeName(t), no:first + i, title:`${typeName(t)} · etherCON ${first + i}`, node:null, manual:false });
+    }
+  });
+  const nodes = P.nodes.filter(n => !n.loose);
+  for(const n of nodes){            // 1. what was chosen by hand
+    const m = chosen[n.iid]; if(!m) continue;
+    const p = ports.find(x => x.panelIid === m.panelIid && x.no === m.port && x.rack === n.rack && !x.node);
+    if(p){ p.node = n; p.manual = true; }
   }
-  const out = new Map();
-  for(const [owner, t] of tally) out.set(owner, [...t.entries()].sort((a, b) => b[1] - a[1])[0][0]);
+  for(const n of nodes){            // 2. the others in order, in their own rack
+    if(chosen[n.iid] === null || ports.some(x => x.node === n)) continue;
+    const p = ports.find(x => !x.node && x.rack === n.rack && !x.manual); if(p) p.node = n;
+  }
+  return ports;
+}
+
+// Kleur per LK/Veam: elke LK en elke Veam van de show heeft een eigen kleur, nooit twee dezelfde, en overal dezelfde kleur
+// (rek, signaalstroom, PDF, labels). De kleur hangt af van het nummer in de hele show, niet van het rek waar hij op zit.
+const OWNER_BASE = ['#f2b33d', '#4c9dff', '#e8503a', '#35c47c', '#b86bff', '#22d3ee', '#ff6fb5', '#a3e635', '#ff8a3d', '#7c8cff', '#2dd4bf', '#d946ef'];
+const hsl2rgb = (h, s, l) => { s /= 100; l /= 100; const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))); return [f(0) * 255, f(8) * 255, f(4) * 255]; };
+const hex = ([r, g, b]) => '#' + [r, g, b].map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+const unhex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const lab = ([r, g, b]) => {                 // sRGB → CIE Lab, to measure how different two colours look
+  const lin = v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; };
+  const R = lin(r), G = lin(g), B = lin(b);
+  const X = (R * .4124 + G * .3576 + B * .1805) / .95047, Y = R * .2126 + G * .7152 + B * .0722, Z = (R * .0193 + G * .1192 + B * .9505) / 1.08883;
+  const f = t => t > .008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+  return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))];
+};
+let paletteCache = { key:'', map:new Map() };
+function ownerPalette(ids){
+  const key = ids.join('|'); if(paletteCache.key === key) return paletteCache.map;
+  const out = new Map(), used = [];
+  const cand = []; for(let h = 0; h < 360; h += 4) for(const [s, l] of [[78, 60], [62, 48], [80, 72], [55, 38]]) { const c = hex(hsl2rgb(h, s, l)); cand.push({ c, lab:lab(unhex(c)) }); }
+  ids.forEach((id, i) => {
+    let c;
+    if(i < OWNER_BASE.length) c = OWNER_BASE[i];
+    else {           // the colour that differs most from every colour given out so far
+      let best = null, bestD = -1;
+      for(const k of cand){ let d = 1e9; for(const u of used){ const e = (k.lab[0] - u[0]) ** 2 + (k.lab[1] - u[1]) ** 2 + (k.lab[2] - u[2]) ** 2; if(e < d) d = e; if(d <= bestD) break; } if(d > bestD){ bestD = d; best = k; } }
+      c = best.c;
+    }
+    out.set(id, c); used.push(lab(unhex(c)));
+  });
+  paletteCache = { key, map:out }; return out;
+}
+export function ownerColors(plan){
+  const M = App.getMODEL();
+  const all = [...M.byLK.keys(), ...M.byVeam.keys()].sort((a, b) => byNum(a.replace(/^\D+/, ''), b.replace(/^\D+/, '')) || (/^V/i.test(a) ? 1 : -1) - (/^V/i.test(b) ? 1 : -1));
+  const pal = ownerPalette(all), out = new Map();
+  const give = id => { if(id && !out.has(id)) out.set(id, pal.get(id) || ownerPalette([...all, id]).get(id)); };
+  for(const l of plan.lines) if(l.ownerKind === 'LK' || l.ownerKind === 'VEAM') give(l.owner);
+  for(const id of (plan.skipped || [])) give(id);
+  for(const g of plan.groups || []){ give(g.lk?.id); for(const v of g.vims || []){ give(v.used?.id); give(v.linked); } }
+  for(const v of plan.soloVims || []) give(v.used?.id);
   return out;
 }
 
-window.RackEngine = { zoneOk, computeRackPlan, placedRacks, looseDevices, hasRackPlan, ownerColors, demand, NODE_COLORS };
+window.RackEngine = { zoneOk, computeRackPlan, placedRacks, looseDevices, hasRackPlan, ownerColors, panelPorts, demand, NODE_COLORS };

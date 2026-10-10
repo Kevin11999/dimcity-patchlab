@@ -37,6 +37,8 @@
     node.csvRef = no; M().ui.dirty = true;
     return fill(node, ref);
   }
+  // the universes of a linked node are put on its ports again (after the rack patch gave it new ones)
+  function refill(node){ const r = node?.csvRef ? refOf(node.csvRef) : null; if(r) fill(node, r); }
   // after the network plan was rebuilt from the racks: linked nodes get their ports back
   function reapply(dc, oldNodes){
     const nodes = planNodes(dc);
@@ -63,5 +65,5 @@
       rerender();
     });
   }
-  window.NodeLink = { refs, suggest, link, autoLink, reapply, status, selectHtml, bind };
+  window.NodeLink = { refs, suggest, link, autoLink, reapply, refill, status, selectHtml, bind };
 })();

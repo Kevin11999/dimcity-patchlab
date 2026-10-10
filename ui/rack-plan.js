@@ -231,7 +231,6 @@ function cardHtml(dc){
       <button id="rpPlace" ${rackTypes.length ? '' : 'disabled'}>${I('plus', 14)}Place rack</button>
       <button data-cmd="deviceBuilder" data-arg="rack">${I('rack', 14)}Rack Builder</button>
       <button id="rpCustom" title="Build a rack of your own right here: choose the devices, no article key needed">${I('plus', 14)}Custom rack…</button>
-      ${any ? `<button class="primary" id="rpApply" title="Create the network nodes and splitters of this DimCity from the rack patch">${I('check', 14)}Use as network plan</button>` : ''}
       ${any ? `<button id="rpPrint" title="Export a PDF with only the racks of this DimCity">${I('file', 14)}Print racks</button>` : ''}
     </div>`;
   if(!any){
@@ -268,7 +267,9 @@ function cardHtml(dc){
     body:`${adviceHtml(dc)}${controls}${stats}${recs}${legend ? `<div class="rp-legend"><span class="subtle">Node per LK / Veam:</span>${legend}</div>` : ''}<div class="rp-racks">${racks}</div>${assignHtml(plan, dc)}${panelLinksHtml(plan, dc)}${nodeStrips}${looseHtml(plan, dc)}${table}` });
 }
 
-function bind(root, dc, rerender){
+function bind(root, dc, rerender0){
+  // every change in the racks goes through here: the nodes of the network plan follow at once
+  const rerender = () => { syncNodes(dc); rerender0(); };
   bindAssign(root, dc, rerender);
   bindPanelLinks(root, dc, rerender);
   bindAdvice(root, dc, rerender);
@@ -344,45 +345,109 @@ function bind(root, dc, rerender){
   });
   const print = root.querySelector('#rpPrint');
   if(print) print.onclick = () => window.PdfExport?.open?.({ dcs:[dc], preset:'RACKS_ONLY' });
-  const apply = root.querySelector('#rpApply');
-  if(apply) apply.onclick = async () => {
-    const plan = App.net.getDimPlan(dc);
-    if(plan.nodes.length || plan.splitters.length){
-      const ok = await App.ui.confirmDialog({ title:'Replace the network plan?', message:`The nodes and splitters of ${dc} are replaced by the ones from the rack, with the universes from the rack patch. IP addresses are generated again.`, okLabel:'Replace' });
-      if(!ok) return;
-    }
-    applyToNetworkPlan(dc);
-    rerender();
-  };
 }
 
-// Rack-patch omzetten naar de node- en splitter-instanties van de DimCity (voor PDF en netwerkplan)
-function applyToNetworkPlan(dc, { quiet=false } = {}){
-  const r = E().computeRackPlan(M(), dc);
+// ---- The nodes of the network plan follow the racks ----
+// Every node of a rack (or a loose node) has a stable key (placement + item, or the loose device); the node of the network plan carries it in
+// `src`, so it keeps its id, addresses and switch port while something else in the racks changes. A device that disappears from the racks is
+// not thrown away: it stays in the plan as `gone` (port, address and universes are kept) until it is replaced by another node or removed.
+const nodeUni = n => n.ports.map(p => p ? p.universe : null);
+const sameJson = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+function freshNode(dc, type, universes){
+  const nodes = App.net.getDimPlan(dc).nodes, used = new Set(nodes.map(n => n.id));
+  for(let i = 0; i < 400; i++){ const inst = App.net.createNodeInstance(dc, type, i, universes); if(!used.has(inst.id)) return inst; }
+  return App.net.createNodeInstance(dc, type, nodes.length, universes);
+}
+function freshSplitter(dc, type, universes){
+  const list = App.net.getDimPlan(dc).splitters, used = new Set(list.map(n => n.id));
+  for(let i = 0; i < 400; i++){ const inst = App.net.createSplitterInstance(dc, type, i, universes); if(!used.has(inst.id)) return inst; }
+  return App.net.createSplitterInstance(dc, type, list.length, universes);
+}
+function splitterFill(inst, s){
+  inst.inputUniverses = s.inputs.slice(); inst.universes = s.inputs.slice();
+  inst.portAssignments = s.outputs.map(l => l ? { kind:l.ownerKind === 'VEAM' ? 'Veam' : l.ownerKind, id:l.owner, port:l.port, universe:l.universe, dest:l.dest } : null);
+}
+// returns true when the plan changed
+function syncNodes(dc){
+  if(!E()) return false;
+  const plan = App.net.getDimPlan(dc), nodes = plan.nodes, spl = plan.splitters;
+  const follows = E().hasRackPlan(M(), dc);
+  const P = follows ? E().computeRackPlan(M(), dc) : null;
+  const wantN = P ? P.nodes : [], wantS = P ? P.splitters : [];
+  let changed = false;
+  // a plan from an older version has no keys: hand them out in order, as long as the types agree (that is how it was made)
+  if(follows && !plan.syncV){
+    const old = nodes.filter(n => !n.src);
+    for(let i = 0; i < Math.min(old.length, wantN.length); i++){ if(old[i].typeId !== wantN[i].type.id) break; old[i].src = wantN[i].key; }
+    const oldS = spl.filter(x => !x.src), usedS = wantS.filter(x => x.inputs.length);
+    for(let i = 0; i < Math.min(oldS.length, usedS.length); i++){ if(oldS[i].typeId !== usedS[i].type.id) break; oldS[i].src = usedS[i].key; }
+    plan.syncV = 1; changed = true;
+  }
+  const byKey = new Map(nodes.filter(n => n.src).map(n => [n.src, n])), seen = new Set(), added = [];
+  for(const w of wantN){
+    seen.add(w.key);
+    const uni = nodeUni(w); let inst = byKey.get(w.key);
+    if(!inst){
+      inst = freshNode(dc, w.type, uni); inst.src = w.key; if(w.loose && w.name) inst.name = `${dc} ${w.name}`;
+      nodes.push(inst); added.push(inst); changed = true; continue;
+    }
+    if(inst.gone){ delete inst.gone; changed = true; }
+    if(inst.typeId !== w.type.id){ inst.typeId = w.type.id; changed = true; }
+    if(!sameJson(inst.universes, uni)){ inst.universes = uni; changed = true; if(inst.csvRef) window.NodeLink?.refill?.(inst); }
+  }
+  for(const n of nodes) if(n.src && !seen.has(n.src) && !n.gone){ n.gone = true; changed = true; }
+  // splitters: only the ones that are used get an entry; an entry stays (and keeps its address) when the splitter is not needed for a while
+  const byKeyS = new Map(spl.filter(x => x.src).map(x => [x.src, x])), seenS = new Set(), addedS = [];
+  for(const s of wantS){
+    let inst = byKeyS.get(s.key);
+    if(!inst){
+      if(!s.inputs.length) continue;
+      inst = freshSplitter(dc, s.type, s.inputs); inst.src = s.key; splitterFill(inst, s); spl.push(inst); addedS.push(inst); changed = true; seenS.add(s.key); continue;
+    }
+    seenS.add(s.key);
+    if(inst.gone){ delete inst.gone; changed = true; }
+    if(inst.typeId !== s.type.id){ inst.typeId = s.type.id; changed = true; }
+    const before = JSON.stringify([inst.inputUniverses, inst.portAssignments]); splitterFill(inst, s);
+    if(before !== JSON.stringify([inst.inputUniverses, inst.portAssignments])) changed = true;
+  }
+  for(const x of spl) if(x.src && !seenS.has(x.src) && !x.gone){ x.gone = true; changed = true; }
+  if(!changed) return false;
+  if(plan.nodeTypeId === '' || plan.nodeTypeId == null) plan.nodeTypeId = wantN[0]?.type.id || plan.nodeTypeId;
+  App.net.refreshDimDeviceIdentity(dc);
+  for(const inst of added){ if(M().networkDevices?.prefs?.fent?.on) window.FentUI?.addressNew?.(dc, 'node', inst); }
+  for(const inst of addedS) if(M().networkDevices?.prefs?.fent?.on) window.FentUI?.addressNew?.(dc, 'splitter', inst);
+  M().ui.dirty = true;
+  return true;
+}
+function syncAll(){ let any = false; for(const dc of App.sortedDims()) if(syncNodes(dc)) any = true; return any; }
+// the old button: take the nodes from the racks (now they follow by themselves; this only makes sure they do)
+function applyToNetworkPlan(dc, { quiet = false } = {}){
   const plan = App.net.getDimPlan(dc);
   window.PatchHistory?.label?.(`${dc}: network plan from rack patch`);
-  const before = (plan.nodes || []).slice();
-  plan.nodes = r.nodes.map((n, i) => {
-    const inst = App.net.createNodeInstance(dc, n.type, i, n.ports.map(p => p ? p.universe : null));
-    if(n.loose && n.name) inst.name = `${dc} ${n.name}`;
-    const o = before[i];   // addresses set before stay (also the extra ones)
-    if(o && o.typeId === inst.typeId) for(const k of ['ip', 'subnet', 'ifaces', 'ipRole', 'ipVlan']) if(o[k] !== undefined && o[k] !== '' && !(Array.isArray(o[k]) && !o[k].length)) inst[k] = o[k];
-    return inst;
-  });
-  plan.nodeTypeId = r.nodes[0]?.type.id || plan.nodeTypeId;
-  const used = r.splitters.filter(s => s.inputs.length);
-  plan.splitters = used.map((s, i) => {
-    const inst = App.net.createSplitterInstance(dc, s.type, i, s.inputs);
-    inst.inputUniverses = s.inputs.slice();
-    inst.portAssignments = s.outputs.map(l => l ? { kind:l.ownerKind === 'VEAM' ? 'Veam' : l.ownerKind, id:l.owner, port:l.port, universe:l.universe, dest:l.dest } : null);
-    return inst;
-  });
-  if(used[0]) plan.lastSplitterTypeId = used[0].type.id;
-  window.NodeLink?.reapply(dc, before);
-  App.net.refreshDimDeviceIdentity(dc);
-  if(M().networkDevices?.prefs?.fent?.on && plan.nodes.some(n => !(n.ifaces && n.ifaces.length))) window.FentUI?.applyDim?.(dc);
-  M().ui.dirty = true;
-  if(!quiet) App.ui.toast(`${dc}: ${App.ui.plural(plan.nodes.length, 'node')}${plan.splitters.length ? ` and ${App.ui.plural(plan.splitters.length, 'splitter')}` : ''} taken from the rack`);
+  syncNodes(dc);
+  if(!quiet) App.ui.toast(`${dc}: ${App.ui.plural(plan.nodes.length, 'node')}${plan.splitters.length ? ` and ${App.ui.plural(plan.splitters.length, 'splitter')}` : ''} in the network plan`);
+}
+// a node that no longer exists in the racks: hand its identity (id, addresses, switch port, CSV name) to a new node, or remove it
+function freshNodesOf(dc){
+  const plan = App.net.getDimPlan(dc), patched = window.PortPlan?.patch(dc)?.manual || {};
+  return plan.nodes.filter(n => !n.gone && n.src && !n.csvRef && !Object.keys(patched).some(k => k.startsWith(`n:${n.id}#`)));
+}
+function replaceNode(dc, goneIdx, withIdx){
+  const plan = App.net.getDimPlan(dc), old = plan.nodes[goneIdx], nu = plan.nodes[withIdx];
+  if(!old || !nu || old === nu) return false;
+  window.PatchHistory?.label?.(`${dc}: ${old.id} replaced`);
+  for(const k of ['id', 'name', 'ip', 'subnet', 'ifaces', 'ipRole', 'ipVlan', 'advanced', 'advPorts', 'csvRef', 'deviceNo']) if(old[k] !== undefined) nu[k] = old[k]; else delete nu[k];
+  if(nu.csvRef) window.NodeLink?.refill?.(nu);
+  plan.nodes.splice(goneIdx, 1);
+  // the new node takes the place of the old one in the list as well
+  const at = plan.nodes.indexOf(nu); if(at > goneIdx){ plan.nodes.splice(at, 1); plan.nodes.splice(goneIdx, 0, nu); }
+  M().ui.dirty = true; return true;
+}
+function removeNode(dc, idx){
+  const plan = App.net.getDimPlan(dc), n = plan.nodes[idx]; if(!n) return false;
+  window.PatchHistory?.label?.(`${dc}: ${n.id} removed`);
+  window.PortPlan?.forget?.(dc, `n:${n.id}#`);
+  plan.nodes.splice(idx, 1); M().ui.dirty = true; return true;
 }
 
 // A loose node needs a spider to be fed (it has no panel): add it together with an LK spider
@@ -440,4 +505,4 @@ function customRack(dc, done){
   };
 }
 
-window.RackPlan = { fixStack: (dc, iid) => { const r = racksOf(dc).find(x => x.iid === iid); if(r){ r.stack = true; M().ui.dirty = true; } }, customRack, addLooseNode, cardHtml, bind, rackFace, nodePortsStrip, applyToNetworkPlan, assignHtml, bindAssign, adviceHtml, bindAdvice };
+window.RackPlan = { syncNodes, syncAll, freshNodesOf, replaceNode, removeNode, fixStack: (dc, iid) => { const r = racksOf(dc).find(x => x.iid === iid); if(r){ r.stack = true; M().ui.dirty = true; } }, customRack, addLooseNode, cardHtml, bind, rackFace, nodePortsStrip, applyToNetworkPlan, assignHtml, bindAssign, adviceHtml, bindAdvice };

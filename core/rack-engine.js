@@ -86,10 +86,10 @@ function resources(M, dc){
       if(!t) continue;
       if(it.kind === 'node'){
         const n = nodes.length;
-        nodes.push({ rack:ri, zone:zones[ri], iid:it.iid, type:t, label:`N${n + 1}`, color:NODE_COLORS[n % NODE_COLORS.length], ports:Array.from({ length:Math.max(1, num(t.portCount, 8)) }, () => null) });
+        nodes.push({ rack:ri, zone:zones[ri], iid:it.iid, key:`r:${pl.iid}:${it.iid}`, type:t, label:`N${n + 1}`, color:NODE_COLORS[n % NODE_COLORS.length], ports:Array.from({ length:Math.max(1, num(t.portCount, 8)) }, () => null) });
       } else if(it.kind === 'splitter'){
         const inputs = t.mode === 'AB' ? 2 : 1;
-        splitters.push({ rack:ri, zone:zones[ri], iid:it.iid, type:t, label:`S${splitters.length + 1}`, inputs:[], maxInputs:inputs, outputs:Array.from({ length:Math.max(1, num(t.outputCount, 10)) }, () => null) });
+        splitters.push({ rack:ri, zone:zones[ri], iid:it.iid, key:`r:${pl.iid}:${it.iid}`, type:t, label:`S${splitters.length + 1}`, inputs:[], maxInputs:inputs, outputs:Array.from({ length:Math.max(1, num(t.outputCount, 10)) }, () => null) });
       } else if(it.kind === 'panel'){
         const lk = num(t.lkCount), vim = num(t.vimCount);
         // Veam4-aansluitingen delen de lijnen van een LK-aansluiting (standaard 3 per LK, in de paneel-builder in te stellen); de rest is los
@@ -109,7 +109,7 @@ function resources(M, dc){
       const t = find('nodeTypes', d.typeId);
       if(!t){ loose.push({ ...d, missing:true }); continue; }
       const n = nodes.length;
-      nodes.push({ rack:-1, zone:'loose', loose:true, iid:d.iid, type:t, name:d.name || '', label:`N${n + 1}`, color:NODE_COLORS[n % NODE_COLORS.length], ports:Array.from({ length:Math.max(1, num(t.portCount, 8)) }, () => null) });
+      nodes.push({ rack:-1, zone:'loose', loose:true, iid:d.iid, key:`l:${d.iid}`, type:t, name:d.name || '', label:`N${n + 1}`, color:NODE_COLORS[n % NODE_COLORS.length], ports:Array.from({ length:Math.max(1, num(t.portCount, 8)) }, () => null) });
     } else if(d.kind === 'lkSpider'){
       groups.push({ rack:-1, zone:null, loose:true, panel:'Loose LK spider', iid:d.iid, nodeIid:d.nodeIid || null, label:`LK${++lkNo}`, vims:[], lk:null });
     } else if(d.kind === 'vimSpider'){

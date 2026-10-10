@@ -1473,3 +1473,11 @@ tr.bad>td{background:var(--red-soft)}
 .fl-canvas.holding{cursor:grabbing !important}.fl-canvas.holding .fb{cursor:grabbing !important}
 .fl-canvas.dragging .fb:not(.grab){opacity:.5;transition:opacity .12s}.fl-canvas.dragging .fe{opacity:.35}
 .fl-ghost{fill:var(--accent-soft);stroke:var(--accent);stroke-width:2;stroke-dasharray:7 5;pointer-events:none}
+
+/* nodes that follow the racks: a node that is no longer in a rack keeps its place until it is replaced or removed */
+.nn-node.gone{border-color:var(--yellow);border-style:dashed;background:color-mix(in srgb,var(--yellow) 7%,var(--surface-2))}
+.nn-gone-act{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
+.nn-gone-l{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--text-2)}
+.nn-gone-l select{min-width:260px}
+.pb-dev.gone{border-style:dashed;border-color:var(--yellow);opacity:.85}
+.pb-dev.gone b::after{content:" ⚠";color:var(--yellow)}

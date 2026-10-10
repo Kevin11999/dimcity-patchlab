@@ -73,15 +73,19 @@
   }
 
   // ---- FENT: apply the scheme ----
+  // the addresses of one device for host number `host`: a management address and a lighting address (and a scan address when it is switched on)
+  function giveAddresses(dc, kind, dev, host){
+    const c = cfg(), no = dimNo(dc), eth = ethOf(kind, dev);
+    const vm = F().roleVlan('management', c.vlanMode), vl = F().roleVlan('lighting', c.vlanMode), vs = F().roleVlan('scan', c.vlanMode);
+    dev.ip = F().suggestRole('management', c.group, no, host); dev.subnet = F().MASK; dev.ipRole = 'management'; dev.ipVlan = vm;
+    dev.ifaces = [{ role:'lighting', vlan:vl, ip:F().suggestRole('lighting', c.group, no, host), mask:F().MASK, eth:eth > 1 ? 2 : 1 }];
+    if(c.scan && host + 100 <= 250) dev.ifaces.push({ role:'scan', vlan:vs, ip:F().suggestRole('scan', c.group, no, host + 100), mask:F().MASK, eth:eth > 1 ? 2 : 1 });
+  }
   function applyDim(dc){
     const c = cfg(), p = plan(dc), no = dimNo(dc); let host = 11, n = 0, over = false;
     for(const { kind, dev } of devices(dc)){
       if(host > 250){ over = true; break; }
-      const eth = ethOf(kind, dev);
-      const vm = F().roleVlan('management', c.vlanMode), vl = F().roleVlan('lighting', c.vlanMode), vs = F().roleVlan('scan', c.vlanMode);
-      dev.ip = F().suggestRole('management', c.group, no, host); dev.subnet = F().MASK; dev.ipRole = 'management'; dev.ipVlan = vm;
-      dev.ifaces = [{ role:'lighting', vlan:vl, ip:F().suggestRole('lighting', c.group, no, host), mask:F().MASK, eth:eth > 1 ? 2 : 1 }];
-      if(c.scan && host + 100 <= 250) dev.ifaces.push({ role:'scan', vlan:vs, ip:F().suggestRole('scan', c.group, no, host + 100), mask:F().MASK, eth:eth > 1 ? 2 : 1 });
+      giveAddresses(dc, kind, dev, host);
       host++; n++;
     }
     // switches are network equipment: management address .1, .2, .3 … per DimCity (switch 1 of DB01 is 10.90.101.1, switch 1 of DB02 is 10.90.102.1),
@@ -92,6 +96,16 @@
       sw.ip = F().suggestEquipment(vm, c.group, no, i + 1); sw.subnet = F().MASK; sw.ipRole = 'management'; sw.ipVlan = vm; sw.ifaces = sw.ifaces || []; n++;
     });
     return { n, over };
+  }
+  // one new device in a plan that already has addresses: it gets the next free host number, the others stay as they are
+  function addressNew(dc, kind, dev){
+    if(!cfg().on) return false;
+    const used = new Set();
+    for(const d of devices(dc)) if(d.dev !== dev) for(const x of F().ifaces(d.dev, ethOf(d.kind, d.dev))) if(F().isIp(x.ip)){ const h = Number(String(x.ip).split('.')[3]); used.add(h); if(h > 100) used.add(h - 100); }
+    let host = 11; while(used.has(host) && host <= 250) host++;
+    if(host > 250) return false;
+    giveAddresses(dc, kind, dev, host);
+    return true;
   }
   async function applyAll(dcs){
     const count = dcs.reduce((s, dc) => s + devices(dc).length, 0);
@@ -120,7 +134,7 @@
     const devOf = new Map(devs.map(d => [d.dev.id || d.dev.name, d]));
     drows = drows.map(r => {
       const d = devOf.get(r.device), dev = d?.dev, ty = d ? typeOf(d.kind, dev) : {};
-      return { ...r, key:`n:${r.device}#${r.eth}`, kind:d?.kind || 'node', typeName:SN ? SN.of(ty) : (ty.name || ''), typeFull:SN ? SN.full(ty) : (ty.name || ''), name:dev?.name || '', idx:d?.idx ?? null,
+      return { ...r, key:`n:${r.device}#${r.eth}`, kind:d?.kind || 'node', typeName:SN ? SN.of(ty) : (ty.name || ''), typeFull:SN ? SN.full(ty) : (ty.name || ''), name:dev?.name || '', idx:d?.idx ?? null, gone:!!dev?.gone,
         csvRef:dev?.csvRef || '', unis:dev && Array.isArray(dev.universes) && window.NetCables ? window.NetCables.uniText(dev.universes.filter(u => u != null && u !== '' && Number.isFinite(Number(u))).map(Number)) : '' };
     });
     if(sort !== 'plan') drows.sort((a, b) => nat(a.device, b.device) || a.eth - b.eth);
@@ -224,5 +238,5 @@
     const ap = root.querySelector('[data-fent-apply]'); if(ap) ap.onclick = async () => { await applyAll(App.sortedDims()); rerender(); };
   }
 
-  window.FentUI = { deviceBlock, bindDevice, vlanCard, plannerCard, bindPlanner, portPlan, portPlanBase, portRows, portTable, devices, applyAll, applyDim, typeOf, ethOf };
+  window.FentUI = { deviceBlock, bindDevice, vlanCard, plannerCard, bindPlanner, portPlan, portPlanBase, portRows, portTable, devices, applyAll, applyDim, addressNew, giveAddresses, typeOf, ethOf };
 })();

@@ -21,7 +21,7 @@
     let P = null, ports = [];
     try { P = E().computeRackPlan(M(), dc); ports = E().panelPorts(M(), dc, P); } catch { P = null; }
     const nodes = plan(dc).nodes || [];
-    const rackNode = idx => { const n = P?.nodes?.[idx], dev = nodes[idx]; return n && dev && dev.typeId === n.type.id ? n : null; };
+    const rackNode = idx => { const dev = nodes[idx]; return dev?.src ? (P?.nodes || []).find(n => n.key === dev.src) || null : null; };
     return { P, ports, rackNode, panelOf(idx){ const n = rackNode(idx); const pl = n ? ports.find(x => x.node === n) : null; return pl ? { panel:pl.panel, no:pl.no, title:pl.title } : null; } };
   }
 
@@ -83,7 +83,7 @@
     const ifs = window.Fent ? window.Fent.ifaces(inst, Math.min(2, Math.max(1, Number(nt.ethernetCount) || 1))) : [];
     const used = (inst.universes || []).filter(u => u != null && u !== '').length, total = Math.max(1, Number(nt.portCount) || 1);
     return `<div class="nn-node" data-nnnode="${idx}"><div class="nn-head">${rn ? `<span class="rk-badge" style="--c:${rn.color}">${esc(rn.label)}</span>` : ''}<b>${esc(inst.id || `Node ${idx + 1}`)}</b><span>${esc(typeName(nt))}</span>${inst.csvRef ? `<span class="nn-csv" title="${esc(t('Name in the CSV', 'Naam in de CSV'))}">Node ${esc(inst.csvRef)}</span>` : ''}${rn ? `<span class="subtle">${esc(rn.loose ? (rn.name || t('loose node', 'losse node')) : (c.P.racks[rn.rack]?.placement.name || c.P.racks[rn.rack]?.rack?.name || ''))}</span>` : `<span class="subtle">${esc(inst.name || '')}</span>`}
-        <span style="flex:1"></span><span class="subtle">${used}/${total} ${t('ports in use', 'poorten in gebruik')}</span><button class="sm ghost" data-nnrm="${idx}" title="${esc(t('Remove this node', 'Verwijder deze node'))}">${I('trash', 13)}</button></div>
+        <span style="flex:1"></span><span class="subtle">${used}/${total} ${t('ports in use', 'poorten in gebruik')}</span>${inst.src ? '' : `<button class="sm ghost" data-nnrm="${idx}" title="${esc(t('Remove this node', 'Verwijder deze node'))}">${I('trash', 13)}</button>`}</div>
       <div class="nn-plugs">${mine.map(r => plugRow(dc, r, sws, rows, links)).join('') || `<div class="nn-plug warn"><span class="nn-plug-l">${t('Network', 'Netwerk')}</span><span class="subtle">${t('This node has no address yet, so it is not in the port plan. Give it one on the Addresses tab.', 'Deze node heeft nog geen adres, dus staat hij niet in het poortplan. Geef hem er een op het tabblad Adressen.')}</span></div>`}
         ${pl ? `<div class="nn-via">${I('network', 13)} ${t('The node stands behind', 'De node zit achter')} <b>${esc(pl.panel)} · etherCON ${pl.no}</b> ${t('of the rack panel: the cable to the switch goes into that port on the front.', 'van het rekpaneel: de kabel naar de switch gaat in die poort aan de voorkant.')}</div>` : (rn && !rn.loose ? `<div class="nn-via subtle">${I('info', 13)} ${t('This rack node is plugged straight into the switch (no network port on a panel).', 'Deze racknode zit rechtstreeks aan de switch (geen netwerkpoort op een paneel).')}</div>` : '')}</div>
       ${ifs.length ? `<div class="nn-addr">${ifs.map(x => `${x.vlan != null && window.NetCables ? window.NetCables.vlanChip(x.vlan) : ''}<span class="mono">${esc(x.ip)}</span>${Number(nt.ethernetCount) > 1 ? `<span class="subtle">ETH${x.eth}</span>` : ''}`).join(' ')}</div>` : ''}
@@ -91,18 +91,31 @@
       <div class="nn-ports">${dmxPorts(dc, inst, idx, car)}</div>${window.NodeLink ? window.NodeLink.selectHtml(dc, idx, inst) : ''}</div>`;
   }
 
+  // a node that is no longer in a rack: its id, addresses and switch port are kept; hand them to a new node, or remove it
+  function goneCard(dc, idx, inst, c, rows){
+    const nt = (M().networkDevices.nodeTypes || []).find(x => x.id === inst.typeId), mine = rows.filter(r => r.kind === 'node' && r.idx === idx && r.sw);
+    const fresh = window.RackPlan.freshNodesOf(dc).map(n => ({ n, i:plan(dc).nodes.indexOf(n) })), same = fresh.find(f => f.n.typeId === inst.typeId) || fresh[0];
+    const label = f => { const rn = c.rackNode(f.i), ty = (M().networkDevices.nodeTypes || []).find(x => x.id === f.n.typeId); return `${f.n.id} · ${esc(typeName(ty))}${rn ? ` · ${esc(rn.loose ? (rn.name || t('loose node', 'losse node')) : (c.P.racks[rn.rack]?.placement.name || c.P.racks[rn.rack]?.rack?.name || ''))}` : ''}`; };
+    const ips = window.Fent ? window.Fent.ifaces(inst, Math.min(2, Math.max(1, Number(nt?.ethernetCount) || 1))).map(x => x.ip).filter(Boolean) : [];
+    return `<div class="nn-node gone"><div class="nn-head">${I('alert', 14)} <b>${esc(inst.id || '')}</b><span>${esc(nt ? typeName(nt) : inst.typeId || '')}</span><span class="tag yellow">${t('no longer in a rack', 'niet meer in een rek')}</span><span style="flex:1"></span></div>
+      <div class="subtle" style="font-size:12.5px;margin:2px 0 8px">${t('Its address, switch port and universes are kept. Give them to a new node, or remove it.', 'Zijn adres, switchpoort en universes blijven bewaard. Geef ze aan een nieuwe node, of verwijder hem.')}
+        ${ips.length ? ` <span class="mono">${ips.map(esc).join(' · ')}</span>` : ''}${mine.length ? ` · ${t('plugged into', 'aangesloten op')} ${mine.map(r => `${esc(r.sw)} ${t('port', 'poort')} ${r.swPort}`).join(', ')}` : ''}</div>
+      <div class="nn-gone-act"><label class="nn-gone-l">${t('Replace by', 'Vervangen door')}<select data-nnrepl="${idx}" ${fresh.length ? '' : 'disabled'}>${fresh.length ? fresh.map(f => `<option value="${f.i}" ${same && f.i === same.i ? 'selected' : ''}>${label(f)}</option>`).join('') : `<option>${t('no new node yet — add the new device to a rack first', 'nog geen nieuwe node — zet het nieuwe apparaat eerst in een rek')}</option>`}</select></label>
+        <button class="sm primary" data-nnreplace="${idx}" ${fresh.length ? '' : 'disabled'}>${t('Replace', 'Vervangen')}</button><button class="sm" data-nnrm="${idx}">${I('trash', 13)} ${t('Remove', 'Verwijderen')}</button></div></div>`;
+  }
+
   function planCard(dc){
     const nd = M().networkDevices, p = plan(dc), unis = App.net.uniqueUniversesInDim(dc), nt = nd.nodeTypes.find(x => x.id === p.nodeTypeId) || nd.nodeTypes[0];
     const need = nt ? App.net.calculateNodeNeedForDim(dc, nt.portCount) : null, hasRacks = E()?.hasRackPlan?.(M(), dc);
     const nodeOpts = nd.nodeTypes.map(x => `<option value="${esc(x.id)}" ${p.nodeTypeId === x.id ? 'selected' : ''}>${esc(typeName(x))} · ${Number(x.portCount || 0)} ${t('ports', 'poorten')}</option>`).join('') || `<option value="">${t('No node types yet', 'Nog geen nodetypes')}</option>`;
     const splOpts = nd.splitterTypes.map(x => `<option value="${esc(x.id)}" ${p.lastSplitterTypeId === x.id ? 'selected' : ''}>${esc(typeName(x))} · ${Number(x.outputCount || 0)} ${t('outputs', 'uitgangen')}</option>`).join('') || `<option value="">${t('No splitter types yet', 'Nog geen splittertypes')}</option>`;
-    return `<div class="nn-plan"><span class="info-pill">${unis.length} ${t('universes', 'universes')}</span>${need ? `<span class="info-pill">${need.nodeCount} ${t('nodes needed', 'nodes nodig')}</span>` : ''}<span class="info-pill">${p.nodes.length} ${t('nodes placed', 'nodes geplaatst')}</span><span class="info-pill">${p.splitters.length} ${t('splitters', 'splitters')}</span>
+    return `<div class="nn-plan"><span class="info-pill">${unis.length} ${t('universes', 'universes')}</span>${need && !hasRacks ? `<span class="info-pill">${need.nodeCount} ${t('nodes needed', 'nodes nodig')}</span>` : ''}<span class="info-pill">${p.nodes.length} ${t('nodes placed', 'nodes geplaatst')}</span><span class="info-pill">${p.splitters.length} ${t('splitters', 'splitters')}</span>
       <span style="flex:1"></span>
-      ${hasRacks ? `<button class="sm" data-nnfromrack="${esc(dc)}" title="${esc(t('Take the nodes and splitters from the racks of this DimCity, with the universes of the rack patch', 'Neem de nodes en splitters uit de racks van deze DimCity, met de universes van de rackpatch'))}">${I('rack', 13)} ${t('Nodes from the racks', 'Nodes uit de racks')}</button>` : ''}
-      <details class="nn-more"><summary class="sm">${t('Plan by hand…', 'Zelf plannen…')}</summary><div class="planner-controls" style="margin-top:8px">
+      ${hasRacks ? `<span class="subtle" title="${esc(t('Place or remove racks and loose nodes on the Racks card of this DimCity: the nodes follow by themselves', 'Plaats of verwijder racks en losse nodes op de racks-kaart van deze DimCity: de nodes volgen vanzelf'))}">${I('rack', 13)} ${t('The nodes follow the racks of this DimCity', 'De nodes volgen de racks van deze DimCity')}</span>` : ''}
+      ${hasRacks ? '' : `<details class="nn-more"><summary class="sm">${t('Plan by hand…', 'Zelf plannen…')}</summary><div class="planner-controls" style="margin-top:8px">
         <label>${t('Node type', 'Nodetype')}<select class="nnNodeType" data-dc="${esc(dc)}">${nodeOpts}</select></label><button class="nnAutoNode" data-dc="${esc(dc)}" ${nd.nodeTypes.length ? '' : 'disabled'}>${I('refresh', 14)}${t('Auto-assign nodes', 'Nodes automatisch indelen')}</button>
         <label>${t('Splitter type', 'Splittertype')}<select class="nnSplitType" data-dc="${esc(dc)}">${splOpts}</select></label><button class="nnAutoSplit" data-dc="${esc(dc)}" ${nd.splitterTypes.length ? '' : 'disabled'}>${I('refresh', 14)}${t('Auto-calculate splitters', 'Splitters automatisch berekenen')}</button></div>
-        <div class="subtle" style="font-size:12px;margin-top:4px">${t('Auto-assign puts the universes of this DimCity on nodes of the chosen type, lowest first. It replaces the nodes of this DimCity.', 'Automatisch indelen zet de universes van deze DimCity op nodes van het gekozen type, laagste eerst. Het vervangt de nodes van deze DimCity.')}</div></details></div>`;
+        <div class="subtle" style="font-size:12px;margin-top:4px">${t('Auto-assign puts the universes of this DimCity on nodes of the chosen type, lowest first. It replaces the nodes of this DimCity.', 'Automatisch indelen zet de universes van deze DimCity op nodes van het gekozen type, laagste eerst. Het vervangt de nodes van deze DimCity.')}</div></details>`}</div>`;
   }
   function splittersHtml(dc){
     const sp = plan(dc).splitters || []; if(!sp.length) return '';
@@ -113,10 +126,11 @@
 
   function card(dc){
     const p = plan(dc), sws = window.NetSwitches.list(dc), rows = window.FentUI.portPlan(dc).rows, c = ctx(dc), car = carriers(dc), links = window.NetSwitches.linksOf(dc);
-    const nodes = p.nodes.map((n, i) => nodeCard(dc, i, c, car, sws, rows, links)).join('');
+    const nodes = p.nodes.map((n, i) => n.gone ? '' : nodeCard(dc, i, c, car, sws, rows, links)).join('');
+    const gone = p.nodes.map((n, i) => n.gone ? goneCard(dc, i, n, c, rows) : '').join('');
     const unplaced = rows.filter(r => r.kind === 'node' && r.unplaced).length;
     return `<div class="nn-db" style="--dim-color:${App.dimColor(dc)}"><div class="nn-db-h"><i class="dot" style="background:${App.dimColor(dc)}"></i><b>${esc(dc)}</b><span class="subtle">${p.nodes.length} ${t('nodes', 'nodes')}</span>${unplaced ? `<span class="tag yellow">${unplaced} ${t('without a switch port', 'zonder switchpoort')}</span>` : ''}</div>
-      ${planCard(dc)}${nodes || `<div class="nn-empty">${t('No nodes in this DimCity yet. Take them from the racks, or let PatchLab plan them from the universes.', 'Nog geen nodes in deze DimCity. Neem ze uit de racks, of laat PatchLab ze plannen vanuit de universes.')}</div>`}${splittersHtml(dc)}</div>`;
+      ${gone}${planCard(dc)}${nodes || `<div class="nn-empty">${t('No nodes in this DimCity yet. Place a rack (or add a loose node) on the Racks card of this DimCity and its nodes appear here by themselves — or let PatchLab plan them from the universes.', 'Nog geen nodes in deze DimCity. Plaats een rek (of voeg een losse node toe) op de racks-kaart van deze DimCity en de nodes verschijnen hier vanzelf — of laat PatchLab ze plannen vanuit de universes.')}</div>`}${splittersHtml(dc)}</div>`;
   }
 
   function bind(root, dc, rerender){
@@ -132,13 +146,14 @@
     root.querySelectorAll('[data-nnadv]').forEach(c => c.onchange = () => { const n = plan(dc).nodes[Number(c.dataset.nnadv)]; if(!n) return; window.PatchHistory?.label?.(`${dc}: advanced network ${c.checked ? 'on' : 'off'}`); if(c.checked) n.advanced = true; else delete n.advanced; dirty(); rerender(); });
     root.querySelectorAll('[data-nnrm]').forEach(b => b.onclick = async () => {
       const idx = Number(b.dataset.nnrm), n = plan(dc).nodes[idx]; if(!n) return;
-      const ok = await App.ui.confirmDialog({ title:t('Remove this node?', 'Deze node verwijderen?'), message:`${n.id || ''} ${t('is removed from the network plan of', 'wordt uit het netwerkplan van')} ${dc} ${t('', 'gehaald')}.`, okLabel:t('Remove', 'Verwijderen'), danger:true });
-      if(!ok) return; window.PatchHistory?.label?.(`${dc}: node removed`); plan(dc).nodes.splice(idx, 1); App.net.refreshDimDeviceIdentity(dc); dirty(); rerender();
+      const ok = await App.ui.confirmDialog({ title:t('Remove this node?', 'Deze node verwijderen?'), message:`${n.id || ''} ${t('is removed from the network plan of', 'wordt uit het netwerkplan van')} ${dc} ${t(`. Its address and switch port go with it.`, ` gehaald. Zijn adres en switchpoort verdwijnen mee.`)}`, okLabel:t('Remove', 'Verwijderen'), danger:true });
+      if(!ok) return; window.RackPlan.removeNode(dc, idx); dirty(); rerender();
     });
-    root.querySelectorAll('[data-nnfromrack]').forEach(b => b.onclick = async () => {
-      const p = plan(dc);
-      if(p.nodes.length || p.splitters.length){ const ok = await App.ui.confirmDialog({ title:t('Replace the nodes of this DimCity?', 'De nodes van deze DimCity vervangen?'), message:t(`The nodes and splitters of ${dc} are replaced by the ones from the racks, with the universes of the rack patch. Addresses set before stay.`, `De nodes en splitters van ${dc} worden vervangen door die uit de racks, met de universes van de rackpatch. Eerder ingestelde adressen blijven.`), okLabel:t('Replace', 'Vervangen') }); if(!ok) return; }
-      window.RackPlan.applyToNetworkPlan(dc); rerender();
+    root.querySelectorAll('[data-nnreplace]').forEach(b => b.onclick = () => {
+      const gi = Number(b.dataset.nnreplace), sel = root.querySelector(`[data-nnrepl="${gi}"]`), wi = Number(sel?.value);
+      if(!Number.isInteger(wi) || !plan(dc).nodes[wi]) return;
+      const id = plan(dc).nodes[gi]?.id;
+      if(window.RackPlan.replaceNode(dc, gi, wi)){ App.ui.toast(`${id}: ${t('taken over by the new node', 'overgenomen door de nieuwe node')}`); dirty(); rerender(); }
     });
     root.querySelectorAll('.nnNodeType').forEach(sel => sel.onchange = () => { plan(sel.dataset.dc).nodeTypeId = sel.value; dirty(); });
     root.querySelectorAll('.nnSplitType').forEach(sel => sel.onchange = () => { plan(sel.dataset.dc).lastSplitterTypeId = sel.value; dirty(); });

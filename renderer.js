@@ -855,6 +855,8 @@ function fullRebuildAndRender(){
   recomputeVeamUseAndIssues();
   // Universe-statistieken per DimCity (LK/Veam/DMX)
   recomputeUniverseStats();
+  // The nodes of the network plan follow the racks
+  try { window.RackPlan?.syncAll?.(); } catch(e){ console.error('node sync', e); }
   // Alles opnieuw tekenen
   renderAll();
 }
@@ -1080,6 +1082,7 @@ function renderSummary(){
 // ---- Router ----
 function renderRight(){
   SOCK = null;
+  try { window.RackPlan?.syncAll?.(); } catch(e){ console.error('node sync', e); }      // the nodes of the network plan follow the racks (a few hundredths of a ms per DimCity)
   const sel = MODEL.selected || {};
   const detail = MODEL.ui.rightMode === 'DETAIL' && sel.kind;
   const view = detail ? 'DETAIL' : (MODEL.ui.view || 'HOME');
@@ -1969,21 +1972,24 @@ function createSplitterInstance(dc, sp, index, universes=[]){
 }
 function refreshDimDeviceIdentity(dc){
   const plan = getDimPlan(dc);
+  // ids stay as they are (they are on the cables and in the port plan): a new device gets the lowest free one, a removed device leaves a gap
+  const freeId = (list, make) => { const used = new Set(list.map(x => x.id).filter(Boolean)); return () => { for(let i = 0; i < 999; i++){ const id = make(dc, i); if(!used.has(id)){ used.add(id); return id; } } return make(dc, list.length); }; };
+  const nextNode = freeId(plan.nodes, formatNodeId), nextSplit = freeId(plan.splitters, formatSplitterId);
   plan.nodes.forEach((n,idx)=>{
     const nt = MODEL.networkDevices.nodeTypes.find(x=>x.id===n.typeId);
     const num = dimDeviceNumber(dc, idx);
-    n.deviceNo = num;
+    if(n.deviceNo == null) n.deviceNo = num;
     n.segment = segmentFromDim(dc);
-    if(!n.id || /^ID:\d+/i.test(n.id)) n.id = formatNodeId(dc, idx);
+    if(!n.id) n.id = nextNode();
     if(nt && !n.ip) n.ip = ipWithLastOctet(nt.defaultIp || '', num);
     if(nt && !n.subnet) n.subnet = nt.subnet || '255.255.255.0';
   });
   plan.splitters.forEach((s,idx)=>{
     const sp = MODEL.networkDevices.splitterTypes.find(x=>x.id===s.typeId);
     const num = dimDeviceNumber(dc, idx);
-    s.deviceNo = num;
+    if(s.deviceNo == null) s.deviceNo = num;
     s.segment = segmentFromDim(dc);
-    if(!s.id || /^SP:\d+/i.test(s.id)) s.id = formatSplitterId(dc, idx);
+    if(!s.id) s.id = nextSplit();
     if(sp && !s.ip) s.ip = ipWithLastOctet(sp.defaultIp || '', num);
     if(sp && !s.subnet) s.subnet = sp.subnet || '';
   });
@@ -2038,7 +2044,7 @@ function renderNodeInstanceFace(nodeType, inst, nodeIndex, dc){
   for(let i=1;i<=ports;i++){
     const u = assigned[i-1];
     const empty = (u == null || u === '');
-    html += `<span class="device-port assignable ${empty?'empty':''}" draggable="false" data-node-index="${nodeIndex}" data-port-index="${i-1}" data-dc="${esc(dc||'')}" title="${empty ? `Port ${i} empty` : `Port ${i} • Universe ${u}`}">${esc(empty?'—':`UNI ${u}`)}</span>`;
+    html += `<span class="device-port ${inst.src ? '' : 'assignable'} ${empty?'empty':''}" draggable="false" data-node-index="${nodeIndex}" data-port-index="${i-1}" data-dc="${esc(dc||'')}" title="${empty ? `Port ${i} empty` : `Port ${i} • Universe ${u}`}">${esc(empty?'—':`UNI ${u}`)}</span>`;
   }
   // netwerkaansluitingen: 1 of 2 RJ45 (link + redundant / daisy chain)
   const eth = nodeEthernetPorts(nodeType);
@@ -2175,7 +2181,7 @@ function renderDimNetworkDevices(dc){
     if(!nt) return `<div class="network-instance node-instance" style="--device-color:#ef4444"><div class="network-instance-head"><div><b>${esc(n.id || '')}</b> <span class="muted">${esc(n.name || '')}</span><div class="subtle" style="font-size:12px">${I('alert',13)} Node type ${esc(n.typeId || '?')} is not in this show any more</div></div><button class="sm danger dimRemoveNode" data-node-index="${idx}">${I('trash',13)}Remove</button></div></div>`;
     if(!Array.isArray(n.universes)) n.universes = [];
     return `<div class="network-instance node-instance" style="--device-color:${safeHex(nt.color || '#4c9dff')}">
-      <div class="network-instance-head"><div><b>${esc(n.id || '')}</b> <span class="muted">${esc(n.name || '')}</span><div class="subtle" style="font-size:12px">${esc([nt.brand, nt.name || nt.id].filter(Boolean).join(' '))} · segment ${esc(n.segment || '')} · ${Number(nt.portCount||0)} ports</div></div><button class="sm danger dimRemoveNode" data-node-index="${idx}">${I('trash',13)}Remove</button></div>
+      <div class="network-instance-head"><div><b>${esc(n.id || '')}</b> <span class="muted">${esc(n.name || '')}</span><div class="subtle" style="font-size:12px">${esc([nt.brand, nt.name || nt.id].filter(Boolean).join(' '))} · segment ${esc(n.segment || '')} · ${Number(nt.portCount||0)} ports</div></div>${n.gone ? `<span class="tag yellow">no longer in a rack</span>` : ''}${n.src && !n.gone ? '' : `<button class="sm danger dimRemoveNode" data-node-index="${idx}">${I('trash',13)}Remove</button>`}</div>
       <div class="network-instance-fields">
         <label>ID<input class="dimNodeField" data-node-index="${idx}" data-field="id" value="${esc(n.id || '')}"></label>
         <label>Name<input class="dimNodeField" data-node-index="${idx}" data-field="name" value="${esc(n.name || '')}"></label>
@@ -2202,7 +2208,8 @@ function renderDimNetworkDevices(dc){
   }).join('');
 
   const noLib = !nd.nodeTypes.length || !nd.splitterTypes.length;
-  const tools = `<div class="planner-controls">
+  const byRacks = !!window.RackEngine?.hasRackPlan?.(MODEL, dc);
+  const tools = byRacks ? `<div class="hint">${I('info',13)} The nodes of ${esc(dc)} follow its racks (Racks card): place or remove a rack or a loose node there and they appear and disappear here by themselves. A node that is no longer in a rack stays until you replace or remove it on the Network page (Nodes).</div>` : `<div class="planner-controls">
       <label>Node type<select id="dimNodeType">${nodeTypeOptions || '<option value="">No node types yet</option>'}</select></label>
       <button id="dimAutoAssignNodes" ${nd.nodeTypes.length?'':'disabled'}>${I('refresh',14)}Auto-assign nodes</button>
       <label>Splitter type<select id="dimSplitterType">${splitterTypeOptions || '<option value="">No splitter types yet</option>'}</select></label>

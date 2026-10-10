@@ -87,6 +87,8 @@
     p.manual[key] = { sw, port }; dirty(); return { replaced:occ || null };
   }
   function unplace(dc, key){ const p = wpatch(dc); delete p.manual[key]; dirty(); }
+  // a device is gone for good: its places go too (a later device with the same id must not inherit them)
+  function forget(dc, prefix){ const p = pstore()[dc]; if(!p?.manual) return; for(const k of Object.keys(p.manual)) if(k.startsWith(prefix)) delete p.manual[k]; dirty(); }
   const unplaceAll = dc => { wpatch(dc).manual = {}; dirty(); };
   // Auto-fill, once: the devices without a port go on the free ports, in the order asked. o = { order, sort, keep (keep what is placed), all (every DimCity) }
   function autoFill(dc, o = {}){
@@ -131,7 +133,7 @@
   const devShort = r => `${r.device}${r.ethCount > 1 && !r.cable ? `·${r.eth}` : ''}`;
   function chip(r, ctx, extra = ''){
     const pl = r.kind === 'node' && ctx ? ctx.panelOf(r.idx) : null;
-    return `<div class="pb-dev k-${r.kind} ${S.armed === r.key ? 'armed' : ''} ${extra}" draggable="true" data-pbdev="${esc(r.key)}" title="${esc(devTip(r) + (pl ? ` · ${t('plug into', 'steek in')} ${pl.panel} etherCON ${pl.no}` : ''))}"><i>${I(KIND_ICON[r.kind] || 'network', 13)}</i><b>${esc(devShort(r))}</b><em>${esc(r.typeName || '')}</em>${pl ? `<s title="${esc(`${pl.panel} · etherCON ${pl.no}`)}">${esc(pl.panel)}.${pl.no}</s>` : ''}</div>`;
+    return `<div class="pb-dev k-${r.kind} ${r.gone ? 'gone' : ''} ${S.armed === r.key ? 'armed' : ''} ${extra}" draggable="true" data-pbdev="${esc(r.key)}" title="${esc(devTip(r) + (r.gone ? ` · ${t('no longer in a rack', 'niet meer in een rek')}` : '') + (pl ? ` · ${t('plug into', 'steek in')} ${pl.panel} etherCON ${pl.no}` : ''))}"><i>${I(KIND_ICON[r.kind] || 'network', 13)}</i><b>${esc(devShort(r))}</b><em>${esc(r.typeName || '')}</em>${pl ? `<s title="${esc(`${pl.panel} · etherCON ${pl.no}`)}">${esc(pl.panel)}.${pl.no}</s>` : ''}</div>`;
   }
   function boardPort(dc, s, p, byPort, ctx, fib){
     const sel = S.armed && !p.link;
@@ -515,5 +517,5 @@
   // ---- for the Network config page: what the plan wants on a switch / node, including the hand-made choices ----
   const forSwitch = (dc, label) => get(swKey(dc, label));
   const forNode = (dc, inst, i) => get(ndKey(dc, inst, i));
-  window.PortPlan = { html, boardCard, boardHtml, switchesHtml, nodesCard, bind, state:S, patch, ensureV2, place, unplace, unplaceAll, autoFill, fillDialog, forSwitch, forNode, swPorts, ndPorts, swKey, ndKey };
+  window.PortPlan = { html, boardCard, boardHtml, switchesHtml, nodesCard, bind, state:S, patch, ensureV2, place, unplace, forget, unplaceAll, autoFill, fillDialog, forSwitch, forNode, swPorts, ndPorts, swKey, ndKey };
 })();

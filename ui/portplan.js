@@ -286,16 +286,17 @@
     if(!src) return;
     const others = allSwitches().filter(x => !(x.dc === dc && x.s.label === src.label));
     if(!others.length){ App.ui.toast(t('There is no other switch', 'Er is geen andere switch'), 'info'); return; }
-    const dlg = App.ui.openDialog({ title:t('Copy the port settings to other switches', 'Kopieer de poortinstellingen naar andere switches'), subtitle:src.label, width:'640px', body:`<div class="nc-copy">
-        <div><b>${t('What', 'Wat')}</b>
-          <label class="nc-chk"><input type="checkbox" id="cpVlan" checked> ${t('VLAN / trunk of every port', 'VLAN / trunk van elke poort')}</label>
-          <label class="nc-chk"><input type="checkbox" id="cpExtra" checked> ${t('PoE and speed', 'PoE en snelheid')}</label>
-          <label class="nc-chk"><input type="checkbox" id="cpNames"> ${t('Port names typed by hand (off: every switch keeps its own, because they differ with network cables and nodes)', 'Poortnamen die je met de hand typte (uit: elke switch houdt zijn eigen, want die verschillen door netwerkkabels en nodes)')}</label>
-          <label class="nc-chk"><input type="checkbox" id="cpSfp"> ${t('The SFP / fibre ports too', 'Ook de SFP- / fiberpoorten')}</label>
-          <label class="nc-chk"><input type="checkbox" id="cpMan"> ${t('Only the ports I changed by hand', 'Alleen de poorten die ik met de hand veranderde')}</label></div>
-        <div><b>${t('To', 'Naar')}</b> <button id="cpAll">${t('all', 'alle')}</button> <button id="cpNone">${t('none', 'geen')}</button>
-          <div class="nc-cp-list">${others.map((x, i) => `<label class="nc-chk"><input type="checkbox" data-cptg="${i}" checked> ${esc(x.s.label)} <span class="subtle">${esc(x.dc)} · ${x.s.rj} RJ45${x.s.sfp ? ` + ${x.s.sfp} SFP` : ''}</span></label>`).join('')}</div></div>
-        <div class="subtle">${t('Nothing is sent. This only fills the plan of those switches; you can still change every port.', 'Er wordt niets gestuurd. Dit vult alleen het plan van die switches; je kunt elke poort nog aanpassen.')}</div></div>`,
+    const opt = (id, on, label, hint = '') => `<label class="nc-chk"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><span>${label}${hint ? `<small>${hint}</small>` : ''}</span></label>`;
+    const dlg = App.ui.openDialog({ title:t('Copy the port settings to other switches', 'Kopieer de poortinstellingen naar andere switches'), subtitle:src.label, width:'700px', body:`<div class="nc-copy">
+        <div class="nc-cp-col"><div class="nc-cp-h">${t('What', 'Wat')}</div><div class="nc-cp-opts">
+          ${opt('cpVlan', true, t('VLAN / trunk of every port', 'VLAN / trunk van elke poort'))}
+          ${opt('cpExtra', true, t('PoE and speed', 'PoE en snelheid'))}
+          ${opt('cpNames', false, t('Port names typed by hand', 'Poortnamen die je met de hand typte'), t('Off: every switch keeps its own names, because they differ with network cables and nodes.', 'Uit: elke switch houdt zijn eigen namen, want die verschillen door netwerkkabels en nodes.'))}
+          ${opt('cpSfp', false, t('The SFP / fibre ports too', 'Ook de SFP- / fiberpoorten'))}
+          ${opt('cpMan', false, t('Only the ports I changed by hand', 'Alleen de poorten die ik met de hand veranderde'))}</div></div>
+        <div class="nc-cp-col"><div class="nc-cp-h">${t('To', 'Naar')} <span class="nc-cp-btns"><button id="cpAll">${t('all', 'alle')}</button><button id="cpNone">${t('none', 'geen')}</button></span></div>
+          <div class="nc-cp-list">${others.map((x, i) => `<label class="nc-chk"><input type="checkbox" data-cptg="${i}" checked><span><b>${esc(x.s.label)}</b></span><span class="subtle">${esc(x.dc)} · ${x.s.rj} RJ45${x.s.sfp ? ` + ${x.s.sfp} SFP` : ''}</span></label>`).join('')}</div></div>
+        <div class="subtle nc-cp-note">${t('Nothing is sent. This only fills the plan of those switches; you can still change every port.', 'Er wordt niets gestuurd. Dit vult alleen het plan van die switches; je kunt elke poort nog aanpassen.')}</div></div>`,
       footer:`<button class="primary" data-a="go">${t('Copy', 'Kopiëren')}</button><button data-a="x">${t('Cancel', 'Annuleren')}</button>` });
     const q = x => dlg.body.querySelector(x), qa = x => [...dlg.body.querySelectorAll(x)];
     q('#cpAll').onclick = () => qa('[data-cptg]').forEach(c => { c.checked = true; }); q('#cpNone').onclick = () => qa('[data-cptg]').forEach(c => { c.checked = false; });
@@ -327,14 +328,15 @@
     const src = App.net.getDimPlan(dc).nodes[idx]; if(!src) return;
     const others = allNodes().filter(x => !(x.dc === dc && x.i === idx));
     if(!others.length){ App.ui.toast(t('There is no other node', 'Er is geen andere node'), 'info'); return; }
-    const dlg = App.ui.openDialog({ title:t('Copy the port settings to other nodes', 'Kopieer de poortinstellingen naar andere nodes'), subtitle:src.id || `Node ${idx + 1}`, width:'640px', body:`<div class="nc-copy">
-        <div><b>${t('What', 'Wat')}</b>
-          <label class="nc-chk"><input type="checkbox" id="cpProto" checked> ${t('Protocol (sACN / Art-Net) and direction of every port', 'Protocol (sACN / Art-Net) en richting van elke poort')}</label>
-          <label class="nc-chk"><input type="checkbox" id="cpNames"> ${t('Port names typed by hand (off: the automatic names stay)', 'Poortnamen die je met de hand typte (uit: de automatische namen blijven)')}</label>
-          <label class="nc-chk"><input type="checkbox" id="cpUni"> ${t('The universes too (the same numbers on the other nodes)', 'Ook de universes (dezelfde nummers op de andere nodes)')}</label></div>
-        <div><b>${t('To', 'Naar')}</b> <button id="cpAll">${t('all', 'alle')}</button> <button id="cpNone">${t('none', 'geen')}</button>
-          <div class="nc-cp-list">${others.map((x, i) => `<label class="nc-chk"><input type="checkbox" data-cptg="${i}" checked> ${esc(x.inst.id || `Node ${x.i + 1}`)} <span class="subtle">${esc(x.dc)}</span></label>`).join('')}</div></div>
-        <div class="subtle">${t('Nothing is sent. This only fills the plan of those nodes.', 'Er wordt niets gestuurd. Dit vult alleen het plan van die nodes.')}</div></div>`,
+    const opt = (id, on, label, hint = '') => `<label class="nc-chk"><input type="checkbox" id="${id}" ${on ? 'checked' : ''}><span>${label}${hint ? `<small>${hint}</small>` : ''}</span></label>`;
+    const dlg = App.ui.openDialog({ title:t('Copy the port settings to other nodes', 'Kopieer de poortinstellingen naar andere nodes'), subtitle:src.id || `Node ${idx + 1}`, width:'700px', body:`<div class="nc-copy">
+        <div class="nc-cp-col"><div class="nc-cp-h">${t('What', 'Wat')}</div><div class="nc-cp-opts">
+          ${opt('cpProto', true, t('Protocol (sACN / Art-Net) and direction of every port', 'Protocol (sACN / Art-Net) en richting van elke poort'))}
+          ${opt('cpNames', false, t('Port names typed by hand', 'Poortnamen die je met de hand typte'), t('Off: the automatic names stay.', 'Uit: de automatische namen blijven.'))}
+          ${opt('cpUni', false, t('The universes too', 'Ook de universes'), t('The same numbers on the other nodes.', 'Dezelfde nummers op de andere nodes.'))}</div></div>
+        <div class="nc-cp-col"><div class="nc-cp-h">${t('To', 'Naar')} <span class="nc-cp-btns"><button id="cpAll">${t('all', 'alle')}</button><button id="cpNone">${t('none', 'geen')}</button></span></div>
+          <div class="nc-cp-list">${others.map((x, i) => `<label class="nc-chk"><input type="checkbox" data-cptg="${i}" checked><span><b>${esc(x.inst.id || `Node ${x.i + 1}`)}</b></span><span class="subtle">${esc(x.dc)}</span></label>`).join('')}</div></div>
+        <div class="subtle nc-cp-note">${t('Nothing is sent. This only fills the plan of those nodes.', 'Er wordt niets gestuurd. Dit vult alleen het plan van die nodes.')}</div></div>`,
       footer:`<button class="primary" data-a="go">${t('Copy', 'Kopiëren')}</button><button data-a="x">${t('Cancel', 'Annuleren')}</button>` });
     const q = x => dlg.body.querySelector(x), qa = x => [...dlg.body.querySelectorAll(x)];
     q('#cpAll').onclick = () => qa('[data-cptg]').forEach(c => { c.checked = true; }); q('#cpNone').onclick = () => qa('[data-cptg]').forEach(c => { c.checked = false; });

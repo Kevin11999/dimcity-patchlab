@@ -255,7 +255,7 @@
         <div class="hint">${t('Use a sheet marked for laser printers (check the pack) — the templates do not say which printers a sheet suits.', 'Gebruik een vel dat voor laserprinters is bedoeld (kijk op de verpakking) — de sjablonen vermelden niet voor welke printers een vel geschikt is.')}</div></div>
       <div class="rb-group"><div class="rb-label">${t('What to print', 'Wat printen')}</div>
         ${sw('k:cables', L.kinds.cables, `${t('Cable labels', 'Kabellabels')} <span class="subtle">${cnt.cables}</span>`, t('LK multicores and Veam cables, 2 per cable (both ends)', 'LK-multicores en Veam-kabels, 2 per kabel (beide uiteinden)'))}
-        ${sw('k:strips', L.kinds.strips, `${t('Panel connection labels', 'Aansluitlabels paneel')} <span class="subtle">${cnt.strips}</span>`, t('One per LK7-1 / Veam4 socket', 'Eén per LK7-1- / Veam4-aansluiting'))}
+        ${sw('k:strips', L.kinds.strips, `${t('Panel connection labels', 'Aansluitlabels paneel')} <span class="subtle">${cnt.strips}</span>`, t('One per LK37 / Veam4 socket', 'Eén per LK37- / Veam4-aansluiting'))}
         ${sw('k:nodePorts', L.kinds.nodePorts, `${t('Node port labels', 'Nodepoort-labels')} <span class="subtle">${cnt.nodePorts}</span>`, t('Universe and where each port goes', 'Universe en waar elke poort heen gaat'))}
         ${sw('k:devices', L.kinds.devices, `${t('Racks, nodes, switches, splitters', 'Racks, nodes, switches, splitters')} <span class="subtle">${cnt.devices}</span>`)}
         ${sw('k:fibers', L.kinds.fibers, `${t('Fibre labels', 'Fiberlabels')} <span class="subtle">${cnt.fibers}</span>`, t('Both ends of every fibre, with where the other end goes', 'Beide uiteinden van elke fiber, met waar het andere uiteinde heen gaat'))}

@@ -30,7 +30,7 @@ function validateRow(row){
   // basiscontroles alleen voor LK/VEAM
   let hard = false;
   if (row.kind !== 'DMX'){
-    if (!row.id || !/^(?:LK\d+|VEAM12\d+|V\d+)$/i.test(row.id)) hard = true;
+    { const cl = row.id ? window.CsvRules.classify(row.id) : null; if (!cl || (cl.kind !== 'LK' && cl.kind !== 'V')) hard = true; }
     if (row.kind==='LK'   && !portRangeOk('LK1', Number(row.port)))  hard = true;
     if (row.kind==='VEAM' && !portRangeOk('V1',  Number(row.port)))  hard = true;
     if (!row.dimcity) hard = true;

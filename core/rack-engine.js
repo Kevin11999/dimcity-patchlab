@@ -1,6 +1,6 @@
 // core/rack-engine.js
 // Auto-patch for the racks placed in a DimCity:
-//  1. LKs go on LK7-1 sockets; Veams that are not linked to an LK go on a free Veam4 socket
+//  1. LKs go on LK37 sockets; Veams that are not linked to an LK go on a free Veam4 socket
 //     (first the Veam4 sockets next to an LK that doesn't use those lines, then separate ones).
 //  2. Every used line gets a DMX feed from a node port; when node ports run short, universes
 //     with several lines go through the rack's splitters.
@@ -246,7 +246,7 @@ export function computeRackPlan(M, dc){
   else {
     const missing = R.loose.filter(d => d.missing);
     if(missing.length) recs.push({ level:'warn', text:`${missing.length} loose node${missing.length > 1 ? 's use' : ' uses'} a node type that is no longer in this show.` });
-    if(noSocket.lk.length) recs.push({ level:'warn', text:`${noSocket.lk.length} LK${noSocket.lk.length > 1 ? 's have' : ' has'} no LK7-1 socket (${noSocket.lk.join(', ')}) → add ${noSocket.lk.length > 1 ? `${noSocket.lk.length} loose LK spiders` : 'a loose LK spider'}, or a panel with more LK sockets.` });
+    if(noSocket.lk.length) recs.push({ level:'warn', text:`${noSocket.lk.length} LK${noSocket.lk.length > 1 ? 's have' : ' has'} no LK37 socket (${noSocket.lk.join(', ')}) → add ${noSocket.lk.length > 1 ? `${noSocket.lk.length} loose LK spiders` : 'a loose LK spider'}, or a panel with more LK sockets.` });
     if(noSocket.ve.length) recs.push({ level:'warn', text:`${noSocket.ve.length} Veam${noSocket.ve.length > 1 ? 's have' : ' has'} no Veam4 socket (${noSocket.ve.join(', ')}) → add ${noSocket.ve.length > 1 ? `${noSocket.ve.length} loose Veam4 spiders` : 'a loose Veam4 spider'}.` });
     if(unfed){
       const per = num(nodeTypes[0]?.portCount, 8);
@@ -265,7 +265,7 @@ export function computeRackPlan(M, dc){
     const freePorts = totalPorts - usedPorts;
     if(freePorts > 0 && !unfed) recs.push({ level:'ok', text:`${freePorts} node port${freePorts > 1 ? 's' : ''} still free.` });
     const freeLk = lkSockets - lkUsed;
-    if(freeLk > 0) recs.push({ level:'info', text:`${freeLk} LK7-1 socket${freeLk > 1 ? 's' : ''} unused.` });
+    if(freeLk > 0) recs.push({ level:'info', text:`${freeLk} LK37 socket${freeLk > 1 ? 's' : ''} unused.` });
     const usedSplit = R.splitters.filter(s => s.inputs.length).length;
     if(R.splitters.length && usedSplit < R.splitters.length) recs.push({ level:'info', text:`${R.splitters.length - usedSplit} splitter${R.splitters.length - usedSplit > 1 ? 's are' : ' is'} not needed — there are enough node ports.` });
     if(!recs.some(r => r.level === 'warn') && lines.length) recs.unshift({ level:'ok', text:`Everything fits: ${lines.length} line${lines.length > 1 ? 's' : ''} patched on ${usedPorts} node port${usedPorts === 1 ? '' : 's'}.` });

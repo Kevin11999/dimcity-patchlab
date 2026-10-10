@@ -148,6 +148,7 @@
       savedAt: new Date().toISOString(),
       rows: buildRowsFromModel(M),
       csvSources: Array.isArray(M.csvSources) ? M.csvSources : [],
+      rules: M.rules && typeof M.rules === 'object' ? M.rules : null,
       customRows: Array.isArray(M.customRows) ? M.customRows : [],
       manualLKs,
       manualVeams,
@@ -225,6 +226,7 @@
 
     const M = App.getMODEL();
     M.csvSources = Array.isArray(snap.csvSources) ? snap.csvSources : [];
+    M.rules = snap.rules && typeof snap.rules === 'object' ? snap.rules : null;
     M.customRows = Array.isArray(snap.customRows) ? snap.customRows : [];
     M.projectMeta = snap.projectMeta || M.projectMeta || null;
     M.dimColors = snap.dimColors && typeof snap.dimColors === 'object' ? snap.dimColors : (M.dimColors || {});
@@ -420,6 +422,7 @@
       netLines: [],
       customRows: [],
       csvSources: [],
+      rules: null,
       dimColors: {},
       networkDevices: normalizeNetworkDevices(null),
       pdfSettings: defaultPdfSettings(),

@@ -429,7 +429,7 @@
     {
       "id": "PANEL:STD-LK3",
       "brand": "",
-      "name": "LK panel 3× LK7-1",
+      "name": "LK panel 3× LK37",
       "lkCount": 3,
       "vimCount": 0,
       "xlrCount": 0,
@@ -440,7 +440,7 @@
     {
       "id": "PANEL:STD-LK3Veam9",
       "brand": "",
-      "name": "LK panel 3× LK7-1 + 9× Veam4",
+      "name": "LK panel 3× LK37 + 9× Veam4",
       "lkCount": 3,
       "vimCount": 9,
       "xlrCount": 0,
@@ -451,7 +451,7 @@
     {
       "id": "PANEL:STD-LK2Veam6",
       "brand": "",
-      "name": "LK panel 2× LK7-1 + 6× Veam4",
+      "name": "LK panel 2× LK37 + 6× Veam4",
       "lkCount": 2,
       "vimCount": 6,
       "xlrCount": 0,

@@ -101,7 +101,7 @@ switches
 dimCityPlans
 ```
 
-`switchTypes` (RJ45 + SFP ports), `panelTypes` (LK7-1 / Veam4 / XLR / etherCON sockets) and
+`switchTypes` (RJ45 + SFP ports), `panelTypes` (LK37 / Veam4 / XLR / etherCON sockets) and
 `rackTypes` (`{ id, name, articleKey, heightU, items:[{ iid, kind, typeId, u }] }`, `u` = top row counted
 from the top, `heightU` from 1U) are edited in the Device Builder. Every type has `heightU`. Node types
 have `ethernetCount` (1 or 2 RJ45 ports). Type keys are fixed once saved.

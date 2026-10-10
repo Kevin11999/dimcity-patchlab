@@ -209,7 +209,7 @@ function cardHtml(dc){
   }
   const chip = (label, used, total, warn) => `<div class="rp-stat ${warn ? 'warn' : ''}"><span>${label}</span><b>${used}<em>/${total}</em></b></div>`;
   const stats = `<div class="rp-stats">
-      ${chip('LK7-1 sockets', s.lkUsed, s.lkSockets, s.spiders.lk)}
+      ${chip('LK37 sockets', s.lkUsed, s.lkSockets, s.spiders.lk)}
       ${chip('Veam4 sockets', s.vimUsed, s.vimSockets, s.spiders.vim)}
       ${chip('Node ports', s.nodePortsUsed, s.nodePorts, s.unfed)}
       ${chip('Lines', s.lines - s.unfed, s.lines, s.unfed)}

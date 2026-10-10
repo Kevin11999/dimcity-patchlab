@@ -524,16 +524,16 @@
     await load(); const k = kindOf(d), others = [...C.dev.values()].filter(x => x !== d && x.kind === d.kind && x.cur);
     if(!others.length){ App.ui.toast(t('There is no other device of this kind', 'Er is geen ander apparaat van dit soort'), 'info'); return; }
     const secs = SET.sections(k), mine = d.S.size;
-    const dlg = App.ui.openDialog({ title:t('Send settings to other devices', 'Instellingen naar andere apparaten sturen'), subtitle:`${d.name || d.ip}`, width:'720px', body:`<div class="nc-copy">
-        <div><b>${t('What', 'Wat')}</b>
-          <label class="nc-chk"><input type="radio" name="cpwhat" value="mine" ${mine ? 'checked' : 'disabled'}> ${t('My changes in All settings', 'Mijn wijzigingen in Alle instellingen')} (${mine})</label>
-          <label class="nc-chk"><input type="radio" name="cpwhat" value="secs" ${mine ? '' : 'checked'}> ${t('Whole sections of this device (only where the other device differs):', 'Hele onderdelen van dit apparaat (alleen waar het andere apparaat verschilt):')}</label>
-          <div class="nc-cp-secs">${secs.map(x => `<label class="nc-chk"><input type="checkbox" data-cpsec="${esc(x.id)}" ${x.id === d.setSec ? 'checked' : ''}> ${esc(x.title)}</label>`).join('')}</div>
-          <label class="nc-chk"><input type="checkbox" id="cpDev"> ${t('also names, descriptions and addresses', 'ook namen, beschrijvingen en adressen')}</label>
-          <label class="nc-chk"><input type="checkbox" id="cpDanger"> ${t('also risky settings (IP, security, switching ports off)', 'ook risicovolle instellingen (IP, beveiliging, poorten uitzetten)')}</label></div>
-        <div><b>${t('To', 'Naar')}</b> <button id="cpAll">${t('all', 'alle')}</button> <button id="cpNone">${t('none', 'geen')}</button>
-          <div class="nc-cp-list">${others.map(o => `<label class="nc-chk"><input type="checkbox" data-cpdev="${esc(o.ip)}" checked> ${esc(o.name || o.ip)} <span class="subtle">${esc(o.ip)}${o.link ? ' · ' + esc(linkLabel(planItems().find(x => x.id === o.link) || { kind:'sw', label:'', dc:'' })) : ''}</span></label>`).join('')}</div></div>
-        <div class="subtle">${t('This only prepares the changes on those devices. Check them on each device (or under “Apply all”) and send when you are ready.', 'Dit zet de wijzigingen alleen klaar op die apparaten. Controleer ze per apparaat (of onder “Alles toepassen”) en stuur als je klaar bent.')}</div></div>`,
+    const dlg = App.ui.openDialog({ title:t('Send settings to other devices', 'Instellingen naar andere apparaten sturen'), subtitle:`${d.name || d.ip}`, width:'760px', body:`<div class="nc-copy">
+        <div class="nc-cp-col"><div class="nc-cp-h">${t('What', 'Wat')}</div><div class="nc-cp-opts">
+          <label class="nc-chk"><input type="radio" name="cpwhat" value="mine" ${mine ? 'checked' : 'disabled'}><span>${t('My changes in All settings', 'Mijn wijzigingen in Alle instellingen')} (${mine})</span></label>
+          <label class="nc-chk"><input type="radio" name="cpwhat" value="secs" ${mine ? '' : 'checked'}><span>${t('Whole sections of this device', 'Hele onderdelen van dit apparaat')}<small>${t('only where the other device differs', 'alleen waar het andere apparaat verschilt')}</small></span></label>
+          <div class="nc-cp-secs">${secs.map(x => `<label class="nc-chk"><input type="checkbox" data-cpsec="${esc(x.id)}" ${x.id === d.setSec ? 'checked' : ''}><span>${esc(x.title)}</span></label>`).join('')}</div>
+          <label class="nc-chk"><input type="checkbox" id="cpDev"><span>${t('Also names, descriptions and addresses', 'Ook namen, beschrijvingen en adressen')}</span></label>
+          <label class="nc-chk"><input type="checkbox" id="cpDanger"><span>${t('Also risky settings', 'Ook risicovolle instellingen')}<small>${t('IP, security, switching ports off', 'IP, beveiliging, poorten uitzetten')}</small></span></label></div></div>
+        <div class="nc-cp-col"><div class="nc-cp-h">${t('To', 'Naar')} <span class="nc-cp-btns"><button id="cpAll">${t('all', 'alle')}</button><button id="cpNone">${t('none', 'geen')}</button></span></div>
+          <div class="nc-cp-list">${others.map(o => `<label class="nc-chk"><input type="checkbox" data-cpdev="${esc(o.ip)}" checked><span><b>${esc(o.name || o.ip)}</b></span><span class="subtle">${esc(o.ip)}${o.link ? ' · ' + esc(linkLabel(planItems().find(x => x.id === o.link) || { kind:'sw', label:'', dc:'' })) : ''}</span></label>`).join('')}</div></div>
+        <div class="subtle nc-cp-note">${t('This only prepares the changes on those devices. Check them on each device (or under “Apply all”) and send when you are ready.', 'Dit zet de wijzigingen alleen klaar op die apparaten. Controleer ze per apparaat (of onder “Alles toepassen”) en stuur als je klaar bent.')}</div></div>`,
       footer:`<button class="primary" data-a="go">${t('Prepare', 'Klaarzetten')}</button><button data-a="x">${t('Cancel', 'Annuleren')}</button>` });
     const q = s => dlg.body.querySelector(s), qa = s => [...dlg.body.querySelectorAll(s)];
     q('#cpAll').onclick = () => qa('[data-cpdev]').forEach(c => { c.checked = true; }); q('#cpNone').onclick = () => qa('[data-cpdev]').forEach(c => { c.checked = false; });

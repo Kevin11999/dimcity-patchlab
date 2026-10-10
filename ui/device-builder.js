@@ -23,6 +23,7 @@ const F_BRAND  = { k:'brand', label:'Brand', type:'text', ph:'Luminex / ELC / �
 const F_IP     = { k:'defaultIp', label:'Default IP', type:'ip', ph:'optional' };
 const F_SUBNET = { k:'subnet', label:'Subnet', type:'ip', def:'255.255.255.0' };
 const F_HEIGHT = { k:'heightU', label:'Height (U)', type:'number', min:1, max:8, def:1 };
+const F_WIDTH  = { k:'width', label:'Width in the rack', type:'select', def:'full', options:[['full', 'Full 19″'], ['half', 'Half 19″ — two side by side; a blind plate fills the rest']] };
 const F_SHORT  = { k:'short', label:'Short name', type:'text', ph:'shown in racks and overviews; empty = made automatically' };
 const F_COLOR  = kind => ({ k:'color', label:'Color', type:'color', def:KINDS[kind].color });
 const CONNECTORS = ['opticalCON DUO', 'opticalCON QUAD', 'opticalCON ADVANCED', 'FiberFox', 'LC duplex', 'SC duplex', 'SFP (LC)', 'SFP DAC', 'RJ45'];
@@ -31,20 +32,20 @@ const FIELDS = {
   node: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'LumiNode 12' }, F_SHORT,
     { k:'portCount', label:'DMX ports', type:'number', min:1, max:64, def:8 },
     { k:'ethernetCount', label:'Ethernet ports', type:'select', def:'1', options:[['1', '1× RJ45'], ['2', '2× RJ45 (link + redundant)']] },
-    { k:'width', label:'Width in the rack', type:'select', def:'full', options:[['full', 'Full 19″'], ['half', 'Half 19″ — two side by side; a blind plate fills the rest']] },
+    F_WIDTH,
     F_IP, F_SUBNET, F_HEIGHT, F_COLOR('node')],
   splitter: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'10 output splitter' }, F_SHORT,
     { k:'mode', label:'Input', type:'select', def:'A', options:[['A', 'Single input'], ['AB', 'A/B input']] },
     { k:'outputCount', label:'Outputs', type:'number', min:1, max:64, def:10 },
     { k:'switching', label:'Switching', type:'select', def:'independent', options:[['independent', 'Every output independent'], ['paired', 'Outputs paired per 2']] },
-    F_IP, F_SUBNET, F_HEIGHT, F_COLOR('splitter')],
+    F_IP, F_SUBNET, F_WIDTH, F_HEIGHT, F_COLOR('splitter')],
   switch: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'GigaCore 16Xt' }, F_SHORT,
     { k:'portCount', label:'RJ45 ports', type:'number', min:1, max:96, def:16 },
     { k:'sfpCount', label:'SFP / fibre ports', type:'number', min:0, max:16, def:2 },
     { k:'jack', label:'Copper port jack', type:'select', def:'RJ45', options:[['RJ45', 'RJ45'], ['etherCON', 'etherCON']] },
     { k:'frontCount', label:'Ports on the front (0 = all; the rest go to a panel)', type:'number', min:0, max:96, def:0 },
     { k:'sfpConnectors', label:'Fibre connector per port, in order (numbers continue after the copper ports)', type:'text', ph:'opticalCON DUO, opticalCON DUO, FiberFox DUO, FiberFox DUO' },
-    F_IP, F_SUBNET, F_HEIGHT, F_COLOR('switch')],
+    F_IP, F_SUBNET, F_WIDTH, F_HEIGHT, F_COLOR('switch')],
   cable: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'opticalCON DUO 4-core' },
     { k:'medium', label:'Medium', type:'select', def:'smf', options:[['smf', 'Fibre, singlemode'], ['mmf', 'Fibre, multimode'], ['dac', 'SFP patch / DAC (short)'], ['cat', 'Copper Cat (RJ45)']] },
     { k:'cores', label:'Cores', type:'number', min:1, max:48, def:4 },
@@ -54,15 +55,16 @@ const FIELDS = {
     { k:'articleKey', label:'Article key', type:'text', ph:'optional' },
     F_COLOR('cable')],
   panel: [F_ID, F_BRAND, { k:'name', label:'Name', type:'text', ph:'LK panel 3×' }, F_SHORT,
-    { k:'lkCount', label:'LK7-1 sockets', type:'number', min:0, max:12, def:3 },
+    { k:'lkCount', label:'LK37 sockets', type:'number', min:0, max:12, def:3 },
     { k:'vimCount', label:'Veam4 sockets', type:'number', min:0, max:12, def:0 },
+    { k:'vimPerLk', label:'Veam4 sockets that belong to each LK37 socket (0 = none: all Veam4 sockets are separate)', type:'number', min:0, max:3, def:3 },
     { k:'xlrCount', label:'XLR 5-pin', type:'number', min:0, max:48, def:0 },
     { k:'etherconCount', label:'etherCON', type:'number', min:0, max:48, def:0 },
     { k:'etherconFirst', label:'First etherCON number', type:'number', min:1, max:96, def:1 },
     { k:'opticalConCount', label:'opticalCON DUO', type:'number', min:0, max:12, def:0 },
     { k:'fiberfoxCount', label:'FiberFox DUO', type:'number', min:0, max:12, def:0 },
     { k:'fibreFirst', label:'First fibre port number', type:'number', min:1, max:96, def:17 },
-    F_HEIGHT, F_COLOR('panel')]
+    F_WIDTH, F_HEIGHT, F_COLOR('panel')]
 };
 
 const S = { d:null, tab:'node', sel:{}, draft:null, origId:null, base:'', rackId:null, drag:null };
@@ -98,8 +100,8 @@ function metaLine(kind, t){
     case 'splitter': return `${t.mode === 'AB' ? 'A/B' : '1'} in · ${num(t.outputCount, 10)} out${t.switching === 'paired' ? ' · paired' : ''}`;
     case 'switch': return `${num(t.portCount, 16)} ${t.jack === 'etherCON' ? 'etherCON' : 'RJ45'}${num(t.sfpCount) ? ` + ${num(t.sfpCount)} ${String(t.sfpConnectors || '').trim() ? 'fibre' : 'SFP'}` : ''}`;
     case 'cable': return `${MEDIUM[t.medium] || 'Fibre'} · ${num(t.cores, 4)}-core · ${String(num(t.lengthM, 50)).replace('.', ',')} m`;
-    case 'panel': return [[t.lkCount, 'LK7-1'], [t.vimCount, 'Veam4'], [t.xlrCount, 'XLR'], [t.etherconCount, 'etherCON']]
-      .filter(([n]) => num(n) > 0).map(([n, l]) => `${num(n)}× ${l}`).join(' · ') || 'No sockets';
+    case 'panel': return [[t.lkCount, 'LK37'], [t.vimCount, 'Veam4'], [t.xlrCount, 'XLR'], [t.etherconCount, 'etherCON']]
+      .filter(([n]) => num(n) > 0).map(([n, l]) => `${num(n)}× ${l}`).join(' · ') + (num(t.lkCount) > 0 && num(t.vimCount) > 0 && num(t.vimPerLk, 3) > 0 ? ` · ${Math.min(3, num(t.vimPerLk, 3))} Veam4 per LK37` : '') || 'No sockets';
   }
   return '';
 }
@@ -126,9 +128,15 @@ function portsHtml(kind, t, opts = {}){
       return h;
     }
     case 'panel': {
-      const g = [], ef = num(t.etherconFirst, 1) || 1;
-      if(num(t.lkCount) > 0) g.push(grp(range(num(t.lkCount), i => port('lk', i, `LK7-1 ${i}`))));
-      if(num(t.vimCount) > 0) g.push(grp(range(num(t.vimCount), i => port('vim', i, `Veam4 ${i}`))));
+      const g = [], ef = num(t.etherconFirst, 1) || 1, lks = num(t.lkCount), vims = num(t.vimCount);
+      const per = Math.min(3, Math.max(0, num(t.vimPerLk, 3))), shared = Math.min(vims, lks * per);
+      // the first Veam4 sockets sit with the LK socket they belong to (LK 1 → Veam 1-3, LK 2 → Veam 4-6 …)
+      for(let i = 1; i <= lks; i++){
+        const mine = Array.from({ length:per }, (_, k) => (i - 1) * per + k + 1).filter(n => n <= shared);
+        if(mine.length) g.push(`<span class="ru-lkgrp" title="${esc(`LK37 ${i} + Veam4 ${mine[0]}${mine.length > 1 ? '–' + mine[mine.length - 1] : ''}`)}">${port('lk', i, `LK37 ${i}`)}${mine.map(n => port('vim', n, `Veam4 ${n} (belongs to LK37 ${i})`)).join('')}</span>`);
+        else g.push(grp(port('lk', i, `LK37 ${i}`)));
+      }
+      if(vims > shared) g.push(grp(range(vims - shared, i => port('vim', shared + i, `Veam4 ${shared + i}`))));
       if(num(t.xlrCount) > 0) g.push(grp(range(num(t.xlrCount), i => port('dmx', i, `XLR 5-pin ${i}`))));
       if(num(t.etherconCount) > 0) g.push(grp(range(num(t.etherconCount), i => port('rj ec', i + ef - 1, `etherCON ${i + ef - 1}`))));
       const ff = num(t.fibreFirst, 17), oc = num(t.opticalConCount), fx = num(t.fiberfoxCount);
@@ -147,7 +155,8 @@ function unitFace(kind, t, size='md', opts = {}){
   if(kind === 'cable') return cableFace(t, size);
   if(t?.special && window.SwPorts) return `<div class="ru ru-${size} ru-special" style="--hu:${Math.max(1, num(t.heightU, 3))}">${window.SwPorts.gc20tSvg({ title:'GigaCore 20t' })}</div>`;
   const hu = Math.max(1, num(t?.heightU, 1));
-  return `<div class="ru ru-${size}" style="--c:${safeHex(t?.color, KINDS[kind].color)};--hu:${hu}">
+  const half = t?.width === 'half';
+  return `<div class="ru ru-${size}${half ? ' ru-half' : ''}" style="--c:${safeHex(t?.color, KINDS[kind].color)};--hu:${hu}"${half ? ' title="Half 19″"' : ''}>
     <span class="ru-ear"></span>
     <div class="ru-body">
       <div class="ru-label"><b title="${esc(typeName(t))}">${esc((size === 'rack' || size === 'sm') && t && window.ShortName ? window.ShortName.of(t) : (typeName(t) || `New ${KINDS[kind].one.toLowerCase()}`))}</b><span>${esc(metaLine(kind, t))}</span></div>
@@ -402,7 +411,7 @@ function rackSummary(rack){
     ${stat('Nodes', t.node, `${p.dmx} DMX ports`)}
     ${stat('Splitters', t.splitter, `${p.out} outputs`)}
     ${stat('Switches', t.switch, `${p.rj} RJ45${p.sfp ? ` · ${p.sfp} SFP` : ''}`)}
-    ${stat('Panels', t.panel, [p.lk && `${p.lk}× LK7-1`, p.vim && `${p.vim}× Veam4`, p.xlr && `${p.xlr}× XLR`, p.ec && `${p.ec}× etherCON`].filter(Boolean).join(' · ') || '—')}
+    ${stat('Panels', t.panel, [p.lk && `${p.lk}× LK37`, p.vim && `${p.vim}× Veam4`, p.xlr && `${p.xlr}× XLR`, p.ec && `${p.ec}× etherCON`].filter(Boolean).join(' · ') || '—')}
   </div>`;
 }
 function rackHtml(rack){

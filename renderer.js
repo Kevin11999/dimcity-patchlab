@@ -12,14 +12,12 @@ const EXP = Object.freeze({
 
 // ===== Domein =====
 function dimCityFromId(id){
-  const m = id?.match(/^(?:LK|VEAM12|V)(\d+)$/i);
-  if(!m) return null;
-  const n = parseInt(m[1],10);
-  return 'DB' + String(Math.floor(n/100)).padStart(2,'0'); // DB in hoofdletters
+  const c = window.CsvRules.classify(id);
+  return c && (c.kind === 'LK' || c.kind === 'V') ? c.dim : null;      // the DB comes from the number: 101 → DB01, 601 → DB06
 }
-function isLK(id){ return /^LK\d+$/i.test(id) || /^VEAM12\d+$/i.test(id); }
+function isLK(id){ return window.CsvRules.isLK(id); }
 function normLK(id){ return id?.replace(/^VEAM12/i,'LK'); }
-function isV(id){ return /^V\d+$/i.test(id); }
+function isV(id){ return window.CsvRules.isV(id); }
 function portRangeOk(id, port){ if(isV(id)) return port>=1 && port<=4; if(isLK(id)) return port>=1 && port<=12; return false; }
 function statusColor(u, pos){ if(u!=null && pos) return 'GREEN'; if((u!=null && !pos) || (u==null && pos)) return 'YELLOW'; return 'YELLOW'; }
 
@@ -81,7 +79,7 @@ function looksLikeImportRow(r){
   const port = (r[WIZ.map?.port ?? 1] ?? r[1] ?? '').toString().trim();
   const uni = (r[WIZ.map?.uni ?? 2] ?? r[2] ?? '').toString().trim();
   const dest = (r[WIZ.map?.dest ?? 3] ?? r[3] ?? '').toString().trim();
-  const idOk = /^(LK|VEAM12|V)\d+$/i.test(id);
+  const idOk = !!window.CsvRules.classify(id);
   const portOk = /^\d+$/.test(port);
   const uniOk = uni==='' || /^\d+$/.test(uni);
   return idOk && portOk && uniOk && dest !== '';
@@ -249,6 +247,7 @@ let MODEL = {
   dmxLoose: [],         // ← losse DMX-lijnen [{universe, dest, dimcity, source}]
   netLines: [],         // ← netwerkkabels C101.1 … [{id, port, vlan, dest, dimcity, source}]
   customRows: [],       // ← bewaarde Custom-rijen voor edit-ronde
+  rules: null,          // regels van deze show: voorvoegsels van LK / Veam / Node, loomtypen, rack-regels (zie core/csv-rules.js)
   csvSources: [],       // imported CSV source files [{id,name,path,rows,importedAt,updatedAt}]
   dimColors: {},        // DimCity accent colors { DB01:'#4ea8ff' }
   networkDevices: {     // reusable device type libraries + future placed devices
@@ -490,7 +489,7 @@ async function processRows(rows){
 
     // Ondersteun 5 of 6 velden:
     // [0]=id, [1]=port, [2]=uni, [3]=position, [4]=(legacy truss/unused), [5]=dimcity (alleen bij DMX)
-    const id        = (r[0] ?? '').toString().trim();
+    let id          = (r[0] ?? '').toString().trim();
     const portS     = (r[1] ?? '').toString().trim();
     const uniS      = (r[2] ?? '').toString().trim();
     const position  = (r[3] ?? '').toString();
@@ -520,12 +519,14 @@ async function processRows(rows){
       continue;
     }
 
-    // --- Netwerkkabel: C101 (poort in kolom 2) of C101.1 (poort achter de punt); C = Cat, 4 lijnen per kabel ---
-    const cm = id.match(/^C(\d+)(?:\.(\d+))?$/i);
-    if(cm){
-      const cid = `C${cm[1]}`, cdim = dimCityFromId(`V${cm[1]}`), cport = cm[2] != null ? parseInt(cm[2], 10) : port;
-      if(!cdim || !Number.isFinite(cport) || cport < 1 || cport > 4){
-        keepInvalid(r, {severity:'RED', code:'PORT_RANGE', dimcity:cdim, port:cport, message:`${id}${cm[2] == null ? ` port ${Number.isFinite(port) ? port : `“${portS}”`}` : ''} does not exist — a network cable (C) has lines 1–4`});
+    // --- Wat is dit voor een ID? (voorvoegsels uit de regels van de show: LK, V, Node, looms) ---
+    const cls = window.CsvRules.classify(id);
+
+    // --- Netwerkkabel (loom): C101 (poort in kolom 2) of C101.1 (poort achter de punt); elk loomtype heeft eigen voorvoegsel en aantal lijnen ---
+    if(cls?.kind === 'NET'){
+      const cid = cls.id, cdim = cls.dim, cport = cls.line != null ? cls.line : port, maxLines = cls.loom.lines;
+      if(!Number.isFinite(cport) || cport < 1 || cport > maxLines){
+        keepInvalid(r, {severity:'RED', code:'PORT_RANGE', dimcity:cdim, port:cport, message:`${id}${cls.line == null ? ` port ${Number.isFinite(port) ? port : `“${portS}”`}` : ''} does not exist — a ${cls.loom.name} (${cls.loom.prefix}) has lines 1–${maxLines}`});
         continue;
       }
       const vlan = window.Fent ? window.Fent.vlanFromColumn(universe) : universe;
@@ -533,9 +534,17 @@ async function processRows(rows){
       continue;
     }
 
+    // --- Node601,1 (of Node 601.1): een DMX-lijn die op een poort van een node zit; 6 = DB06, 01 = node 1 ---
+    if(cls?.kind === 'NODE'){
+      const nport = cls.port != null ? cls.port : port;
+      dmxLoose.push({ id:null, universe, dest:`Node ${cls.no}${Number.isFinite(nport) && nport > 0 ? `.${nport}` : ''}`, note:position || '', dimcity:cls.dim, status: statusColor(universe, position || 'x'), source:sourceName, sourceId, sourceName, nodeRow:true });
+      continue;
+    }
+    if(cls && (cls.kind === 'LK' || cls.kind === 'V')) id = cls.id;       // een eigen voorvoegsel (K101) wordt LK101
+
     // --- LK/VEAM met ID ---
     const dimcity = dimCityFromId(id);
-    if(!dimcity) { keepInvalid(r, {severity:'RED', code:'ID_PATTERN', message:`Unknown ID "${id}" — expected LK###, VEAM12### or V###`}); continue; }
+    if(!dimcity) { keepInvalid(r, {severity:'RED', code:'ID_PATTERN', message:`Unknown ID "${id}" — expected ${window.CsvRules.expected()}`}); continue; }
     if(!portRangeOk(id, port)){
       const max = isV(id) ? 4 : 12;
       keepInvalid(r, {severity:'RED', code:'PORT_RANGE', dimcity, port, ref: isV(id) ? {kind:'VEAM', id} : {kind:'LK', id:normLK(id)},
@@ -655,6 +664,7 @@ async function processRows(rows){
     flow: MODEL.flow || null,           // signaalstroom: eigen namen en posities van blokken
     labels: MODEL.labels || null,       // sticker-instellingen
     setup: MODEL.setup || null,         // stappenplan: overgeslagen stappen
+    rules: MODEL.rules || null,         // regels van de show (voorvoegsels, loomtypen)
     power: MODEL.power || null,         // stroom: PD's, voedingen en armaturen uit het blad (eigen onderdeel)
     pdfTemplates: Array.isArray(MODEL.pdfTemplates) ? MODEL.pdfTemplates : [],
     libraryDismissed: Array.isArray(MODEL.libraryDismissed) ? MODEL.libraryDismissed : [],
@@ -2519,7 +2529,7 @@ $('#veamAddConfirm').onclick = async ()=>{
 // ===== LK / Veam verwijderen (handmatig of uit CSV) =====
 // De effectieve rijen (CSV + bewerkingen + custom) zonder dit ID opnieuw verwerken. Vooraf uit het
 // model halen, anders zet carryOverManualState een handmatige LK/Veam weer terug.
-const sameId = (a, b) => normLK(String(a ?? '').trim().toUpperCase()) === normLK(String(b ?? '').trim().toUpperCase());
+const sameId = (a, b) => normLK(window.CsvRules.canonical(a).toUpperCase()) === normLK(window.CsvRules.canonical(b).toUpperCase());
 async function reprocessWithout(id){
   const rows = currentRows(MODEL).filter(r => !sameId(r[0], id));
   const custom = (MODEL.customRows || []).filter(r => !sameId(r.id, id));
@@ -2571,6 +2581,12 @@ async function deleteVeam(id){
   afterDelete(dc, `${id} deleted`);
   return true;
 }
+// the rules of the show changed (prefixes, loom types): read the CSV files again, or the rows of the show when there are no files
+window.LKApp.rebuild = async () => {
+  if((MODEL.csvSources || []).length) await rebuildFromCsvSources(); else await processRows(currentRows(MODEL));
+  MODEL.ui.dirty = true; renderAll();
+};
+window.LKApp.csvRows = () => (MODEL.csvSources || []).length ? rowsFromCsvSources() : currentRows(MODEL);
 window.LKApp.deleteLK = deleteLK;
 window.LKApp.deleteVeam = deleteVeam;
 

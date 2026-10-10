@@ -316,7 +316,7 @@ Single or **A/B input**, number of outputs, and whether outputs switch **indepen
 RJ45 and SFP port counts.
 
 ## Panel
-A patch panel with **LK7-1**, **Veam4**, **XLR** and **etherCON** sockets. In a rack, every LK7-1 socket shares its lines with up to three Veam4 sockets next to it; the remaining Veam4 sockets are separate.
+A patch panel with **LK37**, **Veam4**, **XLR** and **etherCON** sockets. In a rack, every LK37 socket shares its lines with up to three Veam4 sockets next to it; the remaining Veam4 sockets are separate.
 
 ## Type key
 Every type has a fixed key (NODE:01, PANEL:02…). Shows refer to it, so it cannot change after saving. Use **Duplicate** to make a variant.
@@ -340,7 +340,7 @@ Enkele of **A/B-ingang**, aantal uitgangen, en of uitgangen **los of per twee** 
 Aantal RJ45- en SFP-poorten.
 
 ## Paneel
-Een patchpaneel met **LK7-1**-, **Veam4**-, **XLR**- en **etherCON**-aansluitingen. In een rek deelt elke LK7-1-aansluiting zijn lijnen met maximaal drie Veam4-aansluitingen ernaast; de overige Veam4's staan los.
+Een patchpaneel met **LK37**-, **Veam4**-, **XLR**- en **etherCON**-aansluitingen. In een rek deelt elke LK37-aansluiting zijn lijnen met maximaal drie Veam4-aansluitingen ernaast; de overige Veam4's staan los.
 
 ## Typesleutel
 Elk type heeft een vaste sleutel (NODE:01, PANEL:02…). Shows verwijzen ernaar, dus hij kan na opslaan niet meer veranderen. Gebruik **Dupliceren** voor een variant.
@@ -358,7 +358,7 @@ Het tabblad **Kabels** bevat kabeltypes: fiber (singlemode of multimode), SFP-pa
 - **New rack**, give it a name, an **article key** (your inventory number) and a height — from **1U** up to 48U.
 - Drag devices from the palette on the right into the rack, or click **+** to add one at the first free position. Green rows mean it fits, red means it does not.
 - Move devices with the arrows or by dragging; remove them with the ×.
-- The summary below counts DMX ports, splitter outputs, RJ45 and the LK7-1 / Veam4 / XLR sockets of the rack.
+- The summary below counts DMX ports, splitter outputs, RJ45 and the LK37 / Veam4 / XLR sockets of the rack.
 
 A rack is a template: you place it in a DimCity on the [[racks|Racks card]], as often as you need. The article key is printed in the Racks card and on the PDF.`,
     nl:`Het tabblad **Racks** van de Device Builder bouwt 19"-racks uit je devicetypes.
@@ -366,7 +366,7 @@ A rack is a template: you place it in a DimCity on the [[racks|Racks card]], as 
 - **Nieuw rek**, geef het een naam, een **artikelsleutel** (je voorraadnummer) en een hoogte — van **1U** tot 48U.
 - Sleep devices uit het palet rechts in het rek, of klik op **+** om er een op de eerste vrije plek te zetten. Groene rijen betekenen dat het past, rood dat het niet past.
 - Verplaats devices met de pijltjes of door te slepen; haal ze weg met het ×.
-- De samenvatting eronder telt DMX-poorten, splitteruitgangen, RJ45 en de LK7-1- / Veam4- / XLR-aansluitingen van het rek.
+- De samenvatting eronder telt DMX-poorten, splitteruitgangen, RJ45 en de LK37- / Veam4- / XLR-aansluitingen van het rek.
 
 Een rek is een sjabloon: je plaatst het in een DimCity op de [[racks|Racks-kaart]], zo vaak als je wilt. De artikelsleutel staat in de Racks-kaart en op de PDF.`
   },
@@ -377,10 +377,10 @@ Een rek is een sjabloon: je plaatst het in een DimCity op de [[racks|Racks-kaart
 
 ## Placing
 - **Place rack** adds a rack from the Rack Builder; give it a name for this DimCity (e.g. "Rack SL"). Remove it with the bin.
-- **Loose devices**: a **loose node** without a rack, a **loose LK spider** (one LK7-1 socket on a breakout) or a **loose Veam4 spider** (one Veam4 socket). A spider can be pinned to a loose node with **On node**; its lines are then patched on that node first.
+- **Loose devices**: a **loose node** without a rack, a **loose LK spider** (one LK37 socket on a breakout) or a **loose Veam4 spider** (one Veam4 socket). A spider can be pinned to a loose node with **On node**; its lines are then patched on that node first.
 
 ## How the patch is made
-1. Every LK with data gets an **LK7-1 socket**: first a loose LK spider that is pinned to a node, then the rack panels, then other loose spiders.
+1. Every LK with data gets an **LK37 socket**: first a loose LK spider that is pinned to a node, then the rack panels, then other loose spiders.
 2. Veams that are not fed by an LK get a **Veam4 socket**: first a Veam4 spider pinned to a node, then a free Veam4 next to an LK that does not use those lines, then separate Veam4s, then other spiders.
 3. Every used line gets a **node port**. Lines of one LK or Veam stay on one node where possible — the legend shows the node per LK / Veam, and every node has its own colour.
 4. When node ports run short, universes that are used more than once go through a **splitter** in the rack.
@@ -393,7 +393,7 @@ LK and Veam cables are short, so an LK or Veam on a rack socket only feeds nodes
 - **Custom rack…** builds a rack of your own right here: choose how many panels, nodes, splitters and switches, and PatchLab places them. No article key is needed.
 
 ## Reading the result
-- The counters show used / available LK7-1 sockets, Veam4 sockets, node ports and lines.
+- The counters show used / available LK37 sockets, Veam4 sockets, node ports and lines.
 - **Recommendations** tell you what is missing: loose spiders to add, extra nodes, unused splitters.
 - The rack drawing shows the universe on every node port and the LK / Veam number on every socket; hover for details.
 - **Node ports** lists per node which LK or Veam port (and location) sits on which node port.
@@ -406,10 +406,10 @@ LK and Veam cables are short, so an LK or Veam on a rack socket only feeds nodes
 
 ## Plaatsen
 - **Rek plaatsen** voegt een rek uit de Rack Builder toe; geef het een naam voor deze DimCity (bijv. "Rack SL"). Verwijderen doe je met het prullenbakje.
-- **Losse apparaten**: een **losse node** zonder rek, een **losse LK-spin** (één LK7-1-aansluiting op een breakout) of een **losse Veam4-spin** (één Veam4-aansluiting). Een spin kun je met **Op node** aan een losse node hangen; zijn lijnen worden dan eerst op die node gepatcht.
+- **Losse apparaten**: een **losse node** zonder rek, een **losse LK-spin** (één LK37-aansluiting op een breakout) of een **losse Veam4-spin** (één Veam4-aansluiting). Een spin kun je met **Op node** aan een losse node hangen; zijn lijnen worden dan eerst op die node gepatcht.
 
 ## Hoe de patch tot stand komt
-1. Elke LK met gegevens krijgt een **LK7-1-aansluiting**: eerst een losse LK-spin die aan een node hangt, dan de rekpanelen, dan andere losse spinnen.
+1. Elke LK met gegevens krijgt een **LK37-aansluiting**: eerst een losse LK-spin die aan een node hangt, dan de rekpanelen, dan andere losse spinnen.
 2. Veams die niet door een LK gevoed worden krijgen een **Veam4-aansluiting**: eerst een Veam4-spin die aan een node hangt, dan een vrije Veam4 naast een LK die die lijnen niet gebruikt, dan losse Veam4's, dan andere spinnen.
 3. Elke gebruikte lijn krijgt een **nodepoort**. Lijnen van één LK of Veam blijven waar mogelijk op één node — de legenda toont de node per LK / Veam, en elke node heeft een eigen kleur.
 4. Als er nodepoorten tekortkomen, gaan universes die vaker gebruikt worden via een **splitter** in het rek.
@@ -422,7 +422,7 @@ LK- en Veam-kabels zijn kort, dus een LK of Veam op een rekaansluiting voedt all
 - **Eigen rek…** bouwt hier ter plekke een eigen rek: kies hoeveel panelen, nodes, splitters en switches, en PatchLab plaatst ze. Een artikelsleutel is niet nodig.
 
 ## Het resultaat lezen
-- De tellers tonen gebruikt / beschikbaar voor LK7-1-aansluitingen, Veam4-aansluitingen, nodepoorten en lijnen.
+- De tellers tonen gebruikt / beschikbaar voor LK37-aansluitingen, Veam4-aansluitingen, nodepoorten en lijnen.
 - **Adviezen** vertellen wat er ontbreekt: losse spinnen om toe te voegen, extra nodes, overbodige splitters.
 - De rektekening toont de universe op elke nodepoort en het LK- / Veam-nummer op elke aansluiting; beweeg eroverheen voor details.
 - **Nodepoorten** laat per node zien welke LK- of Veam-poort (en locatie) op welke nodepoort zit.
@@ -834,7 +834,7 @@ Een switchtype kan de connector van elke fiberpoort benoemen. De Luminex GigaCor
     en:`The **Signal Flow** page (sidebar, or Cmd/Ctrl+4) draws the cabling of a DimCity the way it is on the floor: the rack with its nodes, splitters and LK panel → one thick LK multicore per LK block → a Veam cable per linked Veam → thin DMX lines to the **objects** (the locations from your patch list, with the universe that arrives there). XLR lines on the LK itself get a small block each, exactly in line with their port; the four ports of a Veam share one objects block.
 
 ## Reading it
-- **Racks** are drawn like in the Rack Builder: rails with U numbers, the faces of nodes, splitters, switches and panels, and their sockets. A node port shows the universe on it in the node's colour; an LK7-1 or Veam4 socket shows the number of the LK or Veam that comes out of it, in the colour of the node that feeds it. A rack whose nodes only feed the panel of another rack stands to the left of it. Loose devices (a node with the spiders on it) are drawn as a stack without a frame.
+- **Racks** are drawn like in the Rack Builder: rails with U numbers, the faces of nodes, splitters, switches and panels, and their sockets. A node port shows the universe on it in the node's colour; an LK37 or Veam4 socket shows the number of the LK or Veam that comes out of it, in the colour of the node that feeds it. A rack whose nodes only feed the panel of another rack stands to the left of it. Loose devices (a node with the spiders on it) are drawn as a stack without a frame.
 - **Cables** are told apart by thickness: the thick **LK multicore** from the socket to the LK block, a thinner **Veam cable** from the slot it is plugged into, and thin **DMX lines** in the colour of their universe from every XLR or Veam port to the object. Every line leaves a block straight out of its side, at the row or socket it belongs to, and never runs through a block.
 - The **patch inside a rack** (node port → splitter → socket) is not drawn until you hover it: then it lights up as a thin line along the side of the rack.
 - An LK block shows only its own XLR ports; the universes that go on through a Veam are shown in that Veam's block.
@@ -856,7 +856,7 @@ The **Show** switch in the left bar chooses *All*, *DMX* or *Network*. The netwo
     nl:`De pagina **Signaalstroom** (zijbalk, of Cmd/Ctrl+4) tekent de bekabeling van een DimCity zoals die op de vloer ligt: het rek met zijn nodes, splitters en LK-paneel → één dikke LK-multicore per LK-blok → een Veam-kabel per gekoppelde Veam → dunne DMX-lijnen naar de **objecten** (de locaties uit je patchlijst, met de universe die daar aankomt). XLR-lijnen op de LK zelf krijgen elk een klein blokje, precies in lijn met hun poort; de vier poorten van een Veam delen één objectenblok.
 
 ## Lezen
-- **Rekken** zijn getekend zoals in de Rack Builder: rails met U-nummers, de fronten van nodes, splitters, switches en panelen, en hun aansluitingen. Een nodepoort toont de universe die erop staat in de kleur van de node; een LK7-1- of Veam4-aansluiting toont het nummer van de LK of Veam die eruit komt, in de kleur van de node die hem voedt. Een rek waarvan de nodes alleen het paneel van een ander rek voeden staat links daarvan. Losse apparaten (een node met de spinnen eraan) staan als een stapel zonder kader.
+- **Rekken** zijn getekend zoals in de Rack Builder: rails met U-nummers, de fronten van nodes, splitters, switches en panelen, en hun aansluitingen. Een nodepoort toont de universe die erop staat in de kleur van de node; een LK37- of Veam4-aansluiting toont het nummer van de LK of Veam die eruit komt, in de kleur van de node die hem voedt. Een rek waarvan de nodes alleen het paneel van een ander rek voeden staat links daarvan. Losse apparaten (een node met de spinnen eraan) staan als een stapel zonder kader.
 - **Kabels** herken je aan de dikte: de dikke **LK-multicore** van de aansluiting naar het LK-blok, een dunnere **Veam-kabel** vanuit het slot waar hij op zit, en dunne **DMX-lijnen** in de kleur van hun universe van elke XLR- of Veam-poort naar het object. Elke lijn vertrekt recht uit de zijkant van een blok, bij de regel of aansluiting waar hij bij hoort, en loopt nooit door een blok heen.
 - De **patch in het rek** (nodepoort → splitter → aansluiting) wordt pas getekend als je eroverheen beweegt: dan licht hij op als een dunne lijn langs de zijkant van het rek.
 - Een LK-blok toont alleen zijn eigen XLR-poorten; de universes die via een Veam doorgaan staan in het blok van die Veam.
@@ -929,7 +929,7 @@ De sectie Racks tekent elk rek zoals in de app, somt de nodepoorten op met de LK
 
 ## What you can print
 - **Cable labels** for LK multicores and Veam cables, two per cable (both ends), with a colour band in the colour of the node that feeds it.
-- **Panel connection labels**, one per LK7-1 / Veam4 socket, to stick above the socket.
+- **Panel connection labels**, one per LK37 / Veam4 socket, to stick above the socket.
 - **Node port labels**: universe and where each port goes.
 - **Racks, nodes, switches and splitters**.
 - **Switch port labels**: switch, port, device and VLAN (in the VLAN colour) for the switch.
@@ -954,7 +954,7 @@ De sectie Racks tekent elk rek zoals in de app, somt de nodepoorten op met de LK
 
 ## Wat je kunt printen
 - **Kabellabels** voor LK-multicores en Veam-kabels, twee per kabel (beide uiteinden), met een kleurband in de kleur van de node die hem voedt.
-- **Aansluitlabels paneel**, één per LK7-1- / Veam4-aansluiting, om boven de aansluiting te plakken.
+- **Aansluitlabels paneel**, één per LK37- / Veam4-aansluiting, om boven de aansluiting te plakken.
 - **Nodepoort-labels**: universe en waar elke poort heen gaat.
 - **Racks, nodes, switches en splitters**.
 - **Switchpoort-labels**: switch, poort, apparaat en VLAN (in de VLAN-kleur) voor de switch.
@@ -1550,7 +1550,7 @@ export const CHANGES = [
     en:[
       'Update check via GitHub Releases, with download and install from the app.',
       'Light theme and a Dutch interface (Settings → Language).',
-      'Racks per DimCity with automatic LK7-1 / Veam4 patching, node colours, recommendations and "Use as network plan".',
+      'Racks per DimCity with automatic LK37 / Veam4 patching, node colours, recommendations and "Use as network plan".',
       'Search everything with Cmd/Ctrl+K.',
       'Undo / redo with a readable history, fixable validation issues, autosave, backups and crash recovery.',
       'Report Builder: company brand tab with logo and watermark, movable cover image.',
@@ -1559,7 +1559,7 @@ export const CHANGES = [
     nl:[
       'Updatecontrole via GitHub Releases, met downloaden en installeren vanuit de app.',
       'Licht thema en een Nederlandse interface (Instellingen → Taal).',
-      'Racks per DimCity met automatische LK7-1- / Veam4-patching, nodekleuren, adviezen en "Gebruik als netwerkplan".',
+      'Racks per DimCity met automatische LK37- / Veam4-patching, nodekleuren, adviezen en "Gebruik als netwerkplan".',
       'Overal zoeken met Cmd/Ctrl+K.',
       'Ongedaan maken / opnieuw met leesbare geschiedenis, oplosbare validatiemeldingen, automatisch opslaan, back-ups en crashherstel.',
       'Rapportbouwer: tabblad huisstijl met logo en watermerk, verplaatsbare voorbladafbeelding.',

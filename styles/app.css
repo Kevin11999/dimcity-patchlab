@@ -1365,3 +1365,27 @@ body.view-flow .view{width:100%}
 .pp-dev{border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:12px;background:var(--panel);cursor:grab}.pp-dev.over{border-color:#ef4444}
 .pp-port.drop{outline:2px dashed var(--accent)}.pp-port[draggable=true]{cursor:grab}
 .nl-u{margin-left:6px;font-size:11px;opacity:.75}
+
+/* a device that is half a 19" wide is drawn half as wide (Device Builder) */
+.ru.ru-half{width:50%;min-width:230px}
+.ru-half .ru-label{width:92px}
+.ru-half .ru-body::after{content:"½";position:absolute;right:16px;top:2px;font-size:10px;font-weight:700;color:var(--text-3)}
+/* an LK37 socket together with the Veam4 sockets that belong to it */
+.ru-lkgrp{display:flex;flex-wrap:nowrap;align-items:center;gap:3px;min-width:0;flex:0 1 auto;padding:2px 5px;border:1px solid color-mix(in srgb,var(--c) 60%,transparent);border-radius:12px;background:color-mix(in srgb,var(--c) 12%,transparent)}
+
+/* "copy to other devices" dialogs: the options in one neat column, the targets as a list */
+.nc-copy{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);align-items:start}
+.nc-cp-col{min-width:0}.nc-cp-note{grid-column:1 / -1;font-size:12px}
+.nc-cp-h{display:flex;align-items:center;gap:8px;font-weight:700;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.nc-cp-btns{margin-left:auto;display:inline-flex;gap:4px}.nc-cp-btns button{padding:2px 8px;font-size:12px}
+.nc-cp-opts{display:flex;flex-direction:column;gap:2px}
+.nc-copy .nc-chk{display:flex;align-items:flex-start;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer}
+.nc-copy .nc-chk:hover{background:var(--surface-2)}
+.nc-copy .nc-chk input{margin-top:3px;flex:none}
+.nc-copy .nc-chk > span{display:flex;flex-direction:column;gap:1px;min-width:0}
+.nc-copy .nc-chk small{font-size:11.5px;color:var(--text-3);font-weight:400}
+.nc-cp-secs{margin:0 0 4px 26px;max-height:200px}
+.nc-cp-list{max-height:300px;margin:0;gap:0}
+.nc-cp-list .nc-chk{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center}
+.nc-cp-list .nc-chk > span{flex-direction:row}
+.nc-cp-list .nc-chk .subtle{font-size:12px;white-space:nowrap}

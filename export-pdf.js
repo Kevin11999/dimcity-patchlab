@@ -631,7 +631,7 @@
     const lines = P.lines.slice().sort((a, b) => String(a.feed?.node || '~').localeCompare(String(b.feed?.node || '~'), undefined, { numeric:true }) || (a.feed?.port || 0) - (b.feed?.port || 0));
     const table = o.table === false ? '' : `<table><thead><tr><th>Node port</th><th class="num">Universe</th><th>Via</th><th>Socket</th><th>LK / Veam port</th><th>Location</th></tr></thead><tbody>${lines.map(l => `<tr><td>${l.feed ? `<span class="dot" style="background:${l.feed.color}"></span><b>${esc(l.feed.node)}</b> · ${l.feed.port}` : '<span class="tag red">no port</span>'}</td><td class="num">U${l.universe}</td><td>${l.feed?.splitter ? `${esc(l.feed.splitter)} · out ${l.feed.out}` : 'direct'}</td><td>${esc(l.socket)}</td><td>${esc(l.label)}</td><td>${esc(l.dest)}</td></tr>`).join('')}</tbody></table>`;
     const st = P.stats;
-    return `<div class="section">${h3(n, 'Racks', `${st.lkUsed}/${st.lkSockets} LK7-1 · ${st.vimUsed}/${st.vimSockets} Veam4 · ${st.nodePortsUsed}/${st.nodePorts} node ports`)}${advice}${drawing}${nodeList}${looseHtml}${table}</div>`;
+    return `<div class="section">${h3(n, 'Racks', `${st.lkUsed}/${st.lkSockets} LK37 · ${st.vimUsed}/${st.vimSockets} Veam4 · ${st.nodePortsUsed}/${st.nodePorts} node ports`)}${advice}${drawing}${nodeList}${looseHtml}${table}</div>`;
   }
   function portHtml(m, nr, L, o){
     const u = m.universe;

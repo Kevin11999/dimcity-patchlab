@@ -42,7 +42,7 @@
         <select data-f="vlan" title="VLAN">${vlanOptions(x.vlan, dev.advanced)}</select>
         <input data-f="ip" value="${esc(x.ip || '')}" placeholder="10.40.101.11" inputmode="numeric" class="${x.ip && !F().isIp(x.ip) ? 'invalid' : ''}">
         <input data-f="mask" value="${esc(x.mask || '')}" placeholder="${F().MASK}" inputmode="numeric" style="max-width:120px">
-        ${eth > 1 && !dev.advanced ? `<select data-f="eth" title="${esc(t('Which RJ45 carries this address', 'Welke RJ45 dit adres draagt'))}"><option value="1" ${Number(x.eth) !== 2 ? 'selected' : ''}>ETH1</option><option value="2" ${Number(x.eth) === 2 ? 'selected' : ''}>ETH2</option></select>` : ''}
+        ${eth > 1 && kind === 'console' ? `<select data-f="eth" title="${esc(t('Which RJ45 carries this address', 'Welke RJ45 dit adres draagt'))}"><option value="1" ${Number(x.eth) !== 2 ? 'selected' : ''}>ETH1</option><option value="2" ${Number(x.eth) === 2 ? 'selected' : ''}>ETH2</option></select>` : ''}
         <button class="sm ghost" data-rm title="${esc(t('Remove this address', 'Verwijder dit adres'))}">${I('x', 13)}</button></div>`).join('');
     const warns = on ? F().checkAll(F().ifaces(dev, eth).map(x => ({ owner:dev.id || dev.name || kind, ip:x.ip, mask:x.mask, vlan:x.vlan, kind:kind === 'switch' || kind === 'rswitch' ? 'equipment' : 'device' })), cfg().group).filter(w => w.code !== 'DUPLICATE') : [];
     return `<div class="fent-ifaces" data-fent="${esc(dc)}|${kind}|${idx}">
@@ -59,7 +59,7 @@
       box.querySelector('[data-add]').onclick = () => {
         const used = new Set((dev.ifaces || []).map(x => x.role)); const role = !used.has('lighting') ? 'lighting' : !used.has('scan') ? 'scan' : 'other';
         const c = cfg(), v = dev.advanced ? F().groupVlan(role) : F().roleVlan(role, c.vlanMode);
-        (dev.ifaces ||= []).push({ role, vlan:v, ip:c.on ? F().suggestRole(role, c.group, dimNo(dc), Number(String(dev.ip || '').split('.')[3]) || 11) : '', mask:c.on ? F().MASK : (dev.subnet || ''), eth:eth > 1 ? 2 : 1 });
+        (dev.ifaces ||= []).push({ role, vlan:v, ip:c.on ? F().suggestRole(role, c.group, dimNo(dc), Number(String(dev.ip || '').split('.')[3]) || 11, v) : '', mask:c.on ? F().MASK : (dev.subnet || ''), eth:kind === 'console' && eth > 1 ? 2 : 1 });
         if(dev.advanced) window.AdvNet?.placeNew?.(dev, v);
         M().ui.dirty = true; rerender();
       };
@@ -77,17 +77,24 @@
   }
 
   // ---- FENT: apply the scheme ----
-  // the addresses of one device for host number `host`: a management address and a lighting address (and a scan address when it is switched on)
+  // the addresses of one device for host number `host`: a node ONE lighting address (in the advanced network a management and a lighting address), a splitter a management and a lighting address; a scan address too when it is switched on
   function giveAddresses(dc, kind, dev, host){
     const c = cfg(), no = dimNo(dc), eth = ethOf(kind, dev);
     if(kind === 'console'){ dev.ip = F().suggestRole('lighting', c.group, no, host); dev.subnet = F().MASK; dev.ipRole = 'lighting'; dev.ipVlan = F().roleVlan('lighting', c.vlanMode); dev.ifaces = []; return; }
     // a LumiNode in its advanced network keeps the groups and VLANs the user made (always the Luminex ones); only the addresses follow the scheme
     if(dev.advanced){
-      const at = (role, h) => ['management', 'lighting', 'scan'].includes(role) ? F().suggestRole(role, c.group, no, role === 'scan' ? Math.min(250, h + 100) : h) : '';
-      const r0 = dev.ipRole || 'management', ip0 = at(r0, host);
+      const at = (role, h, vlan) => ['management', 'lighting', 'scan'].includes(role) ? F().suggestRole(role, c.group, no, role === 'scan' ? Math.min(250, h + 100) : h, vlan) : '';
+      const r0 = dev.ipRole || 'management', v0 = dev.ipVlan ?? F().groupVlan(r0), ip0 = at(r0, host, v0);
       if(ip0){ dev.ip = ip0; dev.subnet = F().MASK; }
-      dev.ipRole = r0; dev.ipVlan = dev.ipVlan ?? F().groupVlan(r0);
-      for(const x of (dev.ifaces || [])){ const ip = at(x.role || 'lighting', host); if(ip){ x.ip = ip; x.mask = F().MASK; } }
+      dev.ipRole = r0; dev.ipVlan = v0;
+      for(const x of (dev.ifaces || [])){ const ip = at(x.role || 'lighting', host, x.vlan); if(ip){ x.ip = ip; x.mask = F().MASK; } }
+      return;
+    }
+    // a node in its basic network: ONE cable, ONE address — on the lighting VLAN (sACN / Art-Net), on ETH1. Only the scan address is added when it is switched on.
+    if(kind === 'node'){
+      dev.ip = F().suggestRole('lighting', c.group, no, host); dev.subnet = F().MASK; dev.ipRole = 'lighting'; dev.ipVlan = F().roleVlan('lighting', c.vlanMode);
+      dev.ifaces = [];
+      if(c.scan && host + 100 <= 250) dev.ifaces.push({ role:'scan', vlan:F().roleVlan('scan', c.vlanMode), ip:F().suggestRole('scan', c.group, no, host + 100), mask:F().MASK, eth:1 });
       return;
     }
     const vm = F().roleVlan('management', c.vlanMode), vl = F().roleVlan('lighting', c.vlanMode), vs = F().roleVlan('scan', c.vlanMode);
@@ -133,7 +140,7 @@
   async function applyAll(dcs){
     const count = dcs.reduce((s, dc) => s + devices(dc).length, 0);
     if(!count){ App.ui.toast(t('No nodes planned yet', 'Nog geen nodes gepland'), 'info'); return; }
-    const ok = await App.ui.confirmDialog({ title:t('Apply the FENT scheme?', 'Het FENT-schema toepassen?'), message:t(`${count} device(s) get a management address (VLAN ${F().roleVlan('management', cfg().vlanMode)}, 10.90.x.x) and a lighting address (VLAN ${F().roleVlan('lighting', cfg().vlanMode)}, 10.40.x.x). Their current addresses are replaced.`, `${count} apparaat/apparaten krijgen een beheeradres (VLAN ${F().roleVlan('management', cfg().vlanMode)}, 10.90.x.x) en een lichtadres (VLAN ${F().roleVlan('lighting', cfg().vlanMode)}, 10.40.x.x). Hun huidige adressen worden vervangen.`), okLabel:t('Apply', 'Toepassen') });
+    const ok = await App.ui.confirmDialog({ title:t('Apply the FENT scheme?', 'Het FENT-schema toepassen?'), message:t(`${count} device(s) get an address from the scheme: a node one address on the lighting VLAN (VLAN ${F().roleVlan('lighting', cfg().vlanMode)}, ${F().rangeOf(F().roleVlan('lighting', cfg().vlanMode))?.text || '10.40.x.x'}), a node in the advanced network a management and a lighting address. Their current addresses are replaced.`, `${count} apparaat/apparaten krijgen een adres uit het schema: een node één adres op het licht-VLAN (VLAN ${F().roleVlan('lighting', cfg().vlanMode)}, ${F().rangeOf(F().roleVlan('lighting', cfg().vlanMode))?.text || '10.40.x.x'}), een node in het advanced netwerk een beheer- en een lichtadres. Hun huidige adressen worden vervangen.`), okLabel:t('Apply', 'Toepassen') });
     if(!ok) return;
     let done = 0, over = false; for(const dc of dcs){ const r = applyDim(dc); done += r.n; over = over || r.over; }
     M().ui.dirty = true; App.ui.toast(over ? t(`${done} devices addressed — more than 240 devices in one DimCity, the rest was skipped`, `${done} apparaten voorzien van een adres — meer dan 240 apparaten in één DimCity, de rest is overgeslagen`) : t(`${done} devices addressed with the FENT scheme`, `${done} apparaten voorzien van een adres volgens het FENT-schema`));
@@ -196,6 +203,16 @@
 
   // ---- the card on the Network Planner page ----
   // the VLAN list (names and colours can be changed, own VLANs can be added) — always visible, with or without the FENT scheme
+  // the address range of a VLAN: the standard one, one of the FENT disciplines (10.30.x.x …) or one of your own (the first two numbers; the third is the DimCity)
+  function rangeCell(v){
+    const r = F().rangeOf(v.id), std = (() => { const x = F().vlanById(v.id); return x && x.second != null ? `10.${x.second}.x.x` : ''; })();
+    const own = !!(r && r.chosen && r.kind === 'own'), pick = r && r.chosen && r.kind === 'fent' ? `${r.a}.${r.b}` : '';
+    const disc = F().VLANS.filter(x => !x.extension && x.second != null);
+    const opts = `<option value="" ${!r || !r.chosen ? 'selected' : ''}>${std ? `${t('Standard', 'Standaard')} · ${std}` : t('No range', 'Geen reeks')}</option>`
+      + disc.map(x => `<option value="10.${x.second}" ${pick === `10.${x.second}` ? 'selected' : ''}>FENT · 10.${x.second}.x.x ${esc(x.discipline)}</option>`).join('')
+      + `<option value="own" ${own ? 'selected' : ''}>${t('Own range…', 'Eigen reeks…')}</option>`;
+    return `<select data-vnet="${v.id}" title="${esc(t('Which addresses this VLAN uses: the FENT range of a discipline or a range of your own', 'Welke adressen dit VLAN gebruikt: de FENT-reeks van een discipline of een eigen reeks'))}">${opts}</select>${own ? ` <input data-vnetown="${v.id}" class="mono" value="${esc(`${r.a}.${r.b}`)}" placeholder="192.168" maxlength="7" style="width:76px" title="${esc(t('The first two numbers of the address, like 192.168 (then 192.168.<DimCity>.<device>)', 'De eerste twee getallen van het adres, zoals 192.168 (dan 192.168.<DimCity>.<apparaat>)'))}">.x.x` : (r ? ` <span class="mono subtle">${esc(r.text)}</span>` : '')} <span class="subtle">${F().MASK}</span>`;
+  }
   function vlanCard(){
     if(!F()) return '';
     const c = cfg(), list = F().vlanList(c.vlanMode).filter(v => !v.extension);
@@ -203,12 +220,13 @@
     const rows = list.map(v => `<tr><td><b>${v.id}</b></td>
       <td><input type="text" class="vlanName" data-vlan="${v.id}" maxlength="24" value="${esc(v.name)}" placeholder="${esc(v.stdName || v.name)}" style="width:170px"> <span class="subtle">${esc(v.custom ? t('own VLAN', 'eigen VLAN') : (v.discipline || ''))}</span></td>
       <td><input type="color" class="vlanColor" data-vlan="${v.id}" value="${/^#[0-9a-f]{6}$/i.test(v.color || '') ? v.color : '#94a3b8'}"></td>
-      <td class="mono">${v.net ? `${v.net} · ${F().MASK}` : (v.second ? `10.${v.second}.x.x · ${F().MASK}` : '—')}</td>
+      <td class="vlan-net">${rangeCell(v)}</td>
       <td class="num">${used.get(v.id) || ''}</td>
       <td>${v.custom ? `<button class="sm ghost vlanDel" data-vlan="${v.id}" title="${esc(t('Remove this VLAN', 'Verwijder dit VLAN'))}">${I('trash', 13)}</button>` : ((v.stdName && v.stdName !== v.name) || (v.stdColor && v.stdColor !== v.color) ? `<button class="sm ghost vlanReset" data-vlan="${v.id}" title="${esc(t('Back to the standard name and colour', 'Terug naar standaardnaam en -kleur'))}">${I('refresh', 13)}</button>` : '')}</td></tr>`).join('');
     const body = `<div style="padding:6px 14px 14px"><table class="data-table fent-vlans"><thead><tr><th>ID</th><th>${t('Name', 'Naam')}</th><th>${t('Colour', 'Kleur')}</th><th>${t('Network', 'Netwerk')}</th><th class="num">${t('Ports', 'Poorten')}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
       <div class="su-row" style="margin-top:10px"><b style="font-size:12.5px">${t('Add your own VLAN', 'Eigen VLAN toevoegen')}</b><input type="number" id="vlanNewId" min="1" max="4094" placeholder="ID" style="width:90px"><input type="text" id="vlanNewName" maxlength="24" placeholder="${esc(t('Name', 'Naam'))}" style="width:160px"><button id="vlanAdd">${I('plus', 13)}${t('Add', 'Toevoegen')}</button></div>
-      <div class="hint" style="margin-top:6px">${t('The name and colour are used in the port plan, on the stickers and in the PDF. Empty name = standard name.', 'De naam en kleur worden gebruikt in het poortplan, op de stickers en in de PDF. Lege naam = standaardnaam.')}</div></div>`;
+      <div class="hint" style="margin-top:6px">${t('The name and colour are used in the port plan, on the stickers and in the PDF. Empty name = standard name.', 'De naam en kleur worden gebruikt in het poortplan, op de stickers en in de PDF. Lege naam = standaardnaam.')}</div>
+      <div class="hint" style="margin-top:6px">${t('The address range is chosen per VLAN, whatever the numbering: the FENT range of a discipline (10.40.x.x lighting, 10.90.x.x management …) or a range of your own. In every range the third number is the DimCity and the last one the device. A new range is used for new addresses and for “Create the IP plan”; addresses that exist stay as they are.', 'De adresreeks kies je per VLAN, welke nummering je ook gebruikt: de FENT-reeks van een discipline (10.40.x.x licht, 10.90.x.x beheer …) of een eigen reeks. In elke reeks is het derde getal de DimCity en het laatste het apparaat. Een nieuwe reeks gebruik je voor nieuwe adressen en voor “Maak het IP-plan”; bestaande adressen blijven zoals ze zijn.')}</div></div>`;
     return App.ui.card({ key:'net-vlans', title:`VLAN ${c.vlanMode === 'fent' ? 'FENT' : 'Luminex'}`, icon:'network', meta:`${list.length}`, collapsible:false, body });
   }
   function plannerCard(opts = {}){
@@ -246,6 +264,18 @@
       const c = cfg(), id = Number(i.dataset.vlan), cv = (c.customVlans || []).find(v => Number(v.id) === id);
       if(cv) cv.color = i.value; else { c.vlanColors ||= {}; if(i.value.toLowerCase() === (stdOf(id)?.color || '').toLowerCase()) delete c.vlanColors[id]; else c.vlanColors[id] = i.value; }
       M().ui.dirty = true; rerender();
+    });
+    root.querySelectorAll('[data-vnet]').forEach(sel => sel.onchange = () => {
+      const c = cfg(), id = Number(sel.dataset.vnet); c.vlanNets ||= {};
+      if(sel.value === '') delete c.vlanNets[id];
+      else if(sel.value === 'own'){ const r = F().rangeOf(id); c.vlanNets[id] = r && r.kind === 'own' ? `${r.a}.${r.b}` : '192.168'; }
+      else c.vlanNets[id] = sel.value;
+      window.PatchHistory?.label?.(`VLAN ${id}: address range`); M().ui.dirty = true; rerender();
+    });
+    root.querySelectorAll('[data-vnetown]').forEach(inp => inp.onchange = () => {
+      const c = cfg(), id = Number(inp.dataset.vnetown), p = F().pairOf(inp.value);
+      if(!p){ App.ui.toast(t('Type the first two numbers of the range, like 192.168', 'Typ de eerste twee getallen van de reeks, zoals 192.168'), 'err'); rerender(); return; }
+      (c.vlanNets ||= {})[id] = `${p[0]}.${p[1]}`; window.PatchHistory?.label?.(`VLAN ${id}: address range`); M().ui.dirty = true; rerender();
     });
     root.querySelectorAll('.vlanReset').forEach(b => b.onclick = () => { const c = cfg(); delete (c.vlanNames || {})[b.dataset.vlan]; delete (c.vlanColors || {})[b.dataset.vlan]; M().ui.dirty = true; rerender(); });
     root.querySelectorAll('.vlanDel').forEach(b => b.onclick = () => { const c = cfg(); c.customVlans = (c.customVlans || []).filter(v => Number(v.id) !== Number(b.dataset.vlan)); M().ui.dirty = true; rerender(); });

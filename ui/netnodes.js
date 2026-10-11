@@ -41,8 +41,9 @@
       const own = p.uni != null ? (car.get(p.uni) || []) : [];
       const first = own.find(o => o.kind !== 'DMX') || own[0];
       const dests = [...new Set(own.flatMap(o => o.dests))];
-      const tip = `${t('DMX port', 'DMX-poort')} ${p.n} · ${p.uni == null ? t('no universe', 'geen universe') : 'U' + p.uni}${own.length ? ' · ' + own.map(o => `${o.id}${o.ports ? ' ' + o.ports : ''}`).join(', ') : ''}${dests.length ? ' · ' + dests.join(', ') : ''}`;
-      return `<div class="nn-port ${p.uni == null ? 'free' : ''}" style="--c:${first ? first.color : 'var(--text-3)'}" title="${esc(tip)}"><small>${p.n}</small><b>${p.uni == null ? '—' : 'U' + p.uni}</b>
+      const pd = `${p.klass === 'artnet' ? 'Art-Net' : 'sACN'} ${p.dir === 'input' ? '↓' : p.dir === 'idle' ? '⏻' : '↑'}`;
+      const tip = `${t('DMX port', 'DMX-poort')} ${p.n} · ${p.uni == null ? t('no universe', 'geen universe') : 'U' + p.uni} · ${p.klass === 'artnet' ? 'Art-Net' : 'sACN'} ${p.dir === 'input' ? t('input (DMX → network)', 'ingang (DMX → netwerk)') : p.dir === 'idle' ? t('off', 'uit') : t('output (network → DMX)', 'uitgang (netwerk → DMX)')}${own.length ? ' · ' + own.map(o => `${o.id}${o.ports ? ' ' + o.ports : ''}`).join(', ') : ''}${dests.length ? ' · ' + dests.join(', ') : ''}`;
+      return `<div class="nn-port ${p.uni == null ? 'free' : ''}" style="--c:${first ? first.color : 'var(--text-3)'}" title="${esc(tip)}"><small>${p.n}</small><b>${p.uni == null ? '—' : 'U' + p.uni}</b><i class="nn-pd ${p.manualKlass || p.manualDir ? 'man' : ''}">${pd}</i>
         <span class="nn-own">${own.slice(0, 2).map(o => `<span><i style="--c:${o.color}"></i>${esc(o.id === 'DMX' ? t('Loose DMX', 'Los DMX') : o.id)}${o.ports ? ` <small>${esc(o.ports)}</small>` : ''}</span>`).join('') || (p.uni == null ? '' : `<span class="subtle">${t('no LK / Veam', 'geen LK / Veam')}</span>`)}${own.length > 2 ? `<span class="subtle">+${own.length - 2}</span>` : ''}</span>
         <em>${esc(dests[0] || '')}</em></div>`;
     }).join('');
@@ -145,7 +146,6 @@
       else { const [sw, port] = sel.value.split('|'); window.PortPlan.place(dc, sel.dataset.nnplug, sw, Number(port)); }
       rerender();
     });
-    root.querySelectorAll('[data-nnadv]').forEach(c => c.onchange = () => { const n = plan(dc).nodes[Number(c.dataset.nnadv)]; if(!n) return; window.PatchHistory?.label?.(`${dc}: advanced network ${c.checked ? 'on' : 'off'}`); window.AdvNet.toggle(dc, n, c.checked); dirty(); rerender(); });
     window.AdvNet.bind(root, dc, rerender);
     root.querySelectorAll('[data-nnrm]').forEach(b => b.onclick = async () => {
       const idx = Number(b.dataset.nnrm), n = plan(dc).nodes[idx]; if(!n) return;

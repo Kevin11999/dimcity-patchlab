@@ -1504,3 +1504,29 @@ tr.bad>td{background:var(--red-soft)}
 .av-ports{display:flex;flex-wrap:wrap;gap:6px 14px;margin-left:auto;font-size:12.5px}
 .av-port{display:inline-flex;align-items:center;gap:6px}.av-port.off{opacity:.6}
 .av-note{font-size:12px;margin:2px 0 4px}
+
+/* Setup: the LK ↔ Veam links table stays inside its card */
+.su-links{width:100%;table-layout:fixed}
+.su-links th,.su-links td{padding:6px 8px;vertical-align:middle}
+.su-links th:nth-child(1){width:13%}.su-links th:nth-child(2){width:27%}.su-links th:nth-child(3),.su-links th:nth-child(4),.su-links th:nth-child(5){width:17%}.su-links th:nth-child(6){width:9%}
+.su-links select{width:100%;min-width:0;max-width:100%;text-overflow:ellipsis}
+.su-links td:last-child{white-space:nowrap;font-size:12px}
+
+/* patch board: what was set on the Switches tab (port name, PoE, speed, the other end of a fibre) */
+.pb-port .pb-nm{display:block;font-size:10.5px;font-weight:600;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb-port .pb-xt{display:flex;gap:3px;flex-wrap:wrap}
+.pb-port .pb-xt b{font-size:9.5px;font-weight:700;padding:0 4px;border-radius:4px;line-height:14px;color:var(--text);background:color-mix(in srgb,var(--pc,#475569) 30%,var(--bg-sunken))}
+.pb-port .pb-meta{display:block;font-size:10px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
+.pp-port .pp-partner{display:block;font-style:normal;font-size:9.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-detail .pp-fibre{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text-2)}
+
+/* nodes: the one switch for the advanced network, protocol and direction of the DMX ports, ETH2 */
+.nn-adv-global{padding:8px 14px 12px}
+.nn-adv-global .nn-adv-sw{font-size:14px}
+.nn-port .nn-pd{display:block;font-style:normal;font-size:10px;font-weight:600;color:var(--text-2);white-space:nowrap}
+.nn-port .nn-pd.man{color:var(--accent,var(--blue))}
+.av-eth2{display:inline-flex;align-items:center;gap:6px;font-size:12.5px}
+.av-eth2 select{min-width:150px}
+.pp-defaults{position:static;flex-wrap:wrap;border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--surface-2)}
+.swp-fibs{display:grid;gap:2px;margin-top:6px;font-size:12px}
+.swp-fib b{font-weight:600}

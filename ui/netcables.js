@@ -1,4 +1,4 @@
-// ui/netcables.js — network cables (Cat looms): C101 = a cable of 4 lines for DimCity 01, lines C101.1 … C101.4.
+// ui/netcables.js — network cables (Cat looms): CL101 = a loom of 4 lines for DimCity 01, lines CL101.1 … CL101.4 (C701 is one Cat line).
 // They come from the CSV like an LK or a Veam (id C101, port 1-4, VLAN group in the third column, location in the
 // fourth) and can only be plugged into a network switch. MODEL.netLines = [{ id, port, vlan, dest, dimcity }].
 // What you change here (VLAN, location, the universes a line carries, a new or a removed line) is kept apart from the CSV in

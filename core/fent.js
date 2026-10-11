@@ -45,39 +45,55 @@
   const vlanList = mode => (mode === 'fent' ? VLANS : LUMINEX).map(named).concat(customs().filter(c => !(mode === 'fent' ? VLANS : LUMINEX).some(v => v.id === c.id)));
   const roleVlan = (role, mode) => { const r = ROLES[role] || ROLES.other; return mode === 'fent' ? r.vlan : r.luminex; };
   const GROUPS = { location:{ first:1, last:99, dhcp:100 }, production:{ first:101, last:199, dhcp:200 } };
+  // The address range of a VLAN: the FENT one (10.<discipline>.x.x, only the VLANs that have a discipline) or one of your own.
+  // prefs.fent.vlanNets = { [VLAN id]: '10.30' | '192.168' } — the first two numbers; the third number is the DimCity, the last one the device.
+  const nets = () => fcfg().vlanNets || {};
+  const pairOf = s => { const m = /^\s*(\d{1,3})\.(\d{1,3})\s*$/.exec(String(s ?? '')); return m && Number(m[1]) <= 255 && Number(m[2]) <= 255 ? [Number(m[1]), Number(m[2])] : null; };
+  const isFentPair = (a, b) => a === 10 && VLANS.some(v => !v.extension && v.second === b);
 
   const isIp = s => /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(String(s || '').trim()) && String(s).trim().split('.').every(n => Number(n) <= 255);
   const vlanById = id => { const v = LUMINEX.find(x => x.id === Number(id)) || VLANS.find(x => x.id === Number(id)) || customs().find(x => x.id === Number(id)) || null; return v ? named(v) : null; };
   const vlanBySecond = b => VLANS.find(v => v.second === Number(b) && !v.extension) || null;
+  // { a, b, text, kind:'fent'|'own', chosen } or null when the VLAN has no range (a Luminex group beyond the first three, until you give it one)
+  function rangeOf(id){
+    const own = pairOf(nets()[id]);
+    if(own) return { a:own[0], b:own[1], text:`${own[0]}.${own[1]}.x.x`, kind:isFentPair(own[0], own[1]) ? 'fent' : 'own', chosen:true };
+    const v = vlanById(id);
+    return v && v.second != null ? { a:10, b:v.second, text:`10.${v.second}.x.x`, kind:'fent', chosen:false } : null;
+  }
   const parts = ip => String(ip).trim().split('.').map(Number);
 
   // Which FENT VLAN / group does an address belong to?
   function classify(ip){
     if(!isIp(ip)) return null;
     const [a, b, c, d] = parts(ip);
-    if(a !== 10) return { outside:true };
-    const vlan = vlanBySecond(b);
+    // a range of your own (not one of the FENT disciplines) belongs to the VLAN it was given to
+    let vlan = null, own = false;
+    if(!isFentPair(a, b)) for(const [id, pair] of Object.entries(nets())){ const p = pairOf(pair); if(p && p[0] === a && p[1] === b){ vlan = vlanById(id); own = !!vlan; if(own) break; } }
+    if(!vlan){ if(a !== 10) return { outside:true }; vlan = vlanBySecond(b); }
     const group = c >= 1 && c <= 100 ? 'location' : c >= 101 && c <= 200 ? 'production' : null;
-    return { vlan, group, dhcp:c === 100 || c === 200, reserved:(d >= 1 && d <= 10) || (d >= 251 && d <= 254), host:d, third:c };
+    return { vlan, own, group, dhcp:c === 100 || c === 200, reserved:(d >= 1 && d <= 10) || (d >= 251 && d <= 254), host:d, third:c };
   }
   // A sensible address: second byte from the VLAN, third byte from the DimCity number, fourth byte = device
   function suggest(vlanId, group, dimNo, host){
-    const v = vlanById(vlanId); if(!v) return '';
+    const r = rangeOf(vlanId); if(!r) return '';
     const g = GROUPS[group] || GROUPS.production;
     const third = Math.min(g.last, g.first - 1 + Math.max(1, Number(dimNo) || 1));
     const fourth = Math.max(11, Math.min(250, Number(host) || 11));
-    return `10.${v.second}.${third}.${fourth}`;
+    return `${r.a}.${r.b}.${third}.${fourth}`;
   }
   // Network equipment (a switch) uses 1-10 in the management range
   // Address for a role (management → 10.90.x.x, lighting and scan → 10.40.x.x), whatever the VLAN numbering
-  function suggestRole(role, group, dimNo, host){
+  // vlanId: the VLAN the address is for (else the VLAN of the role in the numbering of the show); its range is used, the FENT one of the role when it has none
+  function suggestRole(role, group, dimNo, host, vlanId){
     const r = ROLES[role] || ROLES.other, g = GROUPS[group] || GROUPS.production;
-    return `10.${r.second}.${Math.min(g.last, g.first - 1 + Math.max(1, Number(dimNo) || 1))}.${Math.max(11, Math.min(250, Number(host) || 11))}`;
+    const rg = rangeOf(vlanId != null && vlanId !== '' ? Number(vlanId) : roleVlan(role, fcfg().vlanMode || 'luminex')) || { a:10, b:r.second };
+    return `${rg.a}.${rg.b}.${Math.min(g.last, g.first - 1 + Math.max(1, Number(dimNo) || 1))}.${Math.max(11, Math.min(250, Number(host) || 11))}`;
   }
   function suggestEquipment(vlanId, group, dimNo, n){
-    const v = vlanById(vlanId); if(!v) return '';
+    const r = rangeOf(vlanId); if(!r) return '';
     const g = GROUPS[group] || GROUPS.production;
-    return `10.${v.second}.${Math.min(g.last, g.first - 1 + Math.max(1, Number(dimNo) || 1))}.${Math.max(1, Math.min(10, Number(n) || 1))}`;
+    return `${r.a}.${r.b}.${Math.min(g.last, g.first - 1 + Math.max(1, Number(dimNo) || 1))}.${Math.max(1, Math.min(10, Number(n) || 1))}`;
   }
   // Checks for one address. kind: 'device' (node, splitter) or 'equipment' (switch, router)
   function checkIp(ip, mask, vlanId, group, kind = 'device'){
@@ -86,7 +102,8 @@
     if(!isIp(ip)){ out.push({ level:'warn', code:'FORMAT', en:'Not a valid IPv4 address', nl:'Geen geldig IPv4-adres' }); return out; }
     const c = classify(ip), v = vlanById(vlanId);
     if(c.outside){ out.push({ level:'info', code:'OUTSIDE', en:'Not in the FENT range 10.x.x.x', nl:'Niet in de FENT-reeks 10.x.x.x' }); return out; }
-    if(v && c.vlan && v.second != null && c.vlan.second !== v.second) out.push({ level:'warn', code:'VLAN', en:`${ip} belongs to ${c.vlan.name} (${c.vlan.id}), not to ${v.name} (${v.id})`, nl:`${ip} hoort bij ${c.vlan.name} (${c.vlan.id}), niet bij ${v.name} (${v.id})` });
+    if(v && c.vlan && c.own && c.vlan.id !== v.id) out.push({ level:'warn', code:'VLAN', en:`${ip} is in the range of ${c.vlan.name} (${c.vlan.id}), not of ${v.name} (${v.id})`, nl:`${ip} zit in de reeks van ${c.vlan.name} (${c.vlan.id}), niet van ${v.name} (${v.id})` });
+    else if(v && c.vlan && v.second != null && c.vlan.second !== v.second) out.push({ level:'warn', code:'VLAN', en:`${ip} belongs to ${c.vlan.name} (${c.vlan.id}), not to ${v.name} (${v.id})`, nl:`${ip} hoort bij ${c.vlan.name} (${c.vlan.id}), niet bij ${v.name} (${v.id})` });
     if(!c.vlan) out.push({ level:'info', code:'UNKNOWN_NET', en:`10.${parts(ip)[1]}.x.x is not a FENT discipline range`, nl:`10.${parts(ip)[1]}.x.x is geen FENT-disciplinereeks` });
     if(c.dhcp) out.push({ level:'warn', code:'DHCP', en:'In the DHCP range — fixed devices should have a static address', nl:'In de DHCP-reeks — vaste apparaten horen een vast adres te hebben' });
     if(c.group === null && c.vlan) out.push({ level:'warn', code:'GROUP', en:'Third byte outside 1-200 (location 1-99, production 101-199)', nl:'Derde byte buiten 1-200 (locatie 1-99, productie 101-199)' });
@@ -148,5 +165,5 @@
   // The groups of a LumiNode in its advanced network always have the Luminex VLAN IDs: group 1 = 1, group N = N × 100 (the project may number its VLANs the FENT way)
   const groupVlan = role => (ROLES[role] || ROLES.other).luminex;
   const luminexGroups = () => LUMINEX.map(named).concat(customs().filter(c => !LUMINEX.some(v => v.id === c.id)));
-  window.Fent = { groupVlan, luminexGroups, vlanFromColumn, VLANS, LUMINEX, vlanList, roleVlan, suggestRole, MASK, ROLES, GROUPS, isIp, vlanById, classify, suggest, suggestEquipment, checkIp, checkAll, ifaces, portsOf, switchPlan };
+  window.Fent = { rangeOf, pairOf, isFentPair, groupVlan, luminexGroups, vlanFromColumn, VLANS, LUMINEX, vlanList, roleVlan, suggestRole, MASK, ROLES, GROUPS, isIp, vlanById, classify, suggest, suggestEquipment, checkIp, checkAll, ifaces, portsOf, switchPlan };
 })();

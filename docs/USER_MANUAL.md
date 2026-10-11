@@ -721,6 +721,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.14.1 — 2026-10-11
+- CSV dashes and Cat lines (C701, CL503.4), LK37 / Veam4 sockets worked out smarter, switch defaults (management, SFP trunk), one advanced-network switch with one address per node, DMX defaults, IP range per VLAN; FENT settings are saved in the project now.
+
 ### Version 0.14.0 — 2026-10-10
 - The **advice is gone**. PatchLab no longer proposes racks, panels or block modes: the card “Advice, best setup”, **Apply advice** and the block-mode advice in Setup are removed — you place racks and devices yourself. What stays is a count: the card **What this DimCity needs** (and the same list in the Rack Builder, for the DimCity you choose) shows what you need — LK37 sockets, Veam4 sockets, node ports — against what the racks give and what is still missing, says **Complete** or **Not complete**, and only where the racks have no socket left it offers loose spiders (as few as possible, as much as possible on the rack).
 - CSV **link rows**: `LK101,V101,V102,V103` puts the Veams of A, B and C on that LK by itself (an empty column = none). Setup has a new **step 2, Check the LK ↔ Veam links**, before the racks and devices per DB. An LK and its linked Veams are counted and placed as one unit (the LK37 socket with the Veam4 sockets next to it).
@@ -1659,6 +1662,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.14.1 — 2026-10-11
+- CSV-streepjes en Cat-lijnen (C701, CL503.4), LK37-/Veam4-aansluitingen slimmer uitgerekend, switchstandaarden (management, SFP trunk), één advanced-netwerkschakelaar met één adres per node, DMX-standaarden, IP-bereik per VLAN; FENT-instellingen worden nu in het project bewaard.
 
 ### Versie 0.14.0 — 2026-10-10
 - Het **advies is weg**. PatchLab stelt geen racks, panelen of bloktypes meer voor: de kaart “Advies, beste setup”, **Advies toepassen** en het bloktype-advies in Setup zijn verwijderd — je plaatst zelf racks en apparaten. Wat blijft is een telling: de kaart **Wat deze DimCity nodig heeft** (en dezelfde lijst in de Rack Builder, voor de DimCity die je kiest) toont wat je nodig hebt — LK37-aansluitingen, Veam4-aansluitingen, nodepoorten — tegenover wat de racks geven en wat er nog mist, zegt **Compleet** of **Niet compleet**, en biedt alleen waar de racks geen aansluiting meer hebben losse spinnen aan (zo min mogelijk, zo veel mogelijk op het rek).

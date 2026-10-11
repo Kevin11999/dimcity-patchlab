@@ -47,7 +47,7 @@ function needsHtml(dc, P, { compact = false } = {}){
   const status = N.complete ? `<span class="tag green">${I('checkCircle', 13)} Complete</span>` : `<span class="tag yellow">${I('alert', 13)} Not complete${todo.length ? ` — still needed: ${todo.join(', ')}` : ''}</span>`;
   const body = `<div class="rp-needs-h">${status}<span class="subtle">${N.lk.need} LK · ${N.vim.need} Veam4 · ${N.ports.need} lines</span></div>
     <table class="data-table rp-needs-t"><thead><tr><th></th><th class="num">Needed</th><th class="num">In the racks</th><th class="num">Missing</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-    ${N.spiders.lk || N.spiders.vim ? `<div class="subtle" style="font-size:12.5px;margin-top:6px">${I('info', 12)} The racks come first: a loose spider is only needed where no socket is left. An LK that comes in with its Veams is plugged in together (the LK socket and its Veam4 sockets).</div>` : ''}`;
+    ${N.groups?.total ? `<div class="subtle" style="font-size:12.5px;margin-top:6px">${I('info', 12)} Each panel group is one LK37 or its Veam4's, never both: ${N.groups.asLk} as LK37, ${N.groups.asVeam} as Veam4. The Veams that hang on an LK need no socket of their own.</div>` : ''}`;
   return App.ui.card({ key:`${dc}:needs`, title:'What this DimCity needs', icon:'checkCircle', meta:N.complete ? 'complete' : 'not complete', collapsible:true, collapsed:compact, body:`<div class="rp-needs">${body}</div>` });
 }
 function bindNeeds(root, dc, rerender){
@@ -75,9 +75,9 @@ function assignRows(dc, plan){
     rows.set(id, { id, kind:isLkId(id) ? 'LK' : 'VEAM', lines:ls.length, unis:new Set(ls.map(L => L.universe)), socket:null, skipped:true });
   }
   const sockets = {
-    LK: plan.groups.map(g => ({ value:g.label, text:`${g.label} · ${g.panel}${g.lk ? ` — ${g.lk.id}` : ''}`, by:g.lk?.id })),
-    // a Veam can be put on any Veam4 socket by hand — also on the ones next to an LK (the automatic way keeps those for the LK, see Settings → This show)
-    VEAM: [...plan.groups.flatMap(g => g.vims.map(v => ({ ...v, panel:g.panel, lkLabel:g.label, lkUsed:g.lk }))), ...plan.soloVims].filter(v => !v.linked).map(v => ({ value:v.label, text:`${v.label} · ${v.panel}${v.lkLabel ? ` (next to ${v.lkLabel}${v.lkUsed ? ' · ' + v.lkUsed.id : ''})` : ''}${v.used ? ` — ${v.used.id}` : ''}`, by:v.used?.id }))
+    LK: plan.groups.map(g => ({ value:g.label, text:`${g.label} · ${g.panel}${g.lk ? ` — ${g.lk.id}` : g.vims.some(v => v.used) ? ' — its Veam4 sockets are in use' : ''}`, by:g.lk?.id })),
+    // a panel group is one LK37 or its Veam4 sockets (same node ports): a Veam can be put on any free Veam4 socket, unless an LK sits on that group
+    VEAM: [...plan.groups.flatMap(g => g.vims.map(v => ({ ...v, panel:g.panel, lkLabel:g.label, lkUsed:g.lk }))), ...plan.soloVims].map(v => ({ value:v.label, text:`${v.label} · ${v.panel}${v.lkLabel ? ` (next to ${v.lkLabel}${v.lkUsed ? ` · ${v.lkUsed.id} is on it` : ''})` : ''}${v.used ? ` — ${v.used.id}` : ''}`, by:v.used?.id }))
   };
   return [...rows.values()].sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric:true })).map(r => ({ ...r, mode:assign[r.id] || 'auto', options:sockets[r.kind] }));
 }
@@ -88,7 +88,7 @@ function assignHtml(plan, dc){
   const opt = (r) => `<option value="auto" ${r.mode === 'auto' ? 'selected' : ''}>Automatic</option>${r.options.map(o => `<option value="${esc(o.value)}" ${r.mode === o.value ? 'selected' : ''}>${esc(o.text)}</option>`).join('')}<option value="spider" ${r.mode === 'spider' ? 'selected' : ''}>Loose ${r.kind === 'LK' ? 'LK' : 'Veam4'} spider</option><option value="none" ${r.mode === 'none' ? 'selected' : ''}>Do not patch</option>`;
   const now = r => r.skipped ? '<span class="tag">not patched</span>' : /spider/i.test(r.socket || '') ? `<span class="tag yellow">${esc(r.socket)}</span>` : `<span class="tag green">${esc(r.socket || '—')}</span>`;
   return `<details class="rp-table rp-assign" open><summary>${I('plug', 14)} Couple LKs &amp; Veams to sockets <span class="subtle">${own ? `${own} of your own choice${own > 1 ? 's' : ''}` : 'all automatic'}</span></summary>
-    <div class="rp-assign-body"><div class="subtle" style="font-size:12.5px;margin:0 0 8px">Automatic fills the sockets in order. Choose a socket to decide yourself, <b>Loose spider</b> when it should not sit in the rack, or <b>Do not patch</b> to leave it out. A socket you choose is kept first; the rest stays automatic.</div>
+    <div class="rp-assign-body"><div class="subtle" style="font-size:12.5px;margin:0 0 8px">Automatic uses as few loose spiders as possible (a panel group is one LK37 or its Veam4 sockets, never both). Choose a socket to decide yourself, <b>Loose spider</b> when it should not sit in the rack, or <b>Do not patch</b> to leave it out. A socket you choose is kept first; the rest stays automatic.</div>
     <table class="data-table"><thead><tr><th>LK / Veam</th><th class="num">Lines</th><th>Universes</th><th>Now on</th><th>Choose</th></tr></thead><tbody>${rows.map(r => `<tr><td><b>${esc(r.id)}</b></td><td class="num">${r.lines}</td><td class="subtle">${[...r.unis].sort((a, b) => a - b).slice(0, 6).map(u => 'U' + u).join(' ')}${r.unis.size > 6 ? ' …' : ''}</td><td>${now(r)}</td><td><select class="rp-assign-sel ${r.mode !== 'auto' ? 'own' : ''}" data-owner="${esc(r.id)}">${opt(r)}</select></td></tr>`).join('')}</tbody></table>
     ${own ? `<div style="margin-top:8px"><button class="sm" data-assign-reset>${I('refresh', 13)} Everything automatic again</button></div>` : ''}</div></details>`;
 }
@@ -307,7 +307,7 @@ function bind(root, dc, rerender0){
       const id = root.querySelector('#rpLooseType')?.value;
       const t = (M().networkDevices?.nodeTypes || []).find(x => x.id === id); if(!t) return;
       addLooseNode(dc, t.id);
-      App.ui.toast('Loose node added with an LK spider — a node without a rack needs one');
+      App.ui.toast('Loose node added');
       if(!M().ui.cardCollapsed) M().ui.cardCollapsed = {};
       M().ui.cardCollapsed[`${dc}:racks`] = false;
       M().ui.dirty = true; rerender(); return;
@@ -409,7 +409,7 @@ function syncNodes(dc){
   if(!changed) return false;
   if(plan.nodeTypeId === '' || plan.nodeTypeId == null) plan.nodeTypeId = wantN[0]?.type.id || plan.nodeTypeId;
   App.net.refreshDimDeviceIdentity(dc);
-  for(const inst of added){ if(M().networkDevices?.prefs?.fent?.on) window.FentUI?.addressNew?.(dc, 'node', inst); }
+  for(const inst of added){ window.AdvNet?.adopt?.(dc, inst); if(M().networkDevices?.prefs?.fent?.on) window.FentUI?.addressNew?.(dc, 'node', inst); }      // a new node follows the advanced-network switch
   for(const inst of addedS) if(M().networkDevices?.prefs?.fent?.on) window.FentUI?.addressNew?.(dc, 'splitter', inst);
   M().ui.dirty = true;
   return true;
@@ -445,12 +445,13 @@ function removeNode(dc, idx){
   plan.nodes.splice(idx, 1); M().ui.dirty = true; return true;
 }
 
-// A loose node needs a spider to be fed (it has no panel): add it together with an LK spider
+// A loose node is just the node: the "What this DimCity needs" list says if it needs a spider — nothing is added on its own
 function addLooseNode(dc, typeId){
   const t = (M().networkDevices?.nodeTypes || []).find(x => x.id === typeId); if(!t) return null;
   const list = looseOf(dc), node = { iid:newIid('ls'), kind:'node', typeId:t.id, name:'' };
-  list.push(node, { iid:newIid('ls'), kind:'lkSpider', nodeIid:node.iid });
-  window.PatchHistory?.label?.(`Added loose ${typeName(t)} with an LK spider in ${dc}`);
+  list.push(node);
+  window.PatchHistory?.label?.(`Added loose ${typeName(t)} in ${dc}`);
+  syncNodes(dc);
   M().ui.dirty = true;
   return node;
 }

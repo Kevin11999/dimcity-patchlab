@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.14.1 — 2026-10-11
+
+- CSV dashes and Cat lines (C701, CL503.4), LK37 / Veam4 sockets worked out smarter, switch defaults (management, SFP trunk), one advanced-network switch with one address per node, DMX defaults, IP range per VLAN; FENT settings are saved in the project now.
+
+<details><summary>Nederlands</summary>
+
+- CSV-streepjes en Cat-lijnen (C701, CL503.4), LK37-/Veam4-aansluitingen slimmer uitgerekend, switchstandaarden (management, SFP trunk), één advanced-netwerkschakelaar met één adres per node, DMX-standaarden, IP-bereik per VLAN; FENT-instellingen worden nu in het project bewaard.
+
+</details>
+
 ## 0.14.0 — 2026-10-10
 
 - The **advice is gone**. PatchLab no longer proposes racks, panels or block modes: the card “Advice, best setup”, **Apply advice** and the block-mode advice in Setup are removed — you place racks and devices yourself. What stays is a count: the card **What this DimCity needs** (and the same list in the Rack Builder, for the DimCity you choose) shows what you need — LK37 sockets, Veam4 sockets, node ports — against what the racks give and what is still missing, says **Complete** or **Not complete**, and only where the racks have no socket left it offers loose spiders (as few as possible, as much as possible on the rack).

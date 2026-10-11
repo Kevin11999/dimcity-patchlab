@@ -64,7 +64,9 @@
   const planOf = d => planItems().find(x => x.id === d.link) || null;
   // the VLAN of the management address of a switch, in the numbering of the project (Luminex: management = 1, FENT: 1090)
   const mgmtVid = s => { try { if(!s?.dev?.ip) return null; const v = FENT().classify(s.dev.ip)?.vlan, role = v && ({ 90:'management', 40:'lighting' })[v.second]; return role ? FENT().roleVlan(role, App.getMODEL().networkDevices?.prefs?.fent?.vlanMode || 'luminex') : (v?.id ?? null); } catch { return null; } };
-  const vlansOf = (dc, label) => { const set = new Set(); for(const r of (window.FentUI?.portPlan(dc).rows || [])) if(r.sw === label) (r.vlans || []).forEach(v => set.add(Number(v))); const m = mgmtVid(swList().find(x => x.dc === dc && x.label === label)?.s); if(m != null) set.add(m); return set; };
+  // the management VLAN every RJ45 port starts on: the one of the switch's own address, else the management VLAN of the numbering of the project
+  const defMgmt = s => { try { return mgmtVid(s) ?? FENT().roleVlan('management', App.getMODEL().networkDevices?.prefs?.fent?.vlanMode || 'luminex'); } catch { return null; } };
+  const vlansOf = (dc, label) => { const set = new Set(); for(const r of (window.FentUI?.portPlan(dc).rows || [])) if(r.sw === label) (r.vlans || []).forEach(v => set.add(Number(v))); const m = defMgmt(swList().find(x => x.dc === dc && x.label === label)?.s); if(m != null) set.add(m); return set; };
   function wantSwitch(it){
     const dc = it.dc, s = it.s, rows = (window.FentUI?.portPlan(dc).rows || []).filter(r => r.sw === s.label && r.swPort), vset = vlansOf(dc, s.label), ports = [], fibre = [];
     const autoTrunk = [];
@@ -79,12 +81,21 @@
     }
     // a cable that carries two VLANs (a node with a management and a lighting address, a LumiNode in its advanced network) needs a trunk port on the switch
     for(const n of autoTrunk){ const e = ports.find(x => x.port === n); if(e) e.vid = null; if(!trunkPorts.includes(n)) trunkPorts.push(n); }
+    // every RJ45 port that has no VLAN of its own starts on the management VLAN (the ports of a switch link are left alone)
+    const mg = defMgmt(s), linked = new Set((window.NetSwitches?.linksOf(dc) || []).filter(l => l.sw === s.label).map(l => l.port));
+    if(mg != null){
+      vset.add(mg);
+      for(const e of ports) if(e.vid == null && !trunkPorts.includes(e.port)) e.vid = mg;
+      for(let n = 1; n <= s.rj; n++) if(!linked.has(n) && !ports.some(x => x.port === n)) ports.push({ port:n, vid:mg, legend:'', def:true });
+    }
     ports.sort((a, b) => a.port - b.port);
     for(const l of (window.Fibers?.links(dc) || [])) for(const [me, other] of [[l.a, l.b], [l.b, l.a]]){
       if(!me || me.free || me.dc !== dc || me.sw !== s.label) continue;
       fibre.push(window.SwPorts?.no(s.type, Number(me.sfp)) ?? (s.rj + Number(me.sfp)));
       if(other && !other.free && other.sw) vlansOf(other.dc, other.sw).forEach(v => vset.add(v));
     }
+    // every SFP port is a trunk
+    for(let i = 1; i <= s.sfp; i++){ const no = window.SwPorts?.no(s.type, i) ?? (s.rj + i); if(!fibre.includes(no)) fibre.push(no); }
     for(let k = fibre.length - 1; k >= 0; k--) if(vidPorts.has(fibre[k])) fibre.splice(k, 1);
     for(const n of trunkPorts) if(!fibre.includes(n)) fibre.push(n);
     const groups = [...vset].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean).map(v => ({ vid:v.id, name:v.name, color:v.color }));
@@ -93,8 +104,12 @@
   function wantNode(it){
     const inst = it.inst, u = Array.isArray(inst.universes) ? inst.universes : [];
     const nt = (App.getMODEL().networkDevices.nodeTypes || []).find(x => x.id === inst.typeId), eth = Math.min(2, Math.max(1, Number(nt?.ethernetCount) || 1));
-    return { shortName:inst.id, longName:inst.name, advanced:!!inst.advanced, net:inst.advanced ? api.lumiNetWant(FENT().ifaces(inst, eth), eth, id => FENT().vlanById(id), inst.advPorts || null) : null, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || '255.255.255.0', gateway:inst.gateway || '' } : null,
-      ports:u.map((x, j) => { if(x == null || x === '') return null; const o = (window.PortPlan?.forNode(it.dc, inst, it.i) || {})[j + 1] || {}; return { universe:Number(x), name:o.name || `${inst.id || 'N'}.${j + 1}`, klass:o.klass || undefined, dir:o.dir || undefined }; }) };
+    const PP = window.PortPlan, pp = PP ? PP.ndPorts(it.dc, inst, it.i) : [];
+    // the lighting data of the groups follows the DMX ports of the node (output by default), unless a group was given its own choice
+    const pipe = PP?.pipeOf ? PP.pipeOf(it.dc, inst, it.i) : 'input+output';
+    const ifs = FENT().ifaces(inst, eth).map(x => ((x.listen === undefined || x.listen === null) && x.role !== 'management') ? { ...x, listen:pipe } : x);
+    return { shortName:inst.id, longName:inst.name, advanced:!!inst.advanced, net:inst.advanced ? api.lumiNetWant(ifs, eth, id => FENT().vlanById(id), inst.advPorts || null) : null, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || '255.255.255.0', gateway:inst.gateway || '' } : null,
+      ports:u.map((x, j) => { if(x == null || x === '') return null; const p = pp[j] || {}; return { universe:Number(x), name:p.name || `${inst.id || 'N'}.${j + 1}`, klass:p.klass || undefined, dir:p.dir || undefined }; }) };
   }
   const projectVlans = () => { const set = new Set(); for(const it of swList()) vlansOf(it.dc, it.s.label).forEach(v => set.add(v)); return [...set].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean); };
 
@@ -174,7 +189,7 @@
     if(isSw(d) && it.kind === 'sw'){
       const w = wantSwitch(it);
       const rowsNow = api.portRows(d.cur);
-      for(const p of w.ports){ if(!d.cur.ports.some(x => x.port_number === p.port)) continue; const e = d.E.get(p.port) || {}; if(C.withNames !== false) e.legend = String(p.legend).slice(0, 16); const rw = rowsNow.find(x => x.port === p.port); if(p.poe && rw?.poe != null) e.poe = p.poe === 'on'; if(p.speed && api.SPEEDS.includes(p.speed)) e.speed = p.speed; const g = w.groups.find(x => x.vid === p.vid); if(g) e.member = { type:'vid', vid:g.vid, name:g.name, color:g.color }; d.E.set(p.port, e); }
+      for(const p of w.ports){ if(!d.cur.ports.some(x => x.port_number === p.port)) continue; const e = d.E.get(p.port) || {}; if(C.withNames !== false && !p.def) e.legend = String(p.legend).slice(0, 16); const rw = rowsNow.find(x => x.port === p.port); if(p.poe && rw?.poe != null) e.poe = p.poe === 'on'; if(p.speed && api.SPEEDS.includes(p.speed)) e.speed = p.speed; const g = w.groups.find(x => x.vid === p.vid); if(g) e.member = { type:'vid', vid:g.vid, name:g.name, color:g.color }; d.E.set(p.port, e); }
       if(w.fibre.length){ const fm = { type:'fibre', vids:w.groups.map(g => g.vid), mgmtVid:w.mgmt, groups:w.groups }; for(const no of w.fibre) if(d.cur.ports.some(x => x.port_number === no)){ const e = d.E.get(no) || {}; e.member = clone(fm); d.E.set(no, e); } }
       const pre = d.cur.trunks.find(x => x.predefined), want = w.mgmt != null ? d.cur.groups.find(g => g.vid === w.mgmt) : null;
       if(w.name && w.name !== d.cur.device?.name) d.dev.name = w.name;

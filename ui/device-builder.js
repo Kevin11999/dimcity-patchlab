@@ -423,19 +423,39 @@ function rackNeeds(rack){
   if(!dc || !dims.includes(dc)) dc = (M.selected?.kind === 'DIM' && dims.includes(M.selected.id) ? M.selected.id : null) || dims.find(d => info(d)?.needs && !info(d).needs.complete && !info(d).needs.empty) || dims[0];
   S.needDc = dc;
   const P = info(dc), N = P?.needs; if(!N) return '';
-  // what this rack gives
-  const give = { lk:0, vim:0, ports:0 };
-  for(const it of rack.items || []){ const ty = findType(it.kind, it.typeId); if(!ty) continue; if(it.kind === 'panel'){ give.lk += num(ty.lkCount); give.vim += num(ty.vimCount); } if(it.kind === 'node') give.ports += num(ty.portCount, 8); }
+  // what this rack gives: a panel group is one LK37 socket or its Veam4 sockets (never both), so the sockets are counted in groups
+  const capOf = r => {
+    const c = { groups:[], lkOnly:0, soloVim:0, ports:0 };
+    for(const it of r.items || []){
+      const ty = findType(it.kind, it.typeId); if(!ty) continue;
+      if(it.kind === 'node') c.ports += num(ty.portCount, 8);
+      if(it.kind !== 'panel') continue;
+      const lk = num(ty.lkCount), vim = num(ty.vimCount), per = Math.min(3, Math.max(0, num(ty.vimPerLk, 3))), shared = Math.min(vim, lk * per);
+      for(let g = 0; g < lk; g++){ const n = Math.max(0, Math.min(per, shared - g * per)); if(n) c.groups.push(n); else c.lkOnly++; }
+      c.soloVim += Math.max(0, vim - shared);
+    }
+    return c;
+  };
+  const add = capOf(rack);
   // placed in the DimCity already (without this rack, when it is placed there)
   const k = ((M.networkDevices?.dimCityPlans?.[dc]?.racks) || []).filter(r => r.rackId === rack.id).length;
-  const row = (label, need, have, add) => { const base = Math.max(0, have - k * add), miss = Math.max(0, need - base - add); return { label, need, base, add, miss }; };
-  const rows = [row('LK37 sockets', N.lk.need, N.lk.have, give.lk), row('Veam4 sockets', N.vim.need, N.vim.have, give.vim), row('Node ports (DMX lines)', N.ports.need, N.ports.have, give.ports)];
+  const base = { groups:N.cap.groups.slice(), lkOnly:Math.max(0, N.cap.lkOnly - k * add.lkOnly), soloVim:Math.max(0, N.cap.soloVim - k * add.soloVim) };
+  for(let i = 0; i < k; i++) for(const n of add.groups){ const at = base.groups.indexOf(n); if(at >= 0) base.groups.splice(at, 1); }
+  const sum = a => a.reduce((c, n) => c + n, 0);
+  const without = E.solveSockets(N.lk.need, N.vim.need, base);
+  const withIt = E.solveSockets(N.lk.need, N.vim.need, { groups:[...base.groups, ...add.groups], lkOnly:base.lkOnly + add.lkOnly, soloVim:base.soloVim + add.soloVim });
+  const portsBase = Math.max(0, N.ports.have - k * add.ports);
+  const rows = [
+    { label:'LK37 sockets', need:N.lk.need, base:base.lkOnly + without.groupsAsLk, add:add.lkOnly + add.groups.length, miss:withIt.lkMiss },
+    { label:'Veam4 sockets', need:N.vim.need, base:base.soloVim + sum(base.groups.slice(without.groupsAsLk)), add:add.soloVim + sum(add.groups), miss:withIt.veMiss },
+    { label:'Node ports (DMX lines)', need:N.ports.need, base:portsBase, add:add.ports, miss:Math.max(0, N.ports.need - portsBase - add.ports) }
+  ];
   const missing = rows.filter(r => r.miss);
   const ok = !N.empty && !missing.length;
   return `<div class="rk-needs"><div class="rk-needs-h"><b>What ${esc(dc)} needs</b><label class="rk-needs-dc">for <select data-rk-needdc>${dims.map(d => `<option value="${esc(d)}" ${d === dc ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></label>
       ${N.empty ? '<span class="tag">nothing needed yet</span>' : ok ? `<span class="tag green">${I('checkCircle', 13)} Complete with this rack${k ? '' : ' added'}</span>` : `<span class="tag yellow">${I('alert', 13)} Not complete — still needed: ${missing.map(r => `${r.miss} ${r.label.split(' (')[0].replace(' sockets', '')}`).join(', ')}</span>`}</div>
     ${N.empty ? '' : `<table class="data-table rk-needs-t"><thead><tr><th></th><th class="num">Needed</th><th class="num">Already in ${esc(dc)}</th><th class="num">This rack</th><th class="num">Still missing</th></tr></thead><tbody>${rows.map(r => `<tr class="${r.miss ? 'bad' : 'ok'}"><td><b>${r.label}</b></td><td class="num">${r.need}</td><td class="num">${r.base}</td><td class="num">+${r.add}</td><td class="num">${r.miss ? `<b>${r.miss}</b>` : '<span class="tag green">0</span>'}</td></tr>`).join('')}</tbody></table>
-    <div class="subtle" style="font-size:12px;margin-top:4px">Loose spiders count as sockets. Add devices to the rack and this list follows; “Still missing” is what no rack or spider covers yet.</div>`}</div>`;
+    <div class="subtle" style="font-size:12px;margin-top:4px">Loose spiders count as sockets. A panel group is one LK37 or its Veam4’s, never both, so the LK37 and Veam4 numbers of a panel are alternatives. The Veams that hang on an LK need no socket. Add devices to the rack and this list follows; “Still missing” is what no rack or spider covers yet.</div>`}</div>`;
 }
 function rackHtml(rack){
   const H = rack.heightU;

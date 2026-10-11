@@ -60,6 +60,7 @@
 
   // ---- what is true about the show right now ----
   function facts(){
+    try { window.RackPlan?.syncAll?.(); } catch(e){ console.error('node sync', e); }      // a node added in Racks & devices shows here at once
     const m = M(), dims = App.sortedDims(), out = { rows:(m.lines?.length || 0) + (m.veamLines?.length || 0) + (m.dmxLoose?.length || 0) + (m.netLines?.length || 0), dims, per:{} };
     for(const dc of dims){
       let P = null; try { P = E().computeRackPlan(m, dc); } catch {}
@@ -189,7 +190,7 @@
           ${P.recs.filter(r => r.level === 'warn').slice(0, 3).map(r => `<div class="su-warn">${I('alert', 13)} ${esc(r.text)}${r.fix ? ` <button class="sm primary" data-su-fix="${esc(r.fix.iid)}" data-dc="${esc(d)}">${t('Fix: stack', 'Oplossen: stapel')} ${esc(r.fix.label)}</button>` : ''}</div>`).join('')}
           ${window.RackPlan && x.hasPlan ? window.RackPlan.assignHtml(P, d) : `<div class="subtle" style="margin-top:6px">${t('Place a rack or loose devices first (previous step).', 'Plaats eerst een rek of losse apparaten (vorige stap).')}</div>`}
           <div class="su-row" style="margin-top:8px"><button class="ghost" data-su-open="${esc(d)}">${t('Open', 'Open')} ${esc(d)}</button></div></div>`; }).join('') +
-        `<div class="hint" style="margin-top:6px">${I('info', 13)} ${t('Automatic puts the LKs on the LK sockets in order and each Veam on a Veam4 socket of its own; the Veam4 sockets next to an LK belong to that LK (Settings → This show). A socket you choose yourself is always possible, also those next to an LK.', 'Automatisch zet de LK\'s op de LK-aansluitingen in volgorde en elke Veam op een eigen Veam4-aansluiting; de Veam4-aansluitingen naast een LK horen bij die LK (Instellingen → Deze show). Een aansluiting die je zelf kiest kan altijd, ook die naast een LK.')}</div>`;
+        `<div class="hint" style="margin-top:6px">${I('info', 13)} ${t('Automatic uses as few loose spiders as possible: a panel group is one LK37 or its three Veam4 sockets, never both. The Veams that hang on an LK need no socket of their own. A socket you choose yourself is always possible.', 'Automatisch gebruikt zo min mogelijk losse spinnen: een paneelgroep is één LK37 óf zijn drie Veam4-aansluitingen, nooit allebei. De Veams die aan een LK hangen hebben geen eigen aansluiting nodig. Een aansluiting die je zelf kiest kan altijd.')}</div>`;
     }
     if(id === 'nodes'){
       const sg = window.NodeLink ? window.NodeLink.suggest() : [];
@@ -262,7 +263,7 @@
     const ar = root.querySelector('[data-su-addrack]'); if(ar) ar.onclick = () => { const id2 = root.querySelector('#suRackType').value; const rt = n.rackTypes.find(r => r.id === id2); if(!rt) return; (plan(dc).racks ||= []).push({ iid:`rk_${Date.now().toString(36)}`, rackId:id2, name:'' }); window.PatchHistory?.label?.(`Placed ${rt.name || rt.id} in ${dc}`); dirty(); render(); };
     root.querySelectorAll('[data-su-rmrack]').forEach(b => b.onclick = () => { const p = plan(dc); p.racks = (p.racks || []).filter(r => r.iid !== b.dataset.suRmrack); dirty(); render(); });
     root.querySelectorAll('[data-su-addloose]').forEach(b => b.onclick = () => { const kind = b.dataset.suAddloose, p = plan(dc); p.loose ||= []; const item = { iid:newIid('ls'), kind };
-      if(kind === 'node'){ const t2 = n.nodeTypes.find(x => x.id === root.querySelector('#suNodeType')?.value); if(!t2) return; window.RackPlan.addLooseNode(dc, t2.id); App.ui.toast(t('Loose node added with an LK spider — a node without a rack needs one', 'Losse node toegevoegd met een LK-spin — een node zonder rek heeft er een nodig')); dirty(); render(); return; } else { const last = p.loose.filter(d => d.kind === 'node').pop(); if(last) item.nodeIid = last.iid; }
+      if(kind === 'node'){ const t2 = n.nodeTypes.find(x => x.id === root.querySelector('#suNodeType')?.value); if(!t2) return; window.RackPlan.addLooseNode(dc, t2.id); App.ui.toast(t('Loose node added', 'Losse node toegevoegd')); dirty(); render(); return; } else { const last = p.loose.filter(d => d.kind === 'node').pop(); if(last) item.nodeIid = last.iid; }
       p.loose.push(item); dirty(); render(); });
     root.querySelectorAll('[data-su-rmloose]').forEach(b => b.onclick = () => { const p = plan(dc); p.loose = (p.loose || []).filter(d => d.iid !== b.dataset.suRmloose); dirty(); render(); });
     root.querySelectorAll('[data-su-opennodes]').forEach(b => b.onclick = () => { close(); App.navigate('NET'); window.NetworkPage?.render?.({ tab:'nodes', dc:b.dataset.suOpennodes }); });

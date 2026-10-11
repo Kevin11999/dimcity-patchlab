@@ -73,6 +73,9 @@ function makeId(prefix='csv'){
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,7)}`;
 }
 function nowIso(){ return new Date().toISOString(); }
+// a "-" or "---" in the CSV means: nothing there
+const isDash = v => /^[-–—]+$/.test(String(v ?? '').trim());
+const noDash = v => isDash(v) ? '' : String(v ?? '').trim();
 function looksLikeImportRow(r){
   if(!Array.isArray(r)) return false;
   const id = (r[WIZ.map?.id ?? 0] ?? r[0] ?? '').toString().trim().toUpperCase();
@@ -82,7 +85,7 @@ function looksLikeImportRow(r){
   const idOk = !!window.CsvRules.classify(id);
   // an LK ↔ Veam link row (LK101,V101,V102,V103) belongs to the patch as well
   if(window.CsvRules.classify(id)?.kind === 'LK'){
-    const cells = [port, uni, dest];
+    const cells = [port, uni, dest].map(noDash);
     if(cells.some(Boolean) && cells.every(v => !v || window.CsvRules.classify(v)?.kind === 'V')) return true;
   }
   const portOk = /^\d+$/.test(port);
@@ -497,8 +500,8 @@ async function processRows(rows){
     // [0]=id, [1]=port, [2]=uni, [3]=position, [4]=(legacy truss/unused), [5]=dimcity (alleen bij DMX)
     let id          = (r[0] ?? '').toString().trim();
     const portS     = (r[1] ?? '').toString().trim();
-    const uniS      = (r[2] ?? '').toString().trim();
-    const position  = (r[3] ?? '').toString();
+    const uniS      = noDash(r[2]);
+    const position  = isDash(r[3]) ? '' : (r[3] ?? '').toString();
     const maybeDim  = (r[5] ?? '').toString().trim().toUpperCase(); // 6e veld voor DMX
     const sourceId   = (r[6] ?? '').toString().trim() || null;
     const sourceName = (r[7] ?? '').toString().trim() || 'CSV';
@@ -530,7 +533,7 @@ async function processRows(rows){
 
     // --- LK ↔ Veam koppelregel: LK101,V101,V102,V103 — kolom 1 = LK, dan de Veam op Veam A, B en C; een lege kolom = geen Veam op die plek ---
     if(cls?.kind === 'LK'){
-      const cells = [r[1], r[2], r[3]].map(v => (v ?? '').toString().trim()), vs = cells.map(v => v ? window.CsvRules.classify(v) : null);
+      const cells = [r[1], r[2], r[3]].map(noDash), vs = cells.map(v => v ? window.CsvRules.classify(v) : null);
       if(cells.some(Boolean) && cells.every((v, i) => !v || vs[i]?.kind === 'V')){
         linkRows.push({ lk:normLK(cls.id), veams:vs.map(v => v ? v.id : null), sourceName });
         continue;
@@ -539,18 +542,23 @@ async function processRows(rows){
 
     // --- Netwerkkabel (loom): C101 (poort in kolom 2) of C101.1 (poort achter de punt); elk loomtype heeft eigen voorvoegsel en aantal lijnen ---
     if(cls?.kind === 'NET'){
-      const cid = cls.id, cdim = cls.dim, cport = cls.line != null ? cls.line : port, maxLines = cls.loom.lines;
+      const cid = cls.id, cdim = cls.dim, maxLines = cls.loom.lines;
+      if(!cdim){ keepInvalid(r, {severity:'RED', code:'NO_DIMCITY', message:`${id} has no DimCity in its number — a Cat line is C + DB + line (C701 = DB7, line 1), a loom CL + DB + loom (CL503.4 = DB5, loom 3, line 4)`}); continue; }
+      // a Cat line (C701) has one line: the port column is empty or 1; in a loom (CL503) the port column (or the part after the dot) is the line
+      const cport = cls.line != null ? cls.line : (Number.isFinite(port) ? port : (maxLines === 1 ? 1 : NaN));
       if(!Number.isFinite(cport) || cport < 1 || cport > maxLines){
-        keepInvalid(r, {severity:'RED', code:'PORT_RANGE', dimcity:cdim, port:cport, message:`${id}${cls.line == null ? ` port ${Number.isFinite(port) ? port : `“${portS}”`}` : ''} does not exist — a ${cls.loom.name} (${cls.loom.prefix}) has lines 1–${maxLines}`});
+        keepInvalid(r, {severity:'RED', code:'PORT_RANGE', dimcity:cdim, port:cport, message:`${id}${cls.line == null ? ` port ${Number.isFinite(port) ? port : `“${portS}”`}` : ''} does not exist — a ${cls.loom.name} (${cls.loom.prefix}) has ${maxLines === 1 ? 'one line' : `lines 1–${maxLines}`}${maxLines === 1 && cls.line == null && /^C\d+$/i.test(id) ? ' (a loom is CL…)' : ''}`});
         continue;
       }
-      const vlan = window.Fent ? window.Fent.vlanFromColumn(universe) : universe;
+      // the third column may still name a VLAN group (2 = VLAN 200 …); anything else there (a universe) is not a VLAN
+      const vlan = window.Fent && universe != null && Number.isFinite(universe) && ((universe >= 1 && universe <= 20) || window.Fent.vlanById(universe)) ? window.Fent.vlanFromColumn(universe) : null;
       netRaw.push({ id:cid, port:cport, vlan, dest:position || '', dimcity:cdim, status: position ? 'GREEN' : 'YELLOW', source:sourceName, sourceId, sourceName });
       continue;
     }
 
     // --- Node601,1 (of Node 601.1): een DMX-lijn die op een poort van een node zit; 6 = DB06, 01 = node 1 ---
     if(cls?.kind === 'NODE'){
+      if(!cls.dim){ keepInvalid(r, {severity:'RED', code:'NO_DIMCITY', message:`${id} has no DimCity in its number — Node601,1 is node 01 of DB6, port 1`}); continue; }
       const nport = cls.port != null ? cls.port : port;
       dmxLoose.push({ id:null, universe, dest:`Node ${cls.no}${Number.isFinite(nport) && nport > 0 ? `.${nport}` : ''}`, note:position || '', dimcity:cls.dim, status: statusColor(universe, position || 'x'), source:sourceName, sourceId, sourceName, nodeRow:true });
       continue;
@@ -1769,7 +1777,7 @@ function showCsvSourcesModal(){
 // ===== Network Devices: data helpers =====
 function normalizeNetworkDevices(net){
   // portPatchV 2 = the ports are only filled by hand (or by "Auto-fill ports"); a project without it is from 0.12 or older and gets its ports frozen once
-  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0, fent:{ on:false, group:'production', scan:false, vlanMode:'luminex' } }, nodeTypes:[], splitterTypes:[], switchTypes:[], panelTypes:[], rackTypes:[], cableTypes:[], fiberLinks:[], nodes:[], splitters:[], switches:[], dimCityPlans:{}, portPatchV:2, swLinks:[] };
+  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0, fent:{ on:false, group:'production', scan:false, vlanMode:'luminex' }, dmx:{ klass:'sacn', dir:'output' }, advancedNet:false }, nodeTypes:[], splitterTypes:[], switchTypes:[], panelTypes:[], rackTypes:[], cableTypes:[], fiberLinks:[], nodes:[], splitters:[], switches:[], dimCityPlans:{}, portPatchV:2, swLinks:[] };
   if(!net || typeof net !== 'object') return base;
 
   const nodeTypes = Array.isArray(net.nodeTypes) ? net.nodeTypes.slice() : [];
@@ -1812,7 +1820,11 @@ function normalizeNetworkDevices(net){
       nodeSparePorts: Number(net.prefs?.nodeSparePorts ?? 0),
       splitterSparePorts: Number(net.prefs?.splitterSparePorts ?? 0),
       switchSparePorts: Number(net.prefs?.switchSparePorts ?? 0),
-      fent: { on:!!net.prefs?.fent?.on, group:net.prefs?.fent?.group === 'location' ? 'location' : 'production', scan:!!net.prefs?.fent?.scan, vlanMode:net.prefs?.fent?.vlanMode === 'fent' ? 'fent' : 'luminex', vlanNames:(net.prefs?.fent?.vlanNames && typeof net.prefs.fent.vlanNames === 'object') ? { ...net.prefs.fent.vlanNames } : {}, vlanColors:(net.prefs?.fent?.vlanColors && typeof net.prefs.fent.vlanColors === 'object') ? { ...net.prefs.fent.vlanColors } : {}, customVlans:Array.isArray(net.prefs?.fent?.customVlans) ? net.prefs.fent.customVlans.map(v => ({ ...v })) : [] }
+      fent: { on:!!net.prefs?.fent?.on, group:net.prefs?.fent?.group === 'location' ? 'location' : 'production', scan:!!net.prefs?.fent?.scan, vlanMode:net.prefs?.fent?.vlanMode === 'fent' ? 'fent' : 'luminex', vlanNames:(net.prefs?.fent?.vlanNames && typeof net.prefs.fent.vlanNames === 'object') ? { ...net.prefs.fent.vlanNames } : {}, vlanColors:(net.prefs?.fent?.vlanColors && typeof net.prefs.fent.vlanColors === 'object') ? { ...net.prefs.fent.vlanColors } : {}, customVlans:Array.isArray(net.prefs?.fent?.customVlans) ? net.prefs.fent.customVlans.map(v => ({ ...v })) : [], vlanNets:(net.prefs?.fent?.vlanNets && typeof net.prefs.fent.vlanNets === 'object') ? { ...net.prefs.fent.vlanNets } : {} },
+      // what a DMX port does when nothing else is chosen for it (sACN or Art-Net, output = network → DMX)
+      dmx: { klass:net.prefs?.dmx?.klass === 'artnet' ? 'artnet' : 'sacn', dir:['output', 'input', 'idle'].includes(net.prefs?.dmx?.dir) ? net.prefs.dmx.dir : 'output' },
+      // the advanced network is one switch for all nodes; a project from 0.14.0 that had it on a node keeps it on
+      advancedNet: net.prefs?.advancedNet !== undefined ? !!net.prefs.advancedNet : Object.values(plans).some(p => (p?.nodes || []).some(n => n?.advanced))
     },
     nodeTypes,
     splitterTypes,

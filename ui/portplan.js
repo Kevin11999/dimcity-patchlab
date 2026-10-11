@@ -36,20 +36,31 @@
 
   // ---- switches: what every port looks like (plan + what was changed by hand) ----
   const sfpNo = (s, i) => window.SwPorts?.no(s.type, i) ?? s.rj + i;
+  // the other end of a fibre that sits on SFP port i of this switch: { text, title } (null when there is no fibre)
+  function fibrePartner(dc, s, i, fl){
+    if(!fl) return null;
+    const me = e => e && !e.free && e.dc === dc && e.sw === s.label && Number(e.sfp) === i;
+    const o = [fl.a, fl.b].find(e => e && !me(e)); if(!o) return { text:'', title:fl.id };
+    if(o.free) return { text:`→ ${o.free}`, title:`${fl.id} → ${o.free}` };
+    const os = (window.NetSwitches?.list(o.dc) || []).find(x => x.label === o.sw);
+    return { text:`→ ${o.sw}${o.dc !== dc ? ` · ${o.dc}` : ''} · ${window.SwPorts ? window.SwPorts.short(os?.type, Number(o.sfp)) : 'S' + o.sfp}`, title:`${fl.id}: ${window.Fibers.endLabel(o)}` };
+  }
   function swPorts(dc, s){
     const rows = (window.FentUI?.portPlanBase(dc).rows || []).filter(r => r.sw === s.label && r.swPort);
+    // every RJ45 port starts on the management VLAN, every SFP port is a trunk — until you choose something else
+    const mg = F()?.roleVlan?.('management', mode()) ?? null;
     // a node that carries two VLANs on one cable (management + lighting) needs a trunk port; the plan says so by itself
-    const auto = new Map(rows.map(r => [r.swPort, { vid:Number.isFinite(Number((r.vlans || [])[0])) && (r.vlans || []).length ? Number(r.vlans[0]) : null, trunk:r.mode === 'trunk', name:String(r.device ?? ''), key:r.key, unis:r.unis || '' }]));
+    const auto = new Map(rows.map(r => [r.swPort, { vid:Number.isFinite(Number((r.vlans || [])[0])) && (r.vlans || []).length ? Number(r.vlans[0]) : mg, trunk:r.mode === 'trunk', name:String(r.device ?? ''), key:r.key, unis:r.unis || '' }]));
     const links = window.Fibers ? window.Fibers.usage(dc, s.label) : new Map();
     const sl = new Map((window.NetSwitches?.linksOf(dc) || []).filter(l => l.sw === s.label).map(l => [l.port, l]));   // ports of a link to another switch: always a trunk
     const ov = get(swKey(dc, s.label)), out = [];
     const one = (n, kind, a, label) => {
       const o = ov[n] || {}, trunk = a.link ? true : o.trunk ? true : o.vid != null ? false : !!a.trunk, vid = trunk ? null : (o.vid != null ? Number(o.vid) : a.vid);
-      out.push({ n, kind, label, vid, trunk, link:a.link || null, devKey:a.key || '', unis:a.unis || '', name:o.name != null && o.name !== '' ? String(o.name) : a.name, autoName:a.name, autoVid:a.vid, autoTrunk:!!a.trunk, poe:o.poe || '', speed:o.speed || '',
+      out.push({ n, kind, label, vid, trunk, link:a.link || null, partner:a.partner || null, devKey:a.key || '', unis:a.unis || '', name:o.name != null && o.name !== '' ? String(o.name) : a.name, autoName:a.name, autoVid:a.vid, autoTrunk:!!a.trunk, poe:o.poe || '', speed:o.speed || '',
         manualName:o.name != null && o.name !== '', manualVlan:!a.link && (o.vid != null || !!o.trunk), manualExtra:!!(o.poe || o.speed) });
     };
-    for(let n = 1; n <= s.rj; n++){ const l = sl.get(n); one(n, 'rj', l ? { vid:null, name:`→ ${l.to.sw}`, trunk:true, link:l } : (auto.get(n) || { vid:null, name:'' }), `${t('Port', 'Poort')} ${n}`); }
-    for(let i = 1; i <= s.sfp; i++) one(sfpNo(s, i), 'sfp', links.get(i) ? { vid:null, name:'', trunk:true } : { vid:null, name:'' }, window.SwPorts ? window.SwPorts.label(s.type, i) : `SFP ${i}`);
+    for(let n = 1; n <= s.rj; n++){ const l = sl.get(n); one(n, 'rj', l ? { vid:null, name:`→ ${l.to.sw}`, trunk:true, link:l } : (auto.get(n) || { vid:mg, name:'' }), `${t('Port', 'Poort')} ${n}`); }
+    for(let i = 1; i <= s.sfp; i++) one(sfpNo(s, i), 'sfp', { vid:null, name:'', trunk:true, partner:fibrePartner(dc, s, i, links.get(i)) }, window.SwPorts ? window.SwPorts.label(s.type, i) : `SFP ${i}`);
     return out;
   }
   const vlansInUse = dc => { const set = new Set(); for(const s of (window.NetSwitches?.list(dc) || [])) for(const p of swPorts(dc, s)) if(p.vid != null) set.add(p.vid); return set; };
@@ -135,17 +146,22 @@
     const pl = r.kind === 'node' && ctx ? ctx.panelOf(r.idx) : null;
     return `<div class="pb-dev k-${r.kind} ${r.gone ? 'gone' : ''} ${S.armed === r.key ? 'armed' : ''} ${extra}" draggable="true" data-pbdev="${esc(r.key)}" title="${esc(devTip(r) + (r.gone ? ` · ${t('no longer in a rack', 'niet meer in een rek')}` : '') + (pl ? ` · ${t('plug into', 'steek in')} ${pl.panel} etherCON ${pl.no}` : ''))}"><i>${I(KIND_ICON[r.kind] || 'network', 13)}</i><b>${esc(devShort(r))}</b><em>${esc(r.typeName || '')}</em>${pl ? `<s title="${esc(`${pl.panel} · etherCON ${pl.no}`)}">${esc(pl.panel)}.${pl.no}</s>` : ''}</div>`;
   }
+  const speedShort = x => (x === 'auto' ? 'auto' : String(x).replace(' fdx', '').replace('bps', ''));
   function boardPort(dc, s, p, byPort, ctx, fib){
     const sel = S.armed && !p.link;
     if(p.kind === 'sfp'){
       const idx = p.n - sfpNo(s, 1) + 1, fl = fib.get(idx), fcol = fl ? window.Fibers.color(fl) : '#475569';
-      return `<div class="pb-port sfp ${fl ? 'used' : ''}" style="--pc:${fcol}" title="${esc(p.label + (fl ? ` · ${fl.id}` : ''))}"><small>${esc(window.SwPorts ? window.SwPorts.short(s.type, idx) : p.n)}</small>${fl ? `<div class="pb-dev k-fibre"><i>${I('cable', 13)}</i><b>${esc(fl.id)}</b><em>${t('fibre', 'fiber')}</em></div>` : `<span class="pb-empty">SFP</span>`}<u class="pb-vl">${fl ? 'T' : '–'}</u></div>`;
+      const pt = p.partner && p.partner.text ? `<span class="pb-meta" title="${esc(p.partner.title)}">${esc(p.partner.text)}</span>` : '';
+      return `<div class="pb-port sfp ${fl ? 'used' : ''}" style="--pc:${fcol}" title="${esc(p.label + (fl ? ` · ${fl.id}` : '') + (p.partner?.text ? ` ${p.partner.text}` : '') + ' · Trunk')}"><small>${esc(window.SwPorts ? window.SwPorts.short(s.type, idx) : p.n)}</small>${fl ? `<div class="pb-dev k-fibre"><i>${I('cable', 13)}</i><b>${esc(fl.id)}</b><em>${t('fibre', 'fiber')}</em></div>` : `<span class="pb-empty">SFP</span>`}${pt}<u class="pb-vl">T</u></div>`;
     }
     const r = byPort.get(p.n), col = p.trunk ? '#38bdf8' : p.vid != null ? vlanColor(p.vid) : '#475569';
     const lane = p.link ? (p.link.lane === 1 ? t('main', 'main') : p.link.lane === 2 ? t('backup', 'backup') : '') : '';
     const body = p.link ? `<div class="pb-dev k-link" draggable="true" data-pblink="${esc(p.link.id)}|${esc(s.label)}|${p.n}" title="${esc(`${t('Link to', 'Koppeling naar')} ${p.link.to.sw} · ${p.link.to.port} (trunk${lane ? ', ' + lane : ''}) — ${t('drag it to another port', 'sleep hem naar een andere poort')}`)}"><i>${I('plug', 13)}</i><b>${esc(p.link.to.sw)}</b><em>⇄ ${p.link.to.port}${lane ? ` · ${lane}` : ''}</em></div>`
       : r ? chip(r, ctx) : `<span class="pb-empty">${t('free', 'vrij')}</span>`;
-    return `<div class="pb-port ${r ? 'used' : ''} ${p.link ? 'link' : ''} ${sel ? 'pickable' : ''}" data-pbsw="${esc(s.label)}" data-pbport="${p.n}" style="--pc:${col}" title="${esc(`${p.label}${p.link ? ' · trunk' : p.trunk ? ' · Trunk' : p.vid != null ? ` · ${p.vid} ${vlanName(p.vid)}` : ''}`)}"><small>${p.n}</small>${body}<u class="pb-vl">${p.trunk ? 'T' : p.vid != null ? p.vid : '–'}</u></div>`;
+    // what was set on the Switches tab shows here too: the name of the port, PoE and speed
+    const meta = `${p.manualName && !p.link ? `<span class="pb-nm" title="${esc(t('Port name', 'Poortnaam'))}">${esc(p.name)}</span>` : ''}${p.poe || p.speed ? `<span class="pb-xt">${p.poe ? `<b>PoE ${p.poe === 'on' ? '✓' : '✗'}</b>` : ''}${p.speed ? `<b>${esc(speedShort(p.speed))}</b>` : ''}</span>` : ''}`;
+    const tip = `${p.label}${p.link ? ' · trunk' : p.trunk ? ' · Trunk' : p.vid != null ? ` · ${p.vid} ${vlanName(p.vid)}` : ''}${p.manualName && !p.link ? ' · ' + p.name : ''}${p.poe ? ' · PoE ' + p.poe : ''}${p.speed ? ' · ' + p.speed : ''}`;
+    return `<div class="pb-port ${r ? 'used' : ''} ${p.link ? 'link' : ''} ${sel ? 'pickable' : ''}" data-pbsw="${esc(s.label)}" data-pbport="${p.n}" style="--pc:${col}" title="${esc(tip)}"><small>${p.n}</small>${body}${meta}<u class="pb-vl">${p.trunk ? 'T' : p.vid != null ? p.vid : '–'}</u></div>`;
   }
   function boardSwitch(dc, s, rows, ctx){
     const fib = window.Fibers ? window.Fibers.usage(dc, s.label) : new Map();
@@ -258,16 +274,16 @@
   function swTile(dc, s, p){
     const sel = S.sel && S.sel.key === swKey(dc, s.label) && S.sel.port === p.n;
     const col = p.trunk ? '#38bdf8' : p.vid != null ? vlanColor(p.vid) : '#475569';
-    const tip = `${p.label} · ${p.trunk ? 'Trunk' : p.vid != null ? `${p.vid} ${vlanName(p.vid)}` : t('no VLAN', 'geen VLAN')}${p.name ? ' · ' + p.name : ''}${p.poe ? ' · PoE ' + p.poe : ''}${p.speed ? ' · ' + p.speed : ''}`;
+    const tip = `${p.label} · ${p.trunk ? 'Trunk' : p.vid != null ? `${p.vid} ${vlanName(p.vid)}` : t('no VLAN', 'geen VLAN')}${p.name ? ' · ' + p.name : ''}${p.partner?.title ? ' · ' + p.partner.title : ''}${p.poe ? ' · PoE ' + p.poe : ''}${p.speed ? ' · ' + p.speed : ''}`;
     const tags = `${p.poe ? `<em>PoE ${p.poe === 'on' ? '✓' : '✗'}</em>` : ''}${p.speed ? `<em>${esc(p.speed === 'auto' ? 'auto' : p.speed.replace(' fdx', '').replace('bps', ''))}</em>` : ''}`;
-    return `<button class="pp-port ${p.kind} ${sel ? 'sel' : ''} ${p.link ? 'link' : ''} ${p.manualVlan || p.manualName || p.manualExtra ? 'man' : ''}" data-pport="${p.n}" data-ppsw="${esc(s.label)}" style="--pc:${col}" title="${esc(tip + (p.unis ? ' · U ' + p.unis : ''))}"><small>${p.kind === 'sfp' ? 'SFP ' : ''}${p.n}</small><b>${p.trunk ? 'T' : p.vid != null ? p.vid : '–'}</b><span>${esc(p.name)}${tags}</span></button>`;
+    return `<button class="pp-port ${p.kind} ${sel ? 'sel' : ''} ${p.link ? 'link' : ''} ${p.manualVlan || p.manualName || p.manualExtra ? 'man' : ''}" data-pport="${p.n}" data-ppsw="${esc(s.label)}" style="--pc:${col}" title="${esc(tip + (p.unis ? ' · U ' + p.unis : ''))}"><small>${p.kind === 'sfp' ? 'SFP ' : ''}${p.n}</small><b>${p.trunk ? 'T' : p.vid != null ? p.vid : '–'}</b><span>${esc(p.name || p.partner?.text || '')}${p.name && p.partner?.text ? ` <em class="pp-partner">${esc(p.partner.text)}</em>` : ''}${tags}</span></button>`;
   }
   function swDetail(dc, s){
     const key = swKey(dc, s.label); if(!S.sel || S.sel.key !== key) return '';
     const p = swPorts(dc, s).find(x => x.n === S.sel.port); if(!p) return '';
     const cur = p.trunk ? 'trunk' : p.manualVlan ? String(p.vid) : '';
     const all = F().vlanList(mode());
-    return `<div class="pp-detail" data-ppdet="${esc(s.label)}"><b>${esc(p.label)}</b>
+    return `<div class="pp-detail" data-ppdet="${esc(s.label)}"><b>${esc(p.label)}</b>${p.partner ? `<span class="pp-fibre">${I('cable', 13)} ${esc(t('Fibre', 'Fiber'))} ${esc(p.partner.title)}</span>` : ''}
       <label>${t('Name', 'Naam')}<input data-ppname value="${esc(p.manualName ? p.name : '')}" placeholder="${esc(p.autoName || t('(none)', '(geen)'))}" maxlength="16" style="width:170px"></label>
       <label>VLAN<select data-ppvlan><option value="" ${cur === '' ? 'selected' : ''}>${t('Automatic', 'Automatisch')}${p.autoVid != null ? ` (${p.autoVid})` : ''}</option><option value="trunk" ${cur === 'trunk' ? 'selected' : ''}>Trunk</option>${all.map(v => `<option value="${v.id}" ${cur === String(v.id) ? 'selected' : ''}>${v.id} ${esc(v.name)}</option>`).join('')}</select></label>
       <label>PoE<select data-ppoe><option value="" ${p.poe ? '' : 'selected'}>${t('Leave as is', 'Laten zoals het is')}</option><option value="on" ${p.poe === 'on' ? 'selected' : ''}>${t('on', 'aan')}</option><option value="off" ${p.poe === 'off' ? 'selected' : ''}>${t('off', 'uit')}</option></select></label>
@@ -280,23 +296,33 @@
       <button class="sm" data-ppcopy="${esc(s.label)}" title="${esc(t('Copy the port settings of this switch to other switches', 'Kopieer de poortinstellingen van deze switch naar andere switches'))}">${I('copy', 13)} ${t('Copy to other switches…', 'Naar andere switches kopiëren…')}</button>
       <button class="sm ghost" data-ppnames="${esc(s.label)}" title="${esc(t('Remove all names typed by hand: the automatic names come back', 'Haal alle handmatige namen weg: de automatische namen komen terug'))}">${t('Automatic names', 'Automatische namen')}</button>
       <button class="sm ghost" data-ppresetall="${esc(s.label)}">${t('Reset all', 'Alles terugzetten')}</button></div>
-      <div class="pp-grid">${ports.map(p => swTile(dc, s, p)).join('')}</div>${s.sfp ? `<div class="subtle" style="font-size:12px;margin-top:4px">${t('SFP ports are here too: a port with a fibre cable is a trunk by itself; pick another VLAN or Trunk to change it. The cables themselves are on the Fibres tab.', 'De SFP-poorten staan hier ook: een poort met een fiberkabel is vanzelf een trunk; kies een ander VLAN of Trunk om dat te wijzigen. De kabels zelf staan op het tabblad Fibers.')}</div>` : ''}${swDetail(dc, s)}</div>`;
+      <div class="pp-grid">${ports.map(p => swTile(dc, s, p)).join('')}</div>${s.sfp ? `<div class="subtle" style="font-size:12px;margin-top:4px">${t('Every RJ45 port starts on the management VLAN; the SFP ports are here too and are a trunk by themselves — pick another VLAN to change one. A port with a fibre shows the switch at the other end. The cables themselves are on the Fibres tab.', 'Elke RJ45-poort staat standaard op het management-VLAN; de SFP-poorten staan hier ook en zijn vanzelf een trunk — kies een ander VLAN om dat te wijzigen. Een poort met een fiber toont de switch aan de andere kant. De kabels zelf staan op het tabblad Fibers.')}</div>` : ''}${swDetail(dc, s)}</div>`;
   }
 
   // ---- nodes ----
+  // what a DMX port does when nothing else is chosen for it: prefs.dmx = { klass:'sacn'|'artnet', dir:'output'|'input'|'idle' } (set in the card of the node ports)
+  const dmxDef = () => { const d = M().networkDevices?.prefs?.dmx || {}; return { klass:d.klass === 'artnet' ? 'artnet' : 'sacn', dir:['output', 'input', 'idle'].includes(d.dir) ? d.dir : 'output' }; };
   function ndPorts(dc, inst, i){
     const ty = (M().networkDevices.nodeTypes || []).find(x => x.id === inst.typeId) || {}, n = Math.max(1, Number(ty.portCount) || (Array.isArray(inst.universes) ? inst.universes.length : 0) || 1);
-    const ov = get(ndKey(dc, inst, i)), u = Array.isArray(inst.universes) ? inst.universes : [], out = [];
+    const ov = get(ndKey(dc, inst, i)), u = Array.isArray(inst.universes) ? inst.universes : [], out = [], def = dmxDef();
     for(let j = 0; j < n; j++){
       const o = ov[j + 1] || {}, auto = `${inst.id || 'N'}.${j + 1}`, uni = u[j] == null || u[j] === '' ? null : Number(u[j]);
-      out.push({ n:j + 1, uni, name:o.name || auto, autoName:auto, manualName:!!o.name, klass:o.klass || '', dir:o.dir || '' });
+      out.push({ n:j + 1, uni, name:o.name || auto, autoName:auto, manualName:!!o.name, klass:o.klass || def.klass, dir:o.dir || def.dir, manualKlass:!!o.klass, manualDir:!!o.dir });
     }
     return out;
   }
+  // The lighting data the data group of an advanced node takes part in follows its DMX ports: output ports → 'output', input ports → 'input', both → 'input+output', all off → ''
+  function pipeOf(dc, inst, i){
+    const all = ndPorts(dc, inst, i), used = all.filter(p => p.uni != null), dirs = new Set((used.length ? used : all).map(p => p.dir));
+    const inp = dirs.has('input'), out = dirs.has('output');
+    return inp && out ? 'input+output' : inp ? 'input' : out ? 'output' : '';
+  }
+  const protoName = k => (k === 'artnet' ? 'Art-Net' : 'sACN');
+  const dirArrow = d => (d === 'input' ? '↓' : d === 'idle' ? '⏻' : '↑');
   function ndTile(dc, inst, i, p){
     const sel = S.sel && S.sel.key === ndKey(dc, inst, i) && S.sel.port === p.n;
     const col = p.uni == null ? '#475569' : `hsl(${(p.uni * 37) % 360} 55% 44%)`;
-    return `<button class="pp-port nd ${sel ? 'sel' : ''} ${p.manualName || p.klass || p.dir ? 'man' : ''}" data-pport="${p.n}" data-ppnd="${i}" style="--pc:${col}" title="${esc(`DMX ${p.n} · ${p.uni == null ? t('no universe', 'geen universe') : 'U' + p.uni} · ${p.name}`)}"><small>${p.n}</small><b>${p.uni == null ? '–' : p.uni}</b><span>${esc(p.name)}${p.klass ? ' · ' + (p.klass === 'sacn' ? 'sACN' : 'Art') : ''}${p.dir ? ' ' + (p.dir === 'input' ? '↓' : p.dir === 'idle' ? '⏻' : '↑') : ''}</span></button>`;
+    return `<button class="pp-port nd ${sel ? 'sel' : ''} ${p.manualName || p.manualKlass || p.manualDir ? 'man' : ''}" data-pport="${p.n}" data-ppnd="${i}" style="--pc:${col}" title="${esc(`DMX ${p.n} · ${p.uni == null ? t('no universe', 'geen universe') : 'U' + p.uni} · ${p.name} · ${protoName(p.klass)} ${DIRS().find(d => d[0] === p.dir)?.[1] || ''}`)}"><small>${p.n}</small><b>${p.uni == null ? '–' : p.uni}</b><span>${esc(p.name)}<em class="pp-partner">${protoName(p.klass)} ${dirArrow(p.dir)}</em></span></button>`;
   }
   function ndDetail(dc, inst, i){
     const key = ndKey(dc, inst, i); if(!S.sel || S.sel.key !== key) return '';
@@ -304,8 +330,8 @@
     return `<div class="pp-detail" data-ppdet-nd="${i}"><b>DMX ${p.n}</b>
       <label>Universe<input data-ppuni type="number" min="0" max="63999" value="${p.uni ?? ''}" style="width:90px"></label>
       <label>${t('Name', 'Naam')}<input data-ppname value="${esc(p.manualName ? p.name : '')}" placeholder="${esc(p.autoName)}" maxlength="16" style="width:150px"></label>
-      <label>${t('Protocol', 'Protocol')}<select data-ppklass><option value="">–</option><option value="sacn" ${p.klass === 'sacn' ? 'selected' : ''}>sACN</option><option value="artnet" ${p.klass === 'artnet' ? 'selected' : ''}>Art-Net</option></select></label>
-      <label>${t('Direction', 'Richting')}<select data-ppdir><option value="">–</option>${DIRS().map(([v, l]) => `<option value="${v}" ${p.dir === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label>${t('Protocol', 'Protocol')}<select data-ppklass><option value="">${t('Default', 'Standaard')} (${protoName(dmxDef().klass)})</option><option value="sacn" ${p.manualKlass && p.klass === 'sacn' ? 'selected' : ''}>sACN</option><option value="artnet" ${p.manualKlass && p.klass === 'artnet' ? 'selected' : ''}>Art-Net</option></select></label>
+      <label>${t('Direction', 'Richting')}<select data-ppdir><option value="">${t('Default', 'Standaard')} (${(DIRS().find(d => d[0] === dmxDef().dir)?.[1] || '').split(' — ')[0]})</option>${DIRS().map(([v, l]) => `<option value="${v}" ${p.manualDir && p.dir === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <button class="sm ghost" data-ppreset>${t('Reset this port', 'Poort terugzetten')}</button></div>`;
   }
   function ndBlock(dc, inst, i){
@@ -314,6 +340,14 @@
       <button class="sm" data-ppndcopy="${i}">${I('copy', 13)} ${t('Copy to other nodes…', 'Naar andere nodes kopiëren…')}</button>
       <button class="sm ghost" data-ppndnames="${i}">${t('Automatic names', 'Automatische namen')}</button></div>
       <div class="pp-grid">${ports.map(p => ndTile(dc, inst, i, p)).join('')}</div>${ndDetail(dc, inst, i)}</div>`;
+  }
+  // the show-wide default of every DMX port; a port can have its own choice (click it)
+  function ndDefaults(){
+    const d = dmxDef();
+    return `<div class="pp-bar pp-defaults"><b>${t('Every DMX port, unless it has its own choice', 'Elke DMX-poort, tenzij hij een eigen keuze heeft')}:</b>
+      <label>${t('Protocol', 'Protocol')}<select data-ppdefklass><option value="sacn" ${d.klass === 'sacn' ? 'selected' : ''}>sACN</option><option value="artnet" ${d.klass === 'artnet' ? 'selected' : ''}>Art-Net</option></select></label>
+      <label>${t('Direction', 'Richting')}<select data-ppdefdir>${DIRS().map(([v, l]) => `<option value="${v}" ${d.dir === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <span class="subtle">${t('Click a port below to give just that port its own protocol or direction.', 'Klik hieronder op een poort om alleen die poort een eigen protocol of richting te geven.')}</span></div>`;
   }
   function ndBar(){
     const b = S.ndBrush;
@@ -340,8 +374,8 @@
   }
   function nodesCard(dc){
     const nodes = App.net.getDimPlan(dc).nodes || [];
-    return nodes.length ? App.ui.card({ key:`${dc}:ppnd`, title:t('Node ports: universes and names', 'Nodepoorten: universes en namen'), icon:'network', meta:`${nodes.length} nodes`, collapsible:true, collapsed:true,
-      body:`<div class="pp" style="padding:4px 14px 12px">${ndBar()}${nodes.map((n, i) => ndBlock(dc, n, i)).join('')}</div>` }) : '';
+    return nodes.length ? App.ui.card({ key:`${dc}:ppnd`, title:t('Node ports: universes, protocol and direction', 'Nodepoorten: universes, protocol en richting'), icon:'network', meta:`${nodes.length} nodes`, collapsible:true, collapsed:false,
+      body:`<div class="pp" style="padding:4px 14px 12px">${ndDefaults()}${ndBar()}${nodes.map((n, i) => ndBlock(dc, n, i)).join('')}</div>` }) : '';
   }
   const html = dc => boardCard(dc) + switchesHtml(dc) + nodesCard(dc);
 
@@ -458,6 +492,10 @@
     root.querySelectorAll('[data-ppresetall]').forEach(b => b.onclick = () => { delete store()[swKey(dc, b.dataset.ppresetall)]; dirty(); rerender(); });
     // nodes
     const nb = S.ndBrush, q = s => root.querySelector(s);
+    if(q('[data-ppdefklass]')){
+      q('[data-ppdefklass]').onchange = e => { const pr = M().networkDevices.prefs; (pr.dmx ||= {}).klass = e.target.value === 'artnet' ? 'artnet' : 'sacn'; window.PatchHistory?.label?.('DMX default protocol'); dirty(); rerender(); };
+      q('[data-ppdefdir]').onchange = e => { const pr = M().networkDevices.prefs; (pr.dmx ||= {}).dir = ['output', 'input', 'idle'].includes(e.target.value) ? e.target.value : 'output'; window.PatchHistory?.label?.('DMX default direction'); dirty(); rerender(); };
+    }
     if(q('[data-ppbuni]')){ q('[data-ppbuni]').oninput = e => { nb.universe = e.target.value === '' ? null : Math.max(0, Math.min(63999, Math.round(Number(e.target.value)))); }; q('[data-ppbauto]').onchange = e => { nb.auto = e.target.checked; }; q('[data-ppbklass]').onchange = e => { nb.klass = e.target.value; }; q('[data-ppbdir]').onchange = e => { nb.dir = e.target.value; }; }
     root.querySelectorAll('[data-ppdet-nd]').forEach(box => {
       const i = Number(box.dataset.ppdetNd), inst = App.net.getDimPlan(dc).nodes[i], key = ndKey(dc, inst, i), n = S.sel.port;
@@ -541,7 +579,7 @@
       for(const tg of targets){
         const key = ndKey(tg.dc, tg.inst, tg.i), tp = ndPorts(tg.dc, tg.inst, tg.i).length;
         for(const p of mine){ if(p.n > tp) continue; const e = put(key, p.n); let hit = false;
-          if(o.proto){ if(p.klass){ e.klass = p.klass; hit = true; } if(p.dir){ e.dir = p.dir; hit = true; } }
+          if(o.proto){ if(p.manualKlass){ e.klass = p.klass; hit = true; } if(p.manualDir){ e.dir = p.dir; hit = true; } }
           if(o.names && p.manualName){ e.name = p.name; hit = true; }
           if(o.uni && p.uni != null){ tg.inst.universes = Array.isArray(tg.inst.universes) ? tg.inst.universes : []; tg.inst.universes[p.n - 1] = p.uni; hit = true; }
           if(hit) n++; }
@@ -554,5 +592,5 @@
   // ---- for the Network config page: what the plan wants on a switch / node, including the hand-made choices ----
   const forSwitch = (dc, label) => get(swKey(dc, label));
   const forNode = (dc, inst, i) => get(ndKey(dc, inst, i));
-  window.PortPlan = { html, boardCard, boardHtml, switchesHtml, nodesCard, bind, state:S, patch, ensureV2, place, unplace, forget, unplaceAll, autoFill, fillDialog, forSwitch, forNode, swPorts, ndPorts, swKey, ndKey };
+  window.PortPlan = { pipeOf, dmxDef, html, boardCard, boardHtml, switchesHtml, nodesCard, bind, state:S, patch, ensureV2, place, unplace, forget, unplaceAll, autoFill, fillDialog, forSwitch, forNode, swPorts, ndPorts, swKey, ndKey };
 })();

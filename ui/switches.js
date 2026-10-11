@@ -133,6 +133,15 @@
     };
     return `<div class="swp-strip">${Array.from({ length:s.rj }, (_, i) => sq(i + 1, 'rj')).join('')}${s.sfp ? `<span class="swp-gap"></span>${Array.from({ length:s.sfp }, (_, i) => sq(i + 1, 'sfp')).join('')}` : ''}</div>`;
   }
+  // which switch every fibre of this switch goes to: "17 · opticalCON DUO  F3 → DB02 · SW1 · 17"
+  function fibreList(dc, s){
+    const fib = window.Fibers ? window.Fibers.usage(dc, s.label) : new Map(); if(!fib.size) return '';
+    const rows = [...fib.entries()].sort((a, b) => a[0] - b[0]).map(([n, f]) => {
+      const other = [f.a, f.b].find(e => e && !(!e.free && e.dc === dc && e.sw === s.label && Number(e.sfp) === n));
+      return `<div class="swp-fib"><b>${esc(window.SwPorts.label(s.type, n))}</b> <span class="subtle">${esc(f.id)}</span> → ${esc(other ? window.Fibers.endLabel(other) : '—')}</div>`;
+    }).join('');
+    return `<div class="swp-fibs">${rows}</div>`;
+  }
   function card(dc){
     const nd = M().networkDevices, ts = nd?.switchTypes || [], sws = list(dc);
     const rows = window.FentUI ? window.FentUI.portPlan(dc).rows : [];
@@ -149,7 +158,7 @@
         <label>${t('IP address', 'IP-adres')}<input class="dimSwitchField" data-i="${s.idx}" data-field="ip" value="${esc(s.dev.ip || '')}" inputmode="numeric" placeholder="10.90.101.2"></label><label>Subnet<input class="dimSwitchField" data-i="${s.idx}" data-field="subnet" value="${esc(s.dev.subnet || ty.subnet || '255.255.255.0')}" inputmode="numeric"></label></div>${window.FentUI?.deviceBlock(dc, 'switch', s.idx, s.dev) || ''}`
         : `<div class="network-instance-fields"><label>${t('Name', 'Naam')}<input class="dimRackSwField" data-key="${esc(s.key)}" data-field="name" value="${esc(s.dev.name || '')}" placeholder="${esc(s.label)}"></label>
         <label>${t('IP address', 'IP-adres')}<input class="dimRackSwField" data-key="${esc(s.key)}" data-field="ip" value="${esc(s.dev.ip || '')}" inputmode="numeric" placeholder="10.90.101.2"></label><label>Subnet<input class="dimRackSwField" data-key="${esc(s.key)}" data-field="subnet" value="${esc(s.dev.subnet || ty.subnet || '255.255.255.0')}" inputmode="numeric"></label></div>${window.FentUI?.deviceBlock(dc, 'rswitch', s.key, s.dev) || ''}`;
-      return `<div class="network-instance switch-instance" style="--device-color:${esc(/^#[0-9a-f]{6}$/i.test(ty.color || '') ? ty.color : '#35c47c')}">${head}${fields}${portStrip(dc, s, rows)}</div>`;
+      return `<div class="network-instance switch-instance" style="--device-color:${esc(/^#[0-9a-f]{6}$/i.test(ty.color || '') ? ty.color : '#35c47c')}">${head}${fields}${portStrip(dc, s, rows)}${fibreList(dc, s)}</div>`;
     }).join('') || `<div class="device-list-empty">${t('No switches yet. Add a switch to give the nodes and network cables their ports.', 'Nog geen switches. Voeg een switch toe om de nodes en netwerkkabels hun poorten te geven.')}</div>`}</div>`;
     return App.ui.card({ key:`${dc}:switches`, title:t('Network switches', 'Netwerkswitches'), icon:'switchDev', meta:`${sws.length} ${t('switches', 'switches')} · ${need} ${t('ports used', 'poorten in gebruik')}`, body, collapsed:!sws.length && !need });
   }

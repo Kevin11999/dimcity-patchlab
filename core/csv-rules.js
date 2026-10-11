@@ -1,13 +1,15 @@
 // core/csv-rules.js — how the first column of the patch CSV is read: which prefix is an LK, a Veam, a network loom (Cat cable) or a node.
 // The rules live in the show (MODEL.rules), so the file carries its own conventions; the defaults are the ones PatchLab always used:
-//   LK101 · VEAM12101 (an old name of LK101) · V101 · C101 / C101.1 (a Cat loom of 4 lines) · Node 601.1 (node 01 of DB06, port 1)
+//   LK101 · VEAM12101 (an old name of LK101) · V101 · C701 (a Cat line: DB7, line 1) · CL503 / CL503.4 (a Cat loom: DB5, loom 3, line 4 of max 4) · Node 601.1 (node 01 of DB06, port 1)
 // A show can say "my LKs are called K101" or add loom types with their own prefix and number of lines. Inside the app an LK is always
 // LK101 and a Veam V101 (rows with another prefix are translated when they are read, and back when the CSV is exported);
 // a loom keeps the prefix it was given, so several loom types can live next to each other.
 (function(){
   'use strict';
-  const DEFAULT_LOOM = { id:'cat', name:'Cat loom', prefix:'C', lines:4 };
-  const DEFAULTS = () => ({ lk:'LK', veam:'V', node:'Node', looms:[{ ...DEFAULT_LOOM }], veamOnLkPanel:false });
+  // C = one Cat line (C701 = DB7, line 1, C702 = DB7, line 2); CL = a Cat loom of at most 4 lines (CL503.4 = DB5, loom 3, line 4)
+  const DEFAULT_LOOM = { id:'catloom', name:'Cat loom', prefix:'CL', lines:4 };
+  const DEFAULT_LINE = { id:'catline', name:'Cat line', prefix:'C', lines:1 };
+  const DEFAULTS = () => ({ lk:'LK', veam:'V', node:'Node', looms:[{ ...DEFAULT_LINE }, { ...DEFAULT_LOOM }] });
   const clean = (s, fb) => { const v = String(s ?? '').replace(/[^A-Za-z]/g, '').slice(0, 12); return v || fb; };
   const esc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const getModel = () => { try { return window.LKApp?.getMODEL?.() || null; } catch { return null; } };
@@ -15,17 +17,18 @@
   // the rules of a show with every missing value filled in
   function rules(m = getModel()){
     const D = DEFAULTS(), r = m?.rules || {};
-    const out = { lk:clean(r.lk, D.lk), veam:clean(r.veam, D.veam), node:clean(r.node, D.node), veamOnLkPanel:!!r.veamOnLkPanel, looms:[] };
+    const out = { lk:clean(r.lk, D.lk), veam:clean(r.veam, D.veam), node:clean(r.node, D.node), looms:[] };
     const seen = new Set();
     for(const l of (Array.isArray(r.looms) && r.looms.length ? r.looms : D.looms)){
       const prefix = clean(l?.prefix, ''); if(!prefix || seen.has(prefix.toUpperCase())) continue; seen.add(prefix.toUpperCase());
       out.looms.push({ id:String(l.id || prefix.toLowerCase()), name:String(l.name || `${prefix} loom`).slice(0, 40), prefix, lines:Math.max(1, Math.min(48, Math.round(Number(l.lines) || 4))) });
     }
-    if(!out.looms.length) out.looms.push({ ...DEFAULT_LOOM });
+    if(!out.looms.length) out.looms.push({ ...DEFAULT_LINE }, { ...DEFAULT_LOOM });
     return out;
   }
   const isDefault = r => { const a = JSON.stringify(rules({ rules:r })), b = JSON.stringify(rules({ rules:{} })); return a === b; };
-  const dimOf = n => 'DB' + String(Math.floor(Number(n) / 100)).padStart(2, '0');
+  // the DB comes from the hundreds of the number (701 → DB07); a number below 100 has no DB — there is no DB00
+  const dimOf = n => { const d = Math.floor(Number(n) / 100); return d >= 1 ? 'DB' + String(d).padStart(2, '0') : null; };
 
   // the prefixes to try, longest first, so "VEAM12" is tried before "V"
   function candidates(R){

@@ -81,7 +81,7 @@ function fixRow(it){
     body:`${issueBanner(it)}
       <div class="form-grid" style="margin-top:14px">
         ${isDmx ? `<label class="field span-2">DimCity<select id="fxDim"><option value="">Choose…</option>${dims.map(dc => `<option ${dc === orig.dim ? 'selected' : ''}>${esc(dc)}</option>`).join('')}</select></label>`
-          : `<label class="field">LK / Veam<input type="text" id="fxId" value="${esc(orig.id)}" placeholder="LK101 or V101"></label>
+          : `<label class="field">ID<input type="text" id="fxId" value="${esc(orig.id)}" placeholder="LK101, V101, C701, CL503 or Node601"></label>
              <label class="field">Port<select id="fxPort"></select></label>`}
         <label class="field">Universe<input type="number" id="fxUni" min="0" value="${esc(orig.uni)}"></label>
         <label class="field">Location<input type="text" id="fxDest" value="${esc(orig.dest)}"></label>
@@ -93,11 +93,14 @@ function fixRow(it){
   const $ = s => d.body.querySelector(s);
   const ok = d.footer.querySelector('[data-a=ok]');
   // poortkeuze met bezetting van de gekozen LK/Veam
+  // what an ID is (LK, Veam, Cat line / loom, node) and how many ports it has
+  const clsOf = id => window.CsvRules.classify(id);
+  const maxOf = id => { const c = clsOf(id); return !c ? 12 : c.kind === 'V' ? 4 : c.kind === 'LK' ? 12 : c.kind === 'NET' ? c.loom.lines : 48; };
   const fillPorts = () => {
     if(isDmx) return;
     const id = $('#fxId').value.trim().toUpperCase();
     const isV = App.isV(id), isL = App.isLK(id);
-    const max = isV ? 4 : 12;
+    const max = maxOf(id);
     const lines = isV ? (m.byVeam.get(id)?.lines || []) : isL ? (m.byLK.get(id.replace(/^VEAM12/, 'LK'))?.lines || []) : [];
     const cur = $('#fxPort').value || orig.port;
     let opts = '';
@@ -107,14 +110,16 @@ function fixRow(it){
     }
     $('#fxPort').innerHTML = opts;
     const firstFree = [...Array(max)].map((_, i) => i + 1).find(p => !lines.some(L => Number(L.port) === p));
-    $('#fxPort').value = App.portRangeOk(id, Number(cur)) ? cur : String(firstFree || 1);
+    $('#fxPort').value = Number(cur) >= 1 && Number(cur) <= max ? cur : String(firstFree || 1);
   };
   const check = () => {
     let msg = '', bad = false;
     if(isDmx){ bad = !$('#fxDim').value; msg = bad ? 'Choose the DimCity this DMX line belongs to.' : ''; }
     else {
       const id = $('#fxId').value.trim().toUpperCase();
-      if(!App.dimCityFromId(id)){ bad = true; msg = 'Use an ID like LK101, VEAM12101 or V101.'; }
+      const c = clsOf(id);
+      if(!c || !c.dim){ bad = true; msg = c && !c.dim ? `${id} has no DimCity in its number: the hundreds are the DB (701 is DB7).` : `Use an ID like ${window.CsvRules.expected()}.`; }
+      else if(c.kind === 'NET' || c.kind === 'NODE') msg = c.kind === 'NET' ? `${c.loom.name} ${c.id}${c.loom.lines > 1 ? `, line ${$('#fxPort').value}` : ''} in ${c.dim}.` : `Node ${c.no} in ${c.dim}.`;
       else {
         const p = Number($('#fxPort').value);
         const lines = App.isV(id) ? (m.byVeam.get(id)?.lines || []) : (m.byLK.get(id.replace(/^VEAM12/, 'LK'))?.lines || []);

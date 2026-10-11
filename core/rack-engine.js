@@ -120,6 +120,20 @@ function resources(M, dc){
   return { nodes, splitters, groups, soloVims, racks, loose };
 }
 
+// How many loose spiders a DimCity needs for L LKs and V loose Veams. cap = { groups:[Veam4 sockets of every free panel group], lkOnly:LK-only sockets and
+// loose LK spiders, soloVim:Veam4 sockets that are not part of a group }. Every panel group serves either one LK or its Veam4's; the choice that needs the
+// fewest spiders wins, and when two choices need the same number the LKs get the rack (LK37) first.
+export function solveSockets(L, V, cap){
+  const groups = cap.groups || [];
+  let best = null;
+  for(let a = groups.length; a >= 0; a--){
+    const lkMiss = Math.max(0, L - ((cap.lkOnly || 0) + a));
+    const veMiss = Math.max(0, V - ((cap.soloVim || 0) + groups.slice(a).reduce((c, n) => c + n, 0)));
+    if(!best || lkMiss + veMiss < best.lkMiss + best.veMiss) best = { groupsAsLk:a, lkMiss, veMiss };
+  }
+  return best || { groupsAsLk:0, lkMiss:Math.max(0, L - (cap.lkOnly || 0)), veMiss:Math.max(0, V - (cap.soloVim || 0)) };
+}
+
 export function computeRackPlan(M, dc){
   const R = resources(M, dc);
   const D = demand(M, dc);
@@ -133,59 +147,53 @@ export function computeRackPlan(M, dc){
   const skipped = [], badAssign = [];
   const give = (need, socket, node, zone = null) => { if(node) prefNode.set(need.id, node); need.lines.forEach(l => lines.push({ ...l, socket, zone })); };
 
-  // 1. LK's op LK-aansluitingen: eerst de eigen keuzes, dan spinnen die aan een losse node hangen, dan de rekpanelen, dan losse spinnen
+  // 1. Sockets. Your own choices (plan.assign) come first, the rest is automatic.
+  //  · A panel group is one LK37 socket OR the Veam4 sockets next to it: they carry the same node ports. With an LK on it the Veam4's cannot be
+  //    used, and the other way round.
+  //  · A Veam that is linked to an LK (slot A/B/C) hangs on the far end of that LK's cable: the LK comes into the DB, the Veam needs no socket.
+  //  · The automatic part makes as few loose spiders as possible: it decides per panel group whether it serves an LK or the loose Veams.
   const wanted = D.lkNeeds.filter(n => n.lines.length || n.slotUsed.some(Boolean));     // LK zonder data: niets aansluiten
-  const done = new Set();
+  const veWanted = D.veNeeds.filter(n => n.lines.length);
+  const done = new Set(), veDone = new Set();
+  const withVims = g => g.vims.length > 0;                                                 // a panel group (LK37 + Veam4's); the others are LK-only sockets / loose LK spiders
+  const hasVeam = g => g.vims.some(v => v.used);
   for(const need of wanted){
     const a = assign[need.id];
     if(!a || a === 'auto') continue;
     if(a === 'none'){ skipped.push(need.id); done.add(need.id); continue; }
     if(a === 'spider'){ noSocket.lk.push(need.id); give(need, 'Loose LK spider'); done.add(need.id); continue; }
-    const g = R.groups.find(x => x.label === a && !x.lk);
+    const g = R.groups.find(x => x.label === a && !x.lk && !hasVeam(x));
     if(g){ g.lk = need; give(need, g.label, g.nodeIid, g.zone); done.add(need.id); }
     else badAssign.push(`${need.id} → ${a}`);
   }
-  const groupsInOrder = [...R.groups.filter(g => g.nodeIid && !g.lk), ...R.groups.filter(g => !g.nodeIid && !g.lk)];
-  let gi = 0;
-  for(const need of wanted){
-    if(done.has(need.id)) continue;
-    const g = groupsInOrder[gi++];
-    if(g){ g.lk = need; give(need, g.label, g.nodeIid, g.zone); }
-    else { noSocket.lk.push(need.id); give(need, 'Loose LK spider'); }
-  }
-  // A Veam that is linked to an LK (slot A/B/C) comes into the DB together with that LK: it sits on the Veam4 socket next to the LK socket.
-  // An LK without such sockets (a loose LK spider, or a panel that has fewer) takes a spare Veam4 spider for it, or needs one more.
-  const linkedNoSocket = [];
-  for(const g of R.groups) if(g.lk){
-    const slots = g.lk.veamOn || [];
-    for(const v of g.vims) v.linked = slots[v.slot] || null;
-    slots.forEach((vid, sl) => { if(!vid || g.vims.some(v => v.slot === sl)) return;
-      const spare = R.soloVims.find(v => !v.used && !v.linked && (!g.nodeIid || !v.nodeIid || v.nodeIid === g.nodeIid));
-      if(spare) spare.linked = vid; else linkedNoSocket.push(vid); });
-  }
-  for(const id of noSocket.lk){ const need = wanted.find(x => x.id === id); for(const vid of (need?.veamOn || [])) if(vid) linkedNoSocket.push(vid); }
-  noSocket.ve.push(...linkedNoSocket);
-  // 2. Losse Veams: eigen keuzes, dan vrije Veam4 naast een LK, dan losse Veam4, dan Veam4 van lege LK-groepen
-  // The Veam4 sockets of an LK panel belong to that LK: a separate Veam goes on them only when the show says so (Settings → This show)
-  const onLk = !!M.rules?.veamOnLkPanel;
-  const freeVims = [...R.soloVims.filter(v => v.nodeIid)];               // Veam4-spin aan een losse node eerst
-  if(onLk) for(const g of R.groups) if(g.lk) g.vims.forEach(v => { if(!g.lk.slotUsed[v.slot] && !v.linked) freeVims.push(v); });
-  freeVims.push(...R.soloVims.filter(v => !v.nodeIid));
-  if(onLk) for(const g of R.groups) if(!g.lk) freeVims.push(...g.vims);
-  const veWanted = D.veNeeds.filter(n => n.lines.length), veDone = new Set();
-  const anyVims = [...R.groups.flatMap(g => g.vims), ...R.soloVims];
+  const anyVims = [...R.groups.flatMap(g => g.vims.map(v => ({ v, g }))), ...R.soloVims.map(v => ({ v, g:null }))];
   for(const need of veWanted){
     const a = assign[need.id];
     if(!a || a === 'auto') continue;
     if(a === 'none'){ skipped.push(need.id); veDone.add(need.id); continue; }
     if(a === 'spider'){ noSocket.ve.push(need.id); give(need, 'Loose Veam4 spider'); veDone.add(need.id); continue; }
-    const v = anyVims.find(x => x.label === a && !x.used && !x.linked);          // your own choice: any free Veam4 socket, also the ones of an LK panel
-    if(v){ v.used = need; give(need, v.label, v.nodeIid, v.zone); veDone.add(need.id); }
+    const f = anyVims.find(x => x.v.label === a && !x.v.used);                          // your own choice: any free Veam4 socket, unless an LK sits on that panel group
+    if(f && !(f.g && f.g.lk)){ f.v.used = need; give(need, f.v.label, f.v.nodeIid, f.v.zone); veDone.add(need.id); }
     else badAssign.push(`${need.id} → ${a}`);
   }
-  for(const need of veWanted){
-    if(veDone.has(need.id)) continue;
-    const v = freeVims.find(x => !x.used && !x.linked);
+  const autoLk = wanted.filter(n => !done.has(n.id)), autoVe = veWanted.filter(n => !veDone.has(n.id));
+  const freeGroups = R.groups.filter(g => withVims(g) && !g.lk && !hasVeam(g));          // panel groups nobody has taken yet
+  const lkOnly = R.groups.filter(g => !withVims(g) && !g.lk);                             // LK-only sockets and loose LK spiders that are free
+  const soloFree = R.soloVims.filter(v => !v.used);
+  const vimCap = k => soloFree.length + R.groups.filter(g => hasVeam(g) && !g.lk).reduce((c, g) => c + g.vims.filter(v => !v.used).length, 0) + freeGroups.slice(k).reduce((c, g) => c + g.vims.length, 0);
+  const best = solveSockets(autoLk.length, autoVe.length, { groups:freeGroups.map(g => g.vims.length), lkOnly:lkOnly.length, soloVim:vimCap(freeGroups.length) });
+  const lkMode = new Set(freeGroups.slice(0, best.groupsAsLk));
+  const lkCands = [...R.groups.filter(g => g.nodeIid && !g.lk && !withVims(g)), ...R.groups.filter(g => !g.nodeIid && !g.lk && (!withVims(g) || lkMode.has(g)))];
+  let gi = 0;
+  for(const need of autoLk){
+    const g = lkCands[gi++];
+    if(g){ g.lk = need; give(need, g.label, g.nodeIid, g.zone); }
+    else { noSocket.lk.push(need.id); give(need, 'Loose LK spider'); }
+  }
+  const veCands = [...R.soloVims.filter(v => !v.used && v.nodeIid), ...R.soloVims.filter(v => !v.used && !v.nodeIid),
+    ...R.groups.filter(g => hasVeam(g) && !g.lk).flatMap(g => g.vims.filter(v => !v.used)), ...freeGroups.filter(g => !lkMode.has(g)).flatMap(g => g.vims)];
+  for(const need of autoVe){
+    const v = veCands.find(x => !x.used);
     if(v){ v.used = need; give(need, v.label, v.nodeIid, v.zone); }
     else { noSocket.ve.push(need.id); give(need, 'Loose Veam4 spider'); }
   }
@@ -256,7 +264,7 @@ export function computeRackPlan(M, dc){
   const lkSockets = R.groups.length, lkUsed = R.groups.filter(g => g.lk).length;
   const allVims = [...R.groups.flatMap(g => g.vims), ...R.soloVims];
   const vimSockets = allVims.length;
-  const vimUsed = allVims.filter(v => v.used || v.linked).length;
+  const vimUsed = allVims.filter(v => v.used).length;
   const nodeTypes = [...new Set(R.nodes.map(n => n.type))];
   if(badAssign.length) recs.push({ level:'warn', text:`Your socket choice is not possible any more for ${badAssign.join(', ')} → automatic instead.` });
   if(skipped.length) recs.push({ level:'info', text:`Not patched on purpose: ${skipped.join(', ')}.` });
@@ -282,7 +290,7 @@ export function computeRackPlan(M, dc){
     if(!R.nodes.length && lines.length) recs.push({ level:'warn', text:R.racks.length ? 'This rack has no DMX nodes.' : 'There is no DMX node yet — add a loose node or place a rack.' });
     const freePorts = totalPorts - usedPorts;
     if(freePorts > 0 && !unfed) recs.push({ level:'ok', text:`${freePorts} node port${freePorts > 1 ? 's' : ''} still free.` });
-    const freeLk = lkSockets - lkUsed;
+    const freeLk = R.groups.filter(g => !g.lk && (!withVims(g) || lkMode.has(g))).length;
     if(freeLk > 0) recs.push({ level:'info', text:`${freeLk} LK37 socket${freeLk > 1 ? 's' : ''} unused.` });
     const usedSplit = R.splitters.filter(s => s.inputs.length).length;
     if(R.splitters.length && usedSplit < R.splitters.length) recs.push({ level:'info', text:`${R.splitters.length - usedSplit} splitter${R.splitters.length - usedSplit > 1 ? 's are' : ' is'} not needed — there are enough node ports.` });
@@ -291,9 +299,13 @@ export function computeRackPlan(M, dc){
   // the checklist: what this DimCity needs, what the racks and loose devices give, what is still missing (and so what loose spiders to add)
   const lonelyNodes = R.nodes.filter(n => n.loose && !R.loose.some(d => (d.kind === 'lkSpider' || d.kind === 'vimSpider') && (!d.nodeIid || d.nodeIid === n.iid)));
   const lkNeed = wanted.filter(n => !skipped.includes(n.id)), veLoose = veWanted.filter(n => !skipped.includes(n.id));
+  // "in the racks" is what the racks give in the arrangement that was chosen: a panel group counts as one LK37 or as its Veam4's, never both
+  const panelGroups = R.groups.filter(withVims), asLk = panelGroups.filter(g => g.lk || lkMode.has(g)), asVeam = panelGroups.filter(g => !asLk.includes(g));
   const needs = {
-    lk:{ need:lkNeed.length, have:lkSockets, missing:noSocket.lk.length },
-    vim:{ need:veLoose.length + lkNeed.reduce((c, n) => c + (n.veamOn || []).filter(Boolean).length, 0), have:vimSockets, missing:noSocket.ve.length },
+    lk:{ need:lkNeed.length, have:R.groups.filter(g => !withVims(g)).length + asLk.length, missing:noSocket.lk.length },
+    vim:{ need:veLoose.length, have:R.soloVims.length + asVeam.reduce((c, g) => c + g.vims.length, 0), missing:noSocket.ve.length },
+    groups:{ total:panelGroups.length, asLk:asLk.length, asVeam:asVeam.length },
+    cap:{ groups:panelGroups.map(g => g.vims.length), lkOnly:R.groups.filter(g => !withVims(g)).length, soloVim:R.soloVims.length },     // everything the racks and loose devices give, before anyone chose
     ports:{ need:lines.length, have:totalPorts, missing:unfed },
     spiders:{ lk:noSocket.lk.length, vim:noSocket.ve.length },
     nodesToAdd:unfed ? Math.ceil(unfed / Math.max(1, num(nodeTypes[0]?.portCount, 8))) : 0,
@@ -383,4 +395,4 @@ export function ownerColor(id){
   const M = App.getMODEL(), all = [...M.byLK.keys(), ...M.byVeam.keys()].sort((a, b) => byNum(a.replace(/^\D+/, ''), b.replace(/^\D+/, '')) || (/^V/i.test(a) ? 1 : -1) - (/^V/i.test(b) ? 1 : -1));
   const pal = ownerPalette(all); return pal.get(id) || null;
 }
-window.RackEngine = { zoneOk, computeRackPlan, placedRacks, looseDevices, hasRackPlan, ownerColors, ownerColor, panelPorts, demand, NODE_COLORS };
+window.RackEngine = { zoneOk, computeRackPlan, solveSockets, placedRacks, looseDevices, hasRackPlan, ownerColors, ownerColor, panelPorts, demand, NODE_COLORS };

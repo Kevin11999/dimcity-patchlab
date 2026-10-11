@@ -57,7 +57,7 @@
   // ---- Nodes ----
   function nodesTab(){
     if(!S.dc) return nothing();
-    return `${dcBar(true)}<div class="stack">${dcsOf().map(dc => `<div class="net-sec" data-dcsec="${esc(dc)}">${window.NetNodes.card(dc)}${window.PortPlan.nodesCard(dc)}</div>`).join('')}</div>`;
+    return `${dcBar(true)}<div class="stack"><div data-advglobal-root>${window.AdvNet.globalHtml()}</div>${dcsOf().map(dc => `<div class="net-sec" data-dcsec="${esc(dc)}">${window.NetNodes.card(dc)}${window.PortPlan.nodesCard(dc)}</div>`).join('')}</div>`;
   }
   // ---- Switches ----
   function switchesTab(){
@@ -73,8 +73,9 @@
     const sw1 = `${F.suggestEquipment(F.roleVlan('management', cfg.vlanMode), cfg.group, 1, 1)}`, sw2 = `${F.suggestEquipment(F.roleVlan('management', cfg.vlanMode), cfg.group, 2, 1)}`;
     const body = `<div class="ad-plan"><div class="ad-opts"><div><div class="rb-label">${t('VLAN numbering', 'VLAN-nummering')}</div>${seg('data-fent-mode', cfg.vlanMode, [['luminex', t('Luminex groups (1, 200, 300 …)', 'Luminex-groepen (1, 200, 300 …)')], ['fent', t('FENT (1090, 1040 …)', 'FENT (1090, 1040 …)')]])}</div>
         <div><div class="rb-label">${t('Third number', 'Derde getal')}</div>${seg('data-fent-group', cfg.group, [['production', t('Production (101–199)', 'Productie (101–199)')], ['location', t('Location (1–99)', 'Locatie (1–99)')]])}</div>
+        <label class="rb-row" style="align-self:end" title="${esc(t('Switch on: new devices get an address from the scheme by themselves and the addresses are checked against it', 'Aan: nieuwe apparaten krijgen vanzelf een adres uit het schema en de adressen worden ertegen gecontroleerd'))}"><span>${t('Use the FENT scheme', 'Gebruik het FENT-schema')}</span><span class="switch"><input type="checkbox" data-fent-sw="on" ${cfg.on ? 'checked' : ''}><span></span></span></label>
         <label class="rb-row" style="align-self:end"><span>${t('Also a scan address per device', 'Ook een scanadres per apparaat')}</span><span class="switch"><input type="checkbox" data-fent-sw="scan" ${cfg.scan ? 'checked' : ''}><span></span></span></label></div>
-      <div class="ad-rule">${I('info', 13)} <span>${t('<b>Switch 1 of every DB is .1</b>, switch 2 is .2 and so on (DB01: ' + sw1 + ', DB02: ' + sw2 + '). Nodes and splitters count on from .11. The management address is 10.90.x.x, the lighting address 10.40.x.x; the third number is the number of the DB.', '<b>Switch 1 van elke DB is .1</b>, switch 2 is .2 enzovoort (DB01: ' + sw1 + ', DB02: ' + sw2 + '). Nodes en splitters tellen door vanaf .11. Het beheeradres is 10.90.x.x, het lichtadres 10.40.x.x; het derde getal is het nummer van de DB.')}</span></div>
+      <div class="ad-rule">${I('info', 13)} <span>${t('<b>Switch 1 of every DB is .1</b>, switch 2 is .2 and so on (DB01: ' + sw1 + ', DB02: ' + sw2 + '). Nodes and splitters count on from .11. A node has one address, on the lighting VLAN (10.40.x.x); in the advanced network it also has a management address (10.90.x.x). The third number is the number of the DB. Every VLAN can have its own range (table below).', '<b>Switch 1 van elke DB is .1</b>, switch 2 is .2 enzovoort (DB01: ' + sw1 + ', DB02: ' + sw2 + '). Nodes en splitters tellen door vanaf .11. Een node heeft één adres, op het licht-VLAN (10.40.x.x); in het advanced netwerk heeft hij ook een beheeradres (10.90.x.x). Het derde getal is het nummer van de DB. Elk VLAN kan een eigen reeks hebben (tabel hieronder).')}</span></div>
       <div class="ad-btns"><button class="primary" data-adplan>${I('check', 14)} ${t('Create the IP plan…', 'Maak het IP-plan…')}</button><span class="subtle">${t('You see what changes first.', 'Je ziet eerst wat er verandert.')}</span><span style="flex:1"></span>
         <span class="ad-check ${errs.length ? 'bad' : warns.length ? 'warn' : 'ok'}">${errs.length ? `${I('alert', 14)} ${errs.length} ${t('duplicate' + (errs.length > 1 ? 's' : ''), 'dubbel' + (errs.length > 1 ? 'e' : ''))}` : warns.length ? `${I('alert', 14)} ${warns.length} ${t('to check', 'om te controleren')}` : `${I('checkCircle', 14)} ${t('no duplicates, all addresses fit', 'geen dubbele adressen, alles past')}`}</span></div></div>`;
     return App.ui.card({ key:'net-ipplan', title:t('IP plan', 'IP-plan'), icon:'network', meta:cfg.on ? (cfg.group === 'production' ? t('production', 'productie') : t('location', 'locatie')) : t('not made yet', 'nog niet gemaakt'), collapsible:false, body });
@@ -142,7 +143,7 @@
 
   function render(opts = {}){
     const root = App.$('#lkDetail'); if(!root) return;
-    try { window.RackPlan?.syncAll?.(); } catch(e){ console.error('node sync', e); }      // the nodes follow the racks
+    try { window.RackPlan?.syncAll?.(); window.AdvNet?.sync?.(); } catch(e){ console.error('node sync', e); }      // the nodes follow the racks, and the advanced-network switch
     if(opts.tab) S.tab = opts.tab; if(opts.dc) S.dc = opts.dc;
     if(!TABS.some(x => x[0] === S.tab)) S.tab = 'patch';
     { const dims = App.sortedDims(); if(!S.dc || (S.dc !== ALL && !dims.includes(S.dc))) S.dc = dims[0] || null; }
@@ -159,7 +160,7 @@
     if(!ready) return;
     const sec = dc => root.querySelector(`[data-dcsec="${CSS.escape(dc)}"]`);
     if(S.tab === 'patch') for(const dc of dcsOf()) if(sec(dc)) window.PortPlan.bind(sec(dc), dc, again);
-    if(S.tab === 'nodes') for(const dc of dcsOf()) if(sec(dc)){ window.NetNodes.bind(sec(dc), dc, again); window.PortPlan.bind(sec(dc), dc, again); }
+    if(S.tab === 'nodes'){ window.AdvNet.bindGlobal(root, again); for(const dc of dcsOf()) if(sec(dc)){ window.NetNodes.bind(sec(dc), dc, again); window.PortPlan.bind(sec(dc), dc, again); } }
     if(S.tab === 'switches'){ for(const dc of dcsOf()) if(sec(dc)){ window.NetSwitches.bind(sec(dc), dc, again); window.PortPlan.bind(sec(dc), dc, again); window.FentUI.bindDevice(sec(dc), dc, again); } const nc = root.querySelector('[data-netcables]'); if(nc) window.NetCables?.bind(nc, S.dc === ALL ? App.sortedDims()[0] : S.dc, again); }
     if(S.tab === 'addr') bindAddr(root, again);
     if(S.tab === 'fibers'){ window.Fibers.bind(root, again); window.Fibers.bindStock(root, again);

@@ -72,6 +72,8 @@
 
     return {
       prefs: {
+        // everything else in the prefs (the FENT scheme, VLAN ranges and names, the DMX default, the advanced network) goes along with the file
+        ...(net.prefs && typeof net.prefs === 'object' ? deepClone(net.prefs) : {}),
         nodeSparePorts: Number(net.prefs?.nodeSparePorts ?? 0),
         splitterSparePorts: Number(net.prefs?.splitterSparePorts ?? 0),
         switchSparePorts: Number(net.prefs?.switchSparePorts ?? 0)

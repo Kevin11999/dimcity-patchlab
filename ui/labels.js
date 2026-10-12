@@ -212,8 +212,9 @@
     .im{position:absolute;right:1mm;top:1mm;bottom:1mm;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-end}
     .im img{max-width:100%;max-height:48%;object-fit:contain;display:block}
   `;
-  function buildHtml(L, { preview = false, calibration = false } = {}){
-    const sh = sheetOf(L), imgs = imagesOf(L);
+  // images: the logos to use instead of the saved ones (the Publish window has its own, not yet saved, layout)
+  function buildHtml(L, { preview = false, calibration = false, images = null } = {}){
+    const sh = sheetOf(L), imgs = images ? { company:L.company.on ? (L.company.img || images.company || null) : null, show:L.show.on ? (L.show.img || images.show || null) : null } : imagesOf(L);
     let pages;
     if(calibration) pages = [{ off:0, cells:[] }];
     else pages = paginate(allItems(L), sh, L.start, L.perDc);
@@ -358,14 +359,14 @@
 
   // ---------- For the Publish window: the sheets of one DimCity for one group of stickers ----------
   //   variant: 'nodes' (a sticker on every node, and the port labels when `ports`), 'switches' (the same for the switches), 'cables' (cables, panel strips, network cables, fibres)
-  function docHtml({ dc, variant, ports = false, preview = false } = {}){
+  function docHtml({ dc, variant, ports = false, preview = false, images = null } = {}){
     const base = state(), off = Object.fromEntries(Object.keys(base.kinds).map(k => [k, false]));
     const kinds = { ...off, ...(variant === 'nodes' ? { nodeStickers:true, nodePorts:!!ports } : variant === 'switches' ? { switchStickers:true, switchPorts:!!ports } : { cables:true, strips:true, netCables:true, fibers:true }) };
     const L = { ...base, kinds, dcs:[dc], perDc:true, start:1, outline:false };
     const groups = allItems(L), count = groups.reduce((n, g) => n + g.items.length, 0);
     if(!count) return { html:'', pages:0, count:0 };
     const sh = sheetOf(L), pages = paginate(groups, sh, 1, true).filter(pg => pg.cells.length).length;
-    return { html:buildHtml(L, { preview }), pages, count };
+    return { html:buildHtml(L, { preview, images }), pages, count };
   }
 
   window.Labels = { open, close, docHtml, SHEETS, buildHtml, itemsFor, allItems, paginate, cellPos, sheetOf, state, defaults };

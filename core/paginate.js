@@ -148,7 +148,7 @@
     const first = new Map();            // group → its first sheet: a fixed section sits there
     for(const b of o.blocks){
       if(o.isStale && o.isStale()){ probe.remove(); return null; }
-      if(b.breakBefore){ flow.freshPage(b.ctx); if(b.group) first.set(b.group, flow.cur); }
+      if(b.breakBefore){ flow.freshPage(b.ctx); if(b.group && !first.has(b.group)) first.set(b.group, flow.cur); }
       if(b.chapter) flow.pending = b.chapter;
       if(b.fixed){
         const page = (b.group && first.get(b.group)) || flow.cur || flow.newPage(b.ctx), t = doc.createElement('div'); t.innerHTML = b.html;

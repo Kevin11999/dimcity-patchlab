@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.15.0 — 2026-10-12
+
+- New **Publish** window: all the paperwork in one go into a folder (total DB book, LK info and Node info per DB, stickers for nodes and switches, IP address book, network flow on A3) with the real pages in the preview, both logos and page numbers on every page; also the Fibres grid and snap in the Signal Flow, port names with a short name per device type, network devices in the Device Builder, DB + FOH and more in Setup.
+
+<details><summary>Nederlands</summary>
+
+- Nieuw venster **Publiceren**: al het papierwerk in één keer in een map (totaal DB-boek, LK-info en Node-info per DB, stickers voor nodes en switches, IP-adresboek, netwerkflow op A3) met de echte pagina’s in het voorbeeld, beide logo’s en bladnummers op elke pagina; ook het raster en snappen bij Fibers in de Signaalstroom, poortnamen met een korte naam per devicetype, netwerkapparaten in de Device Builder, DB + FOH en meer in Setup.
+
+</details>
+
 ## 0.14.1 — 2026-10-11
 
 - CSV dashes and Cat lines (C701, CL503.4), LK37 / Veam4 sockets worked out smarter, switch defaults (management, SFP trunk), one advanced-network switch with one address per node, DMX defaults, IP range per VLAN; FENT settings are saved in the project now.

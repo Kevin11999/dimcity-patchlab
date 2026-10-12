@@ -1,5 +1,5 @@
 // Series 1 — "Build a show": one project, from the imported patch to the finished P D F and the stickers, in ten parts.
-import { PLAN_IMAGE, doAdvice, doNodes, doSwitches, doFibres, upTo } from './scenes-common.mjs';
+import { PLAN_IMAGE, fakeApp, untilPublished, doAdvice, doNodes, doSwitches, doFibres, upTo } from './scenes-common.mjs';
 
 export const BUILD = [
   { id: 'build-1-import', title: '1 · Import the patch', start: 'blank', steps: [
@@ -106,13 +106,12 @@ export const BUILD = [
     { say: 'When it is done, a window lists every change that was made, per device. Every device is read back and checked, so you know it really has the new settings.', do: async k => { await k.page.waitForSelector('.modal-backdrop [data-a=ok]', { timeout: 30000 }); await k.wait(3500); await k.click('.modal-backdrop [data-a=ok]'); await k.wait(800); } }
   ] },
 
-  { id: 'build-10-print', title: '10 · The P D F and the stickers', prep: upTo(doAdvice, doNodes, doSwitches, doFibres), steps: [
-    { say: 'The last step: print and share. Export P D F opens the report builder. Choose the sections: the patch, the racks, the signal flow, the network, the switch ports and the fibre links.', do: async k => { await k.click('#fileExportPdf'); await k.wait(2200); } },
-    { say: 'The Q R codes section gives every D B a Q R code that holds the whole D B as text, and the first page can carry one for the whole system.', do: async k => { await k.ev(() => document.querySelector('[data-on="qr"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })); await k.wait(700); await k.click('label:has([data-on="qr"]), .rb-sec:has([data-on="qr"]) .switch'); await k.wait(1500); await k.ev(() => { for (const f of document.querySelectorAll('iframe')) { try { f.contentDocument.querySelector('.qrgrid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} } }); await k.wait(1500); } },
-    { say: 'A live preview shows every page before you export. Then export, and you have the report, ready to print or to send.', do: async k => { await k.wait(2800); } },
-    { say: 'Stickers makes labels for Herma laser sheets: cable labels, panel strips, node ports, devices, switch ports, fibres and network cables.', do: async k => { await k.closeDialog(); await k.click('#tbStickers'); await k.wait(1500); } },
-    { say: 'Pick the Herma sheet, the D B, and what to print. The preview matches the sheet exactly, so you see what the printer will do.', do: async k => { await k.wait(2200); } },
-    { say: 'Switch on D B info Q R, and every D B gets stickers with a Q R code that holds everything about that D B. The system Q R does the same for the whole show.', do: async k => { await k.ev(() => document.querySelector('label.rb-row:has([data-sw="k:qrDb"])')?.scrollIntoView({ block: 'center', behavior: 'smooth' })); await k.wait(600); await k.click('label.rb-row:has([data-sw="k:qrDb"])'); await k.wait(1800); } },
-    { say: 'A calibration sheet checks that your printer puts every label where the template says. And that is the whole workflow, from the C S V file to the printed show.', do: async k => { await k.hover('#lbCal'); await k.wait(2200); } }
+  { id: 'build-10-print', title: '10 · Publish the PDFs and the stickers', start: 'demo', steps: [
+    { say: 'The last step: publish. One window makes all the paperwork of the show. Click Publish in the toolbar.', do: async k => { await fakeApp(k); await k.click('#fileExportPdf'); await k.wait(2600); } },
+    { say: 'Tick what you want: the total D B book, the I P address book, L K info and node info for every D B, the stickers, and the A three network flow.', do: async k => { await k.hover('.pb-docs'); await k.wait(1800); await k.click('[data-doc-eye="nodes"]'); await k.wait(2200); } },
+    { say: 'The preview shows the real pages, the same ones that end up in the P D F, with your logos and page numbers on every page.', do: async k => { await k.hover('#rbFrame'); await k.wait(2400); } },
+    { say: 'The stickers are for the Herma sheets: one on every node with its address, V L A N and switch port, and one on every switch. The Stickers button has all the other labels, and a calibration sheet for your printer.', do: async k => { await k.click('[data-doc-eye="stickers"]'); await k.wait(2800); } },
+    { say: 'In the last step choose a folder. PatchLab makes a folder with the project name, a folder for every D B, and an A three folder for the network flow.', do: async k => { await k.click('#rbSteps [data-step="publish"]'); await k.wait(900); await k.click('#pbChoose'); await k.wait(1200); await k.hover('#pbFiles'); await k.wait(3000); } },
+    { say: 'One click publishes everything. And that is the whole workflow, from the C S V file to the printed show.', do: async k => { await k.click('#pbNext'); await untilPublished(k); await k.wait(2000); } }
   ] }
 ];

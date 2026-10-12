@@ -1,0 +1,61 @@
+WEBVTT
+
+1
+00:00:00.802 --> 00:00:05.802
+Publish makes all the paperwork of the show in one go. Click Publish in the toolbar.
+
+2
+00:00:06.115 --> 00:00:16.897
+It works in four steps: what, content, look and publish. On the right is a preview, and it shows the real pages: the same pages that end up in the PDF.
+
+3
+00:00:17.222 --> 00:00:23.268
+Step one is what to publish. Choose the DB's, all of them or only one, and tick the documents.
+
+4
+00:00:23.577 --> 00:00:32.673
+The total DB book has a cover, a contents page with page numbers, and every section you choose. The eye shows a document in the preview.
+
+5
+00:00:33.001 --> 00:00:43.761
+The IP address book lists every address of the nodes, the switches and the consoles, per DB, per VLAN, and sorted by number. Double addresses turn red.
+
+6
+00:00:44.076 --> 00:00:56.564
+LK info and node info are one file for every DB. And the stickers: one on every node, with its IP address, VLAN, switch port and universes, and one on every switch.
+
+7
+00:00:56.880 --> 00:01:05.230
+The A three network flow draws the network and the signal flow of every DB, on a big sheet, with the orientation that fits best.
+
+8
+00:01:05.547 --> 00:01:14.174
+Step two is the content. Switch sections on or off, and drag them to change the order. The small labels show where a section is used.
+
+9
+00:01:14.485 --> 00:01:21.277
+Click a part of the preview to jump to its settings. The orange handle puts a section at a fixed place on the sheet.
+
+10
+00:01:21.595 --> 00:01:30.393
+Step three is the look. Portrait is the default. Choose the colours, the line weight, and the header and footer, with page numbers on every page.
+
+11
+00:01:30.702 --> 00:01:38.241
+On the logos tab, upload your project logo and your company logo. Both are put on every page, where you want them.
+
+12
+00:01:38.579 --> 00:01:43.473
+Step four is publish. Choose a folder, and keep create a folder structure on.
+
+13
+00:01:44.401 --> 00:01:56.185
+PatchLab makes a folder with the project name, a folder for every DB with LK info, node info and a stickers folder, an A three folder, the book, and the IP address book.
+
+14
+00:01:56.498 --> 00:02:01.392
+The big button makes all the files in one go, and opens the folder when it is done.
+
+15
+00:02:07.732 --> 00:02:13.543
+One button, one folder, and everything is up to date. Publish again after every change.

@@ -31,6 +31,31 @@
   const docTitle = k => t(PE().DOCS[k].title, DOC_NL[k][0]);
   const docDesc = k => t(PE().DOCS[k].desc, DOC_NL[k][1]);
   const DOC_SHORT = () => ({ book:t('Book', 'Boek'), lk:t('LK info', 'LK-info'), nodes:t('Node info', 'Node-info') });
+  // the sections of the Content step in Dutch (the PDF itself stays English)
+  const SEC_NL = {
+    summary:['DimCity-kop en kerncijfers', 'Naam van de DimCity, projectregel en totalen.'],
+    switches:['Switches: poorten en VLAN', 'Per switch: een tekening van de poorten in de VLAN-kleuren en een tabel met apparaat, VLAN, PoE, snelheid en universes.'],
+    network:['Netwerk- / DMX-nodes', 'Geplande nodes met IP en universe per poort.'],
+    splitters:['Splitters', 'Splitters met ingangsvoeding en uitgangsoverzicht.'],
+    racks:['Racks', 'Racks met aansluitingen, nodekleuren en patchtabel.'],
+    flow:['Signaalstroom-tekening', 'De bekabeling van rek naar objecten, zoals ingedeeld op de pagina Signaalstroom.'],
+    patch:['LK- / Veam-patch', 'Elke LK als rij van 12 poorten met zijn Veam4’s eronder: universe, en de node en nodepoort waar elke poort op zit.'],
+    universes:['Universe-overzicht', 'Patchpunten per universe (LK / Veam / DMX).'],
+    patchlist:['Patchlijst-tabel', 'Alle regels van deze DimCity op universe gesorteerd.'],
+    warnings:['Waarschuwingen en fouten', 'Validatieresultaten voor deze DimCity.'],
+    qr:['QR-codes (de hele DB)', 'QR-codes met alles van deze DB als tekst: aansluitingen, nodes met IP, switches, fibers. Optioneel: het hele systeem.'],
+    notes:['Notities', 'Vrije tekst, bijvoorbeeld instructies voor de crew.']
+  };
+  const OPT_NL = {
+    'Include universe overview table':'Universe-overzichtstabel opnemen', 'Show switches placeholder':'Plaatshouder voor switches tonen', 'All addresses of a device and the switch port plan':'Alle adressen van een apparaat en het switchpoortplan',
+    'Overview of all switches and their fibres first':'Eerst een overzicht van alle switches en hun fibers', 'Show the port names typed by hand':'De met de hand getypte poortnamen tonen',
+    'Show the node and node port per port':'Node en nodepoort per poort tonen', 'Include Veams that are not linked to an LK':'Veams die niet aan een LK hangen opnemen', 'Show location per port':'Locatie per poort tonen',
+    'Show source (LK / Veam) per port':'Bron (LK / Veam) per poort tonen', 'Tint Veam groups A / B / C':'Veam-groepen A / B / C inkleuren', 'Include loose DMX':'Losse DMX opnemen',
+    'Rack drawing':'Rektekening', 'Node ports (which LK / Veam port is on which node port)':'Nodepoorten (welke LK- / Veam-poort op welke nodepoort zit)', 'Loose devices (nodes and spiders without a rack)':'Losse apparaten (nodes en spinnen zonder rek)',
+    'Patch table (node port → LK / Veam)':'Patchtabel (nodepoort → LK / Veam)', 'Notes (what is still needed)':'Opmerkingen (wat er nog nodig is)', 'Cable legend':'Kabellegenda', 'Start on a new sheet':'Op een nieuw blad beginnen',
+    'Also a drawing of only the network (switches, Cat cables, fibres)':'Ook een tekening van alleen het netwerk (switches, Cat-kabels, fibers)', 'Include project-wide issues':'Projectbrede problemen opnemen',
+    'Also the QR set for the whole system (first DB only)':'Ook de QR-set voor het hele systeem (alleen de eerste DB)'
+  };
   const STEPS = () => [['what', t('What', 'Wat')], ['content', t('Content', 'Inhoud')], ['look', t('Look', 'Opmaak')], ['publish', t('Publish', 'Publiceren')]];
   const STICKER_KINDS = () => [
     ['nodes', t('Node stickers', 'Nodestickers'), t('A sticker on every node: ID, address, VLAN, switch port, universes, where it is', 'Een sticker op elke node: ID, adres, VLAN, switchpoort, universes, waar hij staat')],
@@ -44,6 +69,8 @@
   const dims = () => PE().allDims();
   const sel = () => PE().selectedDims(B.L);
   const plan = () => PE().filePlan(B.L, sel(), PE().currentMeta());
+  // the files that really get made: a DimCity with nothing for a document gets no file (known once the pages are counted)
+  const todo = () => plan().filter(f => !B.pages.get(f.id)?.empty);
   const sig = () => `${B.ver}`;
   function persist(){
     const M = getM(); if(!M || !B || B.temp) return;
@@ -70,7 +97,8 @@
       L.publish = { ...L.publish, structure:false };
     }
     const first = L.docs.book ? 'book' : L.docs.lk ? 'lk' : L.docs.nodes ? 'nodes' : L.docs.ip ? 'ip' : 'book';
-    B = { L, step:opts.step || (opts.preset ? 'publish' : 'what'), lookTab:'style', expanded:null, selSec:null, zoom:'fit', view:'pages', pv:{ doc:first, dc:null }, timer:null, countTimer:null, token:0, ver:0,
+    const step = opts.step || (opts.preset ? 'publish' : 'what');
+    B = { L, step, lookTab:'style', expanded:null, selSec:null, zoom:'fit', view:step === 'publish' ? 'files' : 'pages', pv:{ doc:first, dc:null }, timer:null, countTimer:null, token:0, ver:0,
       cache:new Map(), pages:new Map(), status:new Map(), temp:!!opts.preset, busy:false, last:null, countToken:0 };
     mount();
   }
@@ -124,6 +152,7 @@
     root.querySelectorAll('#rbZoom button').forEach(b => b.onclick = () => { B.zoom = b.dataset.z; applyZoom(); });
     root.querySelectorAll('#pbView button').forEach(b => b.onclick = () => { B.view = b.dataset.v; syncView(); });
     renderSteps(); renderPanel(); renderPvBar(); syncView(); updateSummary(); schedulePreview(true);
+    if(B.step === 'publish') scheduleCount();
   }
   const stepIndex = () => STEPS().findIndex(s => s[0] === B.step);
   function go(d){ const i = Math.max(0, Math.min(3, stepIndex() + d)); setStep(STEPS()[i][0]); }
@@ -142,13 +171,13 @@
     const cl = $('#rbClose'); if(cl) cl.disabled = !!B.busy;
     const nx = $('#pbNext');
     nx.querySelector('span').textContent = B.step === 'publish' ? publishLabel() : t('Next', 'Volgende');
-    nx.disabled = B.busy || (B.step === 'publish' && !plan().length);
+    nx.disabled = B.busy || (B.step === 'publish' && !todo().length);
     $('#pbStepInfo').textContent = `${i + 1} / 4`;
   }
-  function publishLabel(){ const n = plan().length; return `${t('Publish', 'Publiceer')} ${n} ${n === 1 ? t('file', 'bestand') : t('files', 'bestanden')}`; }
+  function publishLabel(){ const n = todo().length; return `${t('Publish', 'Publiceer')} ${n} ${n === 1 ? t('file', 'bestand') : t('files', 'bestanden')}`; }
   function updateSummary(){
     const s = $('#rbSummary'); if(!s || !B) return;
-    const dcs = sel(), n = plan().length;
+    const dcs = sel(), n = todo().length;
     s.textContent = `${dcs.length} ${dcs.length === 1 ? 'DimCity' : 'DimCities'} · ${n} ${n === 1 ? t('file', 'bestand') : t('files', 'bestanden')}${B.temp ? ` · ${t('temporary layout (your saved layout is kept)', 'tijdelijke indeling (je bewaarde indeling blijft)')}` : ''}`;
     const nx = $('#pbNext'); if(nx && B.step === 'publish'){ nx.querySelector('span').textContent = B.busy ? t('Publishing…', 'Bezig met publiceren…') : publishLabel(); nx.disabled = B.busy || !n; }
   }
@@ -160,7 +189,7 @@
     $('#pbPv').style.display = files ? 'none' : '';
     $('#rbPageInfo').style.display = files ? 'none' : '';
     const h = $('#rbHint'); if(h) h.innerHTML = files ? `${I('info', 13)} ${t('These files are made in the folder you choose', 'Deze bestanden worden gemaakt in de map die je kiest')}` : `${I('info', 13)} ${t('The pages are the ones in the PDF · click a part to edit it', 'Dit zijn de pagina’s uit de PDF · klik op een deel om het aan te passen')}`;
-    if(files) renderFiles(); else applyZoom();
+    if(files) renderFiles(); else { applyZoom(); if(B.stale) schedulePreview(true); }
   }
 
   // ---------- Panels ----------
@@ -205,24 +234,24 @@
     const secs = L.sections.map((s, i) => {
       const meta = PEx.SECTIONS[s.key], open = B.expanded === s.key, opts = PEx.SECTION_OPTS[s.key] || [];
       const optHtml = s.key === 'notes'
-        ? `<label class="field" style="margin-top:4px">Text<textarea rows="5" data-notes placeholder="Crew instructions, contact numbers… Supports {project}, {dimcity}, {date}.">${esc(s.opts?.text || '')}</textarea></label>`
-        : opts.map(([k, label, def]) => `<label class="rb-row sm"><span>${label}</span><span class="switch"><input type="checkbox" data-opt="${k}" data-sec="${s.key}" ${(s.opts?.[k] ?? def) ? 'checked' : ''}><span></span></span></label>`).join('');
+        ? `<label class="field" style="margin-top:4px">${t('Text', 'Tekst')}<textarea rows="5" data-notes placeholder="${esc(t('Crew instructions, contact numbers… Supports {project}, {dimcity}, {date}.', 'Instructies voor de crew, telefoonnummers… Kent {project}, {dimcity}, {date}.'))}">${esc(s.opts?.text || '')}</textarea></label>`
+        : opts.map(([k, label, def]) => `<label class="rb-row sm"><span>${esc(t(label, OPT_NL[label] || label))}</span><span class="switch"><input type="checkbox" data-opt="${k}" data-sec="${s.key}" ${(s.opts?.[k] ?? def) ? 'checked' : ''}><span></span></span></label>`).join('');
       const p = PEx.normPos(s.pos), cbx = PEx.contentBox(L);
       const posHtml = `<div class="rb-pos-sec">
-          <div class="rb-pos-head"><span>Position on the sheet</span><div class="segmented" data-posmode="${s.key}"><button data-v="auto" class="${p ? '' : 'active'}">Auto</button><button data-v="fixed" class="${p ? 'active' : ''}">Fixed</button></div></div>
+          <div class="rb-pos-head"><span>${t('Position on the sheet', 'Positie op het blad')}</span><div class="segmented" data-posmode="${s.key}"><button data-v="auto" class="${p ? '' : 'active'}">${t('Auto', 'Automatisch')}</button><button data-v="fixed" class="${p ? 'active' : ''}">${t('Fixed', 'Vast')}</button></div></div>
           ${p ? `<div class="rb-pos-fields">
             <label>X <input type="number" data-pos="x" data-sec="${s.key}" min="0" max="${Math.floor(cbx.w)}" step="${PEx.GRID_MM}" value="${p.x}"><span>mm</span></label>
             <label>Y <input type="number" data-pos="y" data-sec="${s.key}" min="0" max="${Math.floor(cbx.h)}" step="${PEx.GRID_MM}" value="${p.y}"><span>mm</span></label>
-            <label>Width <input type="number" data-pos="w" data-sec="${s.key}" min="20" max="${Math.floor(cbx.w)}" step="${PEx.GRID_MM}" value="${p.w}"><span>mm</span></label>
-          </div><div class="hint">Drag the orange handle in the preview to move it (snaps to ${PEx.GRID_MM} mm). The sheet is ${Math.round(cbx.w)} × ${Math.round(cbx.h)} mm inside the margins; the position is on the first sheet of every DimCity.</div>` : `<div class="hint">Auto: sections follow each other from top to bottom. Choose Fixed, or drag the handle in the preview, to place this section yourself.</div>`}
+            <label>${t('Width', 'Breedte')} <input type="number" data-pos="w" data-sec="${s.key}" min="20" max="${Math.floor(cbx.w)}" step="${PEx.GRID_MM}" value="${p.w}"><span>mm</span></label>
+          </div><div class="hint">${t(`Drag the orange handle in the preview to move it (snaps to ${PEx.GRID_MM} mm). The sheet is ${Math.round(cbx.w)} × ${Math.round(cbx.h)} mm inside the margins; the position is on the first sheet of every DimCity.`, `Sleep de oranje greep in het voorbeeld om hem te verplaatsen (springt naar ${PEx.GRID_MM} mm). Het blad is ${Math.round(cbx.w)} × ${Math.round(cbx.h)} mm binnen de marges; de positie geldt op het eerste blad van elke DimCity.`)}</div>` : `<div class="hint">${t('Auto: sections follow each other from top to bottom. Choose Fixed, or drag the handle in the preview, to place this section yourself.', 'Automatisch: secties volgen elkaar van boven naar beneden op. Kies Vast, of sleep de greep in het voorbeeld, om deze sectie zelf te plaatsen.')}</div>`}
         </div>`;
       return `<div class="rb-sec ${s.on ? '' : 'off'} ${open ? 'open' : ''} ${B.selSec === s.key ? 'sel' : ''} ${p ? 'has-pos' : ''}" draggable="true" data-key="${s.key}">
         <div class="rb-sec-head">
-          <span class="grip" title="Drag to reorder">${I('grip', 14)}</span>
-          <label class="switch" title="${s.on ? 'Hide' : 'Show'} section"><input type="checkbox" data-on="${s.key}" ${s.on ? 'checked' : ''}><span></span></label>
-          <div class="rb-sec-title" data-toggle="${s.key}"><b>${I(meta.icon, 14)} ${esc(meta.title)}${p ? `<span class="tag" title="Fixed position">${p.x}, ${p.y} mm</span>` : ''}</b><span>${esc(meta.desc)}</span><span class="pb-docs-in">${meta.docs.map(d => `<em>${esc(short[d])}</em>`).join('')}</span></div>
-          <div class="rb-sec-move"><button class="ghost sm icon-only" data-up="${i}" ${i === 0 ? 'disabled' : ''} title="Move up">${I('chevronDown', 13).replace('<svg', '<svg style="transform:rotate(180deg)"')}</button><button class="ghost sm icon-only" data-down="${i}" ${i === L.sections.length - 1 ? 'disabled' : ''} title="Move down">${I('chevronDown', 13)}</button></div>
-          <button class="ghost sm icon-only" data-toggle="${s.key}" title="Options">${I(open ? 'chevronDown' : 'chevronRight', 14)}</button>
+          <span class="grip" title="${esc(t('Drag to reorder', 'Sleep om te ordenen'))}">${I('grip', 14)}</span>
+          <label class="switch" title="${esc(s.on ? t('Hide section', 'Sectie verbergen') : t('Show section', 'Sectie tonen'))}"><input type="checkbox" data-on="${s.key}" ${s.on ? 'checked' : ''}><span></span></label>
+          <div class="rb-sec-title" data-toggle="${s.key}"><b>${I(meta.icon, 14)} ${esc(t(meta.title, SEC_NL[s.key][0]))}${p ? `<span class="tag" title="${esc(t('Fixed position', 'Vaste positie'))}">${p.x}, ${p.y} mm</span>` : ''}</b><span>${esc(t(meta.desc, SEC_NL[s.key][1]))}</span><span class="pb-docs-in">${meta.docs.map(d => `<em>${esc(short[d])}</em>`).join('')}</span></div>
+          <div class="rb-sec-move"><button class="ghost sm icon-only" data-up="${i}" ${i === 0 ? 'disabled' : ''} title="${esc(t('Move up', 'Omhoog'))}">${I('chevronDown', 13).replace('<svg', '<svg style="transform:rotate(180deg)"')}</button><button class="ghost sm icon-only" data-down="${i}" ${i === L.sections.length - 1 ? 'disabled' : ''} title="${esc(t('Move down', 'Omlaag'))}">${I('chevronDown', 13)}</button></div>
+          <button class="ghost sm icon-only" data-toggle="${s.key}" title="${esc(t('Options', 'Opties'))}">${I(open ? 'chevronDown' : 'chevronRight', 14)}</button>
         </div>
         ${open ? `<div class="rb-sec-opts">${optHtml}${posHtml}</div>` : ''}
       </div>`;
@@ -348,9 +377,9 @@
       </div>`;
   }
   const summaryHtml = () => {
-    const files = plan(), pages = files.reduce((n, f) => n + (B.pages.get(f.id)?.pages || 0), 0), counted = files.filter(f => B.pages.has(f.id)).length;
+    const all = plan(), files = todo(), pages = files.reduce((n, f) => n + (B.pages.get(f.id)?.pages || 0), 0), counted = all.filter(f => B.pages.has(f.id)).length, empty = all.length - files.length;
     const total = `${files.length} ${files.length === 1 ? t('file', 'bestand') : t('files', 'bestanden')}`;
-    return `<b>${total}</b>${counted ? ` · ${pages} ${t('pages', 'pagina’s')}` : ''}${counted < files.length && files.length ? ` <span class="subtle">${t('counting pages…', 'pagina’s tellen…')}</span>` : ''}`;
+    return `<b>${total}</b>${counted ? ` · ${pages} ${t('pages', 'pagina’s')}` : ''}${empty ? ` <span class="subtle">· ${empty} ${t('with nothing to publish', 'zonder inhoud')}</span>` : ''}${counted < all.length && all.length ? ` <span class="subtle">${t('counting pages…', 'pagina’s tellen…')}</span>` : ''}`;
   };
 
   // ---------- Panel events ----------
@@ -368,7 +397,10 @@
     on('[data-doc-eye]', 'click', e => { const k = e.currentTarget.dataset.docEye; B.pv.doc = k === 'stickers' ? 'st-nodes' : k; B.view = 'pages'; renderPvBar(); syncView(); schedulePreview(true); });
     on('[data-stk]', 'change', e => { L.docs.stickerKinds[e.target.dataset.stk] = e.target.checked; changed(true); });
     const shs = P.querySelector('#pbSheet'); if(shs) shs.onchange = () => { window.Labels.state().sheet = shs.value; if(getM()?.ui) getM().ui.dirty = true; changed(); };
-    on('#pbStickerOpen', 'click', () => window.Labels?.open?.());
+    on('#pbStickerOpen', 'click', () => {
+      window.Labels?.open?.();
+      const iv = setInterval(() => { if(!document.getElementById('lbRoot')){ clearInterval(iv); if(B){ renderPanel(); changed(); } } }, 400);     // back from the sticker settings: show what changed
+    });
 
     // 2 · Content
     P.querySelector('#rbTemplate')?.addEventListener('change', e => applyTemplate(e.target.value));
@@ -564,6 +596,8 @@
   async function renderPreview(){
     if(!B) return;
     const frame = document.getElementById('rbFrame'); if(!frame) return;
+    if(B.view === 'files'){ B.stale = true; return; }          // not on screen: it is made again when you go back to the pages
+    B.stale = false;
     const my = ++B.token, f = previewFile(), info = $('#rbPageInfo');
     if(!f){ frame.srcdoc = emptyDoc(t('Choose at least one DimCity.', 'Kies minstens één DimCity.')); if(info) info.textContent = ''; return; }
     if(info) info.textContent = t('Making the pages…', 'De pagina’s worden gemaakt…');
@@ -676,7 +710,7 @@
       const st = B.status.get(f.id), pg = B.pages.get(f.id), name = f.rel.split('/').pop();
       const n = st?.pages ?? pg?.pages ?? 0, unit = f.kind === 'stickers' ? (n === 1 ? t('sheet', 'vel') : t('sheets', 'vellen')) : (n === 1 ? t('page', 'pagina') : t('pages', 'pagina’s'));
       const info = st?.state === 'err' ? esc(st.msg || t('failed', 'mislukt')) : st?.state === 'skip' || pg?.empty ? t('nothing to publish', 'niets te publiceren') : n ? `${n} ${unit}` : '';
-      return `<div class="pb-file ${st ? 'st-' + st.state : ''}" data-fid="${esc(f.id)}"><span class="pb-st">${st ? I(STATE_ICON[st.state] || 'file', 14) : I('file', 14)}</span><b>${esc(name)}</b><em>${info}</em><button class="ghost sm icon-only" data-look="${esc(f.id)}" title="${esc(t('Show in the preview', 'Toon in het voorbeeld'))}">${I('eye', 14)}</button></div>`;
+      return `<div class="pb-file ${st ? 'st-' + st.state : ''} ${pg?.empty ? 'st-empty' : ''}" data-fid="${esc(f.id)}"><span class="pb-st">${st ? I(STATE_ICON[st.state] || 'file', 14) : I('file', 14)}</span><b>${esc(name)}</b><em>${info}</em><button class="ghost sm icon-only" data-look="${esc(f.id)}" title="${esc(t('Show in the preview', 'Toon in het voorbeeld'))}">${I('eye', 14)}</button></div>`;
     };
     const draw = (n, name, depth) => `${name ? `<div class="pb-dirrow" style="--d:${depth}">${I('folder', 15)}<b>${esc(name)}</b></div>` : ''}<div class="pb-kids" style="--d:${depth + (name ? 1 : 0)}">${n.files.map(row).join('')}${[...n.dirs.entries()].map(([k, v]) => draw(v, k, depth + (name ? 1 : 0))).join('')}</div>`;
     el.innerHTML = `<div class="pb-treewrap"><div class="pb-where">${B.L.publish.dir ? `${I('folder', 14)} ${esc(B.L.publish.dir)}` : `<span class="subtle">${t('Choose a folder in the panel on the left.', 'Kies een map in het paneel links.')}</span>`}</div>${draw(tree(files), '', 0)}</div>`;
@@ -699,7 +733,7 @@
         if(!B || my !== B.countToken || ver !== B.ver) return;
         B.pages.set(f.id, { pages:r?.pages || 0, empty:!!r?.empty });
       } catch { B.pages.set(f.id, { pages:0, empty:false }); }
-      renderFiles();
+      renderFiles(); updateSummary();
     }
   }
   async function fileResult(f){

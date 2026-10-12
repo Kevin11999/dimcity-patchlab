@@ -2,7 +2,7 @@
 // start: 'demo' (the finished demo show) · 'tutorial' (patch imported, nothing built) · 'blank' (empty project)
 import fs from 'fs';
 import path from 'path';
-import { PLAN_IMAGE, POWER_SAMPLE, doAdvice, doNodes, doSwitches, doFibres, upTo } from './scenes-common.mjs';
+import { PLAN_IMAGE, POWER_SAMPLE, LOGO_COMPANY, LOGO_SHOW, fakeApp, clickInPreview, untilPublished, doAdvice, doNodes, doSwitches, doFibres, upTo } from './scenes-common.mjs';
 const EX_FILE = '/tmp/dcpl-lightwright-edit.txt';
 
 export const TOOLS = [
@@ -95,13 +95,22 @@ export const TOOLS = [
     { say: 'Save image exports the drawing as a picture, and Share image copies it, for example to send in a chat.', do: async k => { await k.hover('#flSave, .fl-bar button:nth-last-child(1)'); await k.wait(900); } }
   ] },
 
-  { id: 'tool-pdf', title: 'The PDF report builder', desc: 'Choose the sections, order and style of the report.', start: 'demo', steps: [
-    { say: 'Export P D F opens the report builder. On the left you choose what goes in, on the right a live preview shows every page.', do: async k => { await k.click('#fileExportPdf'); await k.wait(2500); } },
-    { say: 'Every section can be switched on or off: the D B header, network, splitters, racks, signal flow, patch, universes, the patch list, warnings and notes.', do: async k => { await k.hover('label:has([data-on="racks"]), .rb-sec:has([data-on="racks"])'); await k.wait(800); } },
-    { say: 'Drag a section by its handle to change the order. Racks has options: the rack drawing, node ports, loose devices and the patch table.', do: async k => { await k.ev(() => document.querySelector('[data-opt="drawing"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })); await k.wait(1200); } },
-    { say: 'The new QR codes section puts QR codes on the page that hold the whole D B as text, and optionally the whole system.', do: async k => { await k.ev(() => document.querySelector('[data-on="qr"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })); await k.wait(700); await k.click('label:has([data-on="qr"]), .rb-sec:has([data-on="qr"]) .switch'); await k.wait(1500); await k.ev(() => { for (const f of document.querySelectorAll('iframe')) { try { f.contentDocument.querySelector('.qrgrid')?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {} } }); await k.wait(1500); } },
-    { say: 'Style, header and footer, cover page and logo are set in the other tabs. Save the layout as a template, and use it again in the next project.', do: async k => { await k.click('.rb-tabs button:nth-child(2), [data-rbtab="style"], button:has-text("Style")'); await k.wait(1800); } },
-    { say: 'Choose one P D F with all D B\'s, or one file per D B. Then export.', do: async k => { await k.click('button:has-text("Content")'); await k.wait(1200); await k.hover('button:has-text("One PDF per DimCity")'); await k.wait(1000); } }
+  { id: 'tool-publish', title: 'Publish: the PDFs, stickers and I P address book', desc: 'All the paperwork of the show in one go, in a folder: the book, L K and node info per D B, stickers, the A3 network flow and the I P address book.', start: 'demo', steps: [
+    { say: 'Publish makes all the paperwork of the show in one go. Click Publish in the toolbar.', do: async k => { await fakeApp(k); await k.click('#fileExportPdf'); await k.wait(2600); } },
+    { say: 'It works in four steps: what, content, look and publish. On the right is a preview, and it shows the real pages: the same pages that end up in the P D F.', do: async k => { await k.hover('#rbSteps'); await k.wait(1200); await k.hover('#rbFrame'); await k.wait(1200); } },
+    { say: 'Step one is what to publish. Choose the D B\'s, all of them or only one, and tick the documents.', do: async k => { await k.hover('#rbScope'); await k.wait(700); await k.hover('.pb-docs'); await k.wait(900); } },
+    { say: 'The total D B book has a cover, a contents page with page numbers, and every section you choose. The eye shows a document in the preview.', do: async k => { await k.click('[data-doc-eye="book"]'); await k.wait(2200); } },
+    { say: 'The I P address book lists every address of the nodes, the switches and the consoles, per D B, per V L A N, and sorted by number. Double addresses turn red.', do: async k => { await k.click('[data-doc-eye="ip"]'); await k.wait(2600); } },
+    { say: 'L K info and node info are one file for every D B. And the stickers: one on every node, with its I P address, V L A N, switch port and universes, and one on every switch.', do: async k => { await k.click('[data-doc-eye="stickers"]'); await k.wait(2600); } },
+    { say: 'The A three network flow draws the network and the signal flow of every D B, on a big sheet, with the orientation that fits best.', do: async k => { await k.click('[data-doc-eye="a3"]'); await k.wait(2600); } },
+    { say: 'Step two is the content. Switch sections on or off, and drag them to change the order. The small labels show where a section is used.', do: async k => { await k.click('[data-doc-eye="book"]'); await k.click('#pbNext'); await k.hover('#rbSecs'); await k.wait(1500); } },
+    { say: 'Click a part of the preview to jump to its settings. The orange handle puts a section at a fixed place on the sheet.', do: async k => { await clickInPreview(k, '.sheet [data-sec="racks"]'); await k.wait(1500); } },
+    { say: 'Step three is the look. Portrait is the default. Choose the colours, the line weight, and the header and footer, with page numbers on every page.', do: async k => { await k.click('#rbSteps [data-step="look"]'); await k.hover('#rbPanel'); await k.wait(1800); } },
+    { say: 'On the logos tab, upload your project logo and your company logo. Both are put on every page, where you want them.', do: async k => { await k.click('#rbTabs [data-tab="brand"]'); await k.page.setInputFiles('#rbLogoFile', LOGO_SHOW); await k.wait(1100); await k.page.setInputFiles('#rbBrandFile', LOGO_COMPANY); await k.wait(2600); } },
+    { say: 'Step four is publish. Choose a folder, and keep create a folder structure on.', do: async k => { await k.click('#rbSteps [data-step="publish"]'); await k.wait(1000); await k.click('#pbChoose'); await k.wait(1500); } },
+    { say: 'PatchLab makes a folder with the project name, a folder for every D B with L K info, node info and a stickers folder, an A three folder, the book, and the I P address book.', do: async k => { await k.hover('#pbFiles'); await k.wait(5200); } },
+    { say: 'The big button makes all the files in one go, and opens the folder when it is done.', do: async k => { await k.click('#pbNext'); await untilPublished(k); await k.wait(1500); } },
+    { say: 'One button, one folder, and everything is up to date. Publish again after every change.', do: k => k.wait(2200) }
   ] },
 
   { id: 'tool-stickers', title: 'Stickers for Herma sheets', desc: 'Print cable labels, strips, device labels and more on laser sheets.', start: 'demo', steps: [

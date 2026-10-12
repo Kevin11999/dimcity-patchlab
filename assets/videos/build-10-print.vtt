@@ -1,29 +1,25 @@
 WEBVTT
 
 1
-00:00:01.110 --> 00:00:13.086
-The last step: print and share. Export PDF opens the report builder. Choose the sections: the patch, the racks, the signal flow, the network, the switch ports and the fibre links.
+00:00:02.063 --> 00:00:08.365
+The last step: publish. One window makes all the paperwork of the show. Click Publish in the toolbar.
 
 2
-00:00:13.523 --> 00:00:23.301
-The QR codes section gives every DB a QR code that holds the whole DB as text, and the first page can carry one for the whole system.
+00:00:08.695 --> 00:00:18.559
+Tick what you want: the total DB book, the IP address book, LK info and node info for every DB, the stickers, and the A three network flow.
 
 3
-00:00:23.830 --> 00:00:31.368
-A live preview shows every page before you export. Then export, and you have the report, ready to print or to send.
+00:00:18.873 --> 00:00:27.031
+The preview shows the real pages, the same ones that end up in the PDF, with your logos and page numbers on every page.
 
 4
-00:00:31.775 --> 00:00:41.169
-Stickers makes labels for Herma laser sheets: cable labels, panel strips, node ports, devices, switch ports, fibres and network cables.
+00:00:27.348 --> 00:00:40.391
+The stickers are for the Herma sheets: one on every node with its address, VLAN and switch port, and one on every switch. The Stickers button has all the other labels, and a calibration sheet for your printer.
 
 5
-00:00:41.820 --> 00:00:49.252
-Pick the Herma sheet, the DB, and what to print. The preview matches the sheet exactly, so you see what the printer will do.
+00:00:40.701 --> 00:00:50.096
+In the last step choose a folder. PatchLab makes a folder with the project name, a folder for every DB, and an A three folder for the network flow.
 
 6
-00:00:49.788 --> 00:01:00.974
-Switch on DB info QR, and every DB gets stickers with a QR code that holds everything about that DB. The system QR does the same for the whole show.
-
-7
-00:01:01.748 --> 00:01:11.526
-A calibration sheet checks that your printer puts every label where the template says. And that is the whole workflow, from the CSV file to the printed show.
+00:00:50.407 --> 00:00:57.093
+One click publishes everything. And that is the whole workflow, from the CSV file to the printed show.

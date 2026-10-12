@@ -49,7 +49,7 @@ async function record(part){
   const page = await ctx.newPage();
   page.on('pageerror', e => console.log('  PAGEERROR', e.message));
   await page.goto('http://127.0.0.1:8765/index.html');
-  await page.waitForFunction(() => window.LKApp && window.Demo && window.Setup && window.RackAdvisor);
+  await page.waitForFunction(() => window.LKApp && window.Demo && window.Setup);
   await page.evaluate(() => window.I18n.setLanguage('en'));
   const start = part.start || 'tutorial';      // blank: an empty project · tutorial: the patch is imported · demo: the finished demo show
   await page.evaluate(async s => { await window.Demo.open(s === 'demo' ? { silent: true } : s === 'blank' ? { silent: true, blank: true } : { silent: true, tutorial: true }); }, start);

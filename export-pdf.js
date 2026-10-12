@@ -108,6 +108,8 @@
       header:{ ...L.header, ...(saved.header||{}) }, footer:{ ...L.footer, ...(saved.footer||{}) },
       brand:{ ...L.brand, ...(saved.brand||{}), wm:{ ...L.brand.wm, ...(saved.brand?.wm||{}) } },
       cover:{ ...L.cover, ...(saved.cover||{}), fields:{ ...L.cover.fields, ...(saved.cover?.fields||{}) } } };
+    // a layout from before the Publish window: the pages are made for portrait now, which is the default (it can be changed again in the Look step)
+    if(Number(saved.version) < 3) out.page.orientation = 'portrait';
     // oude S/M/L-logogrootte omzetten naar millimeters
     if(saved.cover && saved.cover.logoW == null && saved.cover.logoSize) out.cover.logoW = { S:35, M:60, L:90 }[saved.cover.logoSize] || 60;
     const known = Array.isArray(saved.sections) ? saved.sections.filter(s => SECTIONS[s.key]) : [];
@@ -293,9 +295,10 @@
     `;
     const screen = !preview ? '' : `
       html{background:#2a2e35}
-      body{padding:18px 0 40px;zoom:var(--zoom,1)}
-      .sheet{margin:0 auto 6px;box-shadow:0 4px 18px rgba(0,0,0,.35)}
-      .pv-label{width:${G.pw}mm;margin:22px auto 6px;font:600 10px/1 system-ui,sans-serif;color:#9aa3b2;letter-spacing:.04em}
+      body{padding:18px 0 40px}
+      .pv-wrap{position:relative;width:calc(var(--zoom,1) * ${G.pw}mm);height:calc(var(--zoom,1) * ${(G.ph - .4).toFixed(2)}mm);margin:0 auto 6px}
+      .pv-wrap > .sheet{position:absolute;left:0;top:0;margin:0;transform:scale(var(--zoom,1));transform-origin:0 0;box-shadow:0 4px 18px rgba(0,0,0,.35)}
+      .pv-label{width:calc(var(--zoom,1) * ${G.pw}mm);margin:22px auto 6px;font:600 10px/1 system-ui,sans-serif;color:#9aa3b2;letter-spacing:.04em}
       [data-sec]{cursor:pointer;outline-offset:1.5mm;border-radius:1.5mm}
       [data-sec]:hover{outline:1.5px dashed rgba(255,138,31,.55)}
       [data-sec].sel{outline:2px solid #ff8a1f}
@@ -974,7 +977,10 @@
       const sheets = [...doc.querySelectorAll('.sheet')], off = (cover ? 1 : 0) + tocPages;
       doc.querySelectorAll('[data-toc]').forEach(e => { const en = toc[Number(e.dataset.toc)]; e.textContent = en ? String(off + (en.page || 1)) : ''; });
       sheets.forEach((s, i) => { s.setAttribute('data-n', String(i + 1)); s.querySelectorAll('.pn').forEach(x => { x.textContent = String(i + 1); }); s.querySelectorAll('.pt').forEach(x => { x.textContent = String(sheets.length); }); });
-      if(preview) sheets.forEach((s, i) => s.insertAdjacentHTML('beforebegin', `<div class="pv-label">Page ${i + 1} of ${sheets.length}${s.dataset.label ? ` · ${esc(s.dataset.label)}` : ''}</div>`));
+      if(preview) sheets.forEach((s, i) => {
+        const w = doc.createElement('div'); w.className = 'pv-wrap'; s.replaceWith(w); w.appendChild(s);
+        w.insertAdjacentHTML('beforebegin', `<div class="pv-label">Page ${i + 1} of ${sheets.length}${s.dataset.label ? ` · ${esc(s.dataset.label)}` : ''}</div>`);
+      });
       const html = '<!doctype html>' + doc.documentElement.outerHTML;
       return { html, pages:sheets.length, over:(pages.over || []).map(x => x.page), size:G.size, landscape:G.land, empty:false, G };
     } finally { fr.remove(); }
@@ -983,7 +989,7 @@
   // one file of the plan → { html, pages, size, landscape, empty } (stickers come from ui/labels.js, the rest from the sheets above)
   async function renderFile(f, L, { preview = false, isStale = null } = {}){
     if(f.kind === 'stickers'){
-      const r = window.Labels?.docHtml?.({ dc:f.dc, variant:f.variant, ports:!!f.ports, preview });
+      const r = window.Labels?.docHtml?.({ dc:f.dc, variant:f.variant, ports:!!f.ports, preview, images:{ company:L.brand?.logo || null, show:currentMeta().logo || null } });
       if(!r || !r.count) return { html:'', pages:0, empty:true };
       return { html:r.html, pages:r.pages, size:'A4', landscape:false, empty:false, count:r.count, sticker:true, G:{ pw:210, ph:297 } };
     }

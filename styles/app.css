@@ -1609,3 +1609,6 @@ tr.bad>td{background:var(--red-soft)}
 .pb-file.st-work .pb-st svg{animation:pbspin 1s linear infinite}
 @keyframes pbspin{to{transform:rotate(360deg)}}
 .pb-empty{display:grid;place-items:center;text-align:center;color:var(--text-3);min-height:60%;gap:8px}
+
+.pb-file.st-empty{opacity:.45}
+.pb-file.st-empty b{text-decoration:line-through}

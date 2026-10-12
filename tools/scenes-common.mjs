@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const PLAN_IMAGE = path.join(HERE, 'video-assets', 'stage-plan.png');
 export const POWER_SAMPLE = path.join(HERE, 'video-assets', 'power-sample.csv');
+export const LOGO_COMPANY = path.join(HERE, 'video-assets', 'logo-company.png');
+export const LOGO_SHOW = path.join(HERE, 'video-assets', 'logo-show.png');
 
 // only the mouse pointer and a ring where it clicks: no captions, no titles in the picture
 export const OVERLAY = `(() => {
@@ -36,3 +38,19 @@ export const doSwitches = k => k.ev(() => {
 });
 export const doFibres = k => k.ev(() => { window.Fibers.autoAssign({ topology: 'ring', intraType: 'CABLE:DEMO-OC75', interType: 'CABLE:DEMO-OC250' }); window.LKApp.renderAll(); });
 export const upTo = (...fns) => async k => { for (const f of fns) await f(k); };
+
+// the Publish window needs the desktop app to make the files: a stand-in that only takes a moment per file
+export const fakeApp = k => k.ev(() => {
+  window.app = { showOpenDialog: async () => ({ canceled: false, filePaths: ['/Users/crew/Documents/Shows'] }),
+    publishPdf: async a => { await new Promise(r => setTimeout(r, 420)); return '/Users/crew/Documents/Shows/' + a.relPath; },
+    openPath: async () => true, showItemInFolder: async () => true };
+});
+// move the pointer onto something inside the preview (an iframe) and click it
+export const clickInPreview = async (k, sel) => {
+  const el = k.page.frameLocator('#rbFrame').locator(sel).first(); await el.scrollIntoViewIfNeeded(); await k.wait(900);
+  const b = await el.boundingBox(); if (!b) throw new Error('no box in the preview ' + sel);
+  await k.page.mouse.move(b.x + Math.min(b.width / 2, 120), b.y + Math.min(b.height / 2, 30), { steps: 28 }); await k.wait(450);
+  await k.page.mouse.click(b.x + Math.min(b.width / 2, 120), b.y + Math.min(b.height / 2, 30)); await k.wait(700);
+};
+// wait until Publish has made every file
+export const untilPublished = k => k.page.waitForFunction(() => window.Publish?.state && !window.Publish.state.busy && window.Publish.state.status.size > 10, null, { timeout: 120000 });

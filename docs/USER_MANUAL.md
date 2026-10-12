@@ -40,7 +40,7 @@ Dezelfde handleiding zit in de app: druk op **?** of **F1**, of klik op **Help**
 - [Node names from the CSV](#node-names)
 - [20t, panels and half-width devices](#devices-ports)
 - [Signal flow](#flow)
-- [Report Builder (PDF)](#report)
+- [Publish (PDF set)](#report)
 - [Stickers (Herma sheets)](#stickers)
 - [Personal library](#library)
 - [Search (Cmd/Ctrl+K)](#search)
@@ -60,7 +60,7 @@ PatchLab prepares, validates and documents the LK, Veam and DMX patching of a sh
 2. **Import CSV** with your patch list (see [Importing a CSV](#import)), or add LKs and Veams by hand.
 3. Check the **Validation** page and fix what is red.
 4. Link Veams to LK slots, plan **racks** and **nodes** per DimCity.
-5. Build the PDF in the **Report Builder** and export it.
+5. **Publish** the PDFs: the book, LK info, Node info, stickers, the A3 network flow and the IP address book.
 
 ### Saving
 A project is one **.lkproj** file with everything inside: the imported CSVs, your edits, Veam links, device types, racks, network plans and report layouts. Save with **Cmd/Ctrl+S**. Recent projects are listed on the welcome screen.
@@ -86,8 +86,8 @@ Bottom-left, a small bar shows how complete the show is: project info, patch imp
 Screen recordings of the whole app window, in full HD, with a spoken explanation in English. There is no text in the picture; switch the **subtitles** on with the CC button in the player.
 
 There are two series:
-- **Build a show, step by step** — one project from an empty window to the finished report: import the patch, racks and devices, couple LKs and Veams, nodes, network, fibres, signal flow, check and PDF, stickers. The parts play one after the other. The videos were recorded before version 0.14: the part about racks still shows the advice card, which has been removed (you place racks and devices yourself now).
-- **Tool guides** — one short video per tool: Device Builder, Rack Builder and custom racks, coupling and stacking, cable types and fibre stock, the fibre overview, VLANs, the Signal Flow, the PDF builder, stickers, QR codes, exchange with Lightwright and Vectorworks, devices on the network, Tasks and Setup, search and undo.
+- **Build a show, step by step** — one project from an empty window to the finished report: import the patch, racks and devices, couple LKs and Veams, nodes, network, fibres, signal flow, check and PDF, stickers. The parts play one after the other. The videos were recorded before version 0.14: the part about racks still shows the advice card, which has been removed (you place racks and devices yourself now). Part 10 (publish the PDFs and the stickers) and the Publish tool guide were recorded again for the new Publish window of version 0.15.
+- **Tool guides** — one short video per tool: Device Builder, Rack Builder and custom racks, coupling and stacking, cable types and fibre stock, the fibre overview, VLANs, the Signal Flow, Publish (the PDF set), stickers, QR codes, exchange with Lightwright and Vectorworks, devices on the network, Tasks and Setup, search and undo.
 
 Everything you see you can do yourself in **Open Demo Show** on the welcome screen. The **Tasks** page and the **Setup** button walk you through the same steps for your own project.
 
@@ -151,7 +151,7 @@ Everything of one DimCity on one page. Cards can be collapsed with the chevron; 
 - **Network nodes / Splitters** — the network plan of this DimCity; see [Nodes, splitters & network](#network).
 - **Patch rows** — every row of this DimCity as a table.
 
-**Color** changes the DimCity colour used in the sidebar and on the PDF. **Export** opens the Report Builder with only this DimCity selected. **Delete** (bin, top right) removes the whole DB: its LKs, Veams, rows in the CSV, racks, network plan and fibres. It asks first, and it stays gone when the CSV is read again.
+**Color** changes the DimCity colour used in the sidebar and on the PDF. **Export** opens Publish with only this DimCity selected. **Delete** (bin, top right) removes the whole DB: its LKs, Veams, rows in the CSV, racks, network plan and fibres. It asks first, and it stays gone when the CSV is read again.
 
 <a id="lk"></a>
 ## LK block
@@ -310,7 +310,7 @@ There is no button to copy the nodes. The nodes and splitters of the racks (and 
 - IDs stay as they are: a gap in the numbering is fine.
 
 ### Using it
-- **Print racks** opens the Report Builder with the "Racks only" preset.
+- **Print racks** opens Publish with the "Racks only" preset.
 
 <a id="network"></a>
 ## Nodes, splitters & network
@@ -602,29 +602,44 @@ The arrangement, the zoom and the LK names are saved with the project, per DimCi
 The **Show** switch in the left bar chooses *All*, *DMX* or *Network*. The network layer shows the **switches** (with the VLAN of every used port and the fibre on every SFP), the **network cables (C)** that come into the DB and the **nodes** linked to the switch ports, in the order of the node numbers. Network cables are drawn in the colour of their VLAN; fibres are thick lines in the colour of their cable type and also connect the DBs to each other; they run with right angles **around** the blocks and the DimCity titles, never through them (while you move a block they are simple curves, and they find their way around again when you let go). With *Network* you see only this layer. The PDF prints the full drawing and, as an option, a second drawing of only the network.
 
 <a id="report"></a>
-## Report Builder (PDF)
+## Publish (PDF set)
 
-**Export PDF** (Cmd/Ctrl+P) opens the Report Builder: a live preview on the right, settings on the left. Click a part of the preview to jump to its settings. The layout is saved in the project.
+**Publish** (the toolbar button, Cmd/Ctrl+P) makes all the paperwork of the show in one go, in four steps. The preview on the right shows the **real pages**: the same pages that end up in the PDF, so nothing sits on a page break in the preview and is different on paper. What you set is the same for every DimCity and is saved in the project.
 
-### Content
-- **DimCities**: all, or a selection. **Output**: one PDF, or one PDF per DimCity (each with its own cover).
-- **Sections per DimCity**: switch them on or off, drag to reorder, open the chevron for options. Sections: header & key figures, network nodes, splitters, racks, LK / Veam patch, universe overview, patch list, warnings, notes.
-- **Position on the sheet**: every section is **Auto** (flows top to bottom) or **Fixed** at an X / Y position with a width in mm. Drag the orange handle of a section in the preview to place it; it snaps to a 5 mm grid. Fixed sections can overlap others — that is up to you.
+### 1 · What
+Choose the DimCities (all, a selection, or just one) and tick the documents:
+- **Total DB book**: all chosen DimCities in one booklet, with a cover, a **contents page with page numbers** and the sections you choose.
+- **IP address book**: every address of the nodes, switches and consoles, per DimCity with the switch port, per VLAN, and sorted by number. Double addresses are red.
+- **LK info** and **Node info**, one file per DimCity. LK info has the LK / Veam patch sheets, the universes and the patch list; Node info has the nodes, splitters, switches, racks and node ports.
+- **Stickers**: a sticker on every **node** (ID, address, VLAN, switch port, universes, where it is) and on every **switch** (name, address, VLAN, ports, where the fibres go). You can add the port labels of the nodes and the switches and the cable and panel labels. They go on the Herma sheet of the Stickers tool (choose it here) and carry your logos.
+- **Network flow (A3)**: the network flow and the signal flow of every DimCity on A3 (landscape or portrait, whatever fits the drawing best), and one drawing of the network of the whole show.
 
-### Style
-Paper size and orientation, margins, accent colour, font, text size, density, **line weight** (light / normal / bold — bold for sheets that are read on the floor), colour-coded universes, DimCity colour in headers, grayscale. Header and footer texts take placeholders: {project} {area} {location} {date} {prepared} {dimcity}.
+### 2 · Content
+- **Sections per DimCity**: switch them on or off, drag to reorder, open the chevron for options. Sections: header & key figures, network nodes, switches, splitters, racks, signal flow, LK / Veam patch, universe overview, patch list, warnings, QR codes, notes. The small labels show where a section is used: in the book, in LK info, in Node info. Sections without content (no splitters, no patch) are left out.
+- **Position on the sheet**: every section is **Auto** (flows from top to bottom over as many sheets as it needs) or **Fixed** at an X / Y position with a width in mm, on the first sheet of every DimCity. Drag the orange handle in the preview to place it; it snaps to a 5 mm grid. Click a part of the preview to jump to its settings.
+- **Templates and presets**: see below.
 
-### Cover and Brand
-Cover title, subtitle, fields, note and a draggable project logo. Under **Brand**: a company logo on every page and a text or logo watermark.
+### 3 · Look
+- **Style**: paper size and **portrait** (the default) or landscape, margins, accent colour, font, text size, density, **line weight** (light / normal / bold — bold for sheets that are read on the floor), colour-coded universes, DimCity colour in headers, grayscale. The A3 drawings choose their orientation by themselves (or set it). The **header** has the running text; the **footer** has two texts and the **page numbers** (*Page 3 of 12*). Placeholders: {project} {area} {location} {date} {prepared} {dimcity}.
+- **Cover**: title, subtitle, fields, note, the contents page and the project logo, which you can drag on the cover.
+- **Logos**: the **project logo** and the **company logo** are on **every page** — top or bottom, left or right, in the height you choose. The company logo is also at the bottom of the cover and on the stickers. A text or logo watermark is optional.
+
+### 4 · Publish
+Choose a folder. With **Create a folder structure** PatchLab makes one folder with the project name, and in it:
+- a folder per DimCity with *LK info*, *Node info* and a **Stickers** folder,
+- an **A3** folder with the network flows,
+- the *total DB book* and the *IP address book*.
+
+Without it all the files go straight into the folder you chose, with the DimCity in every file name. The list on the right shows every file with its number of pages (a DimCity that has nothing for a document gets no file); the big button makes them all and opens the folder when it is done. Every time you publish, the files are made again, so the folder always holds the latest version.
 
 ### The LK sheet
 The section **LK / Veam patch** prints one block per LK, left to right like the real thing: the **12 ports of the LK** in a row, each with its **universe** and the **node and node port** it goes to (for example N2 · P3), the location underneath; below it the **three Veam4 blocks** (A, B and C) of that LK, four ports each, in the same width. An LK with three Veams is one unit. Veams that hang on no LK get blocks of their own. The colour of an LK and its Veams is the same everywhere. Switch the node and node port off with the option **Show the node and node port per port** if you want the plain sheet.
 
 ### Racks on the PDF
-The Racks section draws every rack as in the app, lists the node ports with the LK / Veam port on each, the loose devices and the patch table, and the notes about what is still needed. The preset **Racks only** prints just that. Consoles and other network devices are in the Network section.
+The Racks section draws every rack as in the app, lists the node ports with the LK / Veam port on each, the loose devices and the patch table, and the notes about what is still needed. The preset **Racks only** (also the button **Print racks**) prints just that. Consoles and other network devices are in the Network section.
 
 ### Templates and presets
-**Save as template** stores the whole layout in the project and your library; pick it from the Template menu in any show. Presets: DB detailed paperwork, Network crew, Patch crew, Compact patch sheets, Racks only.
+**Save as template** (step 2) stores the layout — sections, style, cover and logos — in the project and your library; pick it from the Template menu in any show. Presets: DB detailed paperwork, Network crew, Patch crew, Compact patch sheets, Racks only.
 
 <a id="stickers"></a>
 ## Stickers (Herma sheets)
@@ -641,6 +656,7 @@ Stickers (menu File > Print Stickers, the **Stickers** button in the toolbar, or
 - **Cable labels** for LK multicores and Veam cables, two per cable (both ends), with a colour band in the colour of the node that feeds it.
 - **Panel connection labels**, one per LK37 / Veam4 socket, to stick above the socket.
 - **Node port labels**: universe and where each port goes.
+- **Node stickers** and **switch stickers**: one on every node (ID, address, VLAN, switch port, universes, where it is) and on every switch (name, address, VLAN, ports, where the fibres go). **Publish** makes them per DimCity in the Stickers folder.
 - **Racks, nodes, switches and splitters**.
 - **Switch port labels**: switch, port, device and VLAN (in the VLAN colour) for the switch.
 - **Network cable labels** (C): one per line, both ends, in the VLAN colour.
@@ -660,7 +676,7 @@ Stickers (menu File > Print Stickers, the **Stickers** button in the toolbar, or
 
 Device types, racks and report templates live in two places: in the show, and in your personal library on this computer (**Network → Show Library File**).
 
-- Saving in the Device Builder or Report Builder writes to both.
+- Saving in the Device Builder or in Publish (templates) writes to both.
 - Opening a show adds the library items it lacks, and asks what to do with items the show has but the library does not, or that differ: **Replace my version**, **Add as copy** or **Keep both** (the show's item gets a new key).
 - **Export Library…** writes an .lklib file you can send to a colleague; **Import Library…** reads one (or the devices from another .lkproj).
 
@@ -712,7 +728,7 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 ## Keyboard shortcuts
 
 - **Cmd/Ctrl+N** new project · **Cmd/Ctrl+O** open · **Cmd/Ctrl+S** save · **Cmd/Ctrl+Shift+S** save as
-- **Cmd/Ctrl+I** import CSV · **Cmd/Ctrl+E** edit rows · **Cmd/Ctrl+P** report builder
+- **Cmd/Ctrl+I** import CSV · **Cmd/Ctrl+E** edit rows · **Cmd/Ctrl+P** publish
 - **Cmd/Ctrl+1 / 2 / 3** overview / validation / patch list · **Cmd/Ctrl+R** recalculate
 - **Cmd/Ctrl+K** search · **Cmd/Ctrl+Z** undo · **Cmd/Ctrl+Shift+H** history
 - **Cmd/Ctrl+Shift+D** device builder · **Cmd/Ctrl+,** settings
@@ -720,6 +736,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 
 <a id="whats-new"></a>
 ## What's new
+
+### Version 0.15.0 — 2026-10-12
+- New **Publish** window: all the paperwork in one go into a folder (total DB book, LK info and Node info per DB, stickers for nodes and switches, IP address book, network flow on A3) with the real pages in the preview, both logos and page numbers on every page; also the Fibres grid and snap in the Signal Flow, port names with a short name per device type, network devices in the Device Builder, DB + FOH and more in Setup.
 
 ### Version 0.14.1 — 2026-10-11
 - CSV dashes and Cat lines (C701, CL503.4), LK37 / Veam4 sockets worked out smarter, switch defaults (management, SFP trunk), one advanced-network switch with one address per node, DMX defaults, IP range per VLAN; FENT settings are saved in the project now.
@@ -982,7 +1001,7 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 - [Nodenamen uit de CSV](#node-names-nl)
 - [20t, panelen en halve devices](#devices-ports-nl)
 - [Signaalstroom](#flow-nl)
-- [Rapportbouwer (PDF)](#report-nl)
+- [Publiceren (PDF-set)](#report-nl)
 - [Stickers (Herma-vellen)](#stickers-nl)
 - [Persoonlijke bibliotheek](#library-nl)
 - [Zoeken (Cmd/Ctrl+K)](#search-nl)
@@ -1002,7 +1021,7 @@ PatchLab bereidt de LK-, Veam- en DMX-patch van een show voor, controleert hem e
 2. **CSV importeren** met je patchlijst (zie [CSV importeren](#import-nl)), of voeg LK's en Veams met de hand toe.
 3. Kijk op de pagina **Validatie** en los op wat rood is.
 4. Koppel Veams aan LK-slots, plan **racks** en **nodes** per DimCity.
-5. Bouw de PDF in de **Rapportbouwer** en exporteer hem.
+5. **Publiceer** de PDF’s: het boek, LK-info, Node-info, stickers, de A3-netwerkflow en het IP-adresboek.
 
 ### Opslaan
 Een project is één **.lkproj**-bestand met alles erin: de geïmporteerde CSV's, je bewerkingen, Veam-koppelingen, devicetypes, racks, netwerkplannen en rapportindelingen. Opslaan doe je met **Cmd/Ctrl+S**. Recente projecten staan op het welkomstscherm.
@@ -1028,8 +1047,8 @@ Linksonder toont een kleine balk hoe compleet de show is: projectinfo, patch ge�
 Schermopnames van het hele appvenster, in full HD, met gesproken uitleg in het Engels. Er staat geen tekst in beeld; zet de **ondertiteling** aan met de CC-knop in de speler.
 
 Er zijn twee reeksen:
-- **Bouw een show, stap voor stap** — één project van een leeg venster tot het eindrapport: patch importeren, racks en apparaten, LK’s en Veams koppelen, nodes, netwerk, fibers, signaalstroom, controle en PDF, stickers. De delen spelen na elkaar af. De video’s zijn opgenomen vóór versie 0.14: het deel over racks toont nog de adviezenkaart, die is weggehaald (je plaatst nu zelf racks en apparaten).
-- **Tool-uitleg** — één korte video per tool: Device Builder, Rack Builder en eigen rekken, koppelen en stapelen, kabeltypen en fibervoorraad, het fiberoverzicht, VLAN’s, de Signaalstroom, de PDF-bouwer, stickers, QR-codes, uitwisselen met Lightwright en Vectorworks, apparaten op het netwerk, Taken en Setup, zoeken en ongedaan maken.
+- **Bouw een show, stap voor stap** — één project van een leeg venster tot het eindrapport: patch importeren, racks en apparaten, LK’s en Veams koppelen, nodes, netwerk, fibers, signaalstroom, controle en PDF, stickers. De delen spelen na elkaar af. De video’s zijn opgenomen vóór versie 0.14: het deel over racks toont nog de adviezenkaart, die is weggehaald (je plaatst nu zelf racks en apparaten). Deel 10 (PDF’s en stickers publiceren) en de tool-uitleg Publiceren zijn opnieuw opgenomen voor het nieuwe Publiceren-venster van versie 0.15.
+- **Tool-uitleg** — één korte video per tool: Device Builder, Rack Builder en eigen rekken, koppelen en stapelen, kabeltypen en fibervoorraad, het fiberoverzicht, VLAN’s, de Signaalstroom, Publiceren (de PDF-set), stickers, QR-codes, uitwisselen met Lightwright en Vectorworks, apparaten op het netwerk, Taken en Setup, zoeken en ongedaan maken.
 
 Alles wat je ziet kun je zelf doen in **Demo-show openen** op het welkomstscherm. De pagina **Taken** en de knop **Setup** lopen dezelfde stappen met je door voor je eigen project.
 
@@ -1093,7 +1112,7 @@ Alles van één DimCity op één pagina. Kaarten klap je in met het pijltje; Pat
 - **Netwerknodes / Splitters** — het netwerkplan van deze DimCity; zie [Nodes, splitters & netwerk](#network-nl).
 - **Patchregels** — elke regel van deze DimCity als tabel.
 
-**Kleur** wijzigt de DimCity-kleur in de zijbalk en op de PDF. **Exporteren** opent de Rapportbouwer met alleen deze DimCity geselecteerd. **Verwijderen** (prullenbak, rechtsboven) haalt de hele DB weg: zijn LK’s, Veams, regels in de CSV, racks, netwerkplan en fibers. Hij vraagt eerst om bevestiging en blijft weg als de CSV opnieuw gelezen wordt.
+**Kleur** wijzigt de DimCity-kleur in de zijbalk en op de PDF. **Exporteren** opent Publiceren met alleen deze DimCity geselecteerd. **Verwijderen** (prullenbak, rechtsboven) haalt de hele DB weg: zijn LK’s, Veams, regels in de CSV, racks, netwerkplan en fibers. Hij vraagt eerst om bevestiging en blijft weg als de CSV opnieuw gelezen wordt.
 
 <a id="lk-nl"></a>
 ## LK-blok
@@ -1252,7 +1271,7 @@ Er is geen knop om de nodes te kopiëren. De nodes en splitters van de racks (en
 - ID’s blijven zoals ze zijn: een gat in de nummering is geen probleem.
 
 ### Gebruiken
-- **Racks printen** opent de Rapportbouwer met de voorinstelling "Alleen racks".
+- **Racks printen** opent Publiceren met de voorinstelling "Alleen racks".
 
 <a id="network-nl"></a>
 ## Nodes, splitters & netwerk
@@ -1544,29 +1563,44 @@ De indeling, de zoom en de LK-namen worden per DimCity met het project opgeslage
 De schakelaar **Tonen** in de linkerbalk kiest *Alles*, *DMX* of *Netwerk*. De netwerklaag toont de **switches** (met het VLAN van elke gebruikte poort en de fiber op elke SFP), de **netwerkkabels (C)** die de DB binnenkomen en de **nodes** die aan de switchpoorten hangen, op volgorde van de nodenummers. Netwerkkabels staan in de kleur van hun VLAN; fibers zijn dikke lijnen in de kleur van hun kabeltype en verbinden ook de DB's met elkaar; ze lopen met rechte hoeken **om** de blokken en de DimCity-titels heen, nooit erdoorheen (terwijl je een blok verplaatst zijn het eenvoudige bogen, en ze zoeken hun weg opnieuw als je loslaat). Met *Netwerk* zie je alleen deze laag. De PDF print de volledige tekening en, als optie, een tweede tekening met alleen het netwerk.
 
 <a id="report-nl"></a>
-## Rapportbouwer (PDF)
+## Publiceren (PDF-set)
 
-**PDF exporteren** (Cmd/Ctrl+P) opent de Rapportbouwer: rechts een live voorbeeld, links de instellingen. Klik op een deel van het voorbeeld om naar de bijbehorende instellingen te springen. De indeling wordt in het project opgeslagen.
+**Publiceren** (de werkbalkknop, Cmd/Ctrl+P) maakt al het papierwerk van de show in één keer, in vier stappen. Het voorbeeld rechts toont de **echte pagina’s**: dezelfde pagina’s die in de PDF komen, dus er staat niets op een pagina-einde in het voorbeeld dat er op papier anders uitziet. Wat je instelt geldt voor elke DimCity en wordt in het project bewaard.
 
-### Inhoud
-- **DimCities**: alle, of een selectie. **Uitvoer**: één PDF, of één PDF per DimCity (elk met een eigen voorblad).
-- **Secties per DimCity**: zet ze aan of uit, sleep om te ordenen, open het pijltje voor opties. Secties: kop & kerncijfers, netwerknodes, splitters, racks, LK- / Veam-patch, universe-overzicht, patchlijst, waarschuwingen, notities.
-- **Positie op het blad**: elke sectie is **Automatisch** (van boven naar beneden) of **Vast** op een X- / Y-positie met een breedte in mm. Sleep de oranje greep van een sectie in het voorbeeld om hem te plaatsen; hij springt naar een raster van 5 mm. Vaste secties kunnen over andere heen vallen — dat is aan jou.
+### 1 · Wat
+Kies de DimCities (alle, een selectie, of maar één) en vink de documenten aan:
+- **Totaal DB-boek**: alle gekozen DimCities in één boekje, met een voorblad, een **inhoudsopgave met bladnummers** en de secties die je kiest.
+- **IP-adresboek**: elk adres van de nodes, switches en consoles, per DimCity met de switchpoort, per VLAN, en op nummer. Dubbele adressen staan rood.
+- **LK-info** en **Node-info**, één bestand per DimCity. LK-info heeft de LK- / Veam-patchbladen, de universes en de patchlijst; Node-info heeft de nodes, splitters, switches, racks en nodepoorten.
+- **Stickers**: een sticker op elke **node** (ID, adres, VLAN, switchpoort, universes, waar hij staat) en op elke **switch** (naam, adres, VLAN, poorten, waar de fibers heen gaan). Je kunt de poortlabels van de nodes en de switches en de kabel- en paneellabels erbij zetten. Ze komen op het Herma-vel van het Stickers-onderdeel (kies het hier) en dragen je logo’s.
+- **Netwerkflow (A3)**: de netwerkflow en de signaalstroom van elke DimCity op A3 (liggend of staand, wat het best bij de tekening past), en één tekening van het netwerk van de hele show.
 
-### Stijl
-Papierformaat en richting, marges, accentkleur, lettertype, tekstgrootte, dichtheid, **lijndikte** (licht / normaal / dik — dik voor bladen die op de vloer gelezen worden), universes in kleur, DimCity-kleur in koppen, grijstinten. Kop- en voetteksten kennen plaatshouders: {project} {area} {location} {date} {prepared} {dimcity}.
+### 2 · Inhoud
+- **Secties per DimCity**: zet ze aan of uit, sleep om te ordenen, open het pijltje voor opties. Secties: kop & kerncijfers, netwerknodes, switches, splitters, racks, signaalstroom, LK- / Veam-patch, universe-overzicht, patchlijst, waarschuwingen, QR-codes, notities. De kleine labels tonen waar een sectie wordt gebruikt: in het boek, in LK-info, in Node-info. Secties zonder inhoud (geen splitters, geen patch) blijven weg.
+- **Positie op het blad**: elke sectie is **Automatisch** (stroomt van boven naar beneden over zoveel bladen als nodig) of **Vast** op een X- / Y-positie met een breedte in mm, op het eerste blad van elke DimCity. Sleep de oranje greep in het voorbeeld om hem te plaatsen; hij springt naar een raster van 5 mm. Klik op een deel van het voorbeeld om naar de instellingen te springen.
+- **Templates en voorinstellingen**: zie hieronder.
 
-### Voorblad en huisstijl
-Titel, ondertitel, velden, notitie en een versleepbaar projectlogo. Onder **Huisstijl**: een bedrijfslogo op elke pagina en een tekst- of logowatermerk.
+### 3 · Opmaak
+- **Stijl**: papierformaat en **staand** (de standaard) of liggend, marges, accentkleur, lettertype, tekstgrootte, dichtheid, **lijndikte** (licht / normaal / dik — dik voor bladen die op de vloer gelezen worden), universes in kleur, DimCity-kleur in koppen, grijstinten. De A3-tekeningen kiezen zelf hun richting (of stel hem in). De **kop** heeft de lopende tekst; de **voet** heeft twee teksten en de **bladnummers** (*Page 3 of 12*). Plaatshouders: {project} {area} {location} {date} {prepared} {dimcity}.
+- **Voorblad**: titel, ondertitel, velden, notitie, de inhoudsopgave en het projectlogo, dat je op het voorblad kunt slepen.
+- **Logo’s**: het **projectlogo** en het **bedrijfslogo** staan op **elke pagina** — boven of onder, links of rechts, in de hoogte die je kiest. Het bedrijfslogo staat ook onderaan het voorblad en op de stickers. Een tekst- of logowatermerk is optioneel.
+
+### 4 · Publiceren
+Kies een map. Met **Maak een mappenstructuur** maakt PatchLab één map met de projectnaam, en daarin:
+- een map per DimCity met *LK-info*, *Node-info* en een map **Stickers**,
+- een map **A3** met de netwerkflows,
+- het *totaal DB-boek* en het *IP-adresboek*.
+
+Zonder dat komen alle bestanden rechtstreeks in de gekozen map, met de DimCity in elke bestandsnaam. De lijst rechts toont elk bestand met zijn aantal pagina’s (een DimCity die niets heeft voor een document krijgt geen bestand); de grote knop maakt ze allemaal en opent de map als het klaar is. Bij elke keer publiceren worden de bestanden opnieuw gemaakt, dus de map bevat altijd de nieuwste versie.
 
 ### Het LK-blad
 De sectie **LK- / Veam-patch** print één blok per LK, van links naar rechts zoals het echt is: de **12 poorten van de LK** op een rij, elk met zijn **universe** en de **node en nodepoort** waar hij heen gaat (bijvoorbeeld N2 · P3), de locatie eronder; daaronder de **drie Veam4-blokken** (A, B en C) van die LK, vier poorten elk, in dezelfde breedte. Een LK met drie Veams is één geheel. Veams die aan geen LK hangen krijgen eigen blokken. De kleur van een LK en zijn Veams is overal dezelfde. Zet de node en nodepoort uit met de optie **Node en nodepoort per poort tonen** als je het gewone blad wilt.
 
 ### Racks op de PDF
-De sectie Racks tekent elk rek zoals in de app, somt de nodepoorten op met de LK- / Veam-poort die erop zit, de losse apparaten en de patchtabel, en de opmerkingen over wat er nog nodig is. De voorinstelling **Alleen racks** print alleen dat. Lichttafels en andere netwerkapparaten staan in de sectie Netwerk.
+De sectie Racks tekent elk rek zoals in de app, somt de nodepoorten op met de LK- / Veam-poort die erop zit, de losse apparaten en de patchtabel, en de opmerkingen over wat er nog nodig is. De voorinstelling **Alleen racks** (ook de knop **Racks printen**) print alleen dat. Lichttafels en andere netwerkapparaten staan in de sectie Netwerk.
 
 ### Templates en voorinstellingen
-**Opslaan als template** bewaart de hele indeling in het project en je bibliotheek; kies hem in elke show uit het menu Template. Voorinstellingen: DB detailed paperwork, Network crew, Patch crew, Compact patch sheets, Racks only.
+**Opslaan als template** (stap 2) bewaart de indeling — secties, stijl, voorblad en logo’s — in het project en je bibliotheek; kies hem in elke show uit het menu Template. Voorinstellingen: DB detailed paperwork, Network crew, Patch crew, Compact patch sheets, Racks only.
 
 <a id="stickers-nl"></a>
 ## Stickers (Herma-vellen)
@@ -1583,6 +1617,7 @@ Stickers (menu Bestand > Stickers printen, de knop **Stickers** in de werkbalk, 
 - **Kabellabels** voor LK-multicores en Veam-kabels, twee per kabel (beide uiteinden), met een kleurband in de kleur van de node die hem voedt.
 - **Aansluitlabels paneel**, één per LK37- / Veam4-aansluiting, om boven de aansluiting te plakken.
 - **Nodepoort-labels**: universe en waar elke poort heen gaat.
+- **Nodestickers** en **switchstickers**: een op elke node (ID, adres, VLAN, switchpoort, universes, waar hij staat) en op elke switch (naam, adres, VLAN, poorten, waar de fibers heen gaan). **Publiceren** maakt ze per DimCity in de map Stickers.
 - **Racks, nodes, switches en splitters**.
 - **Switchpoort-labels**: switch, poort, apparaat en VLAN (in de VLAN-kleur) voor de switch.
 - **Netwerkkabel-labels** (C): één per lijn, beide uiteinden, in de VLAN-kleur.
@@ -1602,7 +1637,7 @@ Stickers (menu Bestand > Stickers printen, de knop **Stickers** in de werkbalk, 
 
 Devicetypes, racks en rapporttemplates staan op twee plekken: in de show, en in je persoonlijke bibliotheek op deze computer (**Netwerk → Bibliotheekbestand tonen**).
 
-- Opslaan in de Device Builder of Rapportbouwer schrijft naar allebei.
+- Opslaan in de Device Builder of in Publiceren (templates) schrijft naar allebei.
 - Bij het openen van een show worden ontbrekende bibliotheekitems toegevoegd, en wordt gevraagd wat er moet gebeuren met items die de show wél heeft maar de bibliotheek niet, of die afwijken: **Mijn versie vervangen**, **Als kopie toevoegen** of **Allebei houden** (het item van de show krijgt een nieuwe sleutel).
 - **Bibliotheek exporteren…** schrijft een .lklib-bestand dat je naar een collega kunt sturen; **Bibliotheek importeren…** leest er een (of de devices uit een andere .lkproj).
 
@@ -1654,7 +1689,7 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 ## Sneltoetsen
 
 - **Cmd/Ctrl+N** nieuw project · **Cmd/Ctrl+O** openen · **Cmd/Ctrl+S** opslaan · **Cmd/Ctrl+Shift+S** opslaan als
-- **Cmd/Ctrl+I** CSV importeren · **Cmd/Ctrl+E** rijen bewerken · **Cmd/Ctrl+P** rapportbouwer
+- **Cmd/Ctrl+I** CSV importeren · **Cmd/Ctrl+E** rijen bewerken · **Cmd/Ctrl+P** publiceren
 - **Cmd/Ctrl+1 / 2 / 3** overzicht / validatie / patchlijst · **Cmd/Ctrl+R** herberekenen
 - **Cmd/Ctrl+K** zoeken · **Cmd/Ctrl+Z** ongedaan maken · **Cmd/Ctrl+Shift+H** geschiedenis
 - **Cmd/Ctrl+Shift+D** device builder · **Cmd/Ctrl+,** instellingen
@@ -1662,6 +1697,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.15.0 — 2026-10-12
+- Nieuw venster **Publiceren**: al het papierwerk in één keer in een map (totaal DB-boek, LK-info en Node-info per DB, stickers voor nodes en switches, IP-adresboek, netwerkflow op A3) met de echte pagina’s in het voorbeeld, beide logo’s en bladnummers op elke pagina; ook het raster en snappen bij Fibers in de Signaalstroom, poortnamen met een korte naam per devicetype, netwerkapparaten in de Device Builder, DB + FOH en meer in Setup.
 
 ### Versie 0.14.1 — 2026-10-11
 - CSV-streepjes en Cat-lijnen (C701, CL503.4), LK37-/Veam4-aansluitingen slimmer uitgerekend, switchstandaarden (management, SFP trunk), één advanced-netwerkschakelaar met één adres per node, DMX-standaarden, IP-bereik per VLAN; FENT-instellingen worden nu in het project bewaard.

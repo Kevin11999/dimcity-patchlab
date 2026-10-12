@@ -166,6 +166,7 @@
       networkDevices: normalizeNetworkDevices(M.networkDevices),
       pdfSettings: defaultPdfSettings(M.pdfSettings || {}),
       pdfTemplates: Array.isArray(M.pdfTemplates) ? M.pdfTemplates : [],
+      labelSheets: Array.isArray(M.labelSheets) ? M.labelSheets : [],
       libraryDismissed: Array.isArray(M.libraryDismissed) ? M.libraryDismissed : [],
       flow: M.flow && typeof M.flow === 'object' ? M.flow : null,
       labels: M.labels && typeof M.labels === 'object' ? M.labels : null,
@@ -266,6 +267,7 @@
     M.networkDevices = normalizeNetworkDevices(snap.networkDevices || M.networkDevices);
     M.pdfSettings = defaultPdfSettings(snap.pdfSettings || M.pdfSettings || {});
     M.pdfTemplates = Array.isArray(snap.pdfTemplates) ? snap.pdfTemplates : [];
+    M.labelSheets = Array.isArray(snap.labelSheets) ? snap.labelSheets : [];
     M.libraryDismissed = Array.isArray(snap.libraryDismissed) ? snap.libraryDismissed : [];
     M.flow = snap.flow && typeof snap.flow === 'object' ? snap.flow : null;
     M.labels = snap.labels && typeof snap.labels === 'object' ? snap.labels : null;
@@ -460,6 +462,7 @@
       networkDevices: normalizeNetworkDevices(null),
       pdfSettings: defaultPdfSettings(),
       pdfTemplates: [],
+      labelSheets: [],
       libraryDismissed: [],
       flow: null,
       labels: null,

@@ -15,7 +15,8 @@ const KINDS = [
   { key:'rackTypes',     label:'Racks',         prefix:'RACK:' },
   { key:'cableTypes',    label:'Cables',        prefix:'CABLE:' },
   { key:'consoleTypes',  label:'Network devices', prefix:'DEV:' },
-  { key:'pdfTemplates',  label:'PDF templates', prefix:'tpl_' }
+  { key:'pdfTemplates',  label:'PDF templates', prefix:'tpl_' },
+  { key:'labelSheets',   label:'Label sheets',  prefix:'SHEET:' }     // own sticker sheets (name + sizes), see ui/labels.js
 ];
 const RACK_ITEM_KIND = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes', panel:'panelTypes' };
 const LS_KEY = 'patchlab.library';
@@ -35,7 +36,7 @@ function normalizeLib(data){
 }
 // Lijst in het project voor een soort (maakt hem aan als hij ontbreekt)
 function projectList(M, key){
-  if(key === 'pdfTemplates'){ if(!Array.isArray(M.pdfTemplates)) M.pdfTemplates = []; return M.pdfTemplates; }
+  if(key === 'pdfTemplates' || key === 'labelSheets'){ if(!Array.isArray(M[key])) M[key] = []; return M[key]; }
   M.networkDevices = App.net.normalizeNetworkDevices(M.networkDevices);
   return M.networkDevices[key];
 }
@@ -205,6 +206,7 @@ function rekeyProject(M, key, oldId, newId){
   const pl = projectList(M, key);
   const item = pl.find(x => x.id === oldId);
   if(item) item.id = newId;
+  if(key === 'labelSheets' && M.labels) for(const f of ['sheet', 'sheetBig']) if(M.labels[f] === oldId) M.labels[f] = newId;      // the sticker settings point at the sheet by its key
   const kind = Object.keys(RACK_ITEM_KIND).find(k => RACK_ITEM_KIND[k] === key);
   for(const r of projectList(M, 'rackTypes')) for(const it of (r.items || [])) if(it.kind === kind && it.typeId === oldId) it.typeId = newId;
   const swap = v => v === oldId ? newId : v;
@@ -296,7 +298,7 @@ function pickFileBrowser(){
 function sourceFromFile(data){
   if(data?.fileType === 'dimcity-node-types') return { ...emptyLib(), nodeTypes:data.items || [] };
   if(data?.fileType === 'dimcity-splitter-types') return { ...emptyLib(), splitterTypes:data.items || [] };
-  if(data?.networkDevices) return normalizeLib({ ...data.networkDevices, pdfTemplates:data.pdfTemplates });
+  if(data?.networkDevices) return normalizeLib({ ...data.networkDevices, pdfTemplates:data.pdfTemplates, labelSheets:data.labelSheets });
   return normalizeLib(data);
 }
 async function importFile(){

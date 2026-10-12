@@ -58,9 +58,9 @@
   };
   const STEPS = () => [['what', t('What', 'Wat')], ['content', t('Content', 'Inhoud')], ['look', t('Look', 'Opmaak')], ['publish', t('Publish', 'Publiceren')]];
   const STICKER_KINDS = () => [
-    ['nodes', t('Node stickers', 'Nodestickers'), t('A sticker on every node: ID, address, VLAN, switch port, universes, where it is', 'Een sticker op elke node: ID, adres, VLAN, switchpoort, universes, waar hij staat')],
+    ['nodes', t('Node stickers', 'Nodestickers'), t('A sticker on every node: its ports with universe and LK / Veam, the address with the VLAN colour, the switch port', 'Een sticker op elke node: zijn poorten met universe en LK / Veam, het adres met de VLAN-kleur, de switchpoort')],
     ['nodePorts', t('Node port labels', 'Nodepoort-labels'), t('One label per DMX port with its universe and where it goes', 'Eén label per DMX-poort met universe en waar hij heen gaat')],
-    ['switches', t('Switch stickers', 'Switchstickers'), t('A sticker on every switch: name, address, VLAN, ports, where the fibres go', 'Een sticker op elke switch: naam, adres, VLAN, poorten, waar de fibers heen gaan')],
+    ['switches', t('Switch stickers', 'Switchstickers'), t('A sticker on every switch: every port in its VLAN colour with what sits on it, the address and the VLANs in use', 'Een sticker op elke switch: elke poort in zijn VLAN-kleur met wat erop zit, het adres en de VLAN’s in gebruik')],
     ['switchPorts', t('Switch port labels', 'Switchpoort-labels'), t('One label per port with the device and the VLAN colour', 'Eén label per poort met het apparaat en de VLAN-kleur')],
     ['cables', t('Cable and panel labels', 'Kabel- en paneellabels'), t('LK / Veam cables, panel strips, network cables and fibres', 'LK- / Veam-kabels, paneelstrips, netwerkkabels en fibers')]
   ];
@@ -211,7 +211,9 @@
       <div class="segmented rb-full" id="rbScope"><button data-v="ALL" class="${L.scope !== 'SEL' ? 'active' : ''}">${t('All', 'Alle')} (${all.length})</button><button data-v="SEL" class="${L.scope === 'SEL' ? 'active' : ''}">${t('Choose…', 'Kies…')}</button></div>
       ${L.scope === 'SEL' ? `<div class="rb-chips">${all.map(dc => `<label class="rb-chip ${L.dims.includes(dc) ? 'on' : ''}"><input type="checkbox" data-dim="${esc(dc)}" ${L.dims.includes(dc) ? 'checked' : ''}><span class="dot" style="background:${esc(App().dimColor?.(dc) || '#2563eb')}"></span>${esc(PE().dcName(dc))}</label>`).join('')}</div>` : ''}
       <div class="hint">${cur.length === 1 ? t('Only this DimCity is published.', 'Alleen deze DimCity wordt gepubliceerd.') : t('Every choice below is the same for every DimCity.', 'Elke keuze hieronder geldt voor elke DimCity.')}</div></div>`;
-    const kinds = L.docs.stickerKinds || {}, SL = window.Labels, sheet = SL ? SL.state().sheet : '';
+    const kinds = L.docs.stickerKinds || {}, SL = window.Labels, sheet = SL ? SL.state().sheet : '', sheetBig = SL ? SL.state().sheetBig : '';
+    // the sheets: the HERMA ones and your own, and "New sheet…" (asks for a name and the sizes, then saves it)
+    const sheetOpts = cur => `${(SL?.allSheets?.() || []).map(x => `<option value="${esc(x.id)}" ${cur === x.id ? 'selected' : ''}>${esc(SL.sheetName(x))}</option>`).join('')}${cur === 'custom' ? `<option value="custom" selected>${t('Custom sheet (not saved)', 'Eigen vel (niet opgeslagen)')}</option>` : ''}<option value="__new">${t('New sheet…', 'Nieuw vel…')}</option>`;
     const docRow = k => {
       const on = !!L.docs[k], n = count(k);
       return `<div class="pb-doc ${on ? 'on' : ''}" data-doc="${k}">
@@ -220,7 +222,8 @@
         <button class="ghost sm icon-only" data-doc-eye="${k}" title="${esc(t('Show it in the preview', 'Toon in het voorbeeld'))}">${I('eye', 15)}</button>
       </div>${k === 'stickers' && on ? `<div class="pb-sub">
         ${STICKER_KINDS().map(([kk, label, hint]) => `<label class="rb-row sm" title="${esc(hint)}"><span>${esc(label)}</span><span class="switch"><input type="checkbox" data-stk="${kk}" ${kinds[kk] ? 'checked' : ''}><span></span></span></label>`).join('')}
-        <div class="pb-sheet"><label class="field">${t('Label sheet', 'Labelvel')}<select id="pbSheet">${(SL?.SHEETS || []).map(x => `<option value="${x.id}" ${sheet === x.id ? 'selected' : ''}>${esc(`${x.brand} ${x.articles.join(' / ')} · ${x.w} × ${x.h} mm`)}</option>`).join('')}<option value="custom" ${sheet === 'custom' ? 'selected' : ''}>${t('Custom sheet…', 'Eigen vel…')}</option></select></label>
+        <div class="pb-sheet"><label class="field">${t('Sheet for node and switch stickers', 'Vel voor node- en switchstickers')}<select id="pbSheetBig">${sheetOpts(sheetBig)}</select></label>
+          <label class="field">${t('Sheet for the rest (cables, panels …)', 'Vel voor de rest (kabels, panelen …)')}<select id="pbSheet">${sheetOpts(sheet)}</select></label>
           <button class="sm" id="pbStickerOpen">${I('grid', 13)}${t('Sticker settings…', 'Stickerinstellingen…')}</button></div></div>` : ''}`;
     };
     return `${scope}<div class="rb-group"><div class="rb-label">${t('Documents', 'Documenten')} <span class="subtle">· ${t('tick what you want', 'vink aan wat je wilt')}</span></div><div class="pb-docs">${['book', 'ip', 'lk', 'nodes', 'stickers', 'a3'].map(docRow).join('')}</div></div>
@@ -396,7 +399,14 @@
     on('[data-doc-on]', 'change', e => { L.docs[e.target.dataset.docOn] = e.target.checked; changed(true); });
     on('[data-doc-eye]', 'click', e => { const k = e.currentTarget.dataset.docEye; B.pv.doc = k === 'stickers' ? 'st-nodes' : k; B.view = 'pages'; renderPvBar(); syncView(); schedulePreview(true); });
     on('[data-stk]', 'change', e => { L.docs.stickerKinds[e.target.dataset.stk] = e.target.checked; changed(true); });
-    const shs = P.querySelector('#pbSheet'); if(shs) shs.onchange = () => { window.Labels.state().sheet = shs.value; if(getM()?.ui) getM().ui.dirty = true; changed(); };
+    // one list of sheets for the node and switch stickers (sheetBig) and one for the rest (sheet); "New sheet…" opens the dialog that names and saves it
+    [['#pbSheetBig', 'sheetBig'], ['#pbSheet', 'sheet']].forEach(([id, key]) => {
+      const el = P.querySelector(id); if(!el) return;
+      el.onchange = () => {
+        const set = v => { window.Labels.state()[key] = v; if(getM()?.ui) getM().ui.dirty = true; renderPanel(); changed(); };
+        if(el.value === '__new') window.Labels.sheetDialog(null, s => { if(s) set(s.id); else renderPanel(); }); else set(el.value);
+      };
+    });
     on('#pbStickerOpen', 'click', () => {
       window.Labels?.open?.();
       const iv = setInterval(() => { if(!document.getElementById('lbRoot')){ clearInterval(iv); if(B){ renderPanel(); changed(); } } }, 400);     // back from the sticker settings: show what changed

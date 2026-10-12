@@ -737,6 +737,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.18.0 — 2026-10-12
+- New: stickers on the HERMA 97 × 42,33 mm sheet (4623 / 4669 / 5056 / 4228 / 8628): every node and switch gets a sticker with its ports (universe, LK / Veam port, VLAN colours) and its address, made on this sheet by default in the set; “New sheet…” asks for a name and saves your own sheet in the show and in the library.
+
 ### Version 0.17.1 — 2026-10-12
 - Fixed: ports no longer fill when you only move the mouse over them; a click on a node port opens its own settings (universe, name, input/output/off, sACN/Art-Net) that stay put; a port an LK uses warns when you change its universe, and you are told when an LK takes over a port you had set yourself.
 
@@ -1706,6 +1709,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.18.0 — 2026-10-12
+- Nieuw: stickers op het HERMA-vel 97 × 42,33 mm (4623 / 4669 / 5056 / 4228 / 8628): elke node en switch krijgt een sticker met zijn poorten (universe, LK- / Veam-poort, VLAN-kleuren) en zijn adres, in de set standaard op dit vel; “Nieuw vel…” vraagt om een naam en slaat je eigen vel op in de show en in de bibliotheek.
 
 ### Versie 0.17.1 — 2026-10-12
 - Opgelost: poorten worden niet meer gevuld door er alleen overheen te bewegen; een klik op een nodepoort opent zijn eigen instellingen (universe, naam, ingang/uitgang/uit, sACN/Art-Net) die blijven staan; een poort die de LK gebruikt waarschuwt als je het universe wijzigt, en je krijgt een melding als een LK een poort overneemt die je zelf had ingesteld.

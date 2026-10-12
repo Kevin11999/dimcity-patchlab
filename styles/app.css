@@ -1584,8 +1584,8 @@ tr.bad>td{background:var(--red-soft)}
 .pb-doc-t span{font-size:11.5px;color:var(--text-3);line-height:1.35}
 .pb-doc-t em{font-style:normal;font-size:11px;color:var(--accent);font-weight:600}
 .pb-sub{margin:-3px 0 4px 16px;padding:6px 12px 10px;border:1px solid var(--border);border-top:0;border-radius:0 0 8px 8px;background:var(--surface)}
-.pb-sheet{display:flex;gap:8px;align-items:flex-end;margin-top:8px}
-.pb-sheet .field{flex:1;margin:0;min-width:0}
+.pb-sheet{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:8px}
+.pb-sheet .field{flex:1 1 100%;margin:0;min-width:0}
 .pb-sheet select{width:100%}
 .pb-tpl{display:flex;gap:8px;align-items:center}
 .pb-tpl select{flex:1;min-width:0}

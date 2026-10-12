@@ -175,6 +175,7 @@ function describe(a, b){
   if(!nsame('rackTypes')) out.push('Racks changed');
   if(['nodeTypes', 'splitterTypes', 'switchTypes', 'panelTypes'].some(k => !nsame(k))) out.push('Devices changed');
   if(!same('pdfSettings') || !same('pdfTemplates')) out.push('PDF layout changed');
+  if(!same('labelSheets')) out.push('Label sheets changed');
   if(!out.length) return 'Edit';
   return out.length > 2 ? `${out.slice(0, 2).join(' · ')} · +${out.length - 2} more` : out.join(' · ');
 }

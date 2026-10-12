@@ -751,6 +751,7 @@ async function processRows(rows){
     rules: MODEL.rules || null,         // regels van de show (voorvoegsels, loomtypen)
     power: MODEL.power || null,         // stroom: PD's, voedingen en armaturen uit het blad (eigen onderdeel)
     pdfTemplates: Array.isArray(MODEL.pdfTemplates) ? MODEL.pdfTemplates : [],
+    labelSheets: Array.isArray(MODEL.labelSheets) ? MODEL.labelSheets : [],      // own sticker sheets (also in the library)
     libraryDismissed: Array.isArray(MODEL.libraryDismissed) ? MODEL.libraryDismissed : [],
     dimColors: MODEL.dimColors && typeof MODEL.dimColors === 'object' ? {...MODEL.dimColors} : {},
     csvSources: Array.isArray(MODEL.csvSources) ? MODEL.csvSources.slice() : [],

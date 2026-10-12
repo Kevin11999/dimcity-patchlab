@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.18.0 — 2026-10-12
+
+- New: stickers on the HERMA 97 × 42,33 mm sheet (4623 / 4669 / 5056 / 4228 / 8628): every node and switch gets a sticker with its ports (universe, LK / Veam port, VLAN colours) and its address, made on this sheet by default in the set; “New sheet…” asks for a name and saves your own sheet in the show and in the library.
+
+<details><summary>Nederlands</summary>
+
+- Nieuw: stickers op het HERMA-vel 97 × 42,33 mm (4623 / 4669 / 5056 / 4228 / 8628): elke node en switch krijgt een sticker met zijn poorten (universe, LK- / Veam-poort, VLAN-kleuren) en zijn adres, in de set standaard op dit vel; “Nieuw vel…” vraagt om een naam en slaat je eigen vel op in de show en in de bibliotheek.
+
+</details>
+
 ## 0.17.1 — 2026-10-12
 
 - Fixed: ports no longer fill when you only move the mouse over them; a click on a node port opens its own settings (universe, name, input/output/off, sACN/Art-Net) that stay put; a port an LK uses warns when you change its universe, and you are told when an LK takes over a port you had set yourself.

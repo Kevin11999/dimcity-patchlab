@@ -28,8 +28,9 @@
     a3:       ['Netwerkflow (A3)', 'De netwerkflow en de signaalstroom op A3: een bestand per DimCity en één voor de hele show.'],
     ip:       ['IP-adresboek', 'Elk adres van de nodes, switches en consoles: per DimCity, per VLAN en op nummer.']
   };
-  const docTitle = k => t(PE().DOCS[k].title, DOC_NL[k][0]);
-  const docDesc = k => t(PE().DOCS[k].desc, DOC_NL[k][1]);
+  const perDb = k => k === 'book' && !!B?.L?.docs?.bookPerDc;       // the book is one booklet per DimCity
+  const docTitle = k => perDb(k) ? t('DB booklet per DimCity', 'DB-boekje per DimCity') : t(PE().DOCS[k].title, DOC_NL[k][0]);
+  const docDesc = k => perDb(k) ? t('Every chosen DimCity gets its own booklet: a start sheet with the DB, contents, page numbers and the sections you choose.', 'Elke gekozen DimCity krijgt een eigen boekje: een startblad met de DB, inhoudsopgave, bladnummers en de secties die je kiest.') : t(PE().DOCS[k].desc, DOC_NL[k][1]);
   const DOC_SHORT = () => ({ book:t('Book', 'Boek'), lk:t('LK info', 'LK-info'), nodes:t('Node info', 'Node-info') });
   // the sections of the Content step in Dutch (the PDF itself stays English)
   const SEC_NL = {
@@ -221,7 +222,11 @@
         <label class="switch"><input type="checkbox" data-doc-on="${k}" ${on ? 'checked' : ''}><span></span></label>
         <div class="pb-doc-t"><b>${esc(docTitle(k))}</b><span>${esc(docDesc(k))}</span>${on ? `<em>${n} ${n === 1 ? t('file', 'bestand') : t('files', 'bestanden')}</em>` : ''}</div>
         <button class="ghost sm icon-only" data-doc-eye="${k}" title="${esc(t('Show it in the preview', 'Toon in het voorbeeld'))}">${I('eye', 15)}</button>
-      </div>${k === 'stickers' && on ? `<div class="pb-sub">
+      </div>${k === 'book' && on ? `<div class="pb-sub">
+        <label class="rb-row sm" title="${esc(t('On: every DimCity gets its own PDF with a start sheet. Off: all the chosen DimCities in one PDF.', 'Aan: elke DimCity krijgt zijn eigen PDF met een startblad. Uit: alle gekozen DimCities in één PDF.'))}"><span>${t('One booklet per DimCity', 'Eén boekje per DimCity')}</span><span class="switch"><input type="checkbox" data-bookper ${L.docs.bookPerDc ? 'checked' : ''}><span></span></span></label>
+        <div class="hint" style="margin:2px 0 4px">${t('What goes in the booklet (the same for every DimCity):', 'Wat er in het boekje komt (voor elke DimCity hetzelfde):')}</div>
+        ${L.sections.filter(sc => PE().SECTIONS[sc.key].docs.includes('book')).map(sc => `<label class="rb-row sm" title="${esc(t(PE().SECTIONS[sc.key].desc, SEC_NL[sc.key][1]))}"><span>${esc(t(PE().SECTIONS[sc.key].title, SEC_NL[sc.key][0]))}</span><span class="switch"><input type="checkbox" data-bsec="${sc.key}" ${sc.on ? 'checked' : ''}><span></span></span></label>`).join('')}
+      </div>` : ''}${k === 'stickers' && on ? `<div class="pb-sub">
         ${STICKER_KINDS().map(([kk, label, hint]) => `<label class="rb-row sm" title="${esc(hint)}"><span>${esc(label)}</span><span class="switch"><input type="checkbox" data-stk="${kk}" ${kinds[kk] ? 'checked' : ''}><span></span></span></label>`).join('')}
         <div class="pb-sheet"><label class="field">${t('Sheet for node and switch stickers', 'Vel voor node- en switchstickers')}<select id="pbSheetBig">${sheetOpts(sheetBig)}</select></label>
           <label class="field">${t('Sheet for the rest (cables, panels …)', 'Vel voor de rest (kabels, panelen …)')}<select id="pbSheet">${sheetOpts(sheet)}</select></label>
@@ -423,6 +428,8 @@
     P.querySelector('#rbTemplate')?.addEventListener('change', e => applyTemplate(e.target.value));
     P.querySelector('#rbSaveTpl')?.addEventListener('click', saveTemplate);
     on('[data-on]', 'change', e => { const s = L.sections.find(x => x.key === e.target.dataset.on); s.on = e.target.checked; changed(true); });
+    on('[data-bsec]', 'change', e => { const s = L.sections.find(x => x.key === e.target.dataset.bsec); s.on = e.target.checked; changed(true); });
+    on('[data-bookper]', 'change', e => { L.docs.bookPerDc = e.target.checked; changed(true); });
     on('[data-toggle]', 'click', e => { const k = e.currentTarget.dataset.toggle; B.expanded = B.expanded === k ? null : k; B.selSec = k; renderPanel(); highlightPreview(); });
     on('[data-opt]', 'change', e => { const s = L.sections.find(x => x.key === e.target.dataset.sec); s.opts = { ...(s.opts || {}), [e.target.dataset.opt]: e.target.checked }; changed(); });
     on('[data-notes]', 'input', e => { const s = L.sections.find(x => x.key === 'notes'); s.opts = { ...(s.opts || {}), text:e.target.value }; if(e.target.value && !s.on){ s.on = true; P.querySelector('[data-on="notes"]').checked = true; P.querySelector('.rb-sec[data-key="notes"]').classList.remove('off'); } changed(); });
@@ -598,13 +605,14 @@
     const list = pvList(), cur = list.find(x => x[0] === B.pv.doc) || list[0], dcs = sel(); B.pv.doc = cur[0];
     const oneRun = /^st-/.test(cur[0]) && stickerRuns();
     el.innerHTML = `<select id="pvDoc" title="${esc(t('Which document to look at', 'Welk document je bekijkt'))}">${list.map(([k, l]) => `<option value="${k}" ${k === cur[0] ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
-      ${cur[2] === 'dc' && dcs.length && !oneRun ? `<select id="pvDc" title="${esc(t('Which DimCity', 'Welke DimCity'))}">${dcs.map(d => `<option value="${esc(d)}" ${d === (B.pv.dc && dcs.includes(B.pv.dc) ? B.pv.dc : dcs[0]) ? 'selected' : ''}>${esc(PE().dcName(d))}</option>`).join('')}</select>` : ''}`;
+      ${(cur[2] === 'dc' || (cur[0] === 'book' && B.L.docs.bookPerDc)) && dcs.length && !oneRun ? `<select id="pvDc" title="${esc(t('Which DimCity', 'Welke DimCity'))}">${dcs.map(d => `<option value="${esc(d)}" ${d === (B.pv.dc && dcs.includes(B.pv.dc) ? B.pv.dc : dcs[0]) ? 'selected' : ''}>${esc(PE().dcName(d))}</option>`).join('')}</select>` : ''}`;
     el.querySelector('#pvDoc').onchange = e => { B.pv.doc = e.target.value; renderPvBar(); schedulePreview(true); };
     const dc = el.querySelector('#pvDc'); if(dc) dc.onchange = e => { B.pv.dc = e.target.value; schedulePreview(true); };
   }
   function previewFile(){
     const L = B.L, dcs = sel(); if(!dcs.length) return null;
     const dc = B.pv.dc && dcs.includes(B.pv.dc) ? B.pv.dc : dcs[0], k = L.docs.stickerKinds || {}, d = B.pv.doc;
+    if(d === 'book' && L.docs.bookPerDc) return { kind:'book', dc, dcs:[dc], name:d };       // one booklet: the DimCity you pick
     if(d === 'book' || d === 'ip' || d === 'a3all') return { kind:d, dcs, name:d };
     if(d === 'lk' || d === 'nodes' || d === 'a3') return { kind:d, dc, dcs:[dc], name:d };
     const run = stickerRuns(), who = run ? { dc:null, dcs } : { dc, dcs:[dc] };       // one run: every chosen DimCity in the same file

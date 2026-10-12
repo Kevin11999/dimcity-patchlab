@@ -60,7 +60,7 @@
     return {
       version: 3,
       scope: 'ALL', dims: [], output: 'SINGLE',
-      docs: { book:true, lk:true, nodes:true, stickers:true, a3:true, ip:true, stickerKinds:{ nodes:true, nodePorts:false, switches:true, switchPorts:false, cables:false, together:false } },
+      docs: { book:true, bookPerDc:false, lk:true, nodes:true, stickers:true, a3:true, ip:true, stickerKinds:{ nodes:true, nodePorts:false, switches:true, switchPorts:false, cables:false, together:false } },
       publish: { structure:true, folder:'', open:true },
       page: { size:'A4', orientation:'portrait', margin:10 },
       a3: { orientation:'auto' },
@@ -324,6 +324,7 @@
       .cover-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10mm}
       .cover h1{font-size:${fs*3.8}px;line-height:1.05;letter-spacing:-.02em;font-weight:800;max-width:65%}
       .cover .subtitle{font-size:${fs*1.6}px;color:#475569;margin-top:4mm}
+      .cover-db{font-size:${fs*7}px;line-height:1;font-weight:800;letter-spacing:-.03em;color:${acc};margin-bottom:5mm}
       .cover .logo{position:absolute;z-index:2;left:calc(var(--x) * 100%);top:calc(var(--y) * 100%);transform:translate(calc(var(--x) * -100%), calc(var(--y) * -100%))}
       .cover .logo img{object-fit:contain;display:block;width:var(--w);max-height:calc(var(--w) * .8);height:auto}
       .cover-meta{margin-top:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4mm;border-top:var(--bw) solid var(--ln);padding-top:6mm}
@@ -513,16 +514,18 @@
       f.area && ['Area', meta.area], f.location && ['Location', meta.location], f.date && ['Date', date], f.prepared && ['Prepared by', meta.prepared],
       f.dimcities && ['DimCities', dcs.map(dcName).join(', ')]
     ].filter(x => x && x[1]);
+    const one = L.docs?.bookPerDc && dcs.length === 1 ? dcs[0] : null;       // the booklet of one DimCity: its start sheet shows that DB
     let totals = '';
     if(f.totals){
       const lk = listFromMap(M.byLK).filter(x=>dcs.includes(x.dimcity)).length;
       const ve = listFromMap(M.byVeam).filter(x=>dcs.includes(x.dimcity)).length;
       const unis = new Set(); let pts = 0;
       for(const dc of dcs){ for(const [u, x] of universeOverview(M, dc)){ unis.add(u); pts += x.lk + x.veam + x.dmx; } }
-      totals = `<div class="cover-totals"><div><b>${dcs.length}</b><span>DimCities</span></div><div><b>${lk}</b><span>LK blocks</span></div><div><b>${ve}</b><span>Veams</span></div><div><b>${unis.size}</b><span>Universes</span></div><div><b>${pts}</b><span>Patch points</span></div></div>`;
+      const pl = one ? plan(M, one) : null;
+      totals = `<div class="cover-totals">${one ? `<div><b>${(pl.nodes || []).length}</b><span>Nodes</span></div><div><b>${(pl.switches || []).length}</b><span>Switches</span></div>` : `<div><b>${dcs.length}</b><span>DimCities</span></div>`}<div><b>${lk}</b><span>LK blocks</span></div><div><b>${ve}</b><span>Veams</span></div><div><b>${unis.size}</b><span>Universes</span></div><div><b>${pts}</b><span>Patch points</span></div></div>`;
     }
     return `<div class="cover" data-sec="cover"><div class="cover-bar"></div>
-      <div class="cover-top"><div><h1>${title}</h1>${sub?`<div class="subtitle">${sub}</div>`:''}${totals}</div></div>${logo}
+      <div class="cover-top"><div>${one ? `<div class="cover-db">${esc(dcName(one))}</div>` : ''}<h1>${title}</h1>${sub?`<div class="subtitle">${sub}</div>`:''}${totals}</div></div>${logo}
       ${c.note ? `<div class="cover-note">${esc(c.note)}</div>` : ''}
       ${items.length ? `<dl class="cover-meta">${items.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : '<div style="margin-top:auto"></div>'}
       <div class="cover-foot"><div class="cover-gen">Generated with DimCity PatchLab · ${new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>${L.brand?.logo ? `<img class="cover-co" src="${L.brand.logo}" alt="">` : ''}</div></div>`;
@@ -922,11 +925,12 @@
     const j = (...p) => p.filter(Boolean).join('/');
     const out = [], add = f => out.push({ ...f, rel:j(root, f.dir, f.name) });
     const k = L.docs.stickerKinds || {}, together = !!k.together && dcs.length > 1;       // stickers of all the chosen DimCities run on, one file per kind
-    if(L.docs.book && dcs.length) add({ id:'book', kind:'book', title:DOCS.book.title, dir:'', name:`${proj} - DB book.pdf`, dcs });
+    if(L.docs.book && dcs.length && !L.docs.bookPerDc) add({ id:'book', kind:'book', title:DOCS.book.title, dir:'', name:`${proj} - DB book.pdf`, dcs });
     if(L.docs.ip && dcs.length) add({ id:'ip', kind:'ip', title:DOCS.ip.title, dir:'', name:`${proj} - IP address book.pdf`, dcs });
     if(L.docs.a3 && dcs.length > 1) add({ id:'a3all', kind:'a3all', title:'Network overview (A3)', dir:st ? 'A3' : '', name:`${proj} - Network overview A3.pdf`, dcs });
     for(const dc of dcs){
       const d = fname(dcName(dc)), dir = st ? d : '', sd = st ? j(d, 'Stickers') : '';
+      if(L.docs.book && L.docs.bookPerDc) add({ id:`book:${dc}`, kind:'book', dc, title:`${dcName(dc)} · DB book`, dir, name:`${d} - DB book.pdf`, dcs:[dc] });       // one booklet per DimCity
       if(L.docs.lk) add({ id:`lk:${dc}`, kind:'lk', dc, title:`${dcName(dc)} · LK info`, dir, name:`${d} - LK info.pdf`, dcs:[dc] });
       if(L.docs.nodes) add({ id:`nodes:${dc}`, kind:'nodes', dc, title:`${dcName(dc)} · Node info`, dir, name:`${d} - Node info.pdf`, dcs:[dc] });
       if(L.docs.stickers && !together){

@@ -255,10 +255,14 @@
   const protoName = k => k === 'artnet' ? 'Art-Net' : 'sACN';
   const dirName = d => d === 'input' ? t('input', 'ingang') : d === 'idle' ? t('off', 'uit') : t('output', 'uitgang');
   // The protocol and direction that every port has (the show default) are said once at the bottom; a port that differs from it says so itself.
-  function bigPorts(b, L){
+  function bigPorts(b, L, sh){
     const n = b.ports.length, def = b.def;
     if(!n) return `<div class="bx-g bx-none">${esc(t('No DMX ports', 'Geen DMX-poorten'))}</div>`;
-    const rows = n <= 4 ? 1 : n <= 16 ? 2 : 3, cols = Math.ceil(n / rows), cw = 91 / cols - .7, k = rows === 1 ? 1.3 : rows === 2 ? 1.12 : .78, ac = L.mono ? '#000' : '#b91c1c';
+    const rows = n <= 4 ? 1 : n <= 16 ? 2 : 3, cols = Math.ceil(n / rows), cw = 91 / cols - .7, ac = L.mono ? '#000' : '#b91c1c';
+    // the tiles must fit the height that is left: sticker − margins − header − footer (which gets taller with every address and switch line), so nothing is cut off
+    const foot = Math.max(Math.max(1, b.nets.length) * 3.9, Math.max(1, b.sw.length) * 3.6 + 2.9) + .9, avail = (sh?.h || 42.333) - 2 - 7 - 1.6 - foot, rowH = (avail - .7 * (rows - 1)) / rows;
+    const fixed = .55 + (rows === 1 ? 3.16 : 2.53), vary = 2.07 + 4.7 + (rows <= 2 && b.ports.some(p => p.dest) ? 1.705 : 0), kBase = rows === 1 ? 1.3 : rows === 2 ? 1.12 : .78;
+    const k = Math.max(.4, Math.min(kBase, (rowH - fixed) / vary));
     const cells = b.ports.map(p => {
       const col = !L.mono && okHex(p.color) ? p.color : null, uni = p.uni == null ? '–' : String(p.uni), small = p.src || p.name || '';
       const tag = `${p.klass !== def.klass ? protoName(p.klass) : ''}${p.dir !== def.dir ? arrow(p.dir, ac) : ''}`;
@@ -267,7 +271,7 @@
         <div class="pu" style="font-size:${(fit(uni, cw - 1.4, 4.7, 2.4) * k).toFixed(2)}mm">${esc(uni)}</div>
         <div class="pl" style="font-size:${fit(small, cw - 1.6, 2.2 * (rows === 1 ? 1.25 : 1), 1.45).toFixed(2)}mm">${esc(small)}</div>${rows <= 2 && p.dest ? `<div class="pd">${esc(p.dest)}</div>` : ''}</div>`;
     }).join('');
-    return `<div class="bx-g" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr);--k:${k}">${cells}</div>`;
+    return `<div class="bx-g" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},minmax(0,1fr));--k:${k.toFixed(3)}">${cells}</div>`;
   }
   const bigNodeFoot = (b, L) => `<div class="bx-f"><div class="c1">${netRows(b.nets, L)}</div><div class="c2">${b.sw.length ? b.sw.map(s => `<div class="r"><span class="lbl">${esc(t('on', 'op'))}</span><b class="sv">${esc(s.sw)} · ${esc(t('port', 'poort'))} ${s.port}</b></div>`).join('') : `<div class="r nn">${esc(t('not on a switch yet', 'nog niet op een switch'))}</div>`}<div class="r dm">DMX ${esc(protoName(b.def.klass))} ${arrow(b.def.dir, L.mono ? '#000' : '#1f2937')} ${esc(dirName(b.def.dir))}</div></div></div>`;
   function bigSwitchPorts(b, L){
@@ -293,7 +297,7 @@
   function bigCellHtml(it, sh, L, imgs, idx){
     const { x, y } = cellPos(sh, idx), b = it.big, band = L.mono ? '#000' : (okHex(it.color) || '#94a3b8');
     return `<div class="lb bg${L.mono ? ' mono' : ''}${L.outline ? ' o' : ''}" style="left:${x.toFixed(3)}mm;top:${y.toFixed(3)}mm;width:${sh.w}mm;height:${sh.h}mm">
-      <i class="band" style="background:${band};width:1.6mm"></i><div class="bx-in">${bigHead(b, L, imgs)}${b.kind === 'node' ? bigPorts(b, L) + bigNodeFoot(b, L) : bigSwitchPorts(b, L) + bigSwitchFoot(b, L)}</div></div>`;
+      <i class="band" style="background:${band};width:1.6mm"></i><div class="bx-in">${bigHead(b, L, imgs)}${b.kind === 'node' ? bigPorts(b, L, sh) + bigNodeFoot(b, L) : bigSwitchPorts(b, L) + bigSwitchFoot(b, L)}</div></div>`;
   }
 
   function imagesOf(L){

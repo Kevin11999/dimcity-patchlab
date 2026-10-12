@@ -1241,6 +1241,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.19.1', date:'2026-10-12',
+    en:['New: “One booklet per DimCity” in Publish gives every DB its own PDF with a start sheet (the DB and its figures) and ticks under the booklet for what goes in it. Fixed: on the 12-port node stickers the bottom row of ports is no longer cut off.'],
+    nl:['Nieuw: “Eén boekje per DimCity” bij Publiceren geeft elke DB zijn eigen PDF met een startblad (de DB en zijn cijfers) en vinkjes onder het boekje voor wat erin komt. Opgelost: op de nodestickers van 12 poorten wordt de onderste rij poorten niet meer afgesneden.']
+  },
+  {
     version:'0.19.0', date:'2026-10-12',
     en:['Fixed: a switch or node trunk always uses the predefined trunk (never a trunk of its own), ETH2 of a node can carry any Luminex VLAN or the trunk, and DMX outputs of a node with the same universe share one engine. New: Publish has groups (Network, LK, Stickers, Handbook) with a free choice of DimCities, and the stickers can run on across DimCities.'],
     nl:['Opgelost: de trunk van een switch of node gebruikt altijd de predefined trunk (nooit een eigen trunk), ETH2 van een node kan elk Luminex-VLAN of de trunk dragen, en DMX-uitgangen van een node met hetzelfde universe delen één engine. Nieuw: Publiceren heeft groepen (Netwerk, LK, Stickers, Handboek) met vrije keuze van DimCities, en de stickers kunnen doorlopend over de DimCities.']

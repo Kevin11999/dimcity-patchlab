@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.19.1 — 2026-10-12
+
+- New: “One booklet per DimCity” in Publish gives every DB its own PDF with a start sheet (the DB and its figures) and ticks under the booklet for what goes in it. Fixed: on the 12-port node stickers the bottom row of ports is no longer cut off.
+
+<details><summary>Nederlands</summary>
+
+- Nieuw: “Eén boekje per DimCity” bij Publiceren geeft elke DB zijn eigen PDF met een startblad (de DB en zijn cijfers) en vinkjes onder het boekje voor wat erin komt. Opgelost: op de nodestickers van 12 poorten wordt de onderste rij poorten niet meer afgesneden.
+
+</details>
+
 ## 0.19.0 — 2026-10-12
 
 - Fixed: a switch or node trunk always uses the predefined trunk (never a trunk of its own), ETH2 of a node can carry any Luminex VLAN or the trunk, and DMX outputs of a node with the same universe share one engine. New: Publish has groups (Network, LK, Stickers, Handbook) with a free choice of DimCities, and the stickers can run on across DimCities.

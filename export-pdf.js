@@ -416,7 +416,7 @@
       const pts = u.reduce((n,[,x])=>n+x.lk+x.veam+x.dmx,0);
       const iss = (M.issues||[]).filter(i=>i.dimcity===dc);
       const e = iss.filter(i=>i.severity==='RED').length, w = iss.length - e;
-      return `<tr><td><span class="dot" style="background:${dcColor(M,dc)}"></span><b>${esc(dc)}</b></td><td class="num">${d.lks?.size||0}</td><td class="num">${d.veams?.size||0}</td><td class="num">${u.length}</td><td class="num">${pts}</td><td class="num">${plan(M,dc).nodes?.length||0}</td><td class="num">${plan(M,dc).splitters?.length||0}</td><td>${e?`<span class="tag red">${e} error${e>1?'s':''}</span> `:''}${w?`<span class="tag yellow">${w} warning${w>1?'s':''}</span>`:''}${!e&&!w?'<span class="tag green">OK</span>':''}</td></tr>`;
+      return `<tr><td><span class="dot" style="background:${dcColor(M,dc)}"></span><b>${esc(window.DimLabel ? window.DimLabel(dc) : dc)}</b></td><td class="num">${d.lks?.size||0}</td><td class="num">${d.veams?.size||0}</td><td class="num">${u.length}</td><td class="num">${pts}</td><td class="num">${plan(M,dc).nodes?.length||0}</td><td class="num">${plan(M,dc).splitters?.length||0}</td><td>${e?`<span class="tag red">${e} error${e>1?'s':''}</span> `:''}${w?`<span class="tag yellow">${w} warning${w>1?'s':''}</span>`:''}${!e&&!w?'<span class="tag green">OK</span>':''}</td></tr>`;
     }).join('');
     return `<section class="page" data-label="PROJECT SUMMARY" data-sec="cover">${runHead(L, meta, '')}<div class="doc-h2">Project summary</div>
       <table><thead><tr><th>DimCity</th><th class="num">LK</th><th class="num">Veam</th><th class="num">Universes</th><th class="num">Patch points</th><th class="num">Nodes</th><th class="num">Splitters</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
@@ -485,7 +485,7 @@
     const iss = (M.issues||[]).filter(i=>i.dimcity===dc);
     const e = iss.filter(i=>i.severity==='RED').length, w = iss.length - e;
     const sub = [meta.project, meta.area, meta.location].filter(Boolean).map(esc).join(' · ');
-    return `<div class="db-head ${L.style.dimBand?'band':''}"><div><div class="db-title">${L.style.dimBand?'<i></i>':''}${esc(dc)}</div>${sub?`<div class="db-sub">${sub}</div>`:''}</div>
+    return `<div class="db-head ${L.style.dimBand?'band':''}"><div><div class="db-title">${L.style.dimBand?'<i></i>':''}${esc(window.DimLabel ? window.DimLabel(dc) : dc)}</div>${sub?`<div class="db-sub">${sub}</div>`:''}</div>
       <div class="stats"><div class="stat"><b>${dim.lks?.size||0}</b><span>LK</span></div><div class="stat"><b>${dim.veams?.size||0}</b><span>Veam</span></div><div class="stat"><b>${u.length}</b><span>Universes</span></div><div class="stat"><b>${pts}</b><span>Patch pts</span></div>${e?`<div class="stat err"><b>${e}</b><span>Errors</span></div>`:''}${w?`<div class="stat warn"><b>${w}</b><span>Warnings</span></div>`:''}</div></div>`;
   }
   function buildUniverseTable(M, dc, L){

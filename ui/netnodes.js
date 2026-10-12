@@ -36,7 +36,7 @@
   }
 
   function dmxPorts(dc, inst, idx, car){
-    const pp = window.PortPlan ? window.PortPlan.ndPorts(dc, inst, idx) : [];
+    const pp = window.PortPlan ? window.PortPlan.ndPorts(dc, inst, idx, car) : [];
     return pp.map(p => {
       const own = p.uni != null ? (car.get(p.uni) || []) : [];
       const first = own.find(o => o.kind !== 'DMX') || own[0];
@@ -118,16 +118,18 @@
 
   // consoles (lighting desks) and other plain network devices: a name, one or two network ports, plugged into a switch like a node
   function consolesHtml(dc, sws, rows, links){
-    const list = plan(dc).consoles || [];
+    const list = plan(dc).consoles || [], types = M().networkDevices.consoleTypes || [];
     const items = list.map((c, i) => { const mine = rows.filter(r => r.kind === 'console' && r.idx === i), ifs = window.Fent ? window.Fent.ifaces(c, c.ethCount === 2 ? 2 : 1) : [];
-      return `<div class="nn-con" data-nncon="${i}"><div class="nn-con-h">${I('console', 15)}<b>${esc(c.id || '')}</b>
+      const ct = (M().networkDevices.consoleTypes || []).find(x => x.id === c.typeId);
+      return `<div class="nn-con" data-nncon="${i}"><div class="nn-con-h">${I('console', 15)}<b>${esc(c.id || '')}</b>${ct ? `<span class="subtle" title="${esc(t('Device type from the Device Builder', 'Apparaattype uit de Device Builder'))}">${esc(typeName(ct))}</span>` : ''}
           <input class="nn-con-name" data-nnconname="${i}" value="${esc(c.name || '')}" placeholder="${esc(t('Name, e.g. grandMA3 full-size', 'Naam, bv. grandMA3 full-size'))}">
           <label class="nn-con-eth">${t('Network ports', 'Netwerkpoorten')}<select data-nnconeth="${i}"><option value="1" ${c.ethCount === 2 ? '' : 'selected'}>1</option><option value="2" ${c.ethCount === 2 ? 'selected' : ''}>2</option></select></label>
           <button class="sm ghost" data-nnconrm="${i}" title="${esc(t('Remove this device', 'Verwijder dit apparaat'))}">${I('trash', 13)}</button></div>
         <div class="nn-plugs">${mine.map(r => plugRow(dc, r, sws, rows, links)).join('')}</div>
         ${ifs.length ? `<div class="nn-addr">${ifs.map(x => `${x.vlan != null && window.NetCables ? window.NetCables.vlanChip(x.vlan) : ''}<span class="mono">${esc(x.ip)}</span>${c.ethCount === 2 ? `<span class="subtle">ETH${x.eth}</span>` : ''}`).join(' ')}</div>` : `<div class="subtle" style="font-size:12px">${t('No address yet — give it one on the Addresses tab (or create the IP plan).', 'Nog geen adres — geef hem er een op het tabblad Adressen (of maak het IP-plan).')}</div>`}</div>`; }).join('');
-    return `<div class="nn-cons"><div class="rb-label" style="margin:12px 0 6px">${t('Consoles and other network devices', 'Lichttafels en andere netwerkapparaten')}</div>${items || `<div class="subtle" style="font-size:12.5px;margin-bottom:6px">${t('A lighting console sends the lighting data: add it here with its name, plug it into a switch, and it gets an address like the nodes.', 'Een lichttafel stuurt de lichtdata: voeg hem hier toe met zijn naam, steek hem in een switch en hij krijgt een adres zoals de nodes.')}</div>`}
-      <div class="nn-con-add"><input id="nnConName-${esc(dc)}" placeholder="${esc(t('Name, e.g. grandMA3 full-size', 'Naam, bv. grandMA3 full-size'))}"><select id="nnConEth-${esc(dc)}"><option value="1">${t('1 network port', '1 netwerkpoort')}</option><option value="2">${t('2 network ports', '2 netwerkpoorten')}</option></select><button class="sm primary" data-nnconadd="${esc(dc)}">${I('plus', 13)} ${t('Add console', 'Lichttafel toevoegen')}</button></div></div>`;
+    return `<div class="nn-cons"><div class="rb-label" style="margin:12px 0 6px">${t('Lighting consoles and other network devices', 'Lichttafels en andere netwerkapparaten')}</div>${items || `<div class="subtle" style="font-size:12.5px;margin-bottom:6px">${t('A lighting console, media server or laptop in this DimCity or FOH: pick its type (made in the Device Builder, tab Network devices), plug it into a switch, and it gets an address like the nodes.', 'Een lichttafel, mediaserver of laptop in deze DimCity of FOH: kies zijn type (gemaakt in de Device Builder, tabblad Netwerkapparaten), steek hem in een switch en hij krijgt een adres zoals de nodes.')}</div>`}
+      <div class="nn-con-add"><select id="nnConType-${esc(dc)}" title="${esc(t('A device type from the Device Builder (Network devices), or another device with a name and ports', 'Een apparaattype uit de Device Builder (Netwerkapparaten), of een ander apparaat met een naam en poorten'))}">${types.map(ty => `<option value="${esc(ty.id)}">${esc(typeName(ty))} · ${Number(ty.ethernetCount) === 2 ? 2 : 1}× RJ45</option>`).join('')}<option value="">${t('Other device (name + ports)', 'Ander apparaat (naam + poorten)')}</option></select>
+        <input id="nnConName-${esc(dc)}" placeholder="${esc(t('Name (optional), e.g. FOH desk', 'Naam (optioneel), bv. FOH-tafel'))}"><select id="nnConEth-${esc(dc)}" title="${esc(t('Only for “Other device”: a type has its own number of ports', 'Alleen voor “Ander apparaat”: een type heeft zijn eigen aantal poorten'))}"><option value="1">${t('1 network port', '1 netwerkpoort')}</option><option value="2">${t('2 network ports', '2 netwerkpoorten')}</option></select><button class="sm primary" data-nnconadd="${esc(dc)}">${I('plus', 13)} ${t('Add device', 'Apparaat toevoegen')}</button><button class="sm ghost" data-cmd="deviceBuilder" data-arg="console">${t('Make a type…', 'Maak een type…')}</button></div></div>`;
   }
 
   function card(dc){
@@ -153,9 +155,10 @@
       if(!ok) return; window.RackPlan.removeNode(dc, idx); dirty(); rerender();
     });
     root.querySelectorAll('[data-nnconadd]').forEach(b => b.onclick = () => {
-      const d = b.dataset.nnconadd, name = (root.querySelector(`#nnConName-${CSS.escape(d)}`)?.value || '').trim(), eth = Number(root.querySelector(`#nnConEth-${CSS.escape(d)}`)?.value) === 2 ? 2 : 1;
-      window.PatchHistory?.label?.(`${d}: console added`);
-      const inst = App.net.createConsoleInstance(d, name, eth); plan(d).consoles.push(inst);
+      const d = b.dataset.nnconadd, ty = (M().networkDevices.consoleTypes || []).find(x => x.id === root.querySelector(`#nnConType-${CSS.escape(d)}`)?.value) || null;
+      const name = (root.querySelector(`#nnConName-${CSS.escape(d)}`)?.value || '').trim() || (ty ? typeName(ty) : ''), eth = ty ? (Number(ty.ethernetCount) === 2 ? 2 : 1) : (Number(root.querySelector(`#nnConEth-${CSS.escape(d)}`)?.value) === 2 ? 2 : 1);
+      window.PatchHistory?.label?.(`${d}: device added`);
+      const inst = App.net.createConsoleInstance(d, name, eth); if(ty) inst.typeId = ty.id; plan(d).consoles.push(inst);
       if(M().networkDevices?.prefs?.fent?.on) window.FentUI?.addressNew?.(d, 'console', inst);
       dirty(); rerender();
     });

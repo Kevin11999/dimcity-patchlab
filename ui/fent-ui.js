@@ -16,7 +16,8 @@
   const plan = dc => M().networkDevices?.dimCityPlans?.[dc] || { nodes:[], splitters:[], switches:[] };
   const TYPES = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes' }, LISTS = { node:'nodes', splitter:'splitters', switch:'switches', console:'consoles' };
   // a console (lighting desk, media server …) has no type of its own: it is a name with one or two network ports
-  const typeOf = (kind, dev) => kind === 'console' ? { name:'Console', ethernetCount:dev.ethCount === 2 ? 2 : 1, console:true } : (M().networkDevices?.[TYPES[kind === 'rswitch' ? 'switch' : kind]] || []).find(x => x.id === dev.typeId) || {};
+  const consoleType = dev => (M().networkDevices?.consoleTypes || []).find(x => x.id === dev?.typeId) || null;
+  const typeOf = (kind, dev) => kind === 'console' ? { name:'Console', ethernetCount:dev.ethCount === 2 ? 2 : 1, console:true, ct:consoleType(dev) } : (M().networkDevices?.[TYPES[kind === 'rswitch' ? 'switch' : kind]] || []).find(x => x.id === dev.typeId) || {};
   // a switch that sits in a rack has no type of its own on its address record: take it from the switch list
   const devOfRef = (dc, kind, idxS) => kind === 'rswitch' ? (window.NetSwitches?.list(dc).find(s => s.key === idxS)?.dev || null) : (plan(dc)[LISTS[kind]] || [])[Number(idxS)];
   const ethOf = (kind, dev) => kind === 'node' || kind === 'console' ? Math.min(2, Math.max(1, Number(typeOf(kind, dev).ethernetCount) || 1)) : 1;
@@ -164,9 +165,10 @@
     const devOf = new Map(devs.map(d => [d.dev.id || d.dev.name, d]));
     drows = drows.map(r => {
       const d = devOf.get(r.device), dev = d?.dev, ty = d ? typeOf(d.kind, dev) : {};
-      return { ...r, key:`n:${r.device}#${r.eth}`, kind:d?.kind || 'node', typeName:ty.console ? 'Console' : SN ? SN.of(ty) : (ty.name || ''), typeFull:ty.console ? 'Console' : SN ? SN.full(ty) : (ty.name || ''), name:dev?.name || '', idx:d?.idx ?? null, gone:!!dev?.gone,
-        csvRef:dev?.csvRef || '', unis:dev && Array.isArray(dev.universes) && window.NetCables ? window.NetCables.uniText(dev.universes.filter(u => u != null && u !== '' && Number.isFinite(Number(u))).map(Number)) : '' };
+      return { ...r, key:`n:${r.device}#${r.eth}`, kind:d?.kind || 'node', typeName:ty.console ? (ty.ct ? (SN ? SN.of(ty.ct) : ty.ct.name) : 'Console') : SN ? SN.of(ty) : (ty.name || ''), typeFull:ty.console ? (ty.ct ? (SN ? SN.full(ty.ct) : ty.ct.name) : 'Console') : SN ? SN.full(ty) : (ty.name || ''), name:dev?.name || '', idx:d?.idx ?? null, gone:!!dev?.gone,
+        short:ty.console ? (ty.ct && SN ? SN.port(ty.ct) : '') : (SN ? SN.port(ty) : ''), csvRef:dev?.csvRef || '', unis:dev && Array.isArray(dev.universes) && window.NetCables ? window.NetCables.uniText(dev.universes.filter(u => u != null && u !== '' && Number.isFinite(Number(u))).map(Number)) : '' };
     });
+    { const cnt = new Map(); drows.forEach(r => cnt.set(r.device, (cnt.get(r.device) || 0) + 1)); drows.forEach(r => { r.multi = cnt.get(r.device) > 1; }); }       // a device with two network ports on switches
     if(sort !== 'plan') drows.sort((a, b) => nat(a.device, b.device) || a.eth - b.eth);
     const crows = [];
     for(const c of (window.NetCables?.cables(dc) || [])){ const loom = window.CsvRules?.loomOf(c.id); for(const l of c.lines) if(!l.empty) crows.push({ port:0, device:`${c.id}.${l.port}`, key:`c:${c.id}.${l.port}`, eth:1, ethCount:1, mode:'access', vlans:l.vlan != null ? [l.vlan] : [], ips:[], dest:l.dest || '', unis:l.universes || '', cable:true, kind:'cable', typeName:loom?.name || 'Cat loom', typeFull:loom?.name || 'Cat loom', name:l.dest || '' }); }

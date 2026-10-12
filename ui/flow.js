@@ -638,10 +638,10 @@ function bandsSvg(graph, dcs){
   if(dcs.length < 2) return '';
   const m = M();
   return dcs.map(dc => { const o = graph.origins[dc]; if(!o) return ''; const { box } = o; const n = graph.blocks.filter(b => b.dc === dc); const lk = n.filter(b => b.kind === 'lk').length, ve = n.filter(b => b.kind === 'veam').length;
-    return `<g class="fl-band" style="--c:${App.dimColor(dc)}"><rect x="${box.x - 6}" y="${box.y - 36}" width="10" height="10" rx="3" fill="${App.dimColor(dc)}"/><text class="fl-band-t" x="${box.x + 10}" y="${box.y - 27}">${esc(dc)}${m.dimNames?.[dc] ? ` · ${esc(m.dimNames[dc])}` : ''}</text><text class="fl-band-s" x="${box.x + 10}" y="${box.y - 13}">${lk} LK · ${ve} Veam</text><line x1="${box.x - 6}" x2="${box.x + box.w + 6}" y1="${box.y - 6}" y2="${box.y - 6}"/></g>`; }).join('');
+    return `<g class="fl-band" style="--c:${App.dimColor(dc)}"><rect x="${box.x - 6}" y="${box.y - 36}" width="10" height="10" rx="3" fill="${App.dimColor(dc)}"/><text class="fl-band-t" x="${box.x + 10}" y="${box.y - 27}">${esc(App.dimLabel(dc))}${m.dimNames?.[dc] ? ` · ${esc(m.dimNames[dc])}` : ''}</text><text class="fl-band-s" x="${box.x + 10}" y="${box.y - 13}">${lk} LK · ${ve} Veam</text><line x1="${box.x - 6}" x2="${box.x + box.w + 6}" y1="${box.y - 6}" y2="${box.y - 6}"/></g>`; }).join('');
 }
 // the grid (only in the app, never in the print): thin lines every `size`, a stronger line every five
-const gridSvg = () => { const g = gridCfg(); if(!g.show) return ''; const z = S.zoom || 1;
+const gridSvg = zoom => { const g = gridCfg(); if(!g.show) return ''; const z = zoom || S.zoom || 1;
   return `<defs><pattern id="flGridMin" width="${g.size}" height="${g.size}" patternUnits="userSpaceOnUse"><path d="M${g.size},0 H0 V${g.size}" fill="none" style="stroke:var(--text);stroke-opacity:.07" stroke-width="${1 / z}"/></pattern><pattern id="flGridMaj" width="${g.size * 5}" height="${g.size * 5}" patternUnits="userSpaceOnUse"><path d="M${g.size * 5},0 H0 V${g.size * 5}" fill="none" style="stroke:var(--text);stroke-opacity:.14" stroke-width="${1.2 / z}"/></pattern></defs><rect id="flGridMinR" x="-60000" y="-60000" width="120000" height="120000" fill="url(#flGridMin)" pointer-events="none" ${g.size * z < 7 ? 'display="none"' : ''}/><rect id="flGridMajR" x="-60000" y="-60000" width="120000" height="120000" fill="url(#flGridMaj)" pointer-events="none" ${g.size * 5 * z < 7 ? 'display="none"' : ''}/>`; };
 const defsSvg = () => `<defs><marker id="flArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker><linearGradient id="flFace" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2f38"/><stop offset="1" stop-color="#1d2129"/></linearGradient></defs>`;
 function bounds(graph){
@@ -688,7 +688,7 @@ function render(){
   const side = `<aside class="fl-side">
     <div class="fl-sec"><div class="rb-label">DimCities</div>
       <button class="fl-item ${S.dc === 'ALL' ? 'on' : ''}" data-dc="ALL">${I('layers', 14)}<span>${t('All DimCities', 'Alle DimCities')}</span><em>${dims.length}</em></button>
-      ${dims.map(dc => `<button class="fl-item ${S.dc === dc ? 'on' : ''}" data-dc="${esc(dc)}"><i class="dot" style="background:${App.dimColor(dc)}"></i><span>${esc(dc)}</span><em>${m.byDim.get(dc)?.lks?.size || 0} LK</em></button>`).join('')}</div>
+      ${dims.map(dc => `<button class="fl-item ${S.dc === dc ? 'on' : ''}" data-dc="${esc(dc)}"><i class="dot" style="background:${App.dimColor(dc)}"></i><span>${esc(App.dimLabel(dc))}</span><em>${m.byDim.get(dc)?.lks?.size || 0} LK</em></button>`).join('')}</div>
     <div class="fl-sec"><div class="rb-label">${t('Show', 'Tonen')}</div><div class="segmented rb-full" id="flLayer"><button data-v="all" class="${S.layer === 'all' ? 'active' : ''}">${t('All', 'Alles')}</button><button data-v="dmx" class="${S.layer === 'dmx' ? 'active' : ''}">DMX</button><button data-v="net" class="${S.layer === 'net' ? 'active' : ''}">${t('Network', 'Netwerk')}</button><button data-v="fibre">${t('Fibres', 'Fibers')}</button></div></div>
     ${window.FlowBg ? window.FlowBg.sectionHtml(S.layer) : ''}
     <div class="fl-sec"><div class="rb-label">${t('Universes', 'Universes')} <span class="subtle">${uniList.length}</span></div>
@@ -728,10 +728,14 @@ function setView(){
   const v = document.getElementById('flView'); if(v) v.setAttribute('transform', `translate(${S.tx},${S.ty}) scale(${S.zoom})`);
   const z = document.getElementById('flZoom'), p = document.getElementById('flPct');
   if(z) z.value = Math.round(S.zoom * 100); if(p) p.textContent = `${Math.round(S.zoom * 100)}%`;
-  const gs = gridCfg().size, gmin = document.getElementById('flGridMinR'), gmaj = document.getElementById('flGridMajR');
-  if(gmin){ gmin.setAttribute('display', gs * S.zoom < 7 ? 'none' : 'inline'); gmaj.setAttribute('display', gs * 5 * S.zoom < 7 ? 'none' : 'inline'); document.querySelector('#flGridMin path')?.setAttribute('stroke-width', 1 / S.zoom); document.querySelector('#flGridMaj path')?.setAttribute('stroke-width', 1.2 / S.zoom); }
+  gridZoom(S.zoom);
   const view = { zoom:S.zoom, tx:Math.round(S.tx), ty:Math.round(S.ty) };
   S.view[S.dc] = view; flowState().view[S.dc] = view;   // remembered per DimCity (saved with the project, no 'unsaved' flag for just looking)
+}
+// the grid lines keep their width and disappear when they are too close together (also used by the fibre view)
+function gridZoom(z){
+  const gs = gridCfg().size, gmin = document.getElementById('flGridMinR'), gmaj = document.getElementById('flGridMajR');
+  if(gmin){ gmin.setAttribute('display', gs * z < 7 ? 'none' : 'inline'); gmaj.setAttribute('display', gs * 5 * z < 7 ? 'none' : 'inline'); document.querySelector('#flGridMin path')?.setAttribute('stroke-width', 1 / z); document.querySelector('#flGridMaj path')?.setAttribute('stroke-width', 1.2 / z); }
 }
 function zoomAt(z, px, py){ z = Math.max(.2, Math.min(3, z)); S.tx = px - (px - S.tx) * (z / S.zoom); S.ty = py - (py - S.ty) * (z / S.zoom); S.zoom = z; setView(); }
 function zoomCenter(z){ const c = document.getElementById('flCanvas'); if(!c) return; const r = c.getBoundingClientRect(); zoomAt(z, r.width / 2, r.height / 2); }
@@ -789,7 +793,7 @@ function bind(root, graph, byId){
   canvas.addEventListener('wheel', e => { e.preventDefault(); const r = canvas.getBoundingClientRect(); zoomAt(S.zoom * Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top); }, { passive:false });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   const toWorld = (cx, cy) => { const r = canvas.getBoundingClientRect(); return { x:(cx - r.left - S.tx) / S.zoom, y:(cy - r.top - S.ty) / S.zoom }; };
-  const edgeEls = new Map(); root.querySelectorAll('.fe[data-edge]').forEach(p => edgeEls.set(p.dataset.edge, p)); const hitEls = new Map(); root.querySelectorAll('.fe-hit').forEach(p => hitEls.set(p.dataset.hit, p));
+  const edgeEls = new Map(); root.querySelectorAll('#flEdges .fe[data-edge]').forEach(p => edgeEls.set(p.dataset.edge, p)); const hitEls = new Map(); root.querySelectorAll('.fe-hit').forEach(p => hitEls.set(p.dataset.hit, p));      // (edgeEls: only the cables themselves — the patch lines inside a block carry the same data-edge and would be redrawn instead)
   const redrawEdges = ids => { for(const e of graph.edges){ if(e.inner || !(ids.has(e.from.block) || ids.has(e.to.block))) continue; const d = e.pts ? ptsPath(e.pts) : edgePath(e, byId); edgeEls.get(e.id)?.setAttribute('d', d); hitEls.get(e.id)?.setAttribute('d', d); } };
   const place = b => root.querySelector(`.fb[data-block="${CSS.escape(b.id)}"]`)?.setAttribute('transform', `translate(${b.pos.x},${b.pos.y})`);
   // every fibre edge drawn again (they find their way around the blocks, so one block moving can change any of them)
@@ -824,7 +828,7 @@ function bind(root, graph, byId){
     if(S.drag){
       const d = S.drag, dx = (e.clientX - d.sx) / S.zoom, dy = (e.clientY - d.sy) / S.zoom;
       if(!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4) return;
-      if(!d.moved){ canvas.classList.add('dragging'); for(const e2 of graph.edges) if(e2.cable === 'fiber') e2.pts = null; redrawFibres(); }   // while moving, fibres are simple curves; they find their way around again when you let go
+      if(!d.moved){ canvas.classList.add('dragging'); for(const e2 of graph.edges) if(e2.cable === 'fiber') e2.pts = null; redrawFibres(); const held = new Set(d.blocks.map(it => it.b.id)); for(const e2 of graph.edges) if(!e2.inner && (held.has(e2.from.block) || held.has(e2.to.block))) edgeEls.get(e2.id)?.classList.add('held'); }   // while moving, fibres are simple curves; they find their way around again when you let go
       d.moved = true;
       const gc = gridCfg(); let mx = dx, my = dy;
       if(gc.snap && !e.altKey){ const ux = Math.min(...d.blocks.map(it => it.x0)), uy = Math.min(...d.blocks.map(it => it.y0)); mx = Math.round((ux + dx) / gc.size) * gc.size - ux; my = Math.round((uy + dy) / gc.size) * gc.size - uy; }
@@ -844,7 +848,7 @@ function bind(root, graph, byId){
   const up = () => {
     if(S.drag){
       const d = S.drag; S.drag = null;
-      root.querySelectorAll('.fb.grab').forEach(el => el.classList.remove('grab', 'bump')); canvas.classList.remove('holding', 'dragging'); const gh = root.querySelector('#flGhost'); if(gh) gh.innerHTML = '';
+      root.querySelectorAll('.fb.grab').forEach(el => el.classList.remove('grab', 'bump')); root.querySelectorAll('.fe.held').forEach(el => el.classList.remove('held')); canvas.classList.remove('holding', 'dragging'); const gh = root.querySelector('#flGhost'); if(gh) gh.innerHTML = '';
       if(d.moved){
         const moved = new Set(d.blocks.map(it => it.b));
         settle(graph, moved);
@@ -895,4 +899,4 @@ function exportSvg(){
 
 function setLayer(v){ S.layer = v; S.pin = null; S.sel.clear(); S.fitNext = true; if(v === 'fibre' && window.FibreView) window.FibreView.state.fit = true; render(); }
 function openFibres(){ S.layer = 'fibre'; window.FibreView.state.fit = true; App.navigate('FLOW'); render(); }
-window.Flow = { setLayer, openFibres, render, fit, buildGraph, layout, standaloneSvg, printSvg, state:S };
+window.Flow = { setLayer, openFibres, render, fit, buildGraph, layout, standaloneSvg, printSvg, state:S, gridCfg, gridSvg, gridZoom };

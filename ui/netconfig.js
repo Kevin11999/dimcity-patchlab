@@ -70,7 +70,7 @@
   function wantSwitch(it){
     const dc = it.dc, s = it.s, rows = (window.FentUI?.portPlan(dc).rows || []).filter(r => r.sw === s.label && r.swPort), vset = vlansOf(dc, s.label), ports = [], fibre = [];
     const autoTrunk = [];
-    for(const r of rows){ const v = (r.vlans || []).map(Number)[0]; ports.push({ port:r.swPort, vid:Number.isFinite(v) ? v : null, legend:String(r.device ?? '') }); if(r.mode === 'trunk' && !r.cable) autoTrunk.push(r.swPort); }
+    for(const r of rows){ const v = (r.vlans || []).map(Number)[0]; ports.push({ port:r.swPort, vid:Number.isFinite(v) ? v : null, legend:window.PortPlan?.autoSwitchName ? window.PortPlan.autoSwitchName(r) : String(r.device ?? '') }); if(r.mode === 'trunk' && !r.cable) autoTrunk.push(r.swPort); }
     // what was set by hand in the Network page (VLAN, trunk, name per port) goes on top of the automatic plan
     const ov = window.PortPlan?.forSwitch(dc, s.label) || {}, trunkPorts = [], vidPorts = new Set();
     for(const [pn, o] of Object.entries(ov)){

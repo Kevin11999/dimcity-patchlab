@@ -14,6 +14,7 @@ const KINDS = [
   { key:'panelTypes',    label:'Panels',        prefix:'PANEL:' },
   { key:'rackTypes',     label:'Racks',         prefix:'RACK:' },
   { key:'cableTypes',    label:'Cables',        prefix:'CABLE:' },
+  { key:'consoleTypes',  label:'Network devices', prefix:'DEV:' },
   { key:'pdfTemplates',  label:'PDF templates', prefix:'tpl_' }
 ];
 const RACK_ITEM_KIND = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes', panel:'panelTypes' };

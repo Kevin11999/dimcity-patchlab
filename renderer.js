@@ -62,6 +62,10 @@ function dimColor(dc){
   const idx = Math.max(0, dims.indexOf(dc));
   return safeHex(MODEL.dimColors?.[dc], DEFAULT_DIM_COLORS[idx % DEFAULT_DIM_COLORS.length]);
 }
+// A DB that is also the FOH (front of house) says so in its name: "DB03 · FOH". Only the label changes, the id stays DB03 (plan.foh in its network plan).
+function isFohToo(dc){ return dc !== 'FOH' && !!MODEL.networkDevices?.dimCityPlans?.[dc]?.foh; }
+function dimLabel(dc){ return isFohToo(dc) ? `${dc} · FOH` : String(dc); }
+window.DimLabel = dimLabel;
 function colorSwatchesHtml(active){
   return DEFAULT_DIM_COLORS.map(c=>`<button class="color-swatch ${safeHex(active)===c?'active':''}" style="background:${c}" data-color="${c}" title="${c}"></button>`).join('') + `<input id="dimCustomColor" type="color" value="${safeHex(active)}" title="Custom color">`;
 }
@@ -1116,7 +1120,7 @@ function renderSummary(){
           return navEntity('VEAM', v.id, 'plug', detail && sel.kind==='VEAM' && sel.id===v.id, mark);
         }).join('')}${!lks.length && !ves.length ? '<div class="nav-empty">No LK or Veam yet</div>' : ''}</div>`;
       }
-      return `<button class="nav-item ${detail && sel.kind==='DIM' && sel.id===dc ? 'active' : ''}" data-open-kind="DIM" data-open-id="${esc(dc)}" title="${esc(dc)}"><span class="dim-dot" style="background:${dimColor(dc)}"></span><span class="label">${esc(dc)}</span>${count}</button>${sub}`;
+      return `<button class="nav-item ${detail && sel.kind==='DIM' && sel.id===dc ? 'active' : ''}" data-open-kind="DIM" data-open-id="${esc(dc)}" title="${esc(dc)}"><span class="dim-dot" style="background:${dimColor(dc)}"></span><span class="label">${esc(dimLabel(dc))}</span>${count}</button>${sub}`;
     }).join('');
   }
 
@@ -1203,7 +1207,7 @@ function renderRightHome(){
     const linked = vs.filter(v=>veamIsPatched(v)).length;
     const status = e ? `<span class="tag red">${plural(e,'error')}</span>` : w ? `<span class="tag yellow">${plural(w,'warning')}</span>` : '<span class="tag green">OK</span>';
     return `<tr class="clickable-row" data-open-kind="DIM" data-open-id="${esc(dc)}">
-      <td><span class="dim-dot" style="display:inline-block;margin-right:8px;vertical-align:-1px;background:${dimColor(dc)}"></span><b>${esc(dc)}</b></td>
+      <td><span class="dim-dot" style="display:inline-block;margin-right:8px;vertical-align:-1px;background:${dimColor(dc)}"></span><b>${esc(dimLabel(dc))}</b></td>
       <td class="num">${s.lks.size}</td><td class="num">${vs.length}</td><td class="num">${vs.length ? `${linked}/${vs.length}` : '—'}</td>
       <td class="num">${st?.totalUniq || 0}</td><td class="num">${st?.totalPorts || 0}</td>
       <td>${status}</td><td class="num subtle">${I('chevronRight',15)}</td></tr>`;
@@ -1333,7 +1337,7 @@ function renderNetworkView(){
     const need = nt ? calculateNodeNeedForDim(dc, nt.portCount) : null;
     return `<div class="planner-row" style="--dim-color:${dimColor(dc)}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-        <div style="display:flex;align-items:center;gap:10px"><b style="font-size:14px">${esc(dc)}</b><span class="info-pill">${plural(unis.length,'universe')}</span>${need?`<span class="info-pill">${plural(need.nodeCount,'node')} needed</span>`:''}<span class="info-pill">${plural(plan.nodes.length,'node')} placed</span><span class="info-pill">${plural(plan.splitters.length,'splitter')} placed</span></div>
+        <div style="display:flex;align-items:center;gap:10px"><b style="font-size:14px">${esc(dimLabel(dc))}</b><span class="info-pill">${plural(unis.length,'universe')}</span>${need?`<span class="info-pill">${plural(need.nodeCount,'node')} needed</span>`:''}<span class="info-pill">${plural(plan.nodes.length,'node')} placed</span><span class="info-pill">${plural(plan.splitters.length,'splitter')} placed</span></div>
         <button class="sm ghost" data-open-kind="DIM" data-open-id="${esc(dc)}">Open DimCity ${I('arrowRight',13)}</button>
       </div>
       <div class="planner-controls" style="margin-top:12px">
@@ -1537,9 +1541,9 @@ function renderDimCityDetail(dc){
 
   pageHead({
     crumbs:`<a data-nav-view="HOME">Overview</a>${I('chevronRight',12)}<span>DimCities</span>`,
-    title:`<span class="dim-dot" style="width:14px;height:14px;border-radius:4px;background:${color}"></span>${esc(dc)}`,
+    title:`<span class="dim-dot" style="width:14px;height:14px;border-radius:4px;background:${color}"></span>${esc(dimLabel(dc))}`,
     sub:`${plural(lks.length,'LK block')} · ${plural(veams.length,'Veam')} · ${plural(uniCount,'universe')} · ${plural(pointCount,'patch point')}`,
-    actions:`<button id="dimColorBtn">${I('sliders',15)}Color</button><button data-cmd="addLK">${I('plus',15)}Add LK</button><button data-cmd="stickers" data-arg="${esc(dc)}" title="Print the stickers of this DimCity">${I('grid',15)}Stickers</button><button class="primary" id="dimExport">${I('file',15)}Export ${esc(dc)}</button><button class="danger" id="dimDelete" title="Delete this DB with everything that belongs to it">${I('trash',15)}Delete ${esc(dc)}</button>`
+    actions:`<label class="foh-too" title="This DB is also the front of house (FOH): nothing else changes, the name just says so"><input type="checkbox" id="dimFoh" ${dc !== 'FOH' && isFohToo(dc) ? 'checked' : ''} ${dc === 'FOH' ? 'disabled' : ''}> Also FOH</label><button id="dimColorBtn">${I('sliders',15)}Color</button><button data-cmd="addLK">${I('plus',15)}Add LK</button><button data-cmd="stickers" data-arg="${esc(dc)}" title="Print the stickers of this DimCity">${I('grid',15)}Stickers</button><button class="primary" id="dimExport">${I('file',15)}Export ${esc(dc)}</button><button class="danger" id="dimDelete" title="Delete this DB with everything that belongs to it">${I('trash',15)}Delete ${esc(dc)}</button>`
   });
 
   const kpis = `<div class="kpis">
@@ -1593,6 +1597,7 @@ function renderDimCityDetail(dc){
   const rerender = ()=> renderDimCityDetail(dc);
   const exp = $('#dimExport'); if(exp) exp.onclick = ()=> window.PdfExport?.open?.({ dcs:[dc] });
   const colorBtn = $('#dimColorBtn'); if(colorBtn) colorBtn.onclick = e=> openDimColorPicker(e.currentTarget, dc);
+  const fohBox = $('#dimFoh'); if(fohBox) fohBox.onchange = ()=>{ const plan = getDimPlan(dc); if(fohBox.checked) plan.foh = true; else delete plan.foh; MODEL.ui.dirty = true; renderAll(); };
   const delBtn = $('#dimDelete'); if(delBtn) delBtn.onclick = () => deleteDimCity(dc);
   root.querySelectorAll('.uni-card[data-uni]').forEach(chip=>{
     chip.onclick = ()=>{
@@ -1777,7 +1782,7 @@ function showCsvSourcesModal(){
 // ===== Network Devices: data helpers =====
 function normalizeNetworkDevices(net){
   // portPatchV 2 = the ports are only filled by hand (or by "Auto-fill ports"); a project without it is from 0.12 or older and gets its ports frozen once
-  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0, fent:{ on:false, group:'production', scan:false, vlanMode:'luminex' }, dmx:{ klass:'sacn', dir:'output' }, advancedNet:false }, nodeTypes:[], splitterTypes:[], switchTypes:[], panelTypes:[], rackTypes:[], cableTypes:[], fiberLinks:[], nodes:[], splitters:[], switches:[], dimCityPlans:{}, portPatchV:2, swLinks:[] };
+  const base = { prefs:{ nodeSparePorts:0, splitterSparePorts:0, switchSparePorts:0, fent:{ on:false, group:'production', scan:false, vlanMode:'luminex' }, dmx:{ klass:'sacn', dir:'output' }, advancedNet:false }, nodeTypes:[], splitterTypes:[], switchTypes:[], panelTypes:[], rackTypes:[], cableTypes:[], consoleTypes:[], fiberLinks:[], nodes:[], splitters:[], switches:[], dimCityPlans:{}, portPatchV:2, swLinks:[] };
   if(!net || typeof net !== 'object') return base;
 
   const nodeTypes = Array.isArray(net.nodeTypes) ? net.nodeTypes.slice() : [];
@@ -1832,6 +1837,7 @@ function normalizeNetworkDevices(net){
     panelTypes: Array.isArray(net.panelTypes) ? net.panelTypes : [],
     rackTypes: Array.isArray(net.rackTypes) ? net.rackTypes : [],
     cableTypes: Array.isArray(net.cableTypes) ? net.cableTypes : [],
+    consoleTypes: Array.isArray(net.consoleTypes) ? net.consoleTypes : [],
     fiberLinks: Array.isArray(net.fiberLinks) ? net.fiberLinks : [], fiberStock: Array.isArray(net.fiberStock) ? net.fiberStock : [],
     portPlans: net.portPlans && typeof net.portPlans === 'object' && !Array.isArray(net.portPlans) ? net.portPlans : {},
     portPatch: net.portPatch && typeof net.portPatch === 'object' && !Array.isArray(net.portPatch) ? net.portPatch : {},
@@ -2365,6 +2371,8 @@ window.LKApp = {
   blockTypeLabel,
   effectiveBlockType,
   dimColor,
+  dimLabel,
+  isFohToo,
   mergedPortRecord,
   lkAutoLocation,
   veamAutoLocation,

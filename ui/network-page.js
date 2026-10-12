@@ -42,10 +42,10 @@
   function dcBar(allOk){
     const dims = App.sortedDims(); if(!S.dc || (S.dc !== ALL && !dims.includes(S.dc)) || (S.dc === ALL && !allOk)) S.dc = dims[0] || null;
     const chip = (v, label, color) => `<label class="rb-chip ${S.dc === v ? 'on' : ''}"><input type="radio" name="netdc" data-netdc="${esc(v)}" ${S.dc === v ? 'checked' : ''}>${color ? `<i class="dot" style="background:${color}"></i>` : ''}${esc(label)}</label>`;
-    return `<div class="rb-chips" style="margin:0 0 12px">${allOk && dims.length > 1 ? chip(ALL, t('All', 'Alle')) : ''}${dims.map(d => chip(d, d, App.dimColor(d))).join('')}<button class="sm ghost" data-cmd="addDb">${I('plus', 12)} DB</button>${dims.includes('FOH') ? '' : `<button class="sm ghost" data-cmd="addFoh">${I('plus', 12)} FOH</button>`}</div>`;
+    return `<div class="rb-chips" style="margin:0 0 12px">${allOk && dims.length > 1 ? chip(ALL, t('All', 'Alle')) : ''}${dims.map(d => chip(d, App.dimLabel(d), App.dimColor(d))).join('')}<button class="sm ghost" data-cmd="addDb">${I('plus', 12)} DB</button>${dims.includes('FOH') ? '' : `<button class="sm ghost" data-cmd="addFoh">${I('plus', 12)} FOH</button>`}</div>`;
   }
   const dcsOf = () => S.dc === ALL ? App.sortedDims() : S.dc ? [S.dc] : [];
-  const dcHead = dc => `<div class="net-dc-h"><i class="dot" style="background:${App.dimColor(dc)}"></i><b>${esc(dc)}</b></div>`;
+  const dcHead = dc => `<div class="net-dc-h"><i class="dot" style="background:${App.dimColor(dc)}"></i><b>${esc(App.dimLabel(dc))}</b></div>`;
   const nothing = () => `<div class="empty"><p>${t('Import a patch first.', 'Importeer eerst een patch.')}</p></div>`;
 
   // ---- Patch board ----
@@ -136,7 +136,7 @@
       ${App.ui.card({ key:'net-cabletypes', title:t('Cable types', 'Kabeltypes'), icon:'cable', meta:`${(M().networkDevices.cableTypes || []).length}`, collapsible:false, body:`<div style="padding:8px 14px 12px">${(M().networkDevices.cableTypes || []).map(ty => `<div class="subtle" style="font-size:12.5px;margin:2px 0"><span class="fent-sw" style="background:${esc(ty.color || '#22c3d6')}"></span>${esc([ty.brand, ty.name].filter(Boolean).join(' '))} · ${esc(ty.connA || '')} · ${Number(ty.lengthM) || 0} m</div>`).join('') || `<div class="subtle">${t('None yet.', 'Nog geen.')}</div>`}<button class="sm" data-cmd="deviceBuilder" data-arg="cable" style="margin-top:8px">${I('plus', 13)}${t('Make cable types', 'Kabeltypes maken')}</button></div>` })}</div>`;
   }
   function overviewTab(){
-    const rows = App.sortedDims().map(dc => { const st = stats(dc), s = status(st); return `<tr><td><i class="dot" style="background:${App.dimColor(dc)}"></i> <b>${esc(dc)}</b></td><td class="num">${st.nodes}</td><td class="num">${st.switches}</td><td class="num">${st.used} / ${st.need}</td><td class="num">${st.cLines}</td><td class="num">${st.fibers}</td><td><span class="net-st ${s.cls}">${esc(s.text)}</span></td><td><button class="sm ghost" data-netopen="${esc(dc)}">${t('Open', 'Open')}</button></td></tr>`; }).join('');
+    const rows = App.sortedDims().map(dc => { const st = stats(dc), s = status(st); return `<tr><td><i class="dot" style="background:${App.dimColor(dc)}"></i> <b>${esc(App.dimLabel(dc))}</b></td><td class="num">${st.nodes}</td><td class="num">${st.switches}</td><td class="num">${st.used} / ${st.need}</td><td class="num">${st.cLines}</td><td class="num">${st.fibers}</td><td><span class="net-st ${s.cls}">${esc(s.text)}</span></td><td><button class="sm ghost" data-netopen="${esc(dc)}">${t('Open', 'Open')}</button></td></tr>`; }).join('');
     return `<div class="stack">${App.ui.card({ key:'net-over', title:t('Network per DimCity', 'Netwerk per DimCity'), icon:'table', collapsible:false, body:`<table class="data-table"><thead><tr><th>DimCity</th><th class="num">${t('Nodes', 'Nodes')}</th><th class="num">${t('Switches', 'Switches')}</th><th class="num">${t('On a port', 'Op een poort')}</th><th class="num">${t('Cat lines', 'Cat-lijnen')}</th><th class="num">${t('Fibres', 'Fibers')}</th><th>${t('Status', 'Status')}</th><th></th></tr></thead><tbody>${rows}</tbody></table>` })}
       <div class="hint">${I('info', 13)} ${t('Not sure where to start? Use Setup (toolbar) for the steps in order.', 'Weet je niet waar je moet beginnen? Gebruik Setup (werkbalk) voor de stappen op volgorde.')}</div></div>`;
   }
@@ -169,5 +169,5 @@
     }
   }
   const go = tab => render({ tab });
-  window.NetworkPage = { render, go, summaryCard, stats, status, state:S };
+  window.NetworkPage = { render, go, summaryCard, stats, status, planDialog, state:S };
 })();

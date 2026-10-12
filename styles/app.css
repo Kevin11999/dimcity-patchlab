@@ -1471,7 +1471,7 @@ tr.bad>td{background:var(--red-soft)}
 .fb.grab .fb-selbox{stroke:var(--accent);stroke-width:2.2;stroke-dasharray:none;fill:var(--accent-soft)}
 .fb.grab.bump .fb-selbox{stroke:var(--red);fill:var(--red-soft)}
 .fl-canvas.holding{cursor:grabbing !important}.fl-canvas.holding .fb{cursor:grabbing !important}
-.fl-canvas.dragging .fb:not(.grab){opacity:.5;transition:opacity .12s}.fl-canvas.dragging .fe{opacity:.35}
+.fl-canvas.dragging .fb:not(.grab){opacity:.5;transition:opacity .12s}.fl-canvas.dragging .fe{opacity:.35}.fl-canvas.dragging .fe.held{opacity:.95}
 .fl-ghost{fill:var(--accent-soft);stroke:var(--accent);stroke-width:2;stroke-dasharray:7 5;pointer-events:none}
 
 /* nodes that follow the racks: a node that is no longer in a rack keeps its place until it is replaced or removed */
@@ -1530,3 +1530,25 @@ tr.bad>td{background:var(--red-soft)}
 .pp-defaults{position:static;flex-wrap:wrap;border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:var(--surface-2)}
 .swp-fibs{display:grid;gap:2px;margin-top:6px;font-size:12px}
 .swp-fib b{font-weight:600}
+
+/* fibre overview: the whole card and the whole switch can be grabbed, you see what you hold, the cells a switch can drop into */
+.fv-drag,.fv-swdrag{cursor:grab}.fv-canvas.holding,.fv-canvas.holding .fv-drag,.fv-canvas.holding .fv-swdrag{cursor:grabbing}
+.fv-title,.fv-swt,.fv-sub{pointer-events:none}
+.fv-loc.lift .fv-card{stroke:var(--accent);stroke-width:2;fill:color-mix(in srgb,var(--accent) 6%,var(--surface))}.fv-loc.lift{filter:drop-shadow(0 10px 16px rgba(0,0,0,.55))}
+.fv-swg.lift .fv-sw{stroke:var(--accent);stroke-width:2}.fv-swg.lift{filter:drop-shadow(0 8px 12px rgba(0,0,0,.55))}
+.fv-cell{fill:none;stroke:var(--text-3);stroke-width:1;stroke-dasharray:5 4;opacity:.55;pointer-events:none}.fv-cell.on{stroke:var(--accent);stroke-width:2;opacity:1;fill:var(--accent-soft)}
+
+/* port tiles: the whole name is visible (two lines), protocol and direction sit on the top line */
+.pp-grid .pp-port{height:auto;min-height:74px}
+.pp-port.nd{min-height:80px}
+.pp-port span{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.15;text-overflow:clip;word-break:break-word}
+.pp-port .pp-top{display:flex;justify-content:space-between;align-items:baseline;gap:4px;opacity:1}
+.pp-port .pp-top span{display:inline;opacity:.7}
+.pp-port .pp-top i{font-style:normal;font-size:9.5px;font-weight:700;opacity:.85;white-space:nowrap}
+.pp-port .pp-nm{font-size:10.5px;font-weight:600}
+.pp-inline{box-shadow:0 6px 18px rgba(0,0,0,.5);border:2px solid var(--accent);border-radius:6px;padding:4px 6px;background:var(--surface);color:var(--text);font-size:12px}
+.pp-names{margin-top:8px}.pp-names summary{cursor:pointer;font-size:12.5px;color:var(--text-2)}
+.pp-names-t{margin-top:6px;max-width:640px}.pp-names-t td{padding:3px 8px}.pp-names-t input{width:100%}.pp-nl-n{white-space:nowrap;font-weight:600}
+
+.foh-too{display:inline-flex;align-items:center;gap:6px;padding:0 10px;height:32px;border:1px solid var(--border);border-radius:8px;font-size:12.5px;cursor:pointer;color:var(--text-2)}
+.foh-too input{margin:0}

@@ -9,10 +9,11 @@
   const I = (n, s) => App.ui.icon(n, s);
   const M = () => App.getMODEL();
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-  const S = { type:null, pending:null, sel:null, zoom:1, tx:0, ty:0, fit:true, layout:null, float:null };
+  const S = { type:null, pending:null, sel:null, zoom:1, tx:0, ty:0, fit:true, layout:null, float:null, floatLoc:null, guide:null };
 
   const SWW = 270, CELLW = SWW + 12, HEAD = 30, SH = 66, CELLH = SH + 12, PW = 34, PH = 24, PAD = 8;
   const F = () => window.Fibers;
+  const grid = () => window.Flow.gridCfg();      // the grid of the whole Signal Flow: shown or not, snapping or not, the size (hold Alt to move freely)
   const store = () => { const m = M(); m.flow ||= { v:2, dir:'ltr', labels:{}, pos:{}, view:{} }; return (m.flow.fibre ||= { loc:{}, sw:{} }); };
 
   // ---- model -> geometry ----
@@ -40,6 +41,7 @@
     const maxW = Math.max(300, ...locs.map(l => l.w)), maxH = Math.max(120, ...locs.map(l => l.h));
     const rx = n <= 1 ? 0 : n === 2 ? maxW * .75 + 60 : Math.max(maxW * .9, 120 * n) + 120, ry = n <= 2 ? 0 : maxH * .9 + 100 + n * 20;
     locs.forEach((l, i) => {
+      if(S.floatLoc && S.floatLoc.id === l.id){ l.x = S.floatLoc.x; l.y = S.floatLoc.y; return; }     // a card being dragged follows the pointer
       const saved = st.loc[l.id];
       if(saved){ l.x = saved.x; l.y = saved.y; return; }
       if(n === 1){ l.x = -l.w / 2; l.y = -l.h / 2; }
@@ -148,11 +150,15 @@
     }).join('');
   }
   function locSvg(l, usage){
-    let o = `<g class="fv-loc" style="--c:${l.color}"><rect x="${l.x}" y="${l.y}" width="${l.w}" height="${l.h}" rx="10" class="fv-card"/><rect x="${l.x}" y="${l.y}" width="5" height="${l.h}" rx="2" fill="${l.color}"/><rect class="fv-drag" data-loc="${esc(l.id)}" x="${l.x}" y="${l.y}" width="${l.w}" height="${HEAD - 4}" rx="8"/><text x="${l.x + 16}" y="${l.y + 20}" class="fv-title">${esc(l.free || l.dc)}</text>`;
+    let o = `<g class="fv-loc ${S.floatLoc && S.floatLoc.id === l.id ? 'lift' : ''}" style="--c:${l.color}"><rect x="${l.x}" y="${l.y}" width="${l.w}" height="${l.h}" rx="10" class="fv-card"/><rect x="${l.x}" y="${l.y}" width="5" height="${l.h}" rx="2" fill="${l.color}"/><rect class="fv-drag" data-loc="${esc(l.id)}" x="${l.x}" y="${l.y}" width="${l.w}" height="${l.h}" rx="10"/><text x="${l.x + 16}" y="${l.y + 20}" class="fv-title">${window.DimLabel ? esc(window.DimLabel(l.free || l.dc)) : esc(l.free || l.dc)}</text>`;
+    if(S.guide && S.guide.loc === l.id){      // while a switch is dragged: the cells it can drop into, and the one it will land in
+      const g = S.guide, cols = Math.min(4, Math.max(l.cols, 3, g.col + 1)), rows = Math.min(4, Math.max(l.rows + 1, g.row + 1));
+      for(let r = 0; r < rows; r++) for(let c = 0; c < cols; c++) o += `<rect class="fv-cell ${c === g.col && r === g.row ? 'on' : ''}" x="${l.x + PAD + c * CELLW}" y="${l.y + HEAD + r * CELLH}" width="${SWW}" height="${SH}" rx="6"/>`;
+    }
     if(l.free) o += `<text x="${l.x + 16}" y="${l.y + 44}" class="fv-sub">${t('other end', 'andere kant')}</text>`;
     for(const s of l.sws){
       const SP = window.SwPorts, ty = s.type;
-      o += `<g class="fv-swg" data-sw="${esc(l.dc + '|' + s.label)}"><rect x="${s.x}" y="${s.y}" width="${SWW}" height="${SH}" rx="6" class="fv-sw"/><rect class="fv-swdrag" data-swd="${esc(l.dc + '|' + s.label)}" x="${s.x}" y="${s.y}" width="${SWW}" height="22" rx="6"/><text x="${s.x + SWW - 8}" y="${s.y + 16}" text-anchor="end" class="fv-swt">${esc(s.label)}</text><title>${esc([ty?.brand, ty?.name].filter(Boolean).join(' '))}</title></g>`;
+      o += `<g class="fv-swg ${S.float && S.float.key === `${l.dc}|${s.label}` ? 'lift' : ''}" data-sw="${esc(l.dc + '|' + s.label)}"><rect x="${s.x}" y="${s.y}" width="${SWW}" height="${SH}" rx="6" class="fv-sw"/><rect class="fv-swdrag" data-swd="${esc(l.dc + '|' + s.label)}" x="${s.x}" y="${s.y}" width="${SWW}" height="${SH}" rx="6"/><text x="${s.x + SWW - 8}" y="${s.y + 16}" text-anchor="end" class="fv-swt">${esc(s.label)}</text><title>${esc([ty?.brand, ty?.name].filter(Boolean).join(' '))}</title></g>`;
       const ps = [];
       for(let k = 1; k <= s.sfp; k++){
         const px = s.x + 14 + (k - 1) * (PW + 4), py = s.y + 48 - PH / 2, key = `${l.dc}|${s.label}|${k}`, link = usage.get(key);
@@ -182,24 +188,27 @@
       <div class="fl-sec"><div class="rb-label">${t('Fibres', 'Fibers')} <span class="subtle">${links.length}</span></div>
         ${links.map(l => `<button class="fl-item fv-li ${S.sel === l.id ? 'on' : ''}" data-pick="${esc(l.id)}"><i class="dot" style="background:${F().color(l)}"></i><span>${esc(l.id)} · ${esc(F().code(l.typeId))}</span><em>${esc((l.a?.dc || l.a?.free || '') + ' ⇄ ' + (l.b?.dc || l.b?.free || ''))}</em></button>`).join('') || `<div class="subtle" style="font-size:12.5px">${t('No fibres yet — draw one or use Auto-assign.', 'Nog geen fibers — teken er een of gebruik Automatisch koppelen.')}</div>`}</div>
       ${window.FlowBg ? window.FlowBg.sectionHtml('fibre') : ''}
+      <div class="fl-sec"><div class="rb-label">${t('Layout', 'Indeling')}</div>
+        <label class="field">${t('Grid size', 'Rastergrootte')}<select id="fvGridSize">${[10, 20, 40].map(n => `<option value="${n}" ${grid().size === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
       <div class="fl-sec"><div class="hint">${I('info', 13)} ${t('Pick a cable below, click a free port, then click the port at the other end. Click a cable to select or delete it.', 'Kies hieronder een kabel, klik op een vrije poort en daarna op de poort aan de andere kant. Klik op een kabel om hem te selecteren of te verwijderen.')}</div></div>
     </aside>`;
     const bar = `<div class="fl-bar">
       <button class="ghost sm icon-only" id="fvOut">${I('zoomOut', 15)}</button><button class="ghost sm icon-only" id="fvIn">${I('zoomIn', 15)}</button>
       <button class="sm" id="fvFit">${I('compass', 14)}${t('Fit', 'Passend')}</button><span class="fl-sep"></span>
+      <div class="segmented" id="fvGridTools"><button data-g="show" class="${grid().show ? 'active' : ''}" title="${esc(t('Show the grid', 'Toon het raster'))}">${I('grid', 14)}${t('Grid', 'Raster')}</button><button data-g="snap" class="${grid().snap ? 'active' : ''}" title="${esc(t('Locations snap to the grid while you move them (hold Alt to move freely). A switch always drops into a cell of its location, next to or above another one.', 'Locaties snappen op het raster als je ze verplaatst (houd Alt ingedrukt om vrij te verplaatsen). Een switch valt altijd in een vakje van zijn locatie, naast of boven een andere.'))}">${I('grip', 14)}${t('Snap', 'Snap')}</button></div><span class="fl-sep"></span>
       <button class="sm primary" id="fvAuto">${I('check', 14)}${t('Auto-assign…', 'Automatisch koppelen…')}</button>
       <button class="sm" id="fvStock">${I('layers', 14)}${t('Stock…', 'Voorraad…')}</button>
       ${sel ? `<span class="fl-sep"></span><span class="fv-selbar"><b>${esc(sel.id)}</b> ${esc(F().code(sel.typeId))} · ${esc(F().endLabel(sel.a))} ⇄ ${esc(F().endLabel(sel.b))}</span><button class="sm danger" id="fvDel">${I('trash', 13)}${t('Delete', 'Verwijderen')}</button>` : ''}
-      <span class="fl-hint">${S.pending ? t('Now click the port at the other end · Esc = cancel', 'Klik nu op de poort aan de andere kant · Esc = annuleren') : t('Drag = move · wheel = zoom', 'Sleep = verschuiven · wiel = zoomen')}</span></div>`;
+      <span class="fl-hint">${S.pending ? t('Now click the port at the other end · Esc = cancel', 'Klik nu op de poort aan de andere kant · Esc = annuleren') : t('Drag a location or a switch = move · Alt = no snap · wheel = zoom', 'Sleep een locatie of switch = verplaatsen · Alt = niet snappen · wiel = zoomen')}</span></div>`;
     const pal = `<div class="fv-pal"><span class="rb-label" style="margin:0 8px 0 0">${t('Cable', 'Kabel')}</span>${types.map(ty => { const left = F().leftOf(ty.id), q = F().qtyOf(ty.id);
       return `<button class="fv-chip ${S.type === ty.id ? 'on' : ''} ${left === 0 ? 'out' : ''}" data-type="${esc(ty.id)}" style="--c:${esc(ty.color || '#22c3d6')}"><i></i><b>${esc(F().code(ty.id))}</b><span>${q == null ? '' : `${left}/${q}`}</span></button>`; }).join('') || `<span class="subtle">${t('Make cable types in the Device Builder (Cables).', 'Maak kabeltypes in de Device Builder (Kabels).')}</span>`}</div>`;
-    const svg = `<svg id="fvSvg" xmlns="http://www.w3.org/2000/svg"><g id="fvView" transform="translate(${S.tx},${S.ty}) scale(${S.zoom})"><g id="fvBg">${window.FlowBg ? window.FlowBg.svg('fibre', (() => { const b = bounds(); return b ? { minX:b.x0, minY:b.y0, maxX:b.x1, maxY:b.y1 } : null; })()) : ''}</g><g>${g.locs.map(l => locSvg(l, usage)).join('')}</g><g id="fvCables">${cables}</g></g></svg>${g.locs.length ? '' : `<div class="empty fl-empty">${I('cable', 30)}<h3>${t('No switches yet', 'Nog geen switches')}</h3><p>${t('Add network switches to the DimCities first (Network page).', 'Voeg eerst netwerkswitches toe aan de DimCities (pagina Netwerk).')}</p></div>`}`;
+    const svg = `<svg id="fvSvg" xmlns="http://www.w3.org/2000/svg"><g id="fvView" transform="translate(${S.tx},${S.ty}) scale(${S.zoom})"><g id="flGrid">${window.Flow.gridSvg(S.zoom)}</g><g id="fvBg">${window.FlowBg ? window.FlowBg.svg('fibre', (() => { const b = bounds(); return b ? { minX:b.x0, minY:b.y0, maxX:b.x1, maxY:b.y1 } : null; })()) : ''}</g><g id="fvLive"><g>${g.locs.map(l => locSvg(l, usage)).join('')}</g><g id="fvCables">${cables}</g></g></g></svg>${g.locs.length ? '' : `<div class="empty fl-empty">${I('cable', 30)}<h3>${t('No switches yet', 'Nog geen switches')}</h3><p>${t('Add network switches to the DimCities first (Network page).', 'Voeg eerst netwerkswitches toe aan de DimCities (pagina Netwerk).')}</p></div>`}`;
     root.innerHTML = `<div class="fl-wrap">${side}<div class="fl-main">${bar}<div class="fl-canvas fv-canvas" id="fvCanvas">${svg}</div>${pal}</div></div>`;
     bind(root);
     if(S.fit){ S.fit = false; fit(); }
   }
   function bounds(){ const L = S.layout?.locs || []; if(!L.length) return null; return { x0:Math.min(...L.map(l => l.x)) - 60, y0:Math.min(...L.map(l => l.y)) - 90, x1:Math.max(...L.map(l => l.x + l.w)) + 70, y1:Math.max(...L.map(l => l.y + l.h)) + 90 }; }
-  function apply(){ const v = document.getElementById('fvView'); if(v) v.setAttribute('transform', `translate(${S.tx},${S.ty}) scale(${S.zoom})`); }
+  function apply(){ const v = document.getElementById('fvView'); if(v) v.setAttribute('transform', `translate(${S.tx},${S.ty}) scale(${S.zoom})`); window.Flow?.gridZoom?.(S.zoom); }
   function fit(){
     const c = document.getElementById('fvCanvas'), b = bounds(); if(!c || !b) return;
     const r = c.getBoundingClientRect(), w = b.x1 - b.x0, h = b.y1 - b.y0;
@@ -210,7 +219,7 @@
 
   // while a location card is dragged: redraw the drawing without losing the drag
   function liveRedraw(root){
-    const v = root.querySelector('#fvView'); if(!v) return;
+    const v = root.querySelector('#fvLive'); if(!v) return;
     const g = build(); S.layout = g;
     const usage = new Map(); for(const l of F().all()) for(const e of [l.a, l.b]) if(e && !e.free) usage.set(keyOf(e), l);
     v.innerHTML = `<g>${g.locs.map(l => locSvg(l, usage)).join('')}</g><g id="fvCables">${cablesSvg(g, true)}</g>`;
@@ -225,6 +234,8 @@
     root.querySelector('#fvIn').onclick = () => { const r = canvas.getBoundingClientRect(); zoomAt(S.zoom * 1.25, r.width / 2, r.height / 2); };
     root.querySelector('#fvOut').onclick = () => { const r = canvas.getBoundingClientRect(); zoomAt(S.zoom / 1.25, r.width / 2, r.height / 2); };
     root.querySelector('#fvFit').onclick = fit;
+    root.querySelectorAll('#fvGridTools button').forEach(b => b.onclick = () => { const g = grid(); g[b.dataset.g] = !g[b.dataset.g]; M().ui.dirty = true; again(); });
+    const gsz = root.querySelector('#fvGridSize'); if(gsz) gsz.onchange = () => { grid().size = Number(gsz.value); M().ui.dirty = true; again(); };
     root.querySelector('#fvAuto').onclick = () => F().autoDialog(again);
     root.querySelector('#fvStock').onclick = () => {
       const d = App.ui.openDialog({ title:t('Fibre stock', 'Fibervoorraad'), width:'640px', body:F().stockCard(), footer:`<button class="primary" data-a="ok">${t('Done', 'Klaar')}</button>` });
@@ -255,25 +266,31 @@
     canvas.onmousedown = e => {
       if(e.target.closest('.fv-port, .fv-cable')) return;
       const sw = e.target.closest('.fv-swdrag'), card = e.target.closest('.fv-drag');
-      if(sw){ const loc = S.layout.locs.find(l => sw.dataset.swd.startsWith(l.dc + '|')); const s = loc?.sws.find(x => `${loc.dc}|${x.label}` === sw.dataset.swd); const w = toWorld(e); drag = { kind:'sw', key:sw.dataset.swd, loc, s, ox:w.x - s.x, oy:w.y - s.y, moved:false }; return; }
-      if(card){ const loc = S.layout.locs.find(l => l.id === card.dataset.loc); const w = toWorld(e); drag = { kind:'loc', loc, ox:w.x - loc.x, oy:w.y - loc.y, moved:false }; return; }
+      if(sw){ const loc = S.layout.locs.find(l => sw.dataset.swd.startsWith(l.dc + '|')); const s = loc?.sws.find(x => `${loc.dc}|${x.label}` === sw.dataset.swd); const w = toWorld(e); drag = { kind:'sw', key:sw.dataset.swd, loc, s, ox:w.x - s.x, oy:w.y - s.y, moved:false, sx:e.clientX, sy:e.clientY }; e.preventDefault(); return; }
+      if(card){ const loc = S.layout.locs.find(l => l.id === card.dataset.loc); const w = toWorld(e); drag = { kind:'loc', loc, ox:w.x - loc.x, oy:w.y - loc.y, moved:false, sx:e.clientX, sy:e.clientY }; e.preventDefault(); return; }
       drag = { kind:'pan', x:e.clientX, y:e.clientY, tx:S.tx, ty:S.ty }; canvas.classList.add('grab');
     };
     window.onmousemove = e => {
       if(!drag) return;
       if(drag.kind === 'pan'){ S.tx = drag.tx + e.clientX - drag.x; S.ty = drag.ty + e.clientY - drag.y; apply(); return; }
-      const w = toWorld(e); drag.moved = true;
-      if(drag.kind === 'loc'){ drag.loc.x = w.x - drag.ox; drag.loc.y = w.y - drag.oy; drag.pos = { x:drag.loc.x, y:drag.loc.y }; drag.redraw = true; }
-      else { drag.dropX = w.x; drag.dropY = w.y; S.float = { key:drag.key, x:w.x - drag.ox, y:w.y - drag.oy }; }
+      if(!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 4) return;       // a click is not a move
+      const w = toWorld(e); drag.moved = true; canvas.classList.add('holding');
+      const gc = grid(), snap = gc.snap && !e.altKey, q = v => (snap ? Math.round(v / gc.size) * gc.size : Math.round(v));
+      if(drag.kind === 'loc') S.floatLoc = { id:drag.loc.id, x:q(w.x - drag.ox), y:q(w.y - drag.oy) };       // the location follows the pointer, on the grid
+      else {                                                                                            // the switch follows the pointer; the cell it will drop into is shown
+        S.float = { key:drag.key, x:w.x - drag.ox, y:w.y - drag.oy };
+        const l = drag.loc; S.guide = { loc:l.id, col:Math.max(0, Math.min(3, Math.round((S.float.x - l.x - PAD) / CELLW))), row:Math.max(0, Math.min(3, Math.round((S.float.y - l.y - HEAD) / CELLH))) };
+      }
       liveRedraw(root);
     };
     window.onmouseup = e => {
-      const d = drag; drag = null; S.float = null; canvas.classList.remove('grab');
+      const d = drag; drag = null; const fl = S.floatLoc, gd = S.guide; S.float = null; S.floatLoc = null; S.guide = null; canvas.classList.remove('grab', 'holding');
       if(!d || d.kind === 'pan' || !d.moved) return;
       const st = store();
-      if(d.kind === 'loc'){ st.loc[d.loc.id] = { x:Math.round(d.loc.x), y:Math.round(d.loc.y) }; }
+      if(d.kind === 'loc'){ st.loc[d.loc.id] = { x:Math.round(fl ? fl.x : d.loc.x), y:Math.round(fl ? fl.y : d.loc.y) }; window.PatchHistory?.label?.(t('Moved a location in the fibre overview', 'Locatie verplaatst in het fiberoverzicht')); }
       else {
-        const l = d.loc, w = toWorld(e), col = Math.max(0, Math.min(3, Math.round((w.x - d.ox - l.x - PAD) / CELLW))), row = Math.max(0, Math.min(3, Math.round((w.y - d.oy - l.y - HEAD) / CELLH)));
+        const l = d.loc, col = gd ? gd.col : d.s.col, row = gd ? gd.row : d.s.row;
+        window.PatchHistory?.label?.(t('Moved a switch in the fibre overview', 'Switch verplaatst in het fiberoverzicht'));
         const other = l.sws.find(x => x !== d.s && x.col === col && x.row === row);
         if(other) st.sw[`${l.dc}|${other.label}`] = { col:d.s.col, row:d.s.row };
         st.sw[d.key] = { col, row };

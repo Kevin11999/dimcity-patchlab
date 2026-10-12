@@ -13,6 +13,7 @@ const KINDS = {
   switch:   { key:'switchTypes',   label:'Switches',  one:'Switch',   prefix:'SWITCH:', icon:'switchDev', color:'#35c47c' },
   panel:    { key:'panelTypes',    label:'Panels',    one:'Panel',    prefix:'PANEL:',  icon:'panel',     color:'#b18cff' },
   cable:    { key:'cableTypes',    label:'Cables',    one:'Cable',    prefix:'CABLE:',  icon:'cable',     color:'#22c3d6' },
+  console:  { key:'consoleTypes',  label:'Network devices', one:'Network device', prefix:'DEV:', icon:'console', color:'#f59e0b' },
   rack:     { key:'rackTypes',     label:'Racks',     one:'Rack',     prefix:'RACK:',   icon:'rack' }
 };
 const DEVICE_KINDS = ['node', 'splitter', 'switch', 'panel'];
@@ -24,7 +25,7 @@ const F_IP     = { k:'defaultIp', label:'Default IP', type:'ip', ph:'optional' }
 const F_SUBNET = { k:'subnet', label:'Subnet', type:'ip', def:'255.255.255.0' };
 const F_HEIGHT = { k:'heightU', label:'Height (U)', type:'number', min:1, max:8, def:1 };
 const F_WIDTH  = { k:'width', label:'Width in the rack', type:'select', def:'full', options:[['full', 'Full 19″'], ['half', 'Half 19″ — two side by side; a blind plate fills the rest']] };
-const F_SHORT  = { k:'short', label:'Short name', type:'text', ph:'shown in racks and overviews; empty = made automatically' };
+const F_SHORT  = { k:'short', label:'Short name', type:'text', ph:'e.g. LN12 (max 8)', max:8 };
 const F_COLOR  = kind => ({ k:'color', label:'Color', type:'color', def:KINDS[kind].color });
 const CONNECTORS = ['opticalCON DUO', 'opticalCON QUAD', 'opticalCON ADVANCED', 'FiberFox', 'LC duplex', 'SC duplex', 'SFP (LC)', 'SFP DAC', 'RJ45'];
 const MEDIUM = { smf:'Singlemode', mmf:'Multimode', dac:'SFP patch / DAC', cat:'Cat' };
@@ -46,6 +47,9 @@ const FIELDS = {
     { k:'frontCount', label:'Ports on the front (0 = all; the rest go to a panel)', type:'number', min:0, max:96, def:0 },
     { k:'sfpConnectors', label:'Fibre connector per port, in order (numbers continue after the copper ports)', type:'text', ph:'opticalCON DUO, opticalCON DUO, FiberFox DUO, FiberFox DUO' },
     F_IP, F_SUBNET, F_WIDTH, F_HEIGHT, F_COLOR('switch')],
+  console: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'grandMA3 full-size' }, F_SHORT,
+    { k:'ethernetCount', label:'Network ports', type:'select', def:'1', options:[['1', '1× RJ45'], ['2', '2× RJ45']] },
+    F_COLOR('console')],
   cable: [F_ID, F_BRAND, { k:'name', label:'Type', type:'text', ph:'opticalCON DUO 4-core' },
     { k:'medium', label:'Medium', type:'select', def:'smf', options:[['smf', 'Fibre, singlemode'], ['mmf', 'Fibre, multimode'], ['dac', 'SFP patch / DAC (short)'], ['cat', 'Copper Cat (RJ45)']] },
     { k:'cores', label:'Cores', type:'number', min:1, max:48, def:4 },
@@ -100,6 +104,7 @@ function metaLine(kind, t){
     case 'splitter': return `${t.mode === 'AB' ? 'A/B' : '1'} in · ${num(t.outputCount, 10)} out${t.switching === 'paired' ? ' · paired' : ''}`;
     case 'switch': return `${num(t.portCount, 16)} ${t.jack === 'etherCON' ? 'etherCON' : 'RJ45'}${num(t.sfpCount) ? ` + ${num(t.sfpCount)} ${String(t.sfpConnectors || '').trim() ? 'fibre' : 'SFP'}` : ''}`;
     case 'cable': return `${MEDIUM[t.medium] || 'Fibre'} · ${num(t.cores, 4)}-core · ${String(num(t.lengthM, 50)).replace('.', ',')} m`;
+    case 'console': return `${ethernetPorts(t)}× RJ45 · lighting console, media server, laptop …`;
     case 'panel': return [[t.lkCount, 'LK37'], [t.vimCount, 'Veam4'], [t.xlrCount, 'XLR'], [t.etherconCount, 'etherCON']]
       .filter(([n]) => num(n) > 0).map(([n, l]) => `${num(n)}× ${l}`).join(' · ') + (num(t.lkCount) > 0 && num(t.vimCount) > 0 && num(t.vimPerLk, 3) > 0 ? ` · ${Math.min(3, num(t.vimPerLk, 3))} Veam4 per LK37` : '') || 'No sockets';
   }
@@ -111,6 +116,7 @@ function portsHtml(kind, t, opts = {}){
   switch(kind){
     case 'node':
       return grp(range(num(t.portCount, 8), i => port('dmx', i, `DMX port ${i}`))) + grp(range(ethernetPorts(t), i => port('rj', ethernetPorts(t) > 1 ? i : '', ethernetPorts(t) > 1 ? `Network ${i}` : 'Network')));
+    case 'console': return grp(range(ethernetPorts(t), i => port('rj', ethernetPorts(t) > 1 ? i : '', ethernetPorts(t) > 1 ? `Network ${i}` : 'Network')));
     case 'splitter': {
       const count = num(t.outputCount, 10);
       const ins = grp(port('dmx in', 'A', 'Input A') + (t.mode === 'AB' ? port('dmx in b', 'B', 'Input B') : ''));
@@ -204,7 +210,7 @@ function fieldHtml(f, t){
     case 'color': input = `<input type="color" ${attrs} value="${safeHex(v, f.def)}">`; break;
     case 'combo': input = `<input type="text" ${attrs} list="dl-${f.k}" value="${esc(v)}" placeholder="${esc(f.ph || '')}"><datalist id="dl-${f.k}">${(f.list || []).map(o => `<option value="${esc(o)}">`).join('')}</datalist>`; break;
     case 'ip': input = `<input type="text" class="ipv4" inputmode="numeric" ${attrs} value="${esc(v)}" placeholder="${esc(f.ph || '')}">`; break;
-    default: input = `<input type="text" ${attrs} value="${esc(v)}" placeholder="${esc(f.ph || '')}">`;
+    default: input = `<input type="text" ${attrs} value="${esc(v)}" placeholder="${esc(f.ph || '')}"${f.max ? ` maxlength="${f.max}"` : ''}>`;
   }
   return `<label class="field">${esc(f.label)}${input}</label>`;
 }
@@ -244,7 +250,7 @@ function renderDeviceTab(kind){
   const cards = list.map(t => `
     <div class="db-card ${S.origId === t.id ? 'sel' : ''}" data-pick="${esc(t.id)}" tabindex="0">
       <div class="db-card-head"><b>${esc(typeName(t))}</b>${libBadge(K.key, t)}</div>
-      <div class="subtle db-card-meta">${esc(t.id)} · ${esc(metaLine(kind, t))}${kind === 'cable' ? '' : ` · ${num(t.heightU, 1)}U`}</div>
+      <div class="subtle db-card-meta">${esc(t.id)} · ${esc(metaLine(kind, t))}${kind === 'cable' || kind === 'console' ? '' : ` · ${num(t.heightU, 1)}U`}</div>
       ${unitFace(kind, t, 'sm')}
     </div>`).join('');
   return `<div class="db-split">
@@ -705,7 +711,7 @@ function open(tab){
   d.footer.querySelector('[data-a=done]').onclick = () => guardDiscard(() => d.close());
   d.footer.querySelector('[data-a=shorts]').onclick = () => {
     let n = 0;
-    for(const k of ['nodeTypes', 'splitterTypes', 'switchTypes', 'panelTypes']) for(const ty of plist(k)) if(!String(ty.short || '').trim() && !ty.special){ ty.short = window.ShortName.derive(ty); n++; Lib()?.put(k, ty); }
+    for(const k of ['nodeTypes', 'splitterTypes', 'switchTypes', 'panelTypes']) for(const ty of plist(k)) if(!String(ty.short || '').trim() && !ty.special){ ty.short = window.ShortName.code(ty); n++; Lib()?.put(k, ty); }
     afterChange(); render(); App.ui.toast(n ? `${n} short names filled in` : 'Every device already has a short name');
   };
   d.footer.querySelector('[data-a=export]').onclick = () => window.Library?.exportFile();

@@ -710,13 +710,13 @@
     const P = E.computeRackPlan(M, dc);
     const owners = E.ownerColors(P);
     const drawing = o.drawing === false ? '' : `<div class="prk-row">${P.racks.map((R, ri) => R.rack ? rackDrawing(M, P, R, ri, L, owners) : '').join('')}</div>`;
-    const whereOf = x => x.loose ? (x.name ? `Loose · ${x.name}` : 'Loose node') : (P.racks[x.rack]?.placement.name || P.racks[x.rack]?.rack?.name || '');
+    const whereOf = x => x.loose ? (x.field ? (x.name ? `Elsewhere · ${x.name}` : 'Elsewhere (belongs to this DB)') : (x.name ? `Loose · ${x.name}` : 'Loose node')) : (P.racks[x.rack]?.placement.name || P.racks[x.rack]?.rack?.name || '');
     const nodeList = o.nodes === false || !P.nodes.length ? '' : `<div class="pnp-grid">${P.nodes.map(x => nodePortsPrint(P, x, whereOf(x), owners)).join('')}</div>`;
     const loose = P.loose || [];
     let looseHtml = '';
     if(o.loose !== false && loose.length){
       const rows = loose.map(d => {
-        if(d.kind === 'node'){ const x = P.nodes.find(y => y.iid === d.iid); return `<tr><td><b>${x ? x.label : '—'}</b></td><td>Node${x ? ` · ${esc(typeNameOf(x.type))}` : ` · <span class="tag red">${esc(d.typeId)} missing</span>`}</td><td>${esc(d.name || '')}</td><td>${x ? `${x.ports.filter(Boolean).length}/${x.ports.length} ports used` : ''}</td></tr>`; }
+        if(d.kind === 'node'){ const x = P.nodes.find(y => y.iid === d.iid); return `<tr><td><b>${x ? x.label : '—'}</b></td><td>Node${x ? ` · ${esc(typeNameOf(x.type))}` : ` · <span class="tag red">${esc(d.typeId)} missing</span>`}</td><td>${esc(d.name || '')}${d.place === 'field' ? `${d.name ? ' · ' : ''}<span class="small">elsewhere, belongs to this DB</span>` : ''}</td><td>${x ? `${x.ports.filter(Boolean).length}/${x.ports.length} ports used` : ''}</td></tr>`; }
         const isLk = d.kind === 'lkSpider';
         const s = isLk ? P.groups.find(g => g.iid === d.iid) : P.soloVims.find(v => v.iid === d.iid);
         const used = isLk ? s?.lk : s?.used;
@@ -728,7 +728,7 @@
     }
     const advice = o.advice === false ? '' : `<div class="rk-advice">${P.recs.map(r => `<div class="${r.level}">${esc(r.text)}</div>`).join('')}</div>`;
     const lines = P.lines.slice().sort((a, b) => String(a.feed?.node || '~').localeCompare(String(b.feed?.node || '~'), undefined, { numeric:true }) || (a.feed?.port || 0) - (b.feed?.port || 0));
-    const table = o.table === false ? '' : `<table><thead><tr><th>Node port</th><th class="num">Universe</th><th>Via</th><th>Socket</th><th>LK / Veam port</th><th>Location</th></tr></thead><tbody>${lines.map(l => `<tr><td>${l.feed ? `<span class="dot" style="background:${l.feed.color}"></span><b>${esc(l.feed.node)}</b> · ${l.feed.port}` : '<span class="tag red">no port</span>'}</td><td class="num">U${l.universe}</td><td>${l.feed?.splitter ? `${esc(l.feed.splitter)} · out ${l.feed.out}` : 'direct'}</td><td>${esc(l.socket)}</td><td>${esc(l.label)}</td><td>${esc(l.dest)}</td></tr>`).join('')}</tbody></table>`;
+    const table = o.table === false ? '' : `<table><thead><tr><th>Node port</th><th class="num">Universe</th><th>Via</th><th>Socket</th><th>LK / Veam port</th><th>Location</th></tr></thead><tbody>${lines.map(l => `<tr><td>${l.feed ? `<span class="dot" style="background:${l.feed.color}"></span><b>${esc(l.feed.node)}</b> · ${l.feed.port}` : '<span class="tag red">no port</span>'}</td><td class="num">U${l.universe}</td><td>${l.feed?.splitter ? `${esc(l.feed.splitter)} · out ${l.feed.out}` : 'direct'}</td><td>${esc(l.socket)}</td><td>${esc(l.label)}</td><td>${esc(l.dest)}${l.note ? ` · ${esc(l.note)}` : ''}</td></tr>`).join('')}</tbody></table>`;
     const st = P.stats;
     return `<div class="section">${h3(n, 'Racks', `${st.lkUsed}/${st.lkSockets} LK37 · ${st.vimUsed}/${st.vimSockets} Veam4 · ${st.nodePortsUsed}/${st.nodePorts} node ports`)}${advice}${drawing}${nodeList}${looseHtml}${table}</div>`;
   }

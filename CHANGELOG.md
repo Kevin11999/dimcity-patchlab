@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.17.0 — 2026-10-12
+
+- Fixed: CSV node lines (Node601,1) sit only on the node you link them to (no longer also on a rack node), loose nodes can be marked “In the DB” or “Elsewhere”, saving a project no longer loses the LK ↔ Veam link rows (LK201 …) or the places of node lines, the Patch List shows the link rows and the import wizard no longer greys out C and CL lines.
+
+<details><summary>Nederlands</summary>
+
+- Opgelost: CSV-nodelijnen (Node601,1) staan alleen op de node die je koppelt (niet meer ook op een rek-node), losse nodes kun je markeren als “In de DB” of “Elders”, opslaan verliest de LK ↔ Veam-koppelregels (LK201 …) en de plek van nodelijnen niet meer, de Patch List toont de koppelregels en de importwizard grijst C- en CL-regels niet meer uit.
+
+</details>
+
 ## 0.16.0 — 2026-10-12
 
 - New **Network** tab in Settings: tick the network adapters PatchLab looks at (faster), and an **Automatic** switch that shows LumiNodes and GigaCores by themselves, whatever their IP address (also in another IP range, with a button to reach them) and how each was found; Network config and the Align tool only show where they search.

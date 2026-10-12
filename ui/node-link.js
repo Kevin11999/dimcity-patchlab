@@ -23,10 +23,12 @@
   const planNodes = dc => (App.net.getDimPlan(dc).nodes || []);
   const refOf = no => refs().find(r => r.no === no);
   // put the universes of the CSV lines on the ports of the linked node
+  // (the same rule as the rack engine: a port the node has, the first line wins when the CSV names a port twice)
   function fill(node, ref){
     node.universes = Array.isArray(node.universes) ? node.universes : [];
+    const nt = (M().networkDevices?.nodeTypes || []).find(x => x.id === node.typeId), max = Number(nt?.portCount) > 0 ? Number(nt.portCount) : Infinity, used = new Set();
     let n = 0;
-    for(const p of ref.ports) if(p.port && p.universe != null){ node.universes[p.port - 1] = p.universe; n++; }
+    for(const p of ref.ports) if(p.port && p.universe != null && p.port <= max && !used.has(p.port)){ node.universes[p.port - 1] = p.universe; used.add(p.port); n++; }
     return n;
   }
   function link(dc, index, no){

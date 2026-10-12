@@ -86,7 +86,7 @@
     if(L.kinds.devices){
       P.racks.forEach((R, ri) => { if(!R.rack) return; out.push({ kind:'device', dc, title:rackName(ri), sub:`${R.rack.heightU}U${R.rack.articleKey ? ` · ${R.rack.articleKey}` : ''}`, lines:[dc], color:'#475569', badge:'', copies:1 });
         let sw = 0; for(const it of (R.rack.items || [])) if(it.kind === 'switch'){ const ty = (m.networkDevices?.switchTypes || []).find(x => x.id === it.typeId); out.push({ kind:'device', dc, title:`SW${++sw}`, sub:typeName(ty), lines:[rackName(ri), dc], color:'#a78bfa', badge:'', copies:1 }); } });
-      for(const n of P.nodes) out.push({ kind:'device', dc, title:n.label, sub:typeName(n.type), lines:[n.loose ? (n.name || t('Loose node', 'Losse node')) : rackName(n.rack), dc], color:n.color, badge:n.label, copies:1 });
+      for(const n of P.nodes) out.push({ kind:'device', dc, title:n.label, sub:typeName(n.type), lines:[n.loose ? ((n.name || t('Loose node', 'Losse node')) + (n.field ? ` · ${t('elsewhere', 'elders')}` : '')) : rackName(n.rack), dc], color:n.color, badge:n.label, copies:1 });
       for(const s of P.splitters) out.push({ kind:'device', dc, title:s.label, sub:typeName(s.type), lines:[rackName(s.rack), dc], color:s.feedColor || '#35c47c', badge:'', copies:1 });
     }
     // a sticker on the node itself: ID, address, VLAN, the switch port, the universes and where it is — all taken from the network plan
@@ -101,7 +101,7 @@
         const unis = Array.isArray(inst.universes) ? inst.universes.filter(u => u != null && u !== '' && Number.isFinite(Number(u))).map(Number) : [];
         const ip = ifs[0] ? `${ifs[0].ip}${ifs[0].mask ? ` /${bits(ifs[0].mask)}` : ''}` : t('no address yet', 'nog geen adres');
         const extra = ifs.slice(1).map(x => `${x.ip}${vl(x) ? ` ${vl(x).split(' ').slice(1).join(' ')}` : ''}`).join(' · ');
-        const where = pn ? (pn.loose ? t('Loose', 'Los') : rackName(pn.rack)) : '';
+        const where = pn ? (pn.loose ? (pn.field ? (pn.name || t('Elsewhere', 'Elders')) : t('Loose', 'Los')) : rackName(pn.rack)) : '';
         out.push({ kind:'nodeSticker', dc, title:d.label, sub:ip, maxLines:4,
           lines:[ifs[0] && vl(ifs[0]) ? `VLAN ${vl(ifs[0])}` : '', extra, pr.length ? pr.map(r => `${r.sw} · ${t('port', 'poort')} ${r.swPort}`).join(' + ') : '', unis.length ? `U ${window.NetCables?.uniText ? window.NetCables.uniText(unis) : unis.join(',')}` : '', `${App.dimLabel ? App.dimLabel(dc) : dc}${where ? ` · ${where}` : ''}`].filter(Boolean),
           color:pn?.color || '#94a3b8', badge:window.ShortName ? window.ShortName.port(ty || {}) : '', copies:1 });

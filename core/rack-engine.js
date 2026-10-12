@@ -40,6 +40,27 @@ export function looseDevices(M, dc){
 }
 export const hasRackPlan = (M, dc) => placedRacks(M, dc).length > 0 || looseDevices(M, dc).length > 0;
 
+// A node line of the CSV (Node601,1 → "Node 601.1"): the universe that sits on port 1 of CSV node 601. { no:'601', port:1 | null } or null.
+// (also what an older file has: a loose DMX line whose place is a node and a port)
+const NODE_RE = /^\s*node\s*0*(\d{3,4})(?:\s*[.\-/]\s*(\d{1,3}))?\s*$/i;
+export const nodeRef = D => { const m = NODE_RE.exec(String(D?.dest ?? '')); return m ? { no:m[1], port:m[2] ? Number(m[2]) : null } : null; };
+// CSV node → the node of a network plan that carries its name ("Name from the CSV"): { dc, node }
+export function csvLinks(M){
+  const out = new Map();
+  for(const [dc, plan] of Object.entries(M.networkDevices?.dimCityPlans || {})) for(const n of plan?.nodes || []) if(n.csvRef) out.set(String(n.csvRef), { dc, node:n });
+  return out;
+}
+// every node line of the show, by CSV node: no → [{ universe, port, dest, note, label }]
+export function csvNodeLines(M){
+  const out = new Map();
+  for(const D of (M.dmxLoose || [])){
+    const ref = nodeRef(D); if(!ref || D.universe == null || D.universe === '') continue;
+    if(!out.has(ref.no)) out.set(ref.no, []);
+    out.get(ref.no).push({ universe:num(D.universe), port:ref.port, dest:D.dest || '', note:D.note || '', label:`Node ${ref.no}${ref.port ? `.${ref.port}` : ''}`, dimcity:D.dimcity });
+  }
+  return out;
+}
+
 // Alle lijnen (poorten met een universe) van een DimCity, met wat er fysiek op aangesloten moet worden
 function demand(M, dc){
   const lks = [...M.byLK.values()].filter(l => l.dimcity === dc).sort((a, b) => byNum(a.id, b.id));
@@ -64,9 +85,11 @@ function demand(M, dc){
     kind:'VEAM', id:ve.id,
     lines:(ve.lines || []).filter(L => L.universe != null && L.universe !== '').map(L => ({ universe:num(L.universe), port:L.port, dest:L.dest || '', label:`${ve.id} · ${L.port}`, owner:ve.id, ownerKind:'VEAM' }))
   }));
-  const loose = (M.dmxLoose || []).filter(D => D.dimcity === dc && D.universe != null && D.universe !== '')
-    .map((D, i) => ({ universe:num(D.universe), port:'—', dest:D.dest || '', label:`Loose DMX ${i + 1}`, owner:'DMX', ownerKind:'DMX' }));
-  return { lkNeeds, veNeeds, loose };
+  // a node line (Node 601.1) says which port of which node carries the universe: it is not fed from another node; the others (a line to a place) are
+  const here = (M.dmxLoose || []).filter(D => D.dimcity === dc && D.universe != null && D.universe !== '');
+  const loose = here.filter(D => !nodeRef(D)).map((D, i) => ({ universe:num(D.universe), port:'—', dest:D.dest || '', label:`Loose DMX ${i + 1}`, owner:'DMX', ownerKind:'DMX' }));
+  const nodeLines = here.filter(D => nodeRef(D)).map(D => { const r = nodeRef(D); return { universe:num(D.universe), no:r.no, port:r.port, dest:D.dest || '', note:D.note || '', label:`Node ${r.no}${r.port ? `.${r.port}` : ''}` }; });
+  return { lkNeeds, veNeeds, loose, nodeLines };
 }
 
 // Hulpmiddelen van alle racks in deze DimCity, in volgorde (rek, dan positie van boven naar beneden)
@@ -109,7 +132,7 @@ function resources(M, dc){
       const t = find('nodeTypes', d.typeId);
       if(!t){ loose.push({ ...d, missing:true }); continue; }
       const n = nodes.length;
-      nodes.push({ rack:-1, zone:'loose', loose:true, iid:d.iid, key:`l:${d.iid}`, type:t, name:d.name || '', label:`N${n + 1}`, color:NODE_COLORS[n % NODE_COLORS.length], ports:Array.from({ length:Math.max(1, num(t.portCount, 8)) }, () => null) });
+      nodes.push({ rack:-1, zone:'loose', loose:true, field:d.place === 'field', iid:d.iid, key:`l:${d.iid}`, type:t, name:d.name || '', label:`N${n + 1}`, color:NODE_COLORS[n % NODE_COLORS.length], ports:Array.from({ length:Math.max(1, num(t.portCount, 8)) }, () => null) });
     } else if(d.kind === 'lkSpider'){
       groups.push({ rack:-1, zone:null, loose:true, panel:'Loose LK spider', iid:d.iid, nodeIid:d.nodeIid || null, label:`LK${++lkNo}`, vims:[], lk:null });
     } else if(d.kind === 'vimSpider'){
@@ -117,6 +140,9 @@ function resources(M, dc){
     }
     loose.push(d);
   }
+  // the CSV name a node carries (Network → Nodes → "Name from the CSV"): its universes sit on the ports the CSV says
+  const planNodes = M.networkDevices?.dimCityPlans?.[dc]?.nodes || [];
+  for(const n of nodes){ const pn = planNodes.find(x => x.src === n.key && !x.gone); n.csvRef = pn?.csvRef ? String(pn.csvRef) : null; }
   return { nodes, splitters, groups, soloVims, racks, loose };
 }
 
@@ -199,17 +225,45 @@ export function computeRackPlan(M, dc){
   }
   D.loose.forEach(l => lines.push({ ...l, socket:'Direct (XLR)' }));
 
+  // 2b. The node lines of the CSV: the universes of a CSV node that is linked to a node sit on that node's ports, exactly as the CSV says
+  // (they are fed by nothing else, and nothing else takes those ports). A CSV node that is linked to nothing is not patched: it is reported.
+  const csv = csvNodeLines(M), links = csvLinks(M), csvProblems = [];
+  let csvFixed = 0;
+  for(const n of R.nodes){
+    if(!n.csvRef) continue;
+    for(const c of (csv.get(n.csvRef) || [])){
+      if(!c.port){ csvProblems.push({ kind:'noPort', no:n.csvRef, universe:c.universe, node:n.label }); continue; }
+      if(c.port > n.ports.length){ csvProblems.push({ kind:'range', no:n.csvRef, port:c.port, universe:c.universe, node:n.label, ports:n.ports.length }); continue; }
+      if(n.ports[c.port - 1]){ csvProblems.push({ kind:'twice', no:n.csvRef, port:c.port, universe:c.universe, other:n.ports[c.port - 1].universe, node:n.label }); continue; }
+      n.ports[c.port - 1] = { universe:c.universe, to:c.label, splitter:null, owner:`Node ${n.csvRef}`, ownerPort:c.port, dest:c.note || c.dest, fixed:true };
+      lines.push({ universe:c.universe, port:'—', dest:c.dest, note:c.note, label:c.label, owner:'DMX', ownerKind:'DMX', socket:'—', fixed:true, feed:{ node:n.label, port:c.port, color:n.color } });
+      csvFixed++;
+    }
+  }
+  const unlinked = [];
+  if(hasRackPlan(M, dc)){
+    const byNo = new Map(); for(const l of D.nodeLines){ if(!byNo.has(l.no)) byNo.set(l.no, []); byNo.get(l.no).push(l); }
+    for(const [no, ls] of byNo){
+      const lk = links.get(no);
+      if(!lk) unlinked.push({ no, lines:ls.length, universes:ls.map(x => x.universe), reason:'none' });
+      else if(lk.node.gone) unlinked.push({ no, lines:ls.length, universes:ls.map(x => x.universe), reason:'gone', node:lk.node.id || '' });
+    }
+  }
+
   // 3. Voeding: nodepoorten, en splitters als de poorten niet genoeg zijn
+  // a node that stands elsewhere (not in the DB) is never fed by the automatic patch; only a spider that was put on it by hand reaches it
+  const feedNodes = R.nodes.filter(n => !n.field);
   const totalPorts = R.nodes.reduce((n, x) => n + x.ports.length, 0);
+  const availPorts = feedNodes.reduce((n, x) => n + x.ports.filter(p => !p).length, 0);
   const byUni = new Map();
-  for(const l of lines){ if(!byUni.has(l.universe)) byUni.set(l.universe, []); byUni.get(l.universe).push(l); }
+  for(const l of lines){ if(l.feed) continue; if(!byUni.has(l.universe)) byUni.set(l.universe, []); byUni.get(l.universe).push(l); }
   const feeds = [];                 // { universe, lines:[...], via:'direct' | splitter }
-  let needPorts = lines.length;
+  let needPorts = lines.filter(l => !l.feed).length;
   const unis = [...byUni.entries()].sort((a, b) => b[1].length - a[1].length || a[0] - b[0]);
   for(const [u, ls] of unis){
-    if(needPorts <= totalPorts || ls.length < 2) continue;
+    if(needPorts <= availPorts || ls.length < 2) continue;
     for(const sp of R.splitters){
-      if(needPorts <= totalPorts) break;
+      if(needPorts <= availPorts) break;
       const free = sp.outputs.filter(o => !o).length;
       if(sp.inputs.length >= sp.maxInputs || free < 2) continue;
       const rest = ls.filter(l => !l.feed && zoneOk(l.zone, sp.zone));
@@ -246,7 +300,7 @@ export function computeRackPlan(M, dc){
   const zoneOfF = f => f.splitter ? f.splitter.zone : f.line.zone;
   for(const u of sortedUnits){
     const pref = prefOf(u), uz = zoneOfF(u[0]);
-    const node = (pref && R.nodes.find(n => n.iid === pref && free(n) >= u.length && zoneOk(n.zone, uz))) || R.nodes.find(n => free(n) >= u.length && zoneOk(n.zone, uz));
+    const node = (pref && R.nodes.find(n => n.iid === pref && free(n) >= u.length && zoneOk(n.zone, uz))) || feedNodes.find(n => free(n) >= u.length && zoneOk(n.zone, uz));
     if(node) u.sort((x, y) => (x.line?.port ?? 0) - (y.line?.port ?? 0)).forEach(f => put(node, f));
     else rest.push(...u);
   }
@@ -254,7 +308,7 @@ export function computeRackPlan(M, dc){
   for(const f of rest){
     const pref = f.line ? prefNode.get(f.line.owner) : null;
     const fz = zoneOfF(f);
-    const node = (pref && R.nodes.find(n => n.iid === pref && free(n) > 0 && zoneOk(n.zone, fz))) || R.nodes.find(n => free(n) > 0 && zoneOk(n.zone, fz));
+    const node = (pref && R.nodes.find(n => n.iid === pref && free(n) > 0 && zoneOk(n.zone, fz))) || feedNodes.find(n => free(n) > 0 && zoneOk(n.zone, fz));
     if(node) put(node, f);
     else { unfed += f.splitter ? f.lines.length : 1; (f.splitter ? f.lines : [f.line]).forEach(l => unfedLines.push(l)); if(f.line) f.line.feed = null; else f.lines.forEach(l => l.feed = null); }
   }
@@ -285,7 +339,14 @@ export function computeRackPlan(M, dc){
       if(farFree) recs.push({ level:'warn', text:`${unfedLines.filter(l => l.zone != null).length || unfed} line${unfed > 1 ? 's have' : ' has'} no free node port in the same rack. LK and Veam cables are short and cannot go from one rack to another — put a node in that rack, or place the racks on top of each other (tick "stacked" on the upper rack). Only network cables run between racks.`, fix });
       else recs.push({ level:'warn', text:`${unfed} line${unfed > 1 ? 's have' : ' has'} no node port → add ${Math.ceil(unfed / per)}× ${nodeTypes[0] ? typeName(nodeTypes[0]) : 'node'}${R.splitters.length ? '' : ', or a splitter for universes that are used more than once'}.` });
     }
-    const lonely = R.nodes.filter(n => n.loose && !R.loose.some(d => (d.kind === 'lkSpider' || d.kind === 'vimSpider') && (!d.nodeIid || d.nodeIid === n.iid)));
+    const lonely = R.nodes.filter(n => n.loose && !n.field && !n.csvRef && !R.loose.some(d => (d.kind === 'lkSpider' || d.kind === 'vimSpider') && (!d.nodeIid || d.nodeIid === n.iid)));
+    const lines1 = x => `${x} line${x === 1 ? '' : 's'}`;
+    for(const u of unlinked) recs.push({ level:'warn', text:u.reason === 'gone'
+      ? `Node ${u.no} (${lines1(u.lines)} in the CSV) is linked to ${u.node || 'a node'} that is no longer in a rack, so these lines are not patched. Link Node ${u.no} to another node (Network page → Nodes → “Name from the CSV”, or on the loose node).`
+      : `Node ${u.no} (${lines1(u.lines)} in the CSV: ${u.universes.slice(0, 4).map(x => 'U' + x).join(', ')}${u.universes.length > 4 ? ' …' : ''}) is not linked to a node yet, so these lines are not patched on any node. Choose “Name from the CSV” on the node that is Node ${u.no} (Network page → Nodes, or on the loose node).` });
+    for(const q of csvProblems) recs.push({ level:'warn', text:q.kind === 'noPort' ? `Node ${q.no}: the CSV line with universe ${q.universe} has no port number, so it is not put on a port of ${q.node}.`
+      : q.kind === 'range' ? `Node ${q.no}: port ${q.port} (universe ${q.universe}) does not exist on ${q.node} (${q.ports} ports), so it is not patched.`
+      : `Node ${q.no}: port ${q.port} is used twice in the CSV (universe ${q.other} and ${q.universe}); only universe ${q.other} is on that port of ${q.node}.` });
     if(lonely.length) recs.push({ level:'warn', text:`A node without a rack needs a loose LK spider or a loose Veam spider to be fed: ${lonely.map(n => n.label).join(', ')} ${lonely.length > 1 ? 'have' : 'has'} none → add one next to ${lonely.length > 1 ? 'each of them' : 'it'}.` });
     if(!R.nodes.length && lines.length) recs.push({ level:'warn', text:R.racks.length ? 'This rack has no DMX nodes.' : 'There is no DMX node yet — add a loose node or place a rack.' });
     const freePorts = totalPorts - usedPorts;
@@ -297,7 +358,7 @@ export function computeRackPlan(M, dc){
     if(!recs.some(r => r.level === 'warn') && lines.length) recs.unshift({ level:'ok', text:`Everything fits: ${lines.length} line${lines.length > 1 ? 's' : ''} patched on ${usedPorts} node port${usedPorts === 1 ? '' : 's'}.` });
   }
   // the checklist: what this DimCity needs, what the racks and loose devices give, what is still missing (and so what loose spiders to add)
-  const lonelyNodes = R.nodes.filter(n => n.loose && !R.loose.some(d => (d.kind === 'lkSpider' || d.kind === 'vimSpider') && (!d.nodeIid || d.nodeIid === n.iid)));
+  const lonelyNodes = R.nodes.filter(n => n.loose && !n.field && !n.csvRef && !R.loose.some(d => (d.kind === 'lkSpider' || d.kind === 'vimSpider') && (!d.nodeIid || d.nodeIid === n.iid)));
   const lkNeed = wanted.filter(n => !skipped.includes(n.id)), veLoose = veWanted.filter(n => !skipped.includes(n.id));
   // "in the racks" is what the racks give in the arrangement that was chosen: a panel group counts as one LK37 or as its Veam4's, never both
   const panelGroups = R.groups.filter(withVims), asLk = panelGroups.filter(g => g.lk || lkMode.has(g)), asVeam = panelGroups.filter(g => !asLk.includes(g));
@@ -309,12 +370,13 @@ export function computeRackPlan(M, dc){
     ports:{ need:lines.length, have:totalPorts, missing:unfed },
     spiders:{ lk:noSocket.lk.length, vim:noSocket.ve.length },
     nodesToAdd:unfed ? Math.ceil(unfed / Math.max(1, num(nodeTypes[0]?.portCount, 8))) : 0,
-    lonely:lonelyNodes.length, missingTypes:R.loose.filter(d => d.missing).length
+    lonely:lonelyNodes.length, missingTypes:R.loose.filter(d => d.missing).length,
+    csvNodes:{ lines:csvFixed, unlinked:unlinked.length, problems:csvProblems.length }
   };
-  needs.empty = !needs.lk.need && !needs.vim.need && !needs.ports.need;
-  needs.complete = !needs.empty && !needs.lk.missing && !needs.vim.missing && !needs.ports.missing && !needs.lonely && !needs.missingTypes && !badAssign.length;
+  needs.empty = !needs.lk.need && !needs.vim.need && !needs.ports.need && !needs.csvNodes.unlinked;
+  needs.complete = !needs.empty && !needs.lk.missing && !needs.vim.missing && !needs.ports.missing && !needs.lonely && !needs.missingTypes && !badAssign.length && !needs.csvNodes.unlinked && !needs.csvNodes.problems;
   return {
-    dc, skipped, badAssign, needs, lonely:lonelyNodes, racks:R.racks, loose:R.loose, nodes:R.nodes, splitters:R.splitters, groups:R.groups, soloVims:R.soloVims, lines, recs,
+    dc, skipped, badAssign, needs, lonely:lonelyNodes, unlinked, csvProblems, racks:R.racks, loose:R.loose, nodes:R.nodes, splitters:R.splitters, groups:R.groups, soloVims:R.soloVims, lines, recs,
     stats:{ lkSockets, lkUsed, vimSockets, vimUsed, nodePorts:totalPorts, nodePortsUsed:usedPorts, lines:lines.length, unfed,
       spiders:{ lk:noSocket.lk.length, vim:noSocket.ve.length } }
   };
@@ -395,4 +457,4 @@ export function ownerColor(id){
   const M = App.getMODEL(), all = [...M.byLK.keys(), ...M.byVeam.keys()].sort((a, b) => byNum(a.replace(/^\D+/, ''), b.replace(/^\D+/, '')) || (/^V/i.test(a) ? 1 : -1) - (/^V/i.test(b) ? 1 : -1));
   const pal = ownerPalette(all); return pal.get(id) || null;
 }
-window.RackEngine = { zoneOk, computeRackPlan, solveSockets, placedRacks, looseDevices, hasRackPlan, ownerColors, ownerColor, panelPorts, demand, NODE_COLORS };
+window.RackEngine = { zoneOk, computeRackPlan, solveSockets, placedRacks, looseDevices, hasRackPlan, ownerColors, ownerColor, panelPorts, demand, nodeRef, csvLinks, csvNodeLines, NODE_COLORS };

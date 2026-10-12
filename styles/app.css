@@ -821,6 +821,9 @@ kbd{font:500 10.5px var(--font);color:var(--text-3);border:1px solid var(--borde
 .rp-loose.missing{--c:var(--red)}
 .rp-loose-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .rp-loose-head .rp-name{margin-left:auto;width:200px;height:26px}
+.rp-loose-head .rp-place{height:26px;max-width:230px}
+.rp-loose.field{border-left-style:dashed}
+.rp-loose .nl-field{margin:6px 0 2px;max-width:340px}
 .rp-loose-head > button:last-child{margin-left:auto}
 .rp-loose-head .rp-name + button{margin-left:0}
 .rp-inline{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-3)}

@@ -29,7 +29,7 @@
     // racks
     P.racks.forEach(R => { if(!R.rack) return; const items = (R.rack.items || []).filter(i => i.kind !== 'blind').sort((a, b) => b.u - a.u).map(i => short(find({ node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes', panel:'panelTypes' }[i.kind], i.typeId))); L.push(`RACK ${R.placement.name || R.rack.name} ${R.rack.heightU}U${R.placement.stack ? ' stacked' : ''}: ${items.join(', ')}`); });
     // nodes with address
-    P.nodes.forEach(n => { const inst = (plan.nodes || [])[P.nodes.indexOf(n)]; L.push(`${n.label} ${short(n.type)}${inst?.ip ? ` ${inst.ip}` : ''}${n.loose ? ' (loose)' : ''}: ${n.ports.map((p, i) => p ? `${i + 1}=U${p.universe}` : '').filter(Boolean).join(' ')}`); });
+    P.nodes.forEach(n => { const inst = (plan.nodes || [])[P.nodes.indexOf(n)]; L.push(`${n.label} ${short(n.type)}${inst?.ip ? ` ${inst.ip}` : ''}${n.loose ? (n.field ? ' (elsewhere)' : ' (loose)') : ''}: ${n.ports.map((p, i) => p ? `${i + 1}=U${p.universe}` : '').filter(Boolean).join(' ')}`); });
     P.splitters.filter(s => s.inputs.length).forEach(s => L.push(`${s.label} ${short(s.type)} in U${s.inputs.join('/')}`));
     // switches
     for(const s of (window.NetSwitches?.list(dc) || [])) L.push(`SW ${s.label} ${short(s.type)}${s.dev?.ip ? ` ${s.dev.ip}` : ''}`);

@@ -43,10 +43,11 @@ function needsHtml(dc, P, { compact = false } = {}){
     row('Veam4 sockets', N.vim, '', `${spider('vimSpider', N.vim.missing)} <span class="subtle">or a panel with more Veam4 sockets</span>`),
     row('Node ports', N.ports, '', `<span>add ${N.nodesToAdd} node${N.nodesToAdd === 1 ? '' : 's'} <span class="subtle">(or a splitter for universes that are used more than once)</span></span>`)
   ].join('');
-  const todo = [N.lk.missing && `${N.lk.missing} LK37`, N.vim.missing && `${N.vim.missing} Veam4`, N.ports.missing && `${N.ports.missing} node port${N.ports.missing === 1 ? '' : 's'}`].filter(Boolean);
+  const C = N.csvNodes || {}, csvRow = C.unlinked || C.problems ? `<tr class="bad"><td><b>CSV nodes</b></td><td class="num">—</td><td class="num">—</td><td class="num"><b>${(C.unlinked || 0) + (C.problems || 0)}</b></td><td>${C.unlinked ? `<span>${C.unlinked} CSV node${C.unlinked === 1 ? '' : 's'} not linked to a node</span> <span class="subtle">Choose “Name from the CSV” on that node (Network page → Nodes, or on the loose node).</span>` : ''}${C.problems ? ` <span>${C.problems} CSV line${C.problems === 1 ? '' : 's'} cannot be put on a port</span> <span class="subtle">See the notes below.</span>` : ''}</td></tr>` : '';
+  const todo = [N.lk.missing && `${N.lk.missing} LK37`, N.vim.missing && `${N.vim.missing} Veam4`, N.ports.missing && `${N.ports.missing} node port${N.ports.missing === 1 ? '' : 's'}`, C.unlinked && `${C.unlinked} CSV node${C.unlinked === 1 ? '' : 's'} to link`].filter(Boolean);
   const status = N.complete ? `<span class="tag green">${I('checkCircle', 13)} Complete</span>` : `<span class="tag yellow">${I('alert', 13)} Not complete${todo.length ? ` — still needed: ${todo.join(', ')}` : ''}</span>`;
   const body = `<div class="rp-needs-h">${status}<span class="subtle">${N.lk.need} LK · ${N.vim.need} Veam4 · ${N.ports.need} lines</span></div>
-    <table class="data-table rp-needs-t"><thead><tr><th></th><th class="num">Needed</th><th class="num">In the racks</th><th class="num">Missing</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    <table class="data-table rp-needs-t"><thead><tr><th></th><th class="num">Needed</th><th class="num">In the racks</th><th class="num">Missing</th><th></th></tr></thead><tbody>${rows}${csvRow}</tbody></table>
     ${N.groups?.total ? `<div class="subtle" style="font-size:12.5px;margin-top:6px">${I('info', 12)} Each panel group is one LK37 or its Veam4's, never both: ${N.groups.asLk} as LK37, ${N.groups.asVeam} as Veam4. The Veams that hang on an LK need no socket of their own.</div>` : ''}`;
   return App.ui.card({ key:`${dc}:needs`, title:'What this DimCity needs', icon:'checkCircle', meta:N.complete ? 'complete' : 'not complete', collapsible:true, collapsed:compact, body:`<div class="rp-needs">${body}</div>` });
 }
@@ -199,8 +200,10 @@ function looseHtml(plan, dc){
     if(d.kind === 'node'){
       const n = plan.nodes.find(x => x.iid === d.iid);
       if(!n) return `<div class="rp-loose missing"><div class="rp-loose-head">${I('alert', 14)}<b>Loose node</b><span class="subtle">${esc(d.typeId)} is not in this show any more</span>${rm}</div></div>`;
-      return `<div class="rp-loose" style="--c:${n.color}"><div class="rp-loose-head"><span class="rk-badge" style="--c:${n.color}">${n.label}</span><b>${esc(typeName(n.type))}</b>
-          <input type="text" class="rp-name" data-loose-name="${esc(d.iid)}" value="${esc(d.name || '')}" placeholder="Name / location">${rm}</div>${nodePortsStrip(n, '', owners)}</div>`;
+      const field = d.place === 'field', np = App.net.getDimPlan(dc), pn = np.nodes.find(x => x.src === n.key && !x.gone), csvSel = pn && window.NodeLink ? window.NodeLink.selectHtml(dc, np.nodes.indexOf(pn), pn) : '';
+      return `<div class="rp-loose ${field ? 'field' : ''}" style="--c:${n.color}"><div class="rp-loose-head"><span class="rk-badge" style="--c:${n.color}">${n.label}</span><b>${esc(typeName(n.type))}</b>
+          <select class="rp-place" data-loose="${esc(d.iid)}" title="Where this node stands. In the DB: next to the DB, it can be fed from the DB. Elsewhere: it belongs to this DB and is connected to it, but stands somewhere else (in an object); it only gets the CSV lines you link to it."><option value="db" ${field ? '' : 'selected'}>In the DB</option><option value="field" ${field ? 'selected' : ''}>Elsewhere, belongs to this DB</option></select>
+          <input type="text" class="rp-name" data-loose-name="${esc(d.iid)}" value="${esc(d.name || '')}" placeholder="${field ? 'Object / place, e.g. Truss 3' : 'Name / location'}">${rm}</div>${csvSel}${nodePortsStrip(n, '', owners)}</div>`;
     }
     const isLk = d.kind === 'lkSpider';
     const sock = isLk ? plan.groups.find(g => g.iid === d.iid) : plan.soloVims.find(v => v.iid === d.iid);
@@ -251,7 +254,7 @@ function cardHtml(dc){
   const rowsSorted = plan.lines.slice().sort((a, b) => (a.feed ? 0 : 1) - (b.feed ? 0 : 1) || String(a.feed?.node || '').localeCompare(String(b.feed?.node || ''), undefined, { numeric:true }) || (a.feed?.port || 0) - (b.feed?.port || 0));
   const table = `<details class="rp-table"><summary>${I('table', 14)} Patch table <span class="subtle">${plan.lines.length} lines</span></summary>
     <div class="table-wrap"><table class="data-table"><thead><tr><th>Node port</th><th class="num">Universe</th><th>Via</th><th>Socket</th><th>LK / Veam port</th><th>Location</th></tr></thead><tbody>
-    ${rowsSorted.map(l => `<tr><td>${l.feed ? `<span class="rp-dot" style="--c:${l.feed.color}"></span><b>${esc(l.feed.node)}</b> · ${l.feed.port}` : '<span class="tag red">no port</span>'}</td><td class="num">U${l.universe}</td><td>${l.feed?.splitter ? `${esc(l.feed.splitter)} · out ${l.feed.out}` : '<span class="subtle">direct</span>'}</td><td>${esc(l.socket)}</td><td>${esc(l.label)}${l.via ? ` <span class="subtle">(${esc(l.via)})</span>` : ''}</td><td>${esc(l.dest)}</td></tr>`).join('')}
+    ${rowsSorted.map(l => `<tr><td>${l.feed ? `<span class="rp-dot" style="--c:${l.feed.color}"></span><b>${esc(l.feed.node)}</b> · ${l.feed.port}` : '<span class="tag red">no port</span>'}</td><td class="num">U${l.universe}</td><td>${l.feed?.splitter ? `${esc(l.feed.splitter)} · out ${l.feed.out}` : '<span class="subtle">direct</span>'}</td><td>${esc(l.socket)}</td><td>${esc(l.label)}${l.via ? ` <span class="subtle">(${esc(l.via)})</span>` : ''}</td><td>${esc(l.dest)}${l.note ? ` <span class="subtle">· ${esc(l.note)}</span>` : ''}</td></tr>`).join('')}
     </tbody></table></div></details>`;
   // Per node in een rek: welke LK-/Veam-poort op welke nodepoort zit (de rekweergave is daar te klein voor)
   const rackNodes = plan.nodes.filter(n => !n.loose);
@@ -334,6 +337,13 @@ function bind(root, dc, rerender0){
     const d = looseOf(dc).find(x => x.iid === inp.dataset.looseName); if(!d) return;
     d.name = inp.value.trim(); M().ui.dirty = true; rerender();
   });
+  root.querySelectorAll('.rp-place').forEach(sel => sel.onchange = () => {
+    const d = looseOf(dc).find(x => x.iid === sel.dataset.loose); if(!d) return;
+    window.PatchHistory?.label?.(`${dc}: loose node ${sel.value === 'field' ? 'stands elsewhere' : 'is in the DB'}`);
+    if(sel.value === 'field') d.place = 'field'; else delete d.place;
+    M().ui.dirty = true; rerender();
+  });
+  window.NodeLink?.bind(root, rerender);
   root.querySelectorAll('.rp-onnode').forEach(sel => sel.onchange = () => {
     const d = looseOf(dc).find(x => x.iid === sel.dataset.loose); if(!d) return;
     d.nodeIid = sel.value || null; M().ui.dirty = true; rerender();

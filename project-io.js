@@ -115,6 +115,7 @@
 
   // Effectieve rijen uit het model (incl. CSV-editor wijzigingen), met bron-informatie in kolom 7/8.
   function buildRowsFromModel(M){
+    if(typeof App.currentRows === 'function') return App.currentRows(M);
     const rows = [];
     const src = x => [x.sourceId ?? null, x.sourceName ?? null];
     for (const L of (M.lines || [])) rows.push([ L.id, String(L.port ?? ''), (L.universe ?? ''), (L.dest ?? ''), '', '', ...src(L) ]);
@@ -173,9 +174,36 @@
     };
   }
 
+  // Files saved before 0.17 kept the effective rows without the LK ↔ Veam link rows (LK201,-,V201,V203), and the node lines (Node601,1) as plain
+  // loose DMX lines without their place. The stored CSV files still have both: they are taken back from there, once, when the file is opened.
+  function healRows(rows, sources){
+    const CR = window.CsvRules;
+    if(!CR || !Array.isArray(sources) || !sources.length) return rows;
+    const clean = v => /^[-–—]+$/.test(String(v ?? '').trim()) ? '' : String(v ?? '').trim();
+    const link = r => { if(!Array.isArray(r) || CR.classify(String(r[0] ?? '').trim())?.kind !== 'LK') return null; const c = [r[1], r[2], r[3]].map(clean); return c.some(Boolean) && c.every((v, i) => !v || CR.classify(v)?.kind === 'V') ? c : null; };
+    const lkKey = r => String(CR.classify(String(r[0]).trim())?.id || r[0]).toUpperCase().replace(/^VEAM12/, 'LK');
+    const out = rows.slice(), have = new Set(rows.filter(link).map(lkKey));
+    const fromSource = (r, src) => { const x = Array.isArray(r) ? r.slice() : []; x[6] = src.id ?? null; x[7] = src.name || src.path || 'CSV'; return x; };
+    for(const src of sources) for(const r of (src.rows || [])) if(link(r) && !have.has(lkKey(r))){ have.add(lkKey(r)); out.push(fromSource(r, src)); }
+    // the node lines of the stored files, by node, port and universe
+    const nodeKey = (no, port, uni) => `${no}.${port ?? ''}|${uni ?? ''}`, twins = new Map();
+    for(const src of sources) for(const r of (src.rows || [])){
+      const c = Array.isArray(r) ? CR.classify(String(r[0] ?? '').trim()) : null; if(c?.kind !== 'NODE') continue;
+      const port = c.port != null ? c.port : (parseInt(r[1], 10) || null), k = nodeKey(c.no, port, parseInt(clean(r[2]), 10) || null);
+      if(!twins.has(k)) twins.set(k, []); twins.get(k).push(fromSource(r, src));
+    }
+    if(twins.size) for(let i = 0; i < out.length; i++){
+      const r = out[i]; if(String(r?.[0] ?? '').trim() !== '') continue;
+      const m = /^\s*node\s*0*(\d{3,4})(?:\s*[.\-/]\s*(\d{1,3}))?\s*$/i.exec(String(r[3] ?? '')); if(!m) continue;
+      const list = twins.get(nodeKey(m[1], m[2] ? Number(m[2]) : null, parseInt(clean(r[2]), 10) || null)); if(!list?.length) continue;
+      const t = list.shift(); t[6] = r[6] ?? t[6]; t[7] = r[7] ?? t[7]; out[i] = t;
+    }
+    return out;
+  }
+
   function rowsFromSnapshot(snap){
     // Vanaf v4 zijn `rows` de effectieve rijen (CSV + editor-wijzigingen + custom); die zijn leidend.
-    if (Number(snap.fileVersion) >= 4 && Array.isArray(snap.rows)) return snap.rows;
+    if (Number(snap.fileVersion) >= 4 && Array.isArray(snap.rows)) return healRows(snap.rows, snap.csvSources);
     if (Array.isArray(snap.csvSources) && snap.csvSources.length){
       const rows = [];
       for (const src of snap.csvSources){

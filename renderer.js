@@ -92,9 +92,11 @@ function looksLikeImportRow(r){
     const cells = [port, uni, dest].map(noDash);
     if(cells.some(Boolean) && cells.every(v => !v || window.CsvRules.classify(v)?.kind === 'V')) return true;
   }
-  const portOk = /^\d+$/.test(port);
-  const uniOk = uni==='' || /^\d+$/.test(uni);
-  return idOk && portOk && uniOk && dest !== '';
+  // a Cat line (C701,,---,Balkon HL) has no port; a dash in the universe column means nothing, for every kind of row
+  const kind = window.CsvRules.classify(id)?.kind;
+  const portOk = /^\d+$/.test(port) || (kind === 'NET' && (port === '' || isDash(port)));
+  const uniOk = uni==='' || isDash(uni) || /^\d+$/.test(uni);
+  return idOk && portOk && uniOk && (dest !== '' || kind === 'NET');
 }
 function autoDetectSkip(rawRows){
   const rows = rawRows || [];
@@ -138,11 +140,34 @@ function currentRows(M = MODEL){
   const src = x => [x.sourceId ?? null, x.sourceName ?? null];
   for (const L of (M.lines || [])) rows.push([ L.id, String(L.port ?? ''), (L.universe ?? ''), (L.dest ?? ''), '', '', ...src(L) ]);
   for (const V of (M.veamLines || [])) rows.push([ V.id, String(V.port ?? ''), (V.universe ?? ''), (V.dest ?? ''), '', '', ...src(V) ]);
-  for (const D of (M.dmxLoose || [])) rows.push([ '', '', (D.universe ?? ''), (D.dest ?? ''), '', (D.dimcity ?? ''), ...src(D) ]);
+  // a node line (Node601,1) goes back as it was written in the CSV: the node, its port and the place; the others as a loose DMX line
+  for (const D of (M.dmxLoose || [])) rows.push(D.nodeNo ? [ `Node ${D.nodeNo}`, D.nodePort ? String(D.nodePort) : '', (D.universe ?? ''), (D.note ?? ''), '', '', ...src(D) ] : [ '', '', (D.universe ?? ''), (D.dest ?? ''), '', (D.dimcity ?? ''), ...src(D) ]);
   for (const N of (window.NetCables?.effective ? window.NetCables.effective(M) : (M.netLines || []))) rows.push([ N.id, String(N.port ?? ''), (N.vlan ?? ''), (N.dest ?? ''), '', '', ...src(N) ]);
   for (const r of (M.invalidRows || [])) rows.push(r.slice());
   for (const r of (M.conflictRows || [])) rows.push(r.slice());
+  // the LK ↔ Veam link rows of the CSV (LK201,-,V201,V203): an LK that only has such a row exists through it, so it has to be saved with the rest
+  for (const [id, rec] of (M.byLK || new Map())){
+    const v = [1, 2, 3].map(s => rec.csvVeam?.[s] || '');
+    if(rec.csvVeam && v.some(Boolean)) rows.push([ id, v[0], v[1], v[2], '', '', rec.csvVeam.sourceId ?? null, rec.csvVeam.source ?? null ]);
+  }
   return rows;
+}
+// a CSV row that couples Veams to an LK (LK101,V101,V102,V103; a dash or an empty cell = nothing on that place): [Veam A, B, C] or null
+function linkRowCells(r){
+  if(!Array.isArray(r) || window.CsvRules.classify(String(r[0] ?? '').trim())?.kind !== 'LK') return null;
+  const cells = [r[1], r[2], r[3]].map(noDash);
+  return cells.some(Boolean) && cells.every(v => !v || window.CsvRules.classify(v)?.kind === 'V') ? cells : null;
+}
+// the Veam that is deleted is taken out of the link rows too, or the next read of the rows brings it back as a device named in a link
+function withoutVeamInLinks(rows, vid){
+  const out = [];
+  for(const r of rows){
+    const cells = linkRowCells(r);
+    if(!cells || !cells.some(c => c && sameId(c, vid))){ out.push(r); continue; }
+    const next = r.slice(); [1, 2, 3].forEach((k, i) => { if(cells[i] && sameId(cells[i], vid)) next[k] = ''; });
+    if([1, 2, 3].some(k => noDash(next[k]))) out.push(next);
+  }
+  return out;
 }
 async function rebuildFromCsvSources(){
   await processRows(rowsFromCsvSources());
@@ -539,7 +564,7 @@ async function processRows(rows){
     if(cls?.kind === 'LK'){
       const cells = [r[1], r[2], r[3]].map(noDash), vs = cells.map(v => v ? window.CsvRules.classify(v) : null);
       if(cells.some(Boolean) && cells.every((v, i) => !v || vs[i]?.kind === 'V')){
-        linkRows.push({ lk:normLK(cls.id), veams:vs.map(v => v ? v.id : null), sourceName });
+        linkRows.push({ lk:normLK(cls.id), veams:vs.map(v => v ? v.id : null), sourceName, sourceId });
         continue;
       }
     }
@@ -564,7 +589,9 @@ async function processRows(rows){
     if(cls?.kind === 'NODE'){
       if(!cls.dim){ keepInvalid(r, {severity:'RED', code:'NO_DIMCITY', message:`${id} has no DimCity in its number — Node601,1 is node 01 of DB6, port 1`}); continue; }
       const nport = cls.port != null ? cls.port : port;
-      dmxLoose.push({ id:null, universe, dest:`Node ${cls.no}${Number.isFinite(nport) && nport > 0 ? `.${nport}` : ''}`, note:position || '', dimcity:cls.dim, status: statusColor(universe, position || 'x'), source:sourceName, sourceId, sourceName, nodeRow:true });
+      const noPort = !Number.isFinite(nport) || nport < 1;
+      if(noPort) issues.push({ severity:'RED', code:'NODE_PORT', dimcity:cls.dim, message:`${id}${universe != null ? ` (universe ${universe})` : ''} has no port number — Node601,1 is port 1 of node 01 of DB6, so it cannot be put on a port` });
+      dmxLoose.push({ id:null, universe, dest:`Node ${cls.no}${Number.isFinite(nport) && nport > 0 ? `.${nport}` : ''}`, note:position || '', dimcity:cls.dim, status: noPort ? 'RED' : statusColor(universe, position || 'x'), source:sourceName, sourceId, sourceName, nodeRow:true, nodeNo:cls.no, nodePort:Number.isFinite(nport) && nport > 0 ? nport : null });
       continue;
     }
     if(cls && (cls.kind === 'LK' || cls.kind === 'V')) id = cls.id;       // een eigen voorvoegsel (K101) wordt LK101
@@ -627,6 +654,14 @@ async function processRows(rows){
     return {ded, issues: outIssues};
   }
 
+  // a port of a node named twice with different universes (Node601,1 → 93 and Node601,1 → 99)
+  { const seenNode = new Map();
+    for(const D of dmxLoose){
+      if(!D.nodeRow || !D.nodePort) continue;
+      const k = `${D.nodeNo}.${D.nodePort}`, prev = seenNode.get(k);
+      if(!prev){ seenNode.set(k, D); continue; }
+      if(prev.universe !== D.universe){ issues.push({ severity:'RED', code:'NODE_PORT_TWICE', dimcity:D.dimcity, message:`Node ${D.nodeNo} port ${D.nodePort} is patched twice with different universes (U${prev.universe ?? '—'} / U${D.universe ?? '—'})` }); prev.status = D.status = 'RED'; }
+    } }
   const d1 = dedup(lkLines); const d2 = dedup(veLines);
   const netLines = []; { const seenNet = new Map(); for(const N of netRaw){ const k = `${N.id}#${N.port}`; const prev = seenNet.get(k); if(!prev){ seenNet.set(k, N); netLines.push(N); } else { prev.dest = prev.dest || N.dest; if(prev.vlan == null) prev.vlan = N.vlan; if(N.vlan != null && prev.vlan != null && N.vlan !== prev.vlan) issues.push({severity:'YELLOW', code:'NET_CONFLICT', dimcity:N.dimcity, message:`${N.id}.${N.port} is patched twice with different VLANs — the first one is kept`}); } } }
   issues.push(...d1.issues, ...d2.issues);
@@ -690,7 +725,7 @@ async function processRows(rows){
       if(!byDim.has(dc)) byDim.set(dc, emptyDimStats());
       byDim.get(dc).lks.add(L.lk);
     }
-    rec.csvVeam = { 1:L.veams[0] || null, 2:L.veams[1] || null, 3:L.veams[2] || null, source:L.sourceName };
+    rec.csvVeam = { 1:L.veams[0] || null, 2:L.veams[1] || null, 3:L.veams[2] || null, source:L.sourceName, sourceId:L.sourceId || null };
     for(const sl of [1, 2, 3]){
       rec.veam[sl] = rec.csvVeam[sl];
       const vid = rec.csvVeam[sl]; if(!vid || byVeam.has(vid)) continue;
@@ -1290,9 +1325,10 @@ function renderRawRows(){
     .concat(MODEL.veamLines.map(V => ({ type:'Veam', ...V })))
     .concat((MODEL.dmxLoose || []).map(D => ({ type:'DMX', ...D })))
     .concat((MODEL.netLines || []).map(N => ({ type:'C', ...N, universe:N.vlan })))
+    .concat([...MODEL.byLK.values()].filter(lk => lk.csvVeam && [1, 2, 3].some(s => lk.csvVeam[s])).map(lk => ({ type:'Link', id:lk.id, port:null, universe:null, dest:['A', 'B', 'C'].map((l, i) => `Veam ${l}: ${lk.csvVeam[i + 1] || '—'}`).join(' · '), dimcity:lk.dimcity, sourceName:lk.csvVeam.source, status:'GREEN' })))
     .filter(R => !q || [R.type, R.id, R.port, R.universe, R.dest, R.dimcity, R.sourceName].some(v => String(v ?? '').toLowerCase().includes(q)));
   all.sort((a,b)=>{
-    const ord = x => x.type==='LK'?0 : x.type==='Veam'?1 : x.type==='C'?2 : 3;
+    const ord = x => x.type==='LK'?0 : x.type==='Veam'?1 : x.type==='Link'?1.5 : x.type==='C'?2 : 3;
     if (ord(a)!==ord(b)) return ord(a)-ord(b);
     const ida=(a.id||''), idb=(b.id||'');
     if (ida!==idb) return ida.localeCompare(idb, undefined, {numeric:true});
@@ -1301,7 +1337,7 @@ function renderRawRows(){
   const cnt = $('#rawCount'); if(cnt) cnt.textContent = `${all.length} row${all.length===1?'':'s'}`;
   tb.innerHTML = all.length ? all.map(R=>`<tr>
       <td><span class="tag ${R.type==='LK'?'accent':R.type==='Veam'?'blue':R.type==='C'?'green':''}">${R.type}</span></td>
-      <td>${R.id ? (R.type==='C' ? esc(R.id) : `<a data-open-kind="${R.type==='LK'?'LK':'VEAM'}" data-open-id="${esc(R.type==='LK'?normLK(R.id):R.id)}">${esc(R.id)}</a>`) : '<span class="subtle">—</span>'}</td>
+      <td>${R.id ? (R.type==='C' ? esc(R.id) : `<a data-open-kind="${R.type==='LK'||R.type==='Link'?'LK':'VEAM'}" data-open-id="${esc(R.type==='LK'||R.type==='Link'?normLK(R.id):R.id)}">${esc(R.id)}</a>`) : '<span class="subtle">—</span>'}</td>
       <td class="num">${R.port ?? '—'}</td>
       <td class="num">${R.universe ?? ''}</td>
       <td>${esc(R.dest || '')}</td>
@@ -1570,7 +1606,7 @@ function renderDimCityDetail(dc){
     return `<div class="lk-mini-card clickable veam-mini" data-veam="${esc(ve.id)}"><div class="lk-visual" style="--dim-color:${color}"><div class="lk-visual-head"><div class="left"><b>${esc(ve.id)}</b>${veamLinkBadge(ve.id)}</div><span class="dimcity-tag">${esc(loc)}</span></div>${veamPortsHtml(ve)}</div></div>`;
   }).join('') : '<div class="device-list-empty">No Veams in this DimCity.</div>';
 
-  const dmxBody = dmx.length ? `<table class="data-table"><thead><tr><th class="num">Universe</th><th>Location</th><th>Source</th></tr></thead><tbody>${dmx.slice().sort((a,b)=>(a.universe??1e9)-(b.universe??1e9)).map(d=>`<tr><td class="num">${d.universe ?? '—'}</td><td>${esc(d.dest||'')}</td><td class="subtle">${esc(d.sourceName||'')}</td></tr>`).join('')}</tbody></table>` : '';
+  const dmxBody = dmx.length ? `<table class="data-table"><thead><tr><th class="num">Universe</th><th>Location</th><th>Source</th></tr></thead><tbody>${dmx.slice().sort((a,b)=>(a.universe??1e9)-(b.universe??1e9)).map(d=>`<tr><td class="num">${d.universe ?? '—'}</td><td>${esc(d.dest||'')}${d.note ? ` <span class="subtle">· ${esc(d.note)}</span>` : ''}</td><td class="subtle">${esc(d.sourceName||'')}</td></tr>`).join('')}</tbody></table>` : '';
 
   const rows = []
     .concat(MODEL.lines.map(L => ({ type:'LK', ...L })))
@@ -2612,10 +2648,10 @@ $('#veamAddConfirm').onclick = async ()=>{
 // model halen, anders zet carryOverManualState een handmatige LK/Veam weer terug.
 const sameId = (a, b) => normLK(window.CsvRules.canonical(a).toUpperCase()) === normLK(window.CsvRules.canonical(b).toUpperCase());
 async function reprocessWithout(id){
-  const rows = currentRows(MODEL).filter(r => !sameId(r[0], id));
+  const rows = withoutVeamInLinks(currentRows(MODEL).filter(r => !sameId(r[0], id)), id);
   const custom = (MODEL.customRows || []).filter(r => !sameId(r.id, id));
   // ook uit de bewaarde CSV-bestanden, anders komt het ID terug bij een volgende (her)import
-  for(const src of (MODEL.csvSources || [])){ src.rows = (src.rows || []).filter(r => !sameId(r[0], id)); src.rowCount = src.rows.length; }
+  for(const src of (MODEL.csvSources || [])){ src.rows = withoutVeamInLinks((src.rows || []).filter(r => !sameId(r[0], id)), id); src.rowCount = src.rows.length; }
   await processRows(rows);
   MODEL.customRows = custom;
   MODEL.ui.dirty = true;

@@ -168,10 +168,13 @@ export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192
       st.ios[i] = { ...clone(body), id: +m[1] }; return st.ios[i];
     }
     if(path === '/api/IO' && method === 'POST'){ const io = { ...clone(body), id: nextIo++ }; st.ios.push(io); return { ...io, index: io.id }; }
-    if((m = path.match(/^\/api\/processblock\/(\d+)\/output$/)) && method === 'PUT'){ const b = st.blocks.find(x => x.id === +m[1]); if(!b) throw err(404, 'block'); if(!st.ios.some(x => x.id === body.io_id)) throw err(400, 'unknown io'); const k = Object.keys(b.outputs).length; b.outputs[k] = body.io_id; return body; }
+    if((m = path.match(/^\/api\/processblock\/(\d+)\/output$/)) && method === 'PUT'){ const b = st.blocks.find(x => x.id === +m[1]); if(!b) throw err(404, 'block'); if(!st.ios.some(x => x.id === body.io_id)) throw err(400, 'unknown io'); let k = 0; while(k in b.outputs) k++; b.outputs[k] = body.io_id; return body; }
     if((m = path.match(/^\/api\/processblock\/(\d+)\/input\/(\d+)$/)) && method === 'PUT'){
       const b = st.blocks.find(x => x.id === +m[1]); if(!b) throw err(404, 'block');
       if(!st.ios.some(x => x.id === body.io_id)) throw err(400, 'unknown io'); b.inputs[m[2]] = body.io_id; return body;
+    }
+    if((m = path.match(/^\/api\/processblock\/(\d+)\/input\/(\d+)$/)) && method === 'DELETE'){       // remove an input from a process block (documented)
+      const b = st.blocks.find(x => x.id === +m[1]); if(!b) throw err(404, 'block'); if(!(m[2] in b.inputs)) throw err(404, 'no input in this slot'); delete b.inputs[m[2]]; return null;
     }
     if((m = path.match(/^\/api\/processblock\/(\d+)\/output\/(\d+)$/)) && method === 'DELETE'){
       const b = st.blocks.find(x => x.id === +m[1]); if(!b) throw err(404, 'block'); const k = Object.keys(b.outputs).find(k => b.outputs[k] === +m[2]); if(k == null) throw err(404, 'not an output of this block'); delete b.outputs[k]; return null;

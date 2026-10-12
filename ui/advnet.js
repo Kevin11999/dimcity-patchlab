@@ -44,7 +44,7 @@
   // the groups on each RJ45: what was chosen; not chosen yet = what the addresses said (the same as Fent.portsOf does without a choice)
   function portsOf(inst, rows, eth){
     const vids = uniq(rows.map(r => r.vlan)), out = { 1:[], 2:[] };
-    for(let e = 1; e <= Math.min(2, eth); e++) out[e] = uniq(inst.advPorts ? (inst.advPorts[e] || []) : rows.filter(r => Math.min(eth, r.eth || 1) === e).map(r => r.vlan)).filter(v => vids.includes(v));
+    for(let e = 1; e <= Math.min(2, eth); e++) out[e] = uniq(inst.advPorts ? (inst.advPorts[e] || []) : rows.filter(r => Math.min(eth, r.eth || 1) === e).map(r => r.vlan)).filter(v => e === 2 || vids.includes(v));      // ETH2 may carry any Luminex group, also one the node has no address in
     return out;
   }
   const save = (inst, ports) => { inst.advPorts = { 1:uniq(ports[1] || []), 2:uniq(ports[2] || []) }; };
@@ -139,7 +139,7 @@
   function prune(inst){
     if(!inst?.advPorts) return;
     const vids = uniq(rowsOf(inst).map(r => r.vlan));
-    for(const e of [1, 2]) inst.advPorts[e] = uniq((inst.advPorts[e] || []).filter(v => vids.includes(Number(v))));
+    inst.advPorts[1] = uniq((inst.advPorts[1] || []).filter(v => vids.includes(Number(v))));      // ETH2 keeps its own choice
   }
   // a new group: on ETH1
   function placeNew(inst, vlan){
@@ -170,10 +170,9 @@
         <td>${r.k === 'p' ? '' : `<button class="sm ghost" data-avrm title="${esc(t('Remove this group', 'Verwijder deze groep'))}">${I('x', 13)}</button>`}</td></tr>`;
     }).join('');
     const portLine = e => { const v = ports[e]; return `<span class="av-port ${v.length > 1 ? 'trunk' : v.length ? 'access' : 'off'}"><b>ETH${e}</b> ${v.length > 1 ? `<span class="tag blue">trunk</span>` : v.length ? `<span class="tag">access</span>` : `<span class="tag">${t('not used', 'niet gebruikt')}</span>`} ${v.length ? `VLAN ${v.join(' + ')}` : ''}</span>`; };
-    // ETH2 carries one VLAN of the ETH1 trunk (or nothing)
-    const trunk1 = ports[1].length > 1, pick2 = trunk1 ? ports[1] : [], cur2 = ports[2][0];
-    const eth2Vids = uniq([...pick2, ...(cur2 != null ? [cur2] : [])]);
-    const eth2 = eth > 1 ? `<label class="av-eth2" title="${esc(t('ETH1 is a trunk: choose which VLAN of that trunk the other network port carries', 'ETH1 is een trunk: kies welk VLAN van die trunk de andere netwerkpoort draagt'))}"><b>ETH2</b> <select data-aveth2 ${trunk1 || cur2 != null ? '' : 'disabled'}><option value="">${t('not used', 'niet gebruikt')}</option>${eth2Vids.map(v => `<option value="${v}" ${cur2 === v ? 'selected' : ''}>VLAN ${v} · ${esc(F().vlanById(v)?.name || '')}</option>`).join('')}</select>${trunk1 || cur2 != null ? '' : ` <span class="subtle">${t('ETH1 is not a trunk: nothing to choose from', 'ETH1 is geen trunk: niets om uit te kiezen')}</span>`}</label>` : '';
+    // ETH2: nothing, any Luminex group (one VLAN), or the same trunk as ETH1 (the node's own predefined trunk)
+    const cur2 = ports[2].length === 1 ? ports[2][0] : null, trunk2 = ports[2].length > 1, canTrunk = ports[1].length > 1;
+    const eth2 = eth > 1 ? `<label class="av-eth2" title="${esc(t('Choose what the other network port carries: one VLAN (any Luminex group) or the trunk with all the groups of ETH1', 'Kies wat de andere netwerkpoort draagt: één VLAN (elke Luminex-groep) of de trunk met alle groepen van ETH1'))}"><b>ETH2</b> <select data-aveth2><option value="">${t('not used', 'niet gebruikt')}</option>${canTrunk || trunk2 ? `<option value="trunk" ${trunk2 ? 'selected' : ''}>${t('Trunk · all groups of ETH1', 'Trunk · alle groepen van ETH1')}</option>` : ''}${groupOpts(cur2).replace(/<option value="(\d+)"/g, '<option value="v$1"')}</select></label>` : '';
     return `<div class="nn-adv on" data-advnode="${idx}">
       <div class="av-wrap"><table class="data-table nn-adv-t av-t"><thead><tr><th>${t('Group (Luminex VLAN)', 'Groep (Luminex-VLAN)')}</th><th>${t('Used for', 'Gebruikt voor')}</th><th>${t('Address', 'Adres')}</th><th>${t('Mask', 'Mask')}</th><th>${t('Lighting data', 'Lichtdata')}</th><th class="av-chk">ETH1</th><th></th></tr></thead><tbody>${trs}</tbody></table></div>
       <div class="av-bar"><button class="sm" data-avadd>${I('plus', 13)} ${t('Add group', 'Groep toevoegen')}</button><button class="sm" data-avfent title="${esc(t('Make the address of every group again with the FENT scheme (10.90.x.x management, 10.40.x.x lighting)', 'Maak het adres van elke groep opnieuw met het FENT-schema (10.90.x.x beheer, 10.40.x.x licht)'))}">${I('refresh', 13)} ${t('Addresses from the FENT scheme', 'Adressen volgens het FENT-schema')}</button>${eth2}
@@ -238,7 +237,7 @@
       };
       const e2 = box.querySelector('[data-aveth2]'); if(e2) e2.onchange = () => {
         const ports = portsOf(inst, rowsOf(inst), eth); label('ETH2');
-        ports[2] = e2.value === '' ? [] : [Number(e2.value)]; save(inst, ports); done();
+        ports[2] = e2.value === '' ? [] : e2.value === 'trunk' ? ports[1].slice() : [Number(e2.value.slice(1))]; save(inst, ports); done();
       };
       const fe = box.querySelector('[data-avfent]'); if(fe) fe.onclick = () => {
         label('addresses from the FENT scheme'); fentAll(dc, inst); done();

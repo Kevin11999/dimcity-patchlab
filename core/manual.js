@@ -1241,6 +1241,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.19.0', date:'2026-10-12',
+    en:['Fixed: a switch or node trunk always uses the predefined trunk (never a trunk of its own), ETH2 of a node can carry any Luminex VLAN or the trunk, and DMX outputs of a node with the same universe share one engine. New: Publish has groups (Network, LK, Stickers, Handbook) with a free choice of DimCities, and the stickers can run on across DimCities.'],
+    nl:['Opgelost: de trunk van een switch of node gebruikt altijd de predefined trunk (nooit een eigen trunk), ETH2 van een node kan elk Luminex-VLAN of de trunk dragen, en DMX-uitgangen van een node met hetzelfde universe delen één engine. Nieuw: Publiceren heeft groepen (Netwerk, LK, Stickers, Handboek) met vrije keuze van DimCities, en de stickers kunnen doorlopend over de DimCities.']
+  },
+  {
     version:'0.18.0', date:'2026-10-12',
     en:['New: stickers on the HERMA 97 × 42,33 mm sheet (4623 / 4669 / 5056 / 4228 / 8628): every node and switch gets a sticker with its ports (universe, LK / Veam port, VLAN colours) and its address, made on this sheet by default in the set; “New sheet…” asks for a name and saves your own sheet in the show and in the library.'],
     nl:['Nieuw: stickers op het HERMA-vel 97 × 42,33 mm (4623 / 4669 / 5056 / 4228 / 8628): elke node en switch krijgt een sticker met zijn poorten (universe, LK- / Veam-poort, VLAN-kleuren) en zijn adres, in de set standaard op dit vel; “Nieuw vel…” vraagt om een naam en slaat je eigen vel op in de show en in de bibliotheek.']

@@ -604,10 +604,10 @@
 
   // ---------- For the Publish window: the sheets of one DimCity for one group of stickers ----------
   //   variant: 'nodes' (a sticker on every node, and the port labels when `ports`), 'switches' (the same for the switches), 'cables' (cables, panel strips, network cables, fibres)
-  function docHtml({ dc, variant, ports = false, preview = false, images = null } = {}){
+  function docHtml({ dc, dcs = null, variant, ports = false, preview = false, images = null } = {}){
     const base = state(), off = Object.fromEntries(Object.keys(base.kinds).map(k => [k, false]));
     const kinds = { ...off, ...(variant === 'nodes' ? { nodeStickers:true, nodePorts:!!ports } : variant === 'switches' ? { switchStickers:true, switchPorts:!!ports } : { cables:true, strips:true, netCables:true, fibers:true }) };
-    const L = { ...base, kinds, dcs:[dc], perDc:true, start:1, startBig:1, outline:false };
+    const L = { ...base, kinds, dcs:dcs || [dc], perDc:!dcs, start:1, startBig:1, outline:false };
     const groups = allItems(L), count = groups.reduce((n, g) => n + g.items.length, 0);
     if(!count) return { html:'', pages:0, count:0 };
     return { html:buildHtml(L, { preview, images }), pages:pagesOf(L).length, count };

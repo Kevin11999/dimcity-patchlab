@@ -62,7 +62,8 @@
     ['nodePorts', t('Node port labels', 'Nodepoort-labels'), t('One label per DMX port with its universe and where it goes', 'Eén label per DMX-poort met universe en waar hij heen gaat')],
     ['switches', t('Switch stickers', 'Switchstickers'), t('A sticker on every switch: every port in its VLAN colour with what sits on it, the address and the VLANs in use', 'Een sticker op elke switch: elke poort in zijn VLAN-kleur met wat erop zit, het adres en de VLAN’s in gebruik')],
     ['switchPorts', t('Switch port labels', 'Switchpoort-labels'), t('One label per port with the device and the VLAN colour', 'Eén label per poort met het apparaat en de VLAN-kleur')],
-    ['cables', t('Cable and panel labels', 'Kabel- en paneellabels'), t('LK / Veam cables, panel strips, network cables and fibres', 'LK- / Veam-kabels, paneelstrips, netwerkkabels en fibers')]
+    ['cables', t('Cable and panel labels', 'Kabel- en paneellabels'), t('LK / Veam cables, panel strips, network cables and fibres', 'LK- / Veam-kabels, paneelstrips, netwerkkabels en fibers')],
+    ['together', t('One run across the DimCities', 'Doorlopend over de DimCities'), t('Off: every DimCity starts on its own sheet. On: DB1 fills the sheet and DB2 goes on right behind it, so no stickers are wasted (one file per kind of sticker)', 'Uit: elke DimCity begint op een eigen vel. Aan: DB1 vult het vel en DB2 gaat er direct achteraan door, zodat er geen stickers verspild worden (één bestand per soort sticker)')]
   ];
 
   // ---------- State helpers ----------
@@ -226,7 +227,12 @@
           <label class="field">${t('Sheet for the rest (cables, panels …)', 'Vel voor de rest (kabels, panelen …)')}<select id="pbSheet">${sheetOpts(sheet)}</select></label>
           <button class="sm" id="pbStickerOpen">${I('grid', 13)}${t('Sticker settings…', 'Stickerinstellingen…')}</button></div></div>` : ''}`;
     };
-    return `${scope}<div class="rb-group"><div class="rb-label">${t('Documents', 'Documenten')} <span class="subtle">· ${t('tick what you want', 'vink aan wat je wilt')}</span></div><div class="pb-docs">${['book', 'ip', 'lk', 'nodes', 'stickers', 'a3'].map(docRow).join('')}</div></div>
+    // the groups: Network (IP overview with the VLANs, nodes, network flow, node and switch stickers), LK, Stickers, Handbook. Every part can also be ticked on its own.
+    const stkRow = kk => { const hit = STICKER_KINDS().find(x => x[0] === kk), on = !!L.docs.stickers && !!kinds[kk]; return `<div class="pb-doc ${on ? 'on' : ''}"><label class="switch"><input type="checkbox" data-stk="${kk}" ${on ? 'checked' : ''}><span></span></label><div class="pb-doc-t"><b>${esc(hit[1])}</b><span>${esc(hit[2])}</span></div></div>`; };
+    const netOn = ['ip', 'nodes', 'a3'].every(k => L.docs[k]) && L.docs.stickers && kinds.nodes && kinds.switches;
+    const grp = (key, title, body, sw) => `<div class="rb-group pb-grp"><div class="rb-label pb-grp-h"><span>${title}</span>${sw ? `<label class="switch" title="${esc(t('Everything in this group', 'Alles in deze groep'))}"><input type="checkbox" data-grp="${key}" ${sw === 'on' ? 'checked' : ''}><span></span></label>` : ''}</div><div class="pb-docs">${body}</div></div>`;
+    return `${scope}${grp('net', t('Network', 'Netwerk'), `${docRow('ip')}${docRow('nodes')}${docRow('a3')}${stkRow('nodes')}${stkRow('switches')}`, netOn ? 'on' : 'off')}
+      ${grp('lk', 'LK', docRow('lk'))}${grp('stk', t('Stickers', 'Stickers'), docRow('stickers'))}${grp('book', t('Handbook', 'Handboek'), docRow('book'))}
       <div class="rb-group"><div class="hint">${I('info', 12)} ${t('The next steps set what is in these documents and how they look. They are the same for every DimCity. Step 4 chooses the folder.', 'De volgende stappen bepalen wat erin staat en hoe ze eruitzien. Ze gelden voor elke DimCity. Stap 4 kiest de map.')}</div></div>`;
   }
 
@@ -397,8 +403,9 @@
     seg('rbScope', v => { L.scope = v; if(v === 'SEL' && !L.dims.length) L.dims = dims().slice(); });
     on('[data-dim]', 'change', e => { const d = e.target.dataset.dim; L.dims = e.target.checked ? [...new Set([...L.dims, d])] : L.dims.filter(x => x !== d); changed(true); });
     on('[data-doc-on]', 'change', e => { L.docs[e.target.dataset.docOn] = e.target.checked; changed(true); });
-    on('[data-doc-eye]', 'click', e => { const k = e.currentTarget.dataset.docEye; B.pv.doc = k === 'stickers' ? 'st-nodes' : k; B.view = 'pages'; renderPvBar(); syncView(); schedulePreview(true); });
-    on('[data-stk]', 'change', e => { L.docs.stickerKinds[e.target.dataset.stk] = e.target.checked; changed(true); });
+    on('[data-doc-eye]', 'click', e => { const k = e.currentTarget.dataset.docEye; const sk = L.docs.stickerKinds || {}; B.pv.doc = k === 'stickers' ? (sk.nodes ? 'st-nodes' : sk.switches ? 'st-switches' : sk.cables ? 'st-cables' : 'st-nodes') : k; B.view = 'pages'; renderPvBar(); syncView(); schedulePreview(true); });
+    on('[data-stk]', 'change', e => { L.docs.stickerKinds[e.target.dataset.stk] = e.target.checked; if(e.target.checked && e.target.dataset.stk !== 'together') L.docs.stickers = true; changed(true); });
+    on('[data-grp]', 'change', e => { const v = e.target.checked; if(e.target.dataset.grp === 'net'){ for(const k of ['ip', 'nodes', 'a3']) L.docs[k] = v; L.docs.stickerKinds.nodes = v; L.docs.stickerKinds.switches = v; if(v) L.docs.stickers = true; } changed(true); });
     // one list of sheets for the node and switch stickers (sheetBig) and one for the rest (sheet); "New sheet…" opens the dialog that names and saves it
     [['#pbSheetBig', 'sheetBig'], ['#pbSheet', 'sheet']].forEach(([id, key]) => {
       const el = P.querySelector(id); if(!el) return;
@@ -583,11 +590,15 @@
 
   // ---------- The preview ----------
   const PV = () => [['book', docTitle('book'), 'all'], ['lk', docTitle('lk'), 'dc'], ['nodes', docTitle('nodes'), 'dc'], ['st-nodes', t('Node stickers', 'Nodestickers'), 'dc'], ['st-switches', t('Switch stickers', 'Switchstickers'), 'dc'], ['st-cables', t('Cable stickers', 'Kabelstickers'), 'dc'], ['a3', t('Network flow (A3)', 'Netwerkflow (A3)'), 'dc'], ['a3all', t('Network overview (A3)', 'Netwerkoverzicht (A3)'), 'all'], ['ip', docTitle('ip'), 'all']];
+  // the documents the preview offers: only what is ticked in step 1 (all of them when nothing is)
+  const pvList = () => { const d = B.L.docs, k = d.stickerKinds || {}, on = { book:d.book, lk:d.lk, nodes:d.nodes, ip:d.ip, a3:d.a3, a3all:d.a3, 'st-nodes':d.stickers && k.nodes, 'st-switches':d.stickers && k.switches, 'st-cables':d.stickers && k.cables }; const l = PV().filter(x => on[x[0]]); return l.length ? l : PV(); };
+  const stickerRuns = () => { const L = B.L, k = L.docs.stickerKinds || {}; return !!k.together && sel().length > 1; };       // the stickers of every chosen DimCity run on in one file
   function renderPvBar(){
     const el = $('#pbPv'); if(!el) return;
-    const cur = PV().find(x => x[0] === B.pv.doc) || PV()[0], dcs = sel();
-    el.innerHTML = `<select id="pvDoc" title="${esc(t('Which document to look at', 'Welk document je bekijkt'))}">${PV().map(([k, l]) => `<option value="${k}" ${k === cur[0] ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
-      ${cur[2] === 'dc' && dcs.length ? `<select id="pvDc" title="${esc(t('Which DimCity', 'Welke DimCity'))}">${dcs.map(d => `<option value="${esc(d)}" ${d === (B.pv.dc && dcs.includes(B.pv.dc) ? B.pv.dc : dcs[0]) ? 'selected' : ''}>${esc(PE().dcName(d))}</option>`).join('')}</select>` : ''}`;
+    const list = pvList(), cur = list.find(x => x[0] === B.pv.doc) || list[0], dcs = sel(); B.pv.doc = cur[0];
+    const oneRun = /^st-/.test(cur[0]) && stickerRuns();
+    el.innerHTML = `<select id="pvDoc" title="${esc(t('Which document to look at', 'Welk document je bekijkt'))}">${list.map(([k, l]) => `<option value="${k}" ${k === cur[0] ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+      ${cur[2] === 'dc' && dcs.length && !oneRun ? `<select id="pvDc" title="${esc(t('Which DimCity', 'Welke DimCity'))}">${dcs.map(d => `<option value="${esc(d)}" ${d === (B.pv.dc && dcs.includes(B.pv.dc) ? B.pv.dc : dcs[0]) ? 'selected' : ''}>${esc(PE().dcName(d))}</option>`).join('')}</select>` : ''}`;
     el.querySelector('#pvDoc').onchange = e => { B.pv.doc = e.target.value; renderPvBar(); schedulePreview(true); };
     const dc = el.querySelector('#pvDc'); if(dc) dc.onchange = e => { B.pv.dc = e.target.value; schedulePreview(true); };
   }
@@ -596,9 +607,10 @@
     const dc = B.pv.dc && dcs.includes(B.pv.dc) ? B.pv.dc : dcs[0], k = L.docs.stickerKinds || {}, d = B.pv.doc;
     if(d === 'book' || d === 'ip' || d === 'a3all') return { kind:d, dcs, name:d };
     if(d === 'lk' || d === 'nodes' || d === 'a3') return { kind:d, dc, dcs:[dc], name:d };
-    if(d === 'st-nodes') return { kind:'stickers', variant:'nodes', ports:!!k.nodePorts, dc, dcs:[dc], name:d };
-    if(d === 'st-switches') return { kind:'stickers', variant:'switches', ports:!!k.switchPorts, dc, dcs:[dc], name:d };
-    if(d === 'st-cables') return { kind:'stickers', variant:'cables', dc, dcs:[dc], name:d };
+    const run = stickerRuns(), who = run ? { dc:null, dcs } : { dc, dcs:[dc] };       // one run: every chosen DimCity in the same file
+    if(d === 'st-nodes') return { kind:'stickers', variant:'nodes', ports:!!k.nodePorts, ...who, name:d };
+    if(d === 'st-switches') return { kind:'stickers', variant:'switches', ports:!!k.switchPorts, ...who, name:d };
+    if(d === 'st-cables') return { kind:'stickers', variant:'cables', ...who, name:d };
     return null;
   }
   function schedulePreview(now = false){ clearTimeout(B.timer); B.timer = setTimeout(renderPreview, now ? 10 : 170); }

@@ -60,7 +60,7 @@
     return {
       version: 3,
       scope: 'ALL', dims: [], output: 'SINGLE',
-      docs: { book:true, lk:true, nodes:true, stickers:true, a3:true, ip:true, stickerKinds:{ nodes:true, nodePorts:false, switches:true, switchPorts:false, cables:false } },
+      docs: { book:true, lk:true, nodes:true, stickers:true, a3:true, ip:true, stickerKinds:{ nodes:true, nodePorts:false, switches:true, switchPorts:false, cables:false, together:false } },
       publish: { structure:true, folder:'', open:true },
       page: { size:'A4', orientation:'portrait', margin:10 },
       a3: { orientation:'auto' },
@@ -921,7 +921,7 @@
     const proj = fname(meta.project) || 'PatchLab', st = L.publish.structure !== false, root = st ? (fname(L.publish.folder) || proj) : '';
     const j = (...p) => p.filter(Boolean).join('/');
     const out = [], add = f => out.push({ ...f, rel:j(root, f.dir, f.name) });
-    const k = L.docs.stickerKinds || {};
+    const k = L.docs.stickerKinds || {}, together = !!k.together && dcs.length > 1;       // stickers of all the chosen DimCities run on, one file per kind
     if(L.docs.book && dcs.length) add({ id:'book', kind:'book', title:DOCS.book.title, dir:'', name:`${proj} - DB book.pdf`, dcs });
     if(L.docs.ip && dcs.length) add({ id:'ip', kind:'ip', title:DOCS.ip.title, dir:'', name:`${proj} - IP address book.pdf`, dcs });
     if(L.docs.a3 && dcs.length > 1) add({ id:'a3all', kind:'a3all', title:'Network overview (A3)', dir:st ? 'A3' : '', name:`${proj} - Network overview A3.pdf`, dcs });
@@ -929,12 +929,18 @@
       const d = fname(dcName(dc)), dir = st ? d : '', sd = st ? j(d, 'Stickers') : '';
       if(L.docs.lk) add({ id:`lk:${dc}`, kind:'lk', dc, title:`${dcName(dc)} · LK info`, dir, name:`${d} - LK info.pdf`, dcs:[dc] });
       if(L.docs.nodes) add({ id:`nodes:${dc}`, kind:'nodes', dc, title:`${dcName(dc)} · Node info`, dir, name:`${d} - Node info.pdf`, dcs:[dc] });
-      if(L.docs.stickers){
+      if(L.docs.stickers && !together){
         if(k.nodes) add({ id:`st-nodes:${dc}`, kind:'stickers', variant:'nodes', ports:!!k.nodePorts, dc, title:`${dcName(dc)} · Node stickers`, dir:sd, name:`${d} - Node stickers.pdf`, dcs:[dc] });
         if(k.switches) add({ id:`st-switches:${dc}`, kind:'stickers', variant:'switches', ports:!!k.switchPorts, dc, title:`${dcName(dc)} · Switch stickers`, dir:sd, name:`${d} - Switch stickers.pdf`, dcs:[dc] });
         if(k.cables) add({ id:`st-cables:${dc}`, kind:'stickers', variant:'cables', dc, title:`${dcName(dc)} · Cable stickers`, dir:sd, name:`${d} - Cable stickers.pdf`, dcs:[dc] });
       }
       if(L.docs.a3) add({ id:`a3:${dc}`, kind:'a3', dc, title:`${dcName(dc)} · Network flow (A3)`, dir:st ? 'A3' : '', name:`${d} - Network flow A3.pdf`, dcs:[dc] });
+    }
+    if(L.docs.stickers && together){
+      const sd = st ? 'Stickers' : '';
+      if(k.nodes) add({ id:'st-nodes:ALL', kind:'stickers', variant:'nodes', ports:!!k.nodePorts, dc:null, title:'Node stickers · all DimCities', dir:sd, name:`${proj} - Node stickers.pdf`, dcs });
+      if(k.switches) add({ id:'st-switches:ALL', kind:'stickers', variant:'switches', ports:!!k.switchPorts, dc:null, title:'Switch stickers · all DimCities', dir:sd, name:`${proj} - Switch stickers.pdf`, dcs });
+      if(k.cables) add({ id:'st-cables:ALL', kind:'stickers', variant:'cables', dc:null, title:'Cable stickers · all DimCities', dir:sd, name:`${proj} - Cable stickers.pdf`, dcs });
     }
     return out;
   }
@@ -989,7 +995,7 @@
   // one file of the plan → { html, pages, size, landscape, empty } (stickers come from ui/labels.js, the rest from the sheets above)
   async function renderFile(f, L, { preview = false, isStale = null } = {}){
     if(f.kind === 'stickers'){
-      const r = window.Labels?.docHtml?.({ dc:f.dc, variant:f.variant, ports:!!f.ports, preview, images:{ company:L.brand?.logo || null, show:currentMeta().logo || null } });
+      const r = window.Labels?.docHtml?.({ dc:f.dc, dcs:f.dc ? null : f.dcs, variant:f.variant, ports:!!f.ports, preview, images:{ company:L.brand?.logo || null, show:currentMeta().logo || null } });
       if(!r || !r.count) return { html:'', pages:0, empty:true };
       return { html:r.html, pages:r.pages, size:'A4', landscape:false, empty:false, count:r.count, sticker:true, G:{ pw:210, ph:297 } };
     }

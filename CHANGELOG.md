@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.19.0 — 2026-10-12
+
+- Fixed: a switch or node trunk always uses the predefined trunk (never a trunk of its own), ETH2 of a node can carry any Luminex VLAN or the trunk, and DMX outputs of a node with the same universe share one engine. New: Publish has groups (Network, LK, Stickers, Handbook) with a free choice of DimCities, and the stickers can run on across DimCities.
+
+<details><summary>Nederlands</summary>
+
+- Opgelost: de trunk van een switch of node gebruikt altijd de predefined trunk (nooit een eigen trunk), ETH2 van een node kan elk Luminex-VLAN of de trunk dragen, en DMX-uitgangen van een node met hetzelfde universe delen één engine. Nieuw: Publiceren heeft groepen (Netwerk, LK, Stickers, Handboek) met vrije keuze van DimCities, en de stickers kunnen doorlopend over de DimCities.
+
+</details>
+
 ## 0.18.0 — 2026-10-12
 
 - New: stickers on the HERMA 97 × 42,33 mm sheet (4623 / 4669 / 5056 / 4228 / 8628): every node and switch gets a sticker with its ports (universe, LK / Veam port, VLAN colours) and its address, made on this sheet by default in the set; “New sheet…” asks for a name and saves your own sheet in the show and in the library.

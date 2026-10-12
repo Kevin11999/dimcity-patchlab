@@ -418,18 +418,14 @@
       if(miss.length) d.err = t(`The switch accepted the trunk call but reports ports ${miss.map(m => m.port).join(', ')} are not in trunk ${o.body.id} (it says: ${miss[0].says}). Open “Last calls” and send it to me.`, `De switch accepteerde de trunkaanroep maar meldt dat poorten ${miss.map(m => m.port).join(', ')} niet in trunk ${o.body.id} zitten (hij zegt: ${miss[0].says}). Open “Laatste aanroepen” en stuur het naar mij.`);
       else d.log.push({ ok:true, line:`verify: port by port worked, ports ${o.body.ports.join(', ')} are in trunk ${o.body.id}`, res:'' });
     }
-    // does the trunk really carry every VLAN of the plan? If the switch's own trunk refused to take the new groups, use a trunk of our own for these ports
+    // does the trunk really carry every VLAN of the plan? Never a trunk of our own: say what the switch does not carry
     const need = [...new Set(tops.flatMap(o => o.needVids || []))];
     const tids = [...new Set(asg.map(o => o.body.id))].concat(asg.length ? [] : [d.cur.trunks.find(x => x.predefined)?.trunk_id].filter(x => x != null));
     for(const tid of tids){
       const lack = api.trunkMissingVlans(d.cur, tid, need);
       if(!lack.length){ d.log.push({ ok:true, line:`verify: trunk ${tid} carries VLAN ${need.join(', ')}`, res:'' }); continue; }
-      d.log.push({ ok:false, line:`verify: trunk ${tid}`, err:`does not carry VLAN ${lack.join(', ')} — using a trunk of our own for these ports` });
-      const ports = asg.filter(o => o.body.id === tid).flatMap(o => o.body.ports).filter(p => api.trunkInfo(d.cur, tid)?.ports.includes(p));          // the ports that were just put in it
-      const own = ports.length ? ports : (api.trunkInfo(d.cur, tid)?.ports || []);
-      const plan = api.gigacorePortPlan(d.cur, own.map(p => ({ port:p, member:{ type:'fibre', own:true, vids:need, mgmtVid:null, groups:[] } })));
-      try { await api.runOps(h, plan.ops); await readDev(d); const nt = d.cur.trunks.find(x => x.name === 'Fibre'); const still = nt ? api.trunkMissingVlans(d.cur, nt.trunk_id, need) : need; if(still.length) d.err = t(`The switch will not carry VLAN ${still.join(', ')} on the fibre trunk. Open “Last calls” and send it to me.`, `De switch laat VLAN ${still.join(', ')} niet over de fibre-trunk lopen. Open “Laatste aanroepen” en stuur het naar mij.`); }
-      catch(x) { d.err = String(x.message || x); d.log.push({ ok:false, line:'own trunk', err:String(x.message || x) }); }
+      d.log.push({ ok:false, line:`verify: trunk ${tid}`, err:`does not carry VLAN ${lack.join(', ')}` });
+      d.err = t(`The switch's own trunk does not carry VLAN ${lack.join(', ')}. PatchLab does not make a trunk of its own: add the VLAN to the trunk on the switch. Open “Last calls” for what the switch said.`, `De eigen trunk van de switch draagt VLAN ${lack.join(', ')} niet. PatchLab maakt geen eigen trunk: voeg het VLAN toe aan de trunk op de switch. Open “Laatste aanroepen” voor wat de switch zei.`);
     }
   }
   // the colours flow along: every group in use keeps its place in the rainbow and the whole rainbow turns, a few seconds, then the old colours come back

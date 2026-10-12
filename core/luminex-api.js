@@ -25,8 +25,8 @@ export async function gigacoreRead(h){
     eink: eink && typeof eink === 'object' && eink.present !== false ? eink : null };
 }
 
-// want = { name, ip:{address,mask,gateway}|null, groups:[{vid,name,color}], mgmtVid, ports:[{port,vid|null,trunk:bool,legend}] , trunkName }
-// The management VLAN is untagged on the fibre trunk, so the switch stays reachable over the fibre.
+// want = { name, ip:{address,mask,gateway}|null, groups:[{vid,name,color}], mgmtVid, ports:[{port,vid|null,trunk:bool,legend}] }
+// Trunk ports go in the switch's own predefined trunk (it carries all the built-in VLANs and stays reachable over the fibre).
 export function gigacorePlan(cur, want, { withIp = false } = {}){
   const ops = [], notes = [];
   const add = (method, path, body, text, kind = 'config') => ops.push({ method, path, body, text, kind });
@@ -52,21 +52,16 @@ export function gigacorePlan(cur, want, { withIp = false } = {}){
       add('POST', '/api/groups/group', { group_id: id, name: name || `VLAN ${g.vid}`, vid: g.vid, ...(color ? { color } : {}) }, `New group ${id}: VLAN ${g.vid} “${name || `VLAN ${g.vid}`}”`);
     }
   }
-  // the fibre trunk: carries every group, the management VLAN untagged
+  // the trunk: always the switch's own predefined trunk (never a trunk of our own); groups made later are added to it
   const fibrePorts = want.ports.filter(p => p.trunk).map(p => p.port);
-  let trunkId = null;
+  let trunkId = null, trunkLabel = 'trunk';
   if(fibrePorts.length){
-    const groupIds = want.groups.map(g => gid.get(g.vid)).filter(x => x != null).sort((a, b) => a - b);
-    const untagged = want.mgmtVid != null && gid.has(want.mgmtVid) ? gid.get(want.mgmtVid) : 0;
-    const tn = clip(want.trunkName || 'Fibre', 31);
-    const have = cur.trunks.find(t => t.name === tn);
-    if(have){
-      trunkId = have.trunk_id;
-      if(!same([...(have.groups || [])].sort((a, b) => a - b), groupIds)) add('PUT', `/api/trunks/trunk/${have.trunk_id}/groups`, groupIds, `Trunk “${tn}”: groups ${(have.groups || []).join(',') || '–'} → ${groupIds.join(',')}`);
-      if((have.untagged_group ?? 0) !== untagged) add('PUT', `/api/trunks/trunk/${have.trunk_id}/untagged_group`, untagged, `Trunk “${tn}”: untagged group → ${untagged || 'none'}`);
-    } else {
-      const usedT = new Set(cur.trunks.map(t => t.trunk_id)); trunkId = 2; while(usedT.has(trunkId)) trunkId++;
-      add('POST', '/api/trunks/trunk', { trunk_id: trunkId, name: tn, groups: groupIds, untagged_group: untagged }, `New trunk ${trunkId} “${tn}” with groups ${groupIds.join(',')}`);
+    const pre = cur.trunks.find(t => t.predefined) || cur.trunks.find(t => t.trunk_id === 1);
+    if(!pre) notes.push('This switch has no predefined trunk — the ports were not put in a trunk.');
+    else {
+      trunkId = pre.trunk_id; trunkLabel = pre.name;
+      const ref = trunkRefMode(cur), ids = want.groups.map(g => (ref === 'vid' ? g.vid : gid.get(g.vid))).filter(x => x != null), have = new Set(pre.groups || []), more = ids.filter(x => !have.has(x));
+      if(more.length) add('PUT', `/api/trunks/trunk/${pre.trunk_id}/groups`, [...(pre.groups || []), ...more].sort((a, b) => a - b), `Trunk “${pre.name}”: also carry ${ref === 'vid' ? 'VLAN' : 'group'} ${more.join(', ')}`);
     }
   }
   // ports: membership and legend
@@ -82,7 +77,7 @@ export function gigacorePlan(cur, want, { withIp = false } = {}){
     const lg = clip(p.legend, MAX_LEGEND);
     if(lg && lg !== (have.legend ?? '')) add('PUT', `/api/ports/port/${p.port}/legend`, lg, `Port ${p.port}: label “${have.legend ?? ''}” → “${lg}”`);
   }
-  if(trunkNew.length){ const keep = cur.ports.filter(x => x.member_of?.type === 'trunk' && x.member_of.id === trunkId).map(x => x.port_number), all = [...new Set([...keep, ...trunkNew])].sort((a, b) => a - b); add('PUT', '/api/trunks/assign_ports', { id: trunkId, ports: all }, `Trunk “${want.trunkName || 'Fibre'}”: ports ${all.join(', ')}`); }
+  if(trunkNew.length){ const keep = cur.ports.filter(x => x.member_of?.type === 'trunk' && x.member_of.id === trunkId).map(x => x.port_number), all = [...new Set([...keep, ...trunkNew])].sort((a, b) => a - b); add('PUT', '/api/trunks/assign_ports', { id: trunkId, ports: all }, `Trunk “${trunkLabel}”: ports ${all.join(', ')}`); }
   // the IP address last: the switch moves
   if(withIp && want.ip?.address){
     const prefix = prefixOf(want.ip.mask);
@@ -163,27 +158,20 @@ export function gigacorePortPlan(cur, edits){
   // a member { type:'fibre', vids:[…], mgmtVid, groups:[{vid,name,color}] } means "the fibre trunk" — made / completed first, with every VLAN it has to carry
   const fib = edits.filter(e => e.member?.type === 'fibre');
   if(fib.length){
-    const f = fib[0].member, tn = 'Fibre', pre = cur.trunks.find(t => t.predefined) || cur.trunks.find(t => t.trunk_id === 1);
+    const f = fib[0].member, pre = cur.trunks.find(t => t.predefined) || cur.trunks.find(t => t.trunk_id === 1);
     const idOf = vid => { const have = cur.groups.find(g => g.vid === vid); if(have) return have.group_id;
       if(!made.has(vid)){ let id = 21; while(used.has(id)) id++; used.add(id); made.set(vid, id); const g = (f.groups || []).find(x => x.vid === vid) || {}; const nm = clip(g.name || `VLAN ${vid}`, MAX_GROUP_NAME); const col = /^#[0-9a-f]{6}$/i.test(g.color || '') ? g.color : null;
         add('POST', '/api/groups/group', { group_id: id, name: nm, vid, ...(col ? { color: col } : {}) }, `New group ${id}: VLAN ${vid} “${nm}”`); }
       return made.get(vid); };
-    if(pre && !f.own){
+    if(pre){
       // the switch's own trunk (named ISL on a real GigaCore). It carries the groups listed in it: the built-in ones, but NOT the groups made later, so those are added to it
       const ref = trunkRefMode(cur), ids = (f.vids || []).map(v => ({ v, id: idOf(v) }));
       const have = new Set(pre.groups || []), add2 = ids.map(x => (ref === 'vid' ? x.v : x.id)).filter(x => !have.has(x));
       if(add2.length) add('PUT', `/api/trunks/trunk/${pre.trunk_id}/groups`, [...(pre.groups || []), ...add2].sort((a, b) => a - b), `Trunk “${pre.name}”: also carry ${ref === 'vid' ? 'VLAN' : 'group'} ${add2.join(', ')}`, undefined, { soft: true, trunkGroups: true });
       for(const e of fib) e.member = { type: 'trunk', id: pre.trunk_id, name: pre.name, needVids: f.vids || [] };
-    } else {
-      const ref = trunkRefMode(cur);                           // does a trunk list group numbers or VLAN ids?
-      const vids = [...new Set([...(f.vids || []), ...cur.trunks.filter(t => t.name === tn).flatMap(t => (t.groups || []).map(id => ref === 'vid' ? id : cur.groups.find(g => g.group_id === id)?.vid).filter(v => v != null))])];
-      const list = vids.map(v => (ref === 'vid' ? (idOf(v), v) : idOf(v))).sort((a, b) => a - b), untagged = pre ? (pre.untagged_group ?? 0) : (f.mgmtVid != null && vids.includes(f.mgmtVid) ? (ref === 'vid' ? f.mgmtVid : idOf(f.mgmtVid)) : 0);       // the same untagged VLAN as the switch's own trunk, so the switch stays reachable
-      const have = cur.trunks.find(t => t.name === tn); let tid;
-      if(have){ tid = have.trunk_id;
-        if(!same([...(have.groups || [])].sort((a, b) => a - b), list)) add('PUT', `/api/trunks/trunk/${tid}/groups`, list, `Trunk “${tn}”: ${ref === 'vid' ? 'VLANs' : 'groups'} → ${list.join(',')}`);
-        if((have.untagged_group ?? 0) !== untagged) add('PUT', `/api/trunks/trunk/${tid}/untagged_group`, untagged, `Trunk “${tn}”: untagged → ${untagged || 'none'}`);
-      } else { const ut = new Set(cur.trunks.map(t => t.trunk_id)); tid = 2; while(ut.has(tid)) tid++; add('POST', '/api/trunks/trunk', { trunk_id: tid, name: tn, groups: list, untagged_group: untagged }, `New trunk ${tid} “${tn}” with ${ref === 'vid' ? 'VLANs' : 'groups'} ${list.join(',')}`); }
-      for(const e of fib) e.member = { type: 'trunk', id: tid, name: tn };
+    } else {                                                  // never a trunk of our own
+      notes.push('This switch has no predefined trunk — the fibre ports were not put in a trunk.');
+      for(const e of fib) e.member = null;
     }
   }
   for(const e of edits){
@@ -209,7 +197,7 @@ export function gigacorePortPlan(cur, edits){
     const tr = cur.trunks.find(t => t.trunk_id === tid), keep = rows.filter(r => r.member?.type === 'trunk' && r.member.id === tid && !(trunkOut.get(tid) || []).includes(r.port)).map(r => r.port);
     const all = [...new Set([...keep, ...list])].sort((a, b) => a - b);
     const nv = edits.find(e => e.member?.type === 'trunk' && e.member.id === tid)?.member?.needVids;
-    add('PUT', '/api/trunks/assign_ports', { id: tid, ports: all }, `Trunk “${tr?.name || 'Fibre'}”: ports ${all.join(', ')}`, undefined, { needVids: nv || [] });
+    add('PUT', '/api/trunks/assign_ports', { id: tid, ports: all }, `Trunk “${tr?.name || 'trunk'}”: ports ${all.join(', ')}`, undefined, { needVids: nv || [] });
   }
   return { ops, notes };
 }
@@ -298,6 +286,8 @@ export function lumiNetWant(ifs, ethCount = 1, vlanOf = () => null, portVids = n
   for(const g of groups.values()) g.listen = !!g.pipe;
   return { groups:[...groups.values()].sort((a, b) => a.vid - b.vid), ports };
 }
+// the node's own (predefined) trunk: the one that cannot be edited, if the node has one
+const predefTrunk = trunks => Object.entries(trunks || {}).find(([, t]) => t.editable === false)?.[0] ?? null;
 const sameSet = (a, b) => a.length === b.length && [...a].sort((x, y) => x - y).every((x, i) => x === [...b].sort((p, q) => p - q)[i]);
 export const prefixToMask = p => { const n = Math.max(0, Math.min(32, Number(p) || 0)); return [0, 1, 2, 3].map(i => Math.max(0, Math.min(8, n - i * 8))).map(b => (256 - (1 << (8 - b))) & 255).join('.'); };
 // the calls that bring a node to the wanted network: validate, send, commit. want = lumiNetWant(...)
@@ -335,8 +325,19 @@ export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAd
       if(port.group !== ids[0] || port.trunk != null) changes.push(`Port ${name}: ${port.trunk != null ? `trunk ${port.trunk}` : port.group != null ? `group ${port.group}` : 'no group'} → group ${ids[0]}`);
       port.group = ids[0]; port.trunk = null;
     } else {
-      let tid = Object.entries(next.trunks).find(([, tr]) => sameSet(tr.groups || [], ids))?.[0];
-      if(tid == null){ tid = ++ttop; const mg = want.groups.find(g => g.mgmt && ids.includes(gid.get(g.vid))); next.trunks[tid] = { name:`Trunk ${wp.vids.join('+')}`.slice(0, 31), groups:[...ids], untagged_group:mg ? gid.get(mg.vid) : null, color:'#38bdf8', editable:true }; changes.push(`New trunk ${tid} “${next.trunks[tid].name}” with groups ${ids.join(', ')}`); }
+      // The node's own predefined trunk when it has one (a trunk that cannot be edited); else a trunk that already carries exactly these groups;
+      // else ONE new trunk. Never one trunk per port: ports that carry the same groups share the same trunk.
+      let tid = predefTrunk(next.trunks);
+      if(tid != null){
+        const tr = next.trunks[tid], miss = ids.filter(x => !(tr.groups || []).includes(x));
+        if(miss.length){
+          if(tr.editable === false) notes.push(`Port ${name}: the node's own trunk “${tr.name}” does not carry group ${miss.join(', ')} and cannot be changed.`);
+          else { tr.groups = [...(tr.groups || []), ...miss].sort((a, b) => a - b); changes.push(`Trunk ${tid} “${tr.name}”: also carry group ${miss.join(', ')}`); }
+        }
+      } else {
+        tid = Object.entries(next.trunks).find(([, tr]) => sameSet(tr.groups || [], ids))?.[0];
+        if(tid == null){ tid = ++ttop; const mg = want.groups.find(g => g.mgmt && ids.includes(gid.get(g.vid))); next.trunks[tid] = { name:`Trunk ${wp.vids.join('+')}`.slice(0, 31), groups:[...ids], untagged_group:mg ? gid.get(mg.vid) : null, color:'#38bdf8', editable:true }; changes.push(`New trunk ${tid} “${next.trunks[tid].name}” with groups ${ids.join(', ')}`); }
+      }
       if(Number(port.trunk) !== Number(tid)) changes.push(`Port ${name}: ${port.trunk != null ? `trunk ${port.trunk}` : port.group != null ? `group ${port.group}` : 'no group'} → trunk ${tid} (VLAN ${wp.vids.join(' + ')})`);
       port.trunk = Number(tid); port.group = null;
     }
@@ -372,49 +373,117 @@ export function lumiPlan(cur, want, { withIp = false, artnetOffset = 0, protocol
       `Name “${cur.info?.short_name ?? ''}” → “${sn}”${ln ? `, long name “${cur.info?.long_name ?? ''}” → “${ln}”` : ''}`);
   const api = (u, klass) => (klass === 'sacn' ? Math.max(1, Number(u)) : Math.max(0, Number(u) + artnetOffset));
   const label = k => (k === 'sacn' ? 'sACN' : 'Art-Net');
-  (want.ports || []).forEach((e, i) => {
-    if(!e) return;
-    const p = cur.ports[i]; if(!p){ notes.push(`DMX port ${i + 1} does not exist on this device.`); return; }
+  // what every port should become
+  const wants = (want.ports || []).map((e, i) => {
+    const p = e ? cur.ports[i] : null; if(!p) return null;
     const w = { name: e.name != null ? clip(e.name, 64) : p.name, dir: e.dir ?? p.dir, klass: e.klass ?? p.klass ?? protocol, universe: e.universe != null && e.universe !== '' ? Number(e.universe) : uniShown(p, artnetOffset) };
-    const nameCh = w.name !== p.name, dirCh = w.dir !== p.dir, klassCh = !!p.net && w.klass !== p.klass, uniCh = w.universe != null && w.universe !== uniShown(p, artnetOffset);
+    return { p, w, nameCh: w.name !== p.name, dirCh: w.dir !== p.dir, klassCh: !!p.net && w.klass !== p.klass, uniCh: w.universe != null && w.universe !== uniShown(p, artnetOffset) };
+  });
+  // ---- Engines (process blocks) belong to ONE node. DMX outputs of this node with the same protocol and universe share ONE engine: one network input feeding them all,
+  //      instead of an engine per port. engines: 'klass:universe' → block id; users: block id → the DMX outputs (port index) that hang on it. ----
+  const eKey = (klass, uni) => `${klass}:${uni}`;
+  const engines = new Map(), users = new Map(), claimed = new Set();
+  const userSet = id => users.get(id) || users.set(id, new Set()).get(id);
+  const dropEngine = id => { for(const [k, v] of engines) if(v === id) engines.delete(k); };
+  const othersOn = (b, i) => [...userSet(b)].filter(j => j !== i).length;               // the other DMX outputs on this engine
+  const hungOn = p => (p.block && (p.dir === 'output' || p.dir === 'idle') ? p.block.id : null);      // the engine a DMX output hangs on now (also when it is switched off)
+  cur.ports.forEach((p, i) => { if(p.dir === 'output' && p.block) userSet(p.block.id).add(i); });
+  cur.ports.forEach((p, i) => {                                 // the engines that stay as they are: only ports that do not change seed them
+    const x = wants[i]; if(x && (x.dirCh || x.klassCh || x.uniCh)) return;
+    if(p.dir === 'output' && p.block && p.net && !p.shared){ const k = eKey(p.net.io_class, p.net.universe); if(!engines.has(k)) engines.set(k, p.block.id); }
+  });
+  // a block that is free to become an engine: no output, nobody uses it in this plan; the block with the number of the port first
+  const freeBlockFor = i => { const c = (cur.blocks || []).filter(x => !idsIn(x.outputs).length && !claimed.has(x.id) && !(users.get(x.id)?.size)).map(x => x.id); return c.includes(i) ? i : c[0] ?? null; };
+  // an engine whose ports ALL go to the same new universe (same protocol, still outputs): its one input changes universe, nothing else
+  for(const [bid, set] of users){
+    const idx = [...set]; if(idx.length < 2) continue;
+    const first = cur.ports[idx[0]]; if(!first.net || first.shared || idx.some(j => cur.ports[j].net?.id !== first.net.id)) continue;
+    const ws = idx.map(j => wants[j]); if(ws.some(x => !x)) continue;
+    const t = ws[0].w; if(!ws.every(x => x.w.dir === 'output' && !x.dirCh && !x.klassCh && x.w.klass === t.klass && x.w.universe === t.universe) || !ws.some(x => x.uniCh) || t.universe == null) continue;
+    const key = eKey(t.klass, api(t.universe, t.klass)); if(engines.has(key) && engines.get(key) !== bid) continue;           // that universe has an engine already: they join it
+    const { duplicate_ios, ...rest } = first.net;
+    add('PUT', `/api/IO/${first.net.id}`, { ...rest, universe: api(t.universe, t.klass) }, `Engine ${bid} (DMX ${idx.map(j => j + 1).join(', ')}): universe ${uniShown(first, artnetOffset)} → ${t.universe} (${label(t.klass)}${t.klass === 'artnet' ? ` ${api(t.universe, 'artnet')}` : ''})`);
+    dropEngine(bid); engines.set(key, bid); ws.forEach(x => { x.uniCh = false; });
+  }
+  wants.forEach((x, i) => {
+    if(!x) return;
+    const { p, w, nameCh, dirCh, klassCh, uniCh } = x;
     if(!nameCh && !dirCh && !klassCh && !uniCh) return;
     const P = `DMX ${i + 1}`, dmxId = p.io.id;
-    const block = p.block || p.freeBlock;
     // the port itself: name and direction, the whole IO is sent back (firmware 2.6 insists on rdm_universe)
     if(nameCh || dirCh) add('PUT', `/api/IO/${dmxId}`, { ...p.io, name: w.name, io_type: w.dir, rdm_universe: p.io.rdm_universe ?? -1 },
       `${P}: ${[nameCh ? `name “${p.name}” → “${w.name}”` : '', dirCh ? `${p.dir === 'idle' ? 'off' : p.dir} → ${w.dir === 'idle' ? 'off' : w.dir}` : ''].filter(Boolean).join(', ')}`);
-    if(w.dir === 'idle') return;
-    const b = block?.id;
-    const out = (txt, io) => add('PUT', `/api/processblock/${b}/output`, typeof io === 'function' ? c => ({ io_id: io(c) }) : { io_id: io }, txt);
-    const inp = (txt, io) => add('PUT', `/api/processblock/${b}/input/0`, typeof io === 'function' ? c => ({ io_id: io(c) }) : { io_id: io }, txt);
+    if(w.dir === 'idle'){ if(p.dir === 'output' && p.block) userSet(p.block.id).delete(i); return; }
+    if(!dirCh && !klassCh && !uniCh) return;
+    if(w.universe == null){ notes.push(`${P}: fill in a universe.`); return; }
     const del = (txt, path) => add('DELETE', path, undefined, txt);
-    let connected = false;
-    if(!p.block && p.freeBlock && w.dir === 'output'){ out(`${P}: connect the DMX output to process block ${b}`, dmxId); connected = true; }   // an output that hangs on no block yet
-    const needNet = !p.net || dirCh || klassCh;
-    if(!needNet){                                              // same kind of input / output, only the universe
-      if(p.shared){ notes.push(`${P}: its ${label(p.klass)} ${p.dir === 'input' ? 'output' : 'input'} is shared with another process block — universe not changed.`); return; }
+    const outTo = (b, txt) => add('PUT', `/api/processblock/${b}/output`, { io_id: dmxId }, txt);
+    const inTo = (b, txt, io) => add('PUT', `/api/processblock/${b}/input/0`, typeof io === 'function' ? c => ({ io_id: io(c) }) : { io_id: io }, txt);
+    const uni = api(w.universe, w.klass), key = eKey(w.klass, uni);
+    const sameDirNet = !!p.net && !dirCh && !klassCh;           // the same kind of network input / output, only the universe
+    // ---- a DMX output: join the engine that already has this universe, else make one ----
+    if(w.dir === 'output'){
+      const eng = engines.get(key), mine = hungOn(p);
+      if(eng != null && eng === mine) return;
+      if(eng != null){                                          // join the engine of this universe
+        if(mine != null){
+          del(`${P}: leave engine ${mine}`, `/api/processblock/${mine}/output/${dmxId}`); userSet(mine).delete(i);
+          if(!userSet(mine).size && p.net && !p.shared){        // nobody is left on that engine: its input goes too
+            del(`${P}: engine ${mine} is empty — remove its input`, `/api/processblock/${mine}/input/0`);
+            del(`${P}: remove the old ${label(p.klass)} input (universe ${uniShown(p, artnetOffset)})`, `/api/IO/${p.net.id}`); dropEngine(mine);
+          }
+        } else if(p.dir === 'input' && p.net){
+          if(p.block) del(`${P}: disconnect its ${label(p.klass)} output`, `/api/processblock/${p.block.id}/output/${p.net.id}`);
+          if(!p.shared){ if(p.block) del(`${P}: remove the old output from engine ${p.block.id}`, `/api/processblock/${p.block.id}/input/0`); del(`${P}: remove the old ${label(p.klass)} output`, `/api/IO/${p.net.id}`); }
+        }
+        outTo(eng, `${P}: connect the DMX output to engine ${eng} (${label(w.klass)} universe ${w.universe})`); userSet(eng).add(i); return;
+      }
+      // no engine with this universe yet: this port makes it
+      if(mine != null && !othersOn(mine, i) && sameDirNet){   // it is alone on its engine: only the universe changes
+        if(p.shared){ notes.push(`${P}: its ${label(p.klass)} input is shared with another process block — universe not changed.`); return; }
+        const { duplicate_ios, ...rest } = p.net;
+        add('PUT', `/api/IO/${p.net.id}`, { ...rest, universe: uni }, `${P}: universe ${uniShown(p, artnetOffset)} → ${w.universe} (${label(p.klass)}${p.klass === 'artnet' ? ` ${uni}` : ''})`);
+        dropEngine(mine); engines.set(key, mine); return;
+      }
+      let b = p.block?.id ?? p.freeBlock?.id, split = false;
+      if(mine != null && othersOn(mine, i) > 0){               // it leaves an engine others stay on: it needs an engine of its own
+        b = freeBlockFor(i);
+        if(b == null){ notes.push(`${P}: no free engine on this node for its own universe — not changed.`); return; }
+        split = true; del(`${P}: leave engine ${mine}`, `/api/processblock/${mine}/output/${dmxId}`); userSet(mine).delete(i);
+      }
+      if(b == null){ notes.push(`${P}: no process block found for this port — not changed.`); return; }
+      if(!split && p.net && p.shared){ notes.push(`${P}: its ${p.dir === 'input' ? 'output' : 'input'} is shared with another process block — not changed.`); return; }
+      if(p.dir === 'input' && p.net && p.block) del(`${P}: disconnect its ${label(p.klass)} output`, `/api/processblock/${p.block.id}/output/${p.net.id}`);
+      if(split || mine == null) outTo(b, `${P}: connect the DMX output to engine ${b}`);
+      add('POST', '/api/IO', { io_class: w.klass, io_type: 'input', universe: uni, name: `U${w.universe}`, ...(w.klass === 'sacn' ? { priority: 100 } : {}) }, `${P}: new ${label(w.klass)} input for universe ${w.universe}`, 'io-new', { saveAs: 'n' });
+      inTo(b, `${P}: … and connect it to engine ${b}`, c => c.n);
+      if(p.net && !split) del(`${P}: remove the old ${label(p.klass)} ${p.dir === 'input' ? 'output' : 'input'}`, `/api/IO/${p.net.id}`);      // an input other ports of its engine use stays
+      claimed.add(b); dropEngine(b); engines.set(key, b); userSet(b).add(i); return;
+    }
+    // ---- a DMX input: it feeds a network output of its own engine (one per port) ----
+    const b = p.block?.id ?? p.freeBlock?.id;
+    if(sameDirNet){
+      if(p.shared){ notes.push(`${P}: its ${label(p.klass)} output is shared with another process block — universe not changed.`); return; }
       const { duplicate_ios, ...rest } = p.net;
-      add('PUT', `/api/IO/${p.net.id}`, { ...rest, universe: api(w.universe, p.klass) }, `${P}: universe ${uniShown(p, artnetOffset)} → ${w.universe} (${label(p.klass)}${p.klass === 'artnet' ? ` ${api(w.universe, 'artnet')}` : ''})`);
+      add('PUT', `/api/IO/${p.net.id}`, { ...rest, universe: uni }, `${P}: universe ${uniShown(p, artnetOffset)} → ${w.universe} (${label(p.klass)}${p.klass === 'artnet' ? ` ${uni}` : ''})`);
       return;
     }
-    if(w.universe == null){ notes.push(`${P}: fill in a universe.`); return; }
-    if(!block){ notes.push(`${P}: no process block found for this port — not changed.`); return; }
+    if(b == null){ notes.push(`${P}: no process block found for this port — not changed.`); return; }
     if(p.net && p.shared){ notes.push(`${P}: its ${p.dir === 'input' ? 'output' : 'input'} is shared with another process block — not changed.`); return; }
-    const newDir = w.dir === 'output' ? 'input' : 'output', uni = api(w.universe, w.klass);
-    const body = { io_class: w.klass, io_type: newDir, universe: uni, name: `U${w.universe}`, ...(w.klass === 'sacn' ? { priority: 100 } : {}) };
-    const mk = `new ${label(w.klass)} ${newDir} for universe ${w.universe}`;
-    if(w.dir === 'output'){                                    // network input -> process block -> DMX output
-      if(p.dir === 'input' && p.net) del(`${P}: disconnect its ${label(p.klass)} output`, `/api/processblock/${b}/output/${p.net.id}`);
-      if(p.dir !== 'output' && !connected) out(`${P}: connect the DMX output to process block ${b}`, dmxId);
-      add('POST', '/api/IO', body, `${P}: ${mk}`, 'io-new', { saveAs: 'n' });
-      inp(`${P}: … and connect it to process block ${b}`, c => c.n);
-    } else {                                                   // DMX input -> process block -> network output
-      if(p.dir === 'output') del(`${P}: disconnect the DMX output from process block ${b}`, `/api/processblock/${b}/output/${dmxId}`);
-      else if(p.dir === 'input' && p.net) del(`${P}: disconnect its ${label(p.klass)} output`, `/api/processblock/${b}/output/${p.net.id}`);
-      inp(`${P}: connect the DMX input to process block ${b}`, dmxId);
-      add('POST', '/api/IO', body, `${P}: ${mk}`, 'io-new', { saveAs: 'n' });
-      out(`${P}: … and connect it to process block ${b}`, c => c.n);
+    const hung = hungOn(p), others = hung != null ? othersOn(hung, i) : 0;
+    if(others > 0){                                             // it leaves an engine others stay on: it needs an engine of its own
+      const nb = freeBlockFor(i); if(nb == null){ notes.push(`${P}: no free engine on this node for its own input — not changed.`); return; }
+      del(`${P}: leave engine ${b}`, `/api/processblock/${b}/output/${dmxId}`); userSet(b).delete(i); claimed.add(nb);
+      add('PUT', `/api/processblock/${nb}/input/0`, { io_id: dmxId }, `${P}: connect the DMX input to engine ${nb}`);
+      add('POST', '/api/IO', { io_class: w.klass, io_type: 'output', universe: uni, name: `U${w.universe}`, ...(w.klass === 'sacn' ? { priority: 100 } : {}) }, `${P}: new ${label(w.klass)} output for universe ${w.universe}`, 'io-new', { saveAs: 'n' });
+      add('PUT', `/api/processblock/${nb}/output`, c => ({ io_id: c.n }), `${P}: … and connect it to engine ${nb}`);
+      return;
     }
+    if(hung != null){ del(`${P}: disconnect the DMX output from engine ${b}`, `/api/processblock/${b}/output/${dmxId}`); userSet(b).delete(i); dropEngine(b); }
+    else if(p.dir === 'input' && p.net) del(`${P}: disconnect its ${label(p.klass)} output`, `/api/processblock/${b}/output/${p.net.id}`);
+    inTo(b, `${P}: connect the DMX input to engine ${b}`, dmxId);
+    add('POST', '/api/IO', { io_class: w.klass, io_type: 'output', universe: uni, name: `U${w.universe}`, ...(w.klass === 'sacn' ? { priority: 100 } : {}) }, `${P}: new ${label(w.klass)} output for universe ${w.universe}`, 'io-new', { saveAs: 'n' });
+    add('PUT', `/api/processblock/${b}/output`, c => ({ io_id: c.n }), `${P}: … and connect it to engine ${b}`);
     if(p.net) del(`${P}: remove the old ${label(p.klass)} ${p.dir === 'input' ? 'output' : 'input'}`, `/api/IO/${p.net.id}`);
   });
   if(withIp && want.ip?.address){

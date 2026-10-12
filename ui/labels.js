@@ -27,7 +27,7 @@
 
   function defaults(){
     return { sheet:SHEETS[0].id, custom:{ w:48.26, h:25.4, cols:4, rows:11, left:8.48, top:8.8, gapX:0, gapY:0 },
-      kinds:{ cables:true, strips:true, nodePorts:false, devices:true, qr:false, qrDb:false, qrSys:false, switchPorts:false, netCables:true, fibers:true }, dcs:null, perDc:true, start:1, mono:false, outline:false,
+      kinds:{ cables:true, strips:true, nodePorts:false, devices:true, qr:false, qrDb:false, qrSys:false, switchPorts:false, netCables:true, fibers:true, nodeStickers:true, switchStickers:true }, dcs:null, perDc:true, start:1, mono:false, outline:false,
       company:{ on:true, img:null }, show:{ on:true, img:null } };
   }
   function state(){
@@ -88,6 +88,38 @@
         let sw = 0; for(const it of (R.rack.items || [])) if(it.kind === 'switch'){ const ty = (m.networkDevices?.switchTypes || []).find(x => x.id === it.typeId); out.push({ kind:'device', dc, title:`SW${++sw}`, sub:typeName(ty), lines:[rackName(ri), dc], color:'#a78bfa', badge:'', copies:1 }); } });
       for(const n of P.nodes) out.push({ kind:'device', dc, title:n.label, sub:typeName(n.type), lines:[n.loose ? (n.name || t('Loose node', 'Losse node')) : rackName(n.rack), dc], color:n.color, badge:n.label, copies:1 });
       for(const s of P.splitters) out.push({ kind:'device', dc, title:s.label, sub:typeName(s.type), lines:[rackName(s.rack), dc], color:s.feedColor || '#35c47c', badge:'', copies:1 });
+    }
+    // a sticker on the node itself: ID, address, VLAN, the switch port, the universes and where it is — all taken from the network plan
+    if(L.kinds.nodeStickers && window.IpPlan){
+      const F = window.Fent, rows = window.FentUI?.portPlan?.(dc)?.rows || [], nodeTypes = m.networkDevices?.nodeTypes || [];
+      const bits = mk => mk ? String(mk).split('.').reduce((n, x) => n + (Number(x) || 0).toString(2).replace(/0/g, '').length, 0) : 0;
+      const vl = x => { const v = x.vlan != null ? F?.vlanById(x.vlan) : null; return v ? `${v.id} ${v.name}` : ''; };
+      for(const d of window.IpPlan.all()){
+        if(d.dc !== dc || d.kind !== 'node' || d.gone) continue;
+        const inst = d.dev, pn = P.nodes.find(x => x.key === inst.src), ty = nodeTypes.find(x => x.id === inst.typeId);
+        const ifs = d.ifs.filter(x => x.ip), pr = rows.filter(r => r.kind === 'node' && r.idx === d.idx && r.sw && r.swPort);
+        const unis = Array.isArray(inst.universes) ? inst.universes.filter(u => u != null && u !== '' && Number.isFinite(Number(u))).map(Number) : [];
+        const ip = ifs[0] ? `${ifs[0].ip}${ifs[0].mask ? ` /${bits(ifs[0].mask)}` : ''}` : t('no address yet', 'nog geen adres');
+        const extra = ifs.slice(1).map(x => `${x.ip}${vl(x) ? ` ${vl(x).split(' ').slice(1).join(' ')}` : ''}`).join(' · ');
+        const where = pn ? (pn.loose ? t('Loose', 'Los') : rackName(pn.rack)) : '';
+        out.push({ kind:'nodeSticker', dc, title:d.label, sub:ip, maxLines:4,
+          lines:[ifs[0] && vl(ifs[0]) ? `VLAN ${vl(ifs[0])}` : '', extra, pr.length ? pr.map(r => `${r.sw} · ${t('port', 'poort')} ${r.swPort}`).join(' + ') : '', unis.length ? `U ${window.NetCables?.uniText ? window.NetCables.uniText(unis) : unis.join(',')}` : '', `${App.dimLabel ? App.dimLabel(dc) : dc}${where ? ` · ${where}` : ''}`].filter(Boolean),
+          color:pn?.color || '#94a3b8', badge:window.ShortName ? window.ShortName.port(ty || {}) : '', copies:1 });
+      }
+    }
+    // a sticker on the switch itself: name, management address, VLAN, ports, where the fibres go
+    if(L.kinds.switchStickers && window.NetSwitches){
+      const F = window.Fent, bits = mk => mk ? String(mk).split('.').reduce((n, x) => n + (Number(x) || 0).toString(2).replace(/0/g, '').length, 0) : 0;
+      const links = window.Fibers ? window.Fibers.links(dc) : [], trunks = window.NetSwitches.linksOf ? window.NetSwitches.linksOf(dc) : [];
+      for(const s of window.NetSwitches.list(dc)){
+        const ifs = F && s.dev ? F.ifaces(s.dev, 1).filter(x => x.ip) : [], first = ifs[0], v = first && first.vlan != null ? F?.vlanById(first.vlan) : null;
+        const to = new Set();
+        for(const l of links){ const a = l.a?.dc === dc && l.a?.sw === s.label ? l.b : l.b?.dc === dc && l.b?.sw === s.label ? l.a : null; if(a?.sw) to.add(a.dc && a.dc !== dc ? `${a.dc} ${a.sw}` : a.sw); }
+        for(const l of trunks) if(l.sw === s.label && l.to?.sw) to.add(l.to.sw);
+        out.push({ kind:'switchSticker', dc, title:s.label, sub:first ? `${first.ip}${first.mask ? ` /${bits(first.mask)}` : ''}` : t('no address yet', 'nog geen adres'), maxLines:4,
+          lines:[v ? `VLAN ${v.id} ${v.name}` : '', `${s.rj} RJ45${s.sfp ? ` + ${s.sfp} SFP` : ''}`, to.size ? `→ ${[...to].join(' · ')}` : '', `${App.dimLabel ? App.dimLabel(dc) : dc}${s.where ? ` · ${s.where}` : ''}`].filter(Boolean),
+          color:v?.color || '#a78bfa', badge:window.ShortName ? window.ShortName.port(s.type || {}) : '', copies:1 });
+      }
     }
     if(L.kinds.fibers && window.Fibers){   // a label on both ends of every fibre; the label tells where the other end goes
       for(const l of window.Fibers.links(dc)) for(const [mine, other] of [[l.a, l.b], [l.b, l.a]]){ if(!mine || mine.dc !== dc) continue; const ty = window.Fibers.typeOf(l.typeId);
@@ -152,7 +184,7 @@
     const hasImg = (imgs.company || imgs.show) && (!withQr || sh.w >= 60), imgW = hasImg ? 11 : 0;
     const left = bandW + pad + (withQr ? qrS + pad : 0), right = pad + (hasImg ? imgW + 0.6 : 0);
     const badge = it.badge ? `<b class="bd" style="${L.mono ? 'border:.25mm solid #000;color:#000' : `background:${it.color || '#475569'};color:#fff`}">${esc(it.badge)}</b>` : '';
-    const lines = (it.lines || []).slice(0, withQr ? 3 : 3).map(s => `<div class="l">${esc(s)}</div>`).join('');
+    const lines = (it.lines || []).slice(0, it.maxLines || 3).map(s => `<div class="l">${esc(s)}</div>`).join('');
     const im = hasImg ? `<div class="im" style="width:${imgW}mm">${imgs.show ? `<img src="${esc(imgs.show)}" alt="">` : '<span></span>'}${imgs.company ? `<img src="${esc(imgs.company)}" alt="">` : ''}</div>` : '';
     return `<div class="lb${withQr ? ' q' : ''}" style="left:${x.toFixed(3)}mm;top:${y.toFixed(3)}mm;width:${sh.w}mm;height:${sh.h}mm;--u:${u.toFixed(3)}">
       <i class="band" style="background:${band};width:${bandW}mm"></i>
@@ -258,6 +290,8 @@
         ${sw('k:cables', L.kinds.cables, `${t('Cable labels', 'Kabellabels')} <span class="subtle">${cnt.cables}</span>`, t('LK multicores and Veam cables, 2 per cable (both ends)', 'LK-multicores en Veam-kabels, 2 per kabel (beide uiteinden)'))}
         ${sw('k:strips', L.kinds.strips, `${t('Panel connection labels', 'Aansluitlabels paneel')} <span class="subtle">${cnt.strips}</span>`, t('One per LK37 / Veam4 socket', 'Eén per LK37- / Veam4-aansluiting'))}
         ${sw('k:nodePorts', L.kinds.nodePorts, `${t('Node port labels', 'Nodepoort-labels')} <span class="subtle">${cnt.nodePorts}</span>`, t('Universe and where each port goes', 'Universe en waar elke poort heen gaat'))}
+        ${sw('k:nodeStickers', L.kinds.nodeStickers, `${t('Node stickers', 'Nodestickers')} <span class="subtle">${cnt.nodeStickers}</span>`, t('One on every node: ID, address, VLAN, switch port, universes and where it is', 'Eén op elke node: ID, adres, VLAN, switchpoort, universes en waar hij staat'))}
+        ${sw('k:switchStickers', L.kinds.switchStickers, `${t('Switch stickers', 'Switchstickers')} <span class="subtle">${cnt.switchStickers}</span>`, t('One on every switch: name, address, VLAN, ports and where the fibres go', 'Eén op elke switch: naam, adres, VLAN, poorten en waar de fibers heen gaan'))}
         ${sw('k:devices', L.kinds.devices, `${t('Racks, nodes, switches, splitters', 'Racks, nodes, switches, splitters')} <span class="subtle">${cnt.devices}</span>`)}
         ${sw('k:fibers', L.kinds.fibers, `${t('Fibre labels', 'Fiberlabels')} <span class="subtle">${cnt.fibers}</span>`, t('Both ends of every fibre, with where the other end goes', 'Beide uiteinden van elke fiber, met waar het andere uiteinde heen gaat'))}
         ${sw('k:netCables', L.kinds.netCables, `${t('Network cable labels', 'Netwerkkabel-labels')} <span class="subtle">${cnt.netCables}</span>`, t('C cables: one per line, both ends, in the VLAN colour', 'C-kabels: één per lijn, beide uiteinden, in de VLAN-kleur'))}
@@ -322,6 +356,18 @@
     finally { if(btn.isConnected) btn.disabled = false; }
   }
 
-  window.Labels = { open, close, SHEETS, buildHtml, itemsFor, allItems, paginate, cellPos, sheetOf, state, defaults };
+  // ---------- For the Publish window: the sheets of one DimCity for one group of stickers ----------
+  //   variant: 'nodes' (a sticker on every node, and the port labels when `ports`), 'switches' (the same for the switches), 'cables' (cables, panel strips, network cables, fibres)
+  function docHtml({ dc, variant, ports = false, preview = false } = {}){
+    const base = state(), off = Object.fromEntries(Object.keys(base.kinds).map(k => [k, false]));
+    const kinds = { ...off, ...(variant === 'nodes' ? { nodeStickers:true, nodePorts:!!ports } : variant === 'switches' ? { switchStickers:true, switchPorts:!!ports } : { cables:true, strips:true, netCables:true, fibers:true }) };
+    const L = { ...base, kinds, dcs:[dc], perDc:true, start:1, outline:false };
+    const groups = allItems(L), count = groups.reduce((n, g) => n + g.items.length, 0);
+    if(!count) return { html:'', pages:0, count:0 };
+    const sh = sheetOf(L), pages = paginate(groups, sh, 1, true).filter(pg => pg.cells.length).length;
+    return { html:buildHtml(L, { preview }), pages, count };
+  }
+
+  window.Labels = { open, close, docHtml, SHEETS, buildHtml, itemsFor, allItems, paginate, cellPos, sheetOf, state, defaults };
 })();
 document.getElementById('tbStickers')?.addEventListener('click', () => window.Labels.open());

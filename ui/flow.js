@@ -664,7 +664,7 @@ function standaloneSvg(dcs, layer = 'all'){
 }
 // one DimCity for the PDF (the arrangement from the Signal Flow page)
 function printSvg(dc, layer = 'all'){
-  try{ const r = standaloneSvg([dc], layer); if(!r) return null; return { ...r, svg:r.svg.replace(/ width="\d+(\.\d+)?" height="\d+(\.\d+)?"><style>/, '><style>') }; } catch(err){ console.warn('Signal flow for PDF failed', err); return null; }
+  try{ const r = standaloneSvg(Array.isArray(dc) ? dc : [dc], layer); if(!r) return null; return { ...r, svg:r.svg.replace(/ width="\d+(\.\d+)?" height="\d+(\.\d+)?"><style>/, '><style>') }; } catch(err){ console.warn('Signal flow for PDF failed', err); return null; }
 }
 
 // ---------- Render ----------
@@ -698,7 +698,7 @@ function render(){
     <div class="fl-sec"><div class="rb-label">${t('Layout', 'Indeling')}</div>
       <label class="field">${t('Grid size', 'Rastergrootte')}<select id="flGridSize">${[10, 20, 40].map(n => `<option value="${n}" ${gridCfg().size === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
       <label class="field">${t('Spacing', 'Afstand')} <span class="subtle" id="flSpVal">${Math.round((f.spacing || 1) * 100)}%</span><input type="range" id="flSpacing" min="50" max="250" step="10" value="${Math.round((f.spacing || 1) * 100)}"></label>
-      <div class="hint" style="margin-top:8px">${t('The arrangement, zoom and LK names of every DimCity are saved with the project and printed with Export PDF.', 'De indeling, zoom en LK-namen van elke DimCity worden met het project opgeslagen en geprint bij Export PDF.')}</div></div>
+      <div class="hint" style="margin-top:8px">${t('The arrangement, zoom and LK names of every DimCity are saved with the project and printed when you publish the PDFs.', 'De indeling, zoom en LK-namen van elke DimCity worden met het project opgeslagen en geprint bij het publiceren van de PDF’s.')}</div></div>
   </aside>`;
   const bar = `<div class="fl-bar">
     <div class="segmented fl-tools" id="flTool"><button data-tool="select" class="${S.tool === 'select' ? 'active' : ''}" title="${esc(t('Select and move (V) — drag the background to select several blocks', 'Selecteren en verplaatsen (V) — sleep over de achtergrond om meerdere blokken te kiezen'))}">${I('cursor', 15)}</button><button data-tool="pan" class="${S.tool === 'pan' ? 'active' : ''}" title="${esc(t('Hand: grab the drawing and move it (H, or hold Space)', 'Handje: pak de tekening en verschuif hem (H, of houd Spatie ingedrukt)'))}">${I('hand', 15)}</button></div>

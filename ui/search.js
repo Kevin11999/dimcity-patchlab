@@ -10,7 +10,7 @@ const COMMANDS = [
   ['Send a request or bug report', 'request', 'message'],
   ['Save', 'save', 'save'], ['Save As…', 'saveAs', 'save'], ['Open Project…', 'openProject', 'folder'], ['New Project…', 'newProject', 'filePlus'],
   ['Import CSV…', 'importCsv', 'upload'], ['Imported Files…', 'csvSources', 'file'], ['Edit Patch Rows…', 'editCsv', 'edit'],
-  ['Export PDF / Report Builder…', 'exportPdf', 'file'], ['Device Builder…', 'deviceBuilder', 'network'], ['Rack Builder…', 'deviceBuilder', 'rack', 'rack'],
+  ['Publish PDFs, stickers and IP address book…', 'exportPdf', 'file'], ['Device Builder…', 'deviceBuilder', 'network'], ['Rack Builder…', 'deviceBuilder', 'rack', 'rack'],
   ['Nodes & Splitters', 'networkPlanner', 'network'], ['Network', 'network', 'switchDev'], ['Network Config', 'view', 'sliders', 'NETCONFIG'], ['Power', 'view', 'plug', 'POWER'], ['Racks & DBs', 'view', 'rack', 'RACKS'], ['Validation', 'view', 'alert', 'ISSUES'], ['Patch List', 'view', 'table', 'TABLE'],
   ['Project Overview', 'view', 'home', 'HOME'], ['History…', 'history', 'clock'], ['Undo', 'undo', 'chevronLeft'], ['Redo', 'redo', 'chevronRight'],
   ['Settings…', 'settings', 'sliders'], ['Check for Updates…', 'checkUpdates', 'download'], ['Add LK…', 'addLK', 'plus'], ['Add Veam…', 'addVeam', 'plus'],

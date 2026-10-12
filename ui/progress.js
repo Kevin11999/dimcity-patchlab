@@ -44,7 +44,7 @@ function compute(){
       detail:rackMissing.length ? `${t('No rack or loose node in', 'Geen rek of losse node in')} ${rackMissing.join(', ')}` : rackWarn.length ? `${t('Check the recommendations in', 'Bekijk de adviezen in')} ${rackWarn.join(', ')}` : '', go:(rackMissing[0] || rackWarn[0]) ? open('DIM', rackMissing[0] || rackWarn[0]) : null },
     { id:'network', label:t('Network plan', 'Netwerkplan'), done:dims.length > 0 && !netMissing.length, skip:!dims.length,
       detail:netMissing.length ? `${t('No nodes planned in', 'Geen nodes gepland in')} ${netMissing.join(', ')} — ${t('use the rack patch as network plan', 'gebruik de rack-patch als netwerkplan')}` : '', go:netMissing[0] ? open('DIM', netMissing[0]) : () => App.navigate('NETWORK') },
-    { id:'pdf', label:t('PDF layout', 'PDF-indeling'), done:pdf, detail:t('Open the Report Builder once and choose your sections', 'Open de Rapportbouwer één keer en kies je secties'), go:() => App.runCommand('exportPdf') },
+    { id:'pdf', label:t('PDF layout', 'PDF-indeling'), done:pdf, detail:t('Open Publish once and choose your documents and sections', 'Open Publiceren één keer en kies je documenten en secties'), go:() => App.runCommand('exportPdf') },
     { id:'saved', label:t('Saved', 'Opgeslagen'), done:saved, detail:m.filePath ? t('Unsaved changes', 'Niet-opgeslagen wijzigingen') : t('Not saved to a file yet', 'Nog niet in een bestand opgeslagen'), go:() => App.runCommand('save') }
   ].filter(s => !s.skip);
   const done = steps.filter(s => s.done).length;

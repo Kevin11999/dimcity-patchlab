@@ -1,6 +1,8 @@
-// export-pdf.js — Report Builder
-// Visuele PDF-builder met live preview. De layout (secties, volgorde, stijl, cover, kop/voet)
-// wordt in het project bewaard (MODEL.pdfSettings.layout) en kan als template worden opgeslagen.
+// export-pdf.js — the PDF engine of the Publish window (ui/publish.js).
+// The layout (sections, order, style, cover, header / footer, logos) is kept in the project (MODEL.pdfSettings.layout) and can be
+// stored as a template. The documents — the total DB book, LK info, Node info, the IP address book, the A3 network flow — are built
+// from it as fixed sheets (core/paginate.js): the preview and the PDF are made from the same pages, with the logos of the company
+// and the project, the page numbers and the contents on them. ui/labels.js makes the sticker sheets.
 (function(){
   'use strict';
 
@@ -16,21 +18,23 @@
   const hex = (c, f='#2563eb') => /^#[0-9a-fA-F]{6}$/.test(String(c||'')) ? c : f;
   const PAGE_MM = { A4:[210,297], A3:[297,420], Letter:[215.9,279.4] };
   const MM = 3.7795275591;
+  const dcName = dc => window.DimLabel ? window.DimLabel(dc) : dc;
 
   // ===================== Layout model =====================
+  // `docs` says in which documents a section appears (book = the total DB book, lk = LK info, nodes = Node info)
   const SECTIONS = {
-    summary:   { title:'DimCity header & key figures', icon:'layout',   desc:'DimCity name, project line and totals.' },
-    switches:  { title:'Switches: ports and VLAN',   icon:'network',  desc:'Per switch: a drawing of the ports in the VLAN colours and a table with device, VLAN, PoE, speed and universes.' },
-    network:   { title:'Network / DMX nodes',          icon:'network',  desc:'Planned nodes with IP and universe per port.' },
-    splitters: { title:'Splitters',                    icon:'cable',    desc:'Splitters with input feed and output map.' },
-    racks:     { title:'Racks',                        icon:'rack',     desc:'Racks with sockets, node colours and patch table.' },
-    flow:      { title:'Signal flow drawing',          icon:'cable',    desc:'The cabling from rack to objects, as arranged on the Signal Flow page.' },
-    patch:     { title:'LK / Veam patch',              icon:'box',      desc:'Every LK as a row of 12 ports with its Veam4s underneath: universe, and the node and node port each one is on.' },
-    universes: { title:'Universe overview',            icon:'universe', desc:'Patch points per universe (LK / Veam / DMX).' },
-    patchlist: { title:'Patch list table',             icon:'table',    desc:'All rows of this DimCity sorted by universe.' },
-    warnings:  { title:'Warnings & errors',            icon:'alert',    desc:'Validation results for this DimCity.' },
-    qr:        { title:'QR codes (the whole DB)',    icon:'grid',     desc:'QR codes that hold everything of this DB as text: sockets, nodes with IP, switches, fibres. Optional: the whole system.' },
-    notes:     { title:'Notes',                        icon:'note',     desc:'Free text, e.g. crew instructions.' }
+    summary:   { title:'DimCity header & key figures', icon:'layout',   desc:'DimCity name, project line and totals.', docs:['book', 'lk', 'nodes'] },
+    switches:  { title:'Switches: ports and VLAN',   icon:'network',  desc:'Per switch: a drawing of the ports in the VLAN colours and a table with device, VLAN, PoE, speed and universes.', docs:['book', 'nodes'] },
+    network:   { title:'Network / DMX nodes',          icon:'network',  desc:'Planned nodes with IP and universe per port.', docs:['book', 'nodes'] },
+    splitters: { title:'Splitters',                    icon:'cable',    desc:'Splitters with input feed and output map.', docs:['book', 'nodes'] },
+    racks:     { title:'Racks',                        icon:'rack',     desc:'Racks with sockets, node colours and patch table.', docs:['book', 'nodes'] },
+    flow:      { title:'Signal flow drawing',          icon:'cable',    desc:'The cabling from rack to objects, as arranged on the Signal Flow page.', docs:['book'] },
+    patch:     { title:'LK / Veam patch',              icon:'box',      desc:'Every LK as a row of 12 ports with its Veam4s underneath: universe, and the node and node port each one is on.', docs:['book', 'lk'] },
+    universes: { title:'Universe overview',            icon:'universe', desc:'Patch points per universe (LK / Veam / DMX).', docs:['book', 'lk'] },
+    patchlist: { title:'Patch list table',             icon:'table',    desc:'All rows of this DimCity sorted by universe.', docs:['book', 'lk'] },
+    warnings:  { title:'Warnings & errors',            icon:'alert',    desc:'Validation results for this DimCity.', docs:['book', 'lk'] },
+    qr:        { title:'QR codes (the whole DB)',    icon:'grid',     desc:'QR codes that hold everything of this DB as text: sockets, nodes with IP, switches, fibres. Optional: the whole system.', docs:['book'] },
+    notes:     { title:'Notes',                        icon:'note',     desc:'Free text, e.g. crew instructions.', docs:['book', 'lk', 'nodes'] }
   };
   const SECTION_OPTS = {
     network:   [['universeTable','Include universe overview table', true], ['switches','Show switches placeholder', false], ['addresses','All addresses of a device and the switch port plan', true]],
@@ -42,17 +46,29 @@
     warnings:  [['projectWide','Include project-wide issues', true]],
     qr:        [['system','Also the QR set for the whole system (first DB only)', true]]
   };
+  // the documents that can be published (the window is ui/publish.js); `per`: one for the whole show or one for every DimCity
+  const DOCS = {
+    book:     { title:'Total DB book',     per:'all',   desc:'All chosen DimCities in one booklet: cover, contents, page numbers and the sections you choose.' },
+    lk:       { title:'LK info',           per:'dc',    desc:'The LK / Veam patch sheets, the universes and the patch list of a DimCity.' },
+    nodes:    { title:'Node info',         per:'dc',    desc:'Nodes, splitters, switches, racks and node ports of a DimCity.' },
+    stickers: { title:'Stickers',          per:'dc',    desc:'Label sheets for the nodes, the switches and the cables, for the Herma sheets.' },
+    a3:       { title:'Network flow (A3)', per:'dc',    desc:'The network flow and the signal flow drawn on A3: one file per DimCity and one for the whole show.' },
+    ip:       { title:'IP address book',   per:'all',   desc:'Every address of the nodes, switches and consoles: per DimCity, per VLAN and sorted by number.' }
+  };
 
   function defaultLayout(){
     return {
-      version: 2,
+      version: 3,
       scope: 'ALL', dims: [], output: 'SINGLE',
+      docs: { book:true, lk:true, nodes:true, stickers:true, a3:true, ip:true, stickerKinds:{ nodes:true, nodePorts:false, switches:true, switchPorts:false, cables:false } },
+      publish: { structure:true, folder:'', open:true },
       page: { size:'A4', orientation:'portrait', margin:10 },
+      a3: { orientation:'auto' },
       style: { accent:'#ff8a1f', font:'helvetica', fontSize:9.5, density:'comfortable', colorUniverses:true, dimBand:true, grayscale:false, lineWeight:'normal' },
       header: { show:true, text:'{project} · {dimcity}' },
       footer: { show:true, left:'{project} · {area}', center:'Prepared by {prepared} · {date}', pageNumbers:true },
-      brand: { logo:null, logoPos:'none', logoHeight:9, wm:{ type:'none', text:'CONFIDENTIAL', opacity:8, size:55, angle:-30 } },
-      cover: { show:true, title:'', subtitle:'{area} · {location}', showLogo:true, logoX:1, logoY:0, logoW:60, fields:{ area:true, location:true, date:true, prepared:true, dimcities:true, totals:true }, note:'', summaryPage:true },
+      brand: { logo:null, logoPos:'header-right', logoHeight:9, projectLogoPos:'header-left', projectLogoHeight:9, wm:{ type:'none', text:'CONFIDENTIAL', opacity:8, size:55, angle:-30 } },
+      cover: { show:true, title:'', subtitle:'{area} · {location}', showLogo:true, logoX:1, logoY:0, logoW:60, fields:{ area:true, location:true, date:true, prepared:true, dimcities:true, totals:true }, note:'', summaryPage:true, contents:true },
       sections: [
         { key:'summary', on:true }, { key:'network', on:true, opts:{ universeTable:true, switches:false, addresses:true } }, { key:'switches', on:true, opts:{ overview:true, names:true } },
         { key:'splitters', on:true }, { key:'racks', on:true, opts:{ drawing:true, nodes:true, loose:true, table:true, advice:true } }, { key:'flow', on:true, opts:{ legend:true, ownPage:true, netOnly:true } }, { key:'patch', on:true, opts:{ nodePorts:true, standaloneVeams:true, location:true, source:false, groupColors:true } },
@@ -75,11 +91,10 @@
   }
   // Oude pdfSettings (V9) omzetten naar een layout
   function layoutFromSettings(ps){
-    if(ps?.layout?.version === 2) return mergeLayout(ps.layout);
+    if(ps?.layout && Number(ps.layout.version) >= 2) return mergeLayout(ps.layout);
     const L = defaultLayout();
     if(!ps) return L;
     L.page.orientation = ps.page === 'landscape' ? 'landscape' : 'portrait';
-    L.output = ps.output === 'PER_DIM' ? 'PER_DIM' : 'SINGLE';
     const map = { incNetwork:'network', incSplitters:'splitters', incPatch:'patch', incWarnings:'warnings', incProject:'summary' };
     for(const [k, sec] of Object.entries(map)) if(k in ps){ const s = L.sections.find(x=>x.key===sec); if(s) s.on = ps[k] !== false; }
     const net = L.sections.find(s=>s.key==='network'); if(net && 'incSwitches' in ps) net.opts.switches = !!ps.incSwitches;
@@ -87,7 +102,8 @@
   }
   function mergeLayout(saved){
     const L = defaultLayout();
-    const out = { ...L, ...saved,
+    const out = { ...L, ...saved, version:3,
+      docs:{ ...L.docs, ...(saved.docs||{}), stickerKinds:{ ...L.docs.stickerKinds, ...(saved.docs?.stickerKinds||{}) } }, publish:{ ...L.publish, ...(saved.publish||{}) }, a3:{ ...L.a3, ...(saved.a3||{}) },
       page:{ ...L.page, ...(saved.page||{}) }, style:{ ...L.style, ...(saved.style||{}) },
       header:{ ...L.header, ...(saved.header||{}) }, footer:{ ...L.footer, ...(saved.footer||{}) },
       brand:{ ...L.brand, ...(saved.brand||{}), wm:{ ...L.brand.wm, ...(saved.brand?.wm||{}) } },
@@ -108,15 +124,24 @@
   }
   const GRID_MM = 5;
   const snap = v => Math.round(v / GRID_MM) * GRID_MM;
-  const contentBox = L => { const [pw, ph] = pageDims(L); const { m, mt, mb } = pageMargins(L); return { w:pw - 2*m, h:ph - mt - mb }; };
 
   // ===================== Data helpers =====================
+  function currentMeta(){
+    const M = getM() || {};
+    return { project:'', area:'', location:'', date:'', prepared:'', logo:null, ...(M.projectMeta || {}) };
+  }
+  function allDims(){ const M = getM(); return (App()?.sortedDims?.() || keysFromMap(M?.byDim).sort()); }
+  function selectedDims(L){
+    const all = allDims();
+    if(L.scope !== 'SEL') return all;
+    return all.filter(d => L.dims.includes(d));
+  }
   function uniColor(u, L){ return L.style.colorUniverses ? `hsl(${(Number(u||0)*47)%360} 70% 40%)` : '#64748b'; }
   function dcColor(M, dc){ return hex(App()?.dimColor?.(dc) || M?.dimColors?.[dc], '#2563eb'); }
   // Vervangt {placeholders}; segmenten (gescheiden door " · ") waarvan alle placeholders leeg zijn vallen weg.
   function tokens(str, meta, dc=''){
     const d = meta.date ? new Date(meta.date + 'T12:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '';
-    const vals = { project:meta.project||'', area:meta.area||'', location:meta.location||'', date:d, prepared:meta.prepared||'', dimcity:dc||'' };
+    const vals = { project:meta.project||'', area:meta.area||'', location:meta.location||'', date:d, prepared:meta.prepared||'', dimcity:dc ? dcName(dc) : '' };
     return String(str || '').split(/\s+[·•|]\s+/).map(seg=>{
       let had = false, filled = false;
       const out = seg.replace(/\{(\w+)\}/g, (_, k)=>{ had = true; const v = vals[k] ?? ''; if(v) filled = true; return v; });
@@ -154,21 +179,52 @@
   const plan = (M, dc) => M?.networkDevices?.dimCityPlans?.[dc] || { nodes:[], splitters:[], switches:[] };
   const splitterType = (M, id) => (M?.networkDevices?.splitterTypes || []).find(t => String(t.id) === String(id)) || {};
 
-  // ===================== Brand: logo op elke pagina + watermerk =====================
-  const pageDims = L => { const [w, h] = PAGE_MM[L.page.size] || PAGE_MM.A4; return L.page.orientation !== 'portrait' ? [h, w] : [w, h]; };
-  const brandLogoOn = L => !!(L.brand?.logo && L.brand.logoPos && L.brand.logoPos !== 'none');
-  const logoTop = m => Math.max(3, m / 2 - 1);
-  function pageMargins(L){
-    const m = Math.max(5, Number(L.page.margin) || 10);
-    const h = Number(L.brand?.logoHeight) || 9;
-    const pos = brandLogoOn(L) ? L.brand.logoPos : '';
-    let mt = m, mb = L.footer.show ? Math.max(m, 13) : m;
-    if(pos.startsWith('header')) mt = Math.max(m, logoTop(m) + h + 7);
-    if(pos.startsWith('footer')) mb = Math.max(mb, h + 6);
-    return { m, mt, mb };
+  // ===================== The sheet: size, margins, logos in the head and the foot =====================
+  // Where the logos are, how big the head and the foot are, how much room is left for the content (mm).
+  const LOGO_DIM = new Map();
+  const logoKey = src => `${String(src || '').length}:${String(src || '').slice(-48)}`;
+  function loadLogoDims(src){
+    return new Promise(res => {
+      if(!src) return res(null);
+      const k = logoKey(src); if(LOGO_DIM.has(k)) return res(LOGO_DIM.get(k));
+      const im = new Image(), done = d => { LOGO_DIM.set(k, d); res(d); };
+      im.onload = () => done({ w:im.naturalWidth || 150, h:im.naturalHeight || 50 });
+      im.onerror = () => done({ w:150, h:50 });
+      im.src = src;
+    });
   }
-  // SVG (mm-eenheden) met watermerk en, voor de preview, het logo op de plek van kop/voet
-  function brandSvg(L, meta, { w, h, withLogo }){
+  const logoRatio = src => { const d = LOGO_DIM.get(logoKey(src)); return d && d.h ? d.w / d.h : 3; };
+  const LOGO_POS = ['none', 'header-left', 'header-right', 'footer-left', 'footer-right'];
+  function logoList(L, meta){
+    const b = L.brand || {}, out = [];
+    const add = (key, src, pos, h) => {
+      if(!src || !LOGO_POS.includes(pos) || pos === 'none') return;
+      let hh = Math.max(4, Math.min(30, Number(h) || 9)), w = hh * logoRatio(src);
+      if(w > 70){ w = 70; hh = w / logoRatio(src); }
+      out.push({ key, src, pos, h:+hh.toFixed(2), w:+w.toFixed(2) });
+    };
+    add('pr', meta.logo, b.projectLogoPos ?? 'header-left', b.projectLogoHeight);
+    add('co', b.logo, b.logoPos, b.logoHeight);
+    return out;
+  }
+  // kind: 'a3' has its own paper; everything else follows the Style tab
+  function geo(L, meta, kind = 'book', orient = null){
+    const size = kind === 'a3' ? (L.a3?.size || 'A3') : (L.page.size || 'A4');
+    const want = orient || (kind === 'a3' ? L.a3?.orientation : L.page.orientation);
+    const land = (want === 'auto' ? 'landscape' : want) === 'landscape';
+    const [w, h] = PAGE_MM[size] || PAGE_MM.A4, pw = land ? h : w, ph = land ? w : h;
+    const m = Math.max(5, Math.min(25, Number(L.page.margin) || 10));
+    const logos = logoList(L, meta);
+    const lh = pre => Math.max(0, ...logos.filter(x => x.pos.startsWith(pre)).map(x => x.h));
+    const hdrOn = !!L.header.show || lh('header') > 0, ftrOn = !!L.footer.show || lh('footer') > 0;
+    const hT = Math.max(4, m - 5), hH = hdrOn ? Math.max(6, lh('header')) : 0;
+    const fB = Math.max(4, m - 5), fH = ftrOn ? Math.max(5, lh('footer')) : 0;
+    const mt = hdrOn ? hT + hH + 5 : m, mb = ftrOn ? fB + fH + 5 : m;
+    return { size, land, pw, ph, m, mt, mb, hT, hH, fB, fH, hdrOn, ftrOn, logos, bodyW:pw - 2 * m, bodyH:ph - mt - mb };
+  }
+  const contentBox = (L, meta = currentMeta()) => { const G = geo(L, meta); return { w:G.bodyW, h:G.bodyH }; };
+  // the watermark as a picture (SVG, mm units) that sits in the content area of every sheet
+  function watermarkUrl(L, meta, w, h){
     const b = L.brand || {}, wm = b.wm || {};
     let inner = '';
     const op = Math.max(1, Math.min(60, Number(wm.opacity) || 8)) / 100;
@@ -182,34 +238,27 @@
       const fs = Math.min(w * (Number(wm.size) || 55) / 100 / Math.max(3, t.length * .62), h * .4);
       inner += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-family="Helvetica,Arial,sans-serif" font-weight="800" font-size="${fs}" fill="#0f172a" fill-opacity="${op}" letter-spacing="${fs * .06}" transform="${rot}">${esc(t)}</text>`;
     }
-    if(withLogo && brandLogoOn(L)){
-      const { m, mb } = pageMargins(L);
-      const lh = Number(b.logoHeight) || 9, lw = 70;
-      const right = b.logoPos.endsWith('right');
-      const y = b.logoPos.startsWith('header') ? logoTop(m) : h - mb / 2 - lh / 2;
-      inner += `<image href="${b.logo}" x="${right ? w - m - lw : m}" y="${y}" width="${lw}" height="${lh}" preserveAspectRatio="${right ? 'xMaxYMid' : 'xMinYMid'} meet"/>`;
-    }
     if(!inner) return '';
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${w}mm" height="${h}mm" viewBox="0 0 ${w} ${h}">${inner}</svg>`)}`;
   }
-  // In de print staat het watermerk vast (herhaalt op elke pagina) binnen het inhoudsvlak
-  function printWatermark(L, meta){
-    const [pw, ph] = pageDims(L);
-    const { m, mt, mb } = pageMargins(L);
-    const src = brandSvg(L, meta, { w:pw - 2*m, h:ph - mt - mb, withLogo:false });
-    return src ? `<div class="wm-print"><img src="${src}" alt=""></div>` : '';
+  // The A3 sheets: 'auto' picks the orientation that makes the drawings the biggest (wide drawings lie, tall ones stand)
+  function a3Orientation(L, meta, dcs, kind){
+    const o = L.a3?.orientation || 'auto';
+    if(o === 'landscape' || o === 'portrait') return o;
+    const F = window.Flow; if(!F?.printSvg) return 'landscape';
+    const rs = (kind === 'a3all' ? [F.printSvg(dcs, 'net')] : [F.printSvg(dcs[0], 'net'), F.printSvg(dcs[0], 'all')]).filter(Boolean);
+    if(!rs.length) return 'landscape';
+    const GL = geo(L, meta, 'a3', 'landscape'), GP = geo(L, meta, 'a3', 'portrait');
+    const fit = G => rs.reduce((n, r) => n + Math.min(G.bodyW / r.w, (G.bodyH - 36) / r.h), 0);
+    return fit(GP) > fit(GL) * 1.05 ? 'portrait' : 'landscape';
   }
+  // what the content builders need to know about the sheet they are building for (set by renderDocument)
+  let CTX = { G:null, meta:null, kind:'book' };
+  const curG = () => CTX.G || geo(layoutFromSettings(getM()?.pdfSettings), currentMeta());
 
-  // ===================== HTML generation =====================
-  function printCss(L, { preview=false, meta={} } = {}){
-    const [w, h] = PAGE_MM[L.page.size] || PAGE_MM.A4;
-    const land = L.page.orientation !== 'portrait';
-    const pw = land ? h : w, ph = land ? w : h;
-    const m = Math.max(5, Number(L.page.margin) || 10);
-    const { mt, mb } = pageMargins(L);
-    // binnenmarges van de pagina (alleen in de preview; in print doet @page dat)
-    const padT = preview ? mt : 0, padS = preview ? m : 0, padB = preview ? mb : 0;
-    const previewTile = preview ? brandSvg(L, meta, { w:pw, h:ph, withLogo:true }) : '';
+  // ===================== CSS of a document =====================
+  // Everything is in mm; the sheet is as big as the paper, so the preview and the PDF can not differ.
+  function docCss(L, G, meta, { preview = false } = {}){
     const compact = L.style.density === 'compact';
     const fs = Number(L.style.fontSize) || 9.5;
     const font = L.style.font === 'system' ? '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif' : L.style.font === 'georgia' ? 'Georgia,"Times New Roman",serif' : 'Helvetica,Arial,sans-serif';
@@ -217,48 +266,62 @@
     const gap = compact ? 1.6 : 2.6;
     // lijndikte en -kleur: licht (zoals vroeger), normaal (duidelijk op papier), dik (zwaar, voor op de vloer)
     const LW = { light:{ bw:.25, ln:'#e2e8f0', ln2:'#cbd5e1', ln3:'#94a3b8' }, normal:{ bw:.35, ln:'#94a3b8', ln2:'#64748b', ln3:'#334155' }, bold:{ bw:.55, ln:'#475569', ln2:'#1e293b', ln3:'#0f172a' } }[L.style.lineWeight] || { bw:.35, ln:'#94a3b8', ln2:'#64748b', ln3:'#334155' };
-    const hasFixed = L.sections.some(s => s.on && s.pos);
-    const cb = contentBox(L);
-    const screen = preview ? `
+    const wm = watermarkUrl(L, meta, G.bodyW, G.bodyH);
+    const logos = G.logos.map(x => `.lg-${x.key}{background-image:url("${x.src}")}`).join('');
+    const frame = `
+      @page{size:${G.size} ${G.land ? 'landscape' : 'portrait'};margin:0}
+      html,body{margin:0;padding:0}
+      .sheet{position:relative;width:${G.pw}mm;height:${(G.ph - .4).toFixed(2)}mm;overflow:hidden;background:#fff;page-break-after:always;break-after:page;contain:layout}
+      .sheet:last-of-type{page-break-after:auto;break-after:auto}
+      ${wm ? `.sheet:not(.cover-sheet)::before{content:"";position:absolute;left:${G.m}mm;right:${G.m}mm;top:${G.mt}mm;bottom:${G.mb}mm;background:url("${wm}") center/100% 100% no-repeat;pointer-events:none}` : ''}
+      .sh-body{position:absolute;left:${G.m}mm;right:${G.m}mm;top:${G.mt}mm;bottom:${G.mb}mm;overflow:hidden}
+      .cover-sheet .sh-body{top:${G.m}mm;bottom:${G.m}mm}
+      .fill{display:flow-root}
+      ${logos}
+      .lg{display:inline-block;flex:none;background-repeat:no-repeat;background-position:center;background-size:contain}
+      .sh-head{position:absolute;left:${G.m}mm;right:${G.m}mm;top:${G.hT}mm;height:${(G.hH + 1.5).toFixed(2)}mm;display:flex;align-items:center;gap:4mm;padding-bottom:1.5mm;border-bottom:var(--bw) solid var(--ln2)}
+      .sh-head .hm{flex:1;min-width:0;text-align:center;font-size:${(fs * .88).toFixed(2)}px;font-weight:600;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.02em}
+      .sh-head .hs{display:flex;align-items:center;gap:3mm;min-width:0;flex:none}
+      .sh-head .hs.r{justify-content:flex-end}
+      .sh-foot{position:absolute;left:${G.m}mm;right:${G.m}mm;bottom:${G.fB}mm;height:${(G.fH + 1.5).toFixed(2)}mm;display:flex;align-items:center;gap:4mm;padding-top:1.5mm;border-top:var(--bw) solid var(--ln2);font-size:${(fs * .82).toFixed(2)}px;color:#64748b}
+      .sh-foot .fs{display:flex;align-items:center;gap:3mm;flex:1;min-width:0}
+      .sh-foot .fs.r{justify-content:flex-end}
+      .sh-foot .fm{flex:1.4;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .sh-foot .fs span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .sh-foot .pgl{font-weight:700;color:#0f172a;font-variant-numeric:tabular-nums}
+      .sh-foot .pgl i{font-style:normal}
+    `;
+    const screen = !preview ? '' : `
       html{background:#2a2e35}
       body{padding:18px 0 40px;zoom:var(--zoom,1)}
-      .page{width:${pw}mm;min-height:${ph}mm;margin:0 auto 18px;background:#fff;padding:${mt}mm ${m}mm ${mb}mm;box-shadow:0 4px 18px rgba(0,0,0,.35);position:relative;
-        background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(${ph}mm - 1px),rgba(255,138,31,.55) calc(${ph}mm - 1px),rgba(255,138,31,.55) ${ph}mm)}
-      .page::after{content:attr(data-label);position:absolute;top:-15px;left:0;font:600 10px/1 system-ui;color:#9aa3b2;letter-spacing:.04em}
-      [data-sec]{cursor:pointer;outline-offset:2mm;border-radius:2mm}
+      .sheet{margin:0 auto 6px;box-shadow:0 4px 18px rgba(0,0,0,.35)}
+      .pv-label{width:${G.pw}mm;margin:22px auto 6px;font:600 10px/1 system-ui,sans-serif;color:#9aa3b2;letter-spacing:.04em}
+      [data-sec]{cursor:pointer;outline-offset:1.5mm;border-radius:1.5mm}
       [data-sec]:hover{outline:1.5px dashed rgba(255,138,31,.55)}
       [data-sec].sel{outline:2px solid #ff8a1f}
-      .pv-footer{position:absolute;left:${m}mm;right:${m}mm;bottom:${Math.max(4, mb/2 - 2)}mm;display:flex;justify-content:space-between;font-size:7px;color:#64748b}
-      ${previewTile ? `.page::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:5;background:url("${previewTile}") top center/100% ${ph}mm repeat-y}` : ''}
+      [data-sec].fixed{outline:1px dashed rgba(255,138,31,.45)}
+      [data-sec].dragging{opacity:.75;outline:2px solid #ff8a1f}
       .cover .logo{cursor:move}
       .cover .logo:hover{outline:1.5px dashed rgba(255,138,31,.8);outline-offset:1.5mm}
       .sec-grip{position:absolute;left:-1mm;top:-1mm;transform:translate(-100%,0);width:5mm;height:5mm;border-radius:1mm;background:#ff8a1f;color:#fff;display:none;align-items:center;justify-content:center;cursor:move;font-size:9px;z-index:6;box-shadow:0 1px 3px rgba(0,0,0,.3)}
       [data-sec]:hover > .sec-grip,[data-sec].sel > .sec-grip{display:flex}
-      [data-sec].fixed{outline:1px dashed rgba(255,138,31,.45)}
-      [data-sec].dragging{opacity:.75;outline:2px solid #ff8a1f}
-      .page.grid-bg{background-image:repeating-linear-gradient(to bottom,transparent 0,transparent calc(${ph}mm - 1px),rgba(255,138,31,.55) calc(${ph}mm - 1px),rgba(255,138,31,.55) ${ph}mm),linear-gradient(to right,rgba(15,23,42,.06) 1px,transparent 1px),linear-gradient(to bottom,rgba(15,23,42,.06) 1px,transparent 1px);background-size:100% ${ph}mm,${GRID_MM}mm ${GRID_MM}mm,${GRID_MM}mm ${GRID_MM}mm;background-position:0 0,${m}mm ${mt}mm,${m}mm ${mt}mm}` : `
-      @page{size:${L.page.size} ${land?'landscape':'portrait'};margin:${mt}mm ${m}mm ${mb}mm}
-      .wm-print{position:fixed;inset:0;pointer-events:none;z-index:50}
-      .wm-print img{width:100%;height:100%;display:block}
-      .page{page-break-after:always;break-after:page;position:relative${hasFixed ? `;min-height:${cb.h - 1}mm` : ''}}
-      .page:last-child{page-break-after:auto;break-after:auto}
-      .pv-footer{display:none}
-      .sec-grip{display:none}`;
+      .sheet.grid-bg .sh-body{background-image:linear-gradient(to right,rgba(15,23,42,.07) 1px,transparent 1px),linear-gradient(to bottom,rgba(15,23,42,.07) 1px,transparent 1px);background-size:${GRID_MM}mm ${GRID_MM}mm}
+    `;
     return `
       *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       :root{--bw:${LW.bw}mm;--ln:${LW.ln};--ln2:${LW.ln2};--ln3:${LW.ln3}}
       body{margin:0;font:${fs}px/1.32 ${font};color:#0f172a;${L.style.grayscale?'filter:grayscale(1);':''}}
-      ${screen}
+      ${frame}
       [data-sec]{position:relative}
-      [data-sec].fixed{position:absolute;left:calc(${padS}mm + var(--x));top:calc(${padT}mm + var(--y));width:var(--w);z-index:3;margin:0}
+      .sh-body > [data-sec].fixed{position:absolute;left:var(--x);top:var(--y);width:var(--w);z-index:3;margin:0}
       [data-sec].fixed .section{margin-bottom:0}
       h1,h2,h3,h4{margin:0}
-      .cover{display:flex;flex-direction:column;min-height:${ph - mt - mb - 2}mm;position:relative}
+      .cover{display:flex;flex-direction:column;height:100%;position:relative}
       .cover-bar{height:3mm;background:${acc};border-radius:1mm;margin-bottom:12mm;width:40mm}
       .cover-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10mm}
       .cover h1{font-size:${fs*3.8}px;line-height:1.05;letter-spacing:-.02em;font-weight:800;max-width:65%}
       .cover .subtitle{font-size:${fs*1.6}px;color:#475569;margin-top:4mm}
-      .cover .logo{position:absolute;z-index:2;left:calc(${padS}mm + (100% - ${2*padS}mm) * var(--x));top:calc(${padT}mm + (100% - ${padT+padB}mm) * var(--y));transform:translate(calc(var(--x) * -100%), calc(var(--y) * -100%))}
+      .cover .logo{position:absolute;z-index:2;left:calc(var(--x) * 100%);top:calc(var(--y) * 100%);transform:translate(calc(var(--x) * -100%), calc(var(--y) * -100%))}
       .cover .logo img{object-fit:contain;display:block;width:var(--w);max-height:calc(var(--w) * .8);height:auto}
       .cover-meta{margin-top:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4mm;border-top:var(--bw) solid var(--ln);padding-top:6mm}
       .cover-meta dt{font-size:${fs*.82}px;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;font-weight:700}
@@ -362,7 +425,7 @@
       /* signaalstroom-tekening */
       .pflow-page{break-before:page;page-break-before:always}
       .pflow{border:var(--bw) solid var(--ln2);border-radius:1.6mm;padding:2mm;background:#fff;break-inside:avoid}
-      .pflow svg{display:block;width:100%;height:auto;max-height:${Math.max(60, ph - mt - mb - 40)}mm}
+      .pflow svg{display:block;width:100%;height:auto;max-height:${Math.max(60, G.bodyH - 36)}mm}
       .pflow-sub{font-weight:800;font-size:${fs*.95}px;text-transform:uppercase;letter-spacing:.05em;margin:4mm 0 1.5mm;color:#334155}
       .pflow-legend{display:flex;flex-wrap:wrap;gap:5mm;margin-top:1.5mm;font-size:${fs*.8}px;color:#475569}
       .pflow-legend span{display:inline-flex;align-items:center;gap:1.2mm}
@@ -378,10 +441,63 @@
       .pnp em{font-style:normal;font-weight:800;font-size:${fs*.95}px}
       .pnp span{font-size:${fs*.7}px;color:#1e293b;white-space:nowrap}
       .pnp i{font-style:normal;font-size:${fs*.62}px;color:#64748b;white-space:nowrap;max-width:22mm;overflow:hidden;text-overflow:ellipsis}
-      .pnp.free{border-style:dashed;background:#fff;color:#94a3b8}.pnp.free span,.pnp.free em{color:#94a3b8}`;
+      .pnp.free{border-style:dashed;background:#fff;color:#94a3b8}.pnp.free span,.pnp.free em{color:#94a3b8}
+      /* quiet table rows, what continues on the next sheet */
+      tbody tr:nth-child(even) > td{background:#f8fafc}
+      .card tbody tr:nth-child(even) > td{background:#f8fafc}
+      .cont{font-size:${fs*.82}px;color:#94a3b8;margin:0 0 ${gap}mm;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+      /* pieces that are never cut across two sheets (when they fit on one) */
+      .ports,.lkrow,.pnp-strip,.prk,.cover-meta,.cover-totals,.rk-advice,.notes,.db-head,.pflow-legend,.qrgrid,.stat,.ipv-vlans{break-inside:avoid}
+      .pflow-sub{break-after:avoid}
+      /* contents */
+      .toc{max-width:100%}
+      .toc-h{font-size:${fs*2.2}px;font-weight:800;letter-spacing:-.01em;margin:0 0 6mm;padding-bottom:2mm;border-bottom:.6mm solid ${acc}}
+      .toc-row{display:flex;align-items:baseline;gap:2mm;padding:${compact?.6:1}mm 0;font-size:${fs*1.02}px;break-inside:avoid}
+      .toc-row .t{flex:none;max-width:78%}
+      .toc-row .dots{flex:1;border-bottom:.3mm dotted #94a3b8;transform:translateY(-.7mm);min-width:6mm}
+      .toc-row .pg{flex:none;min-width:8mm;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+      .toc-row.l1{margin-top:3mm;font-weight:800;font-size:${fs*1.15}px;border-top:.3mm solid var(--ln)}
+      .toc-row.l1 .dot{display:inline-block;width:3mm;height:3mm;border-radius:.8mm;margin-right:2mm;background:var(--db,${acc})}
+      .toc-row.l2{padding-left:6mm;color:#334155}
+      /* the cover: the company logo at the bottom */
+      .cover-co{display:block;margin-top:5mm;max-width:60mm;max-height:16mm;object-fit:contain}
+      .cover-foot{display:flex;align-items:flex-end;justify-content:space-between;gap:8mm}
+      /* the IP address book */
+      .ipv-vlans{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:${gap}mm}
+      .ipv-vlan{display:flex;align-items:center;gap:2.5mm;border:var(--bw) solid var(--ln2);border-radius:1.4mm;padding:1.6mm 2.4mm;border-left:2mm solid var(--c,#94a3b8);break-inside:avoid}
+      .ipv-vlan b{font-size:${fs*1.05}px}.ipv-vlan span{color:#64748b;font-size:${fs*.9}px}.ipv-vlan em{margin-left:auto;font-style:normal;font-weight:800;font-variant-numeric:tabular-nums}
+      .ip-tbl td.ip,.ip-tbl td.mono{font-family:Menlo,Consolas,"DejaVu Sans Mono",monospace;font-size:${fs*.95}px;white-space:nowrap}
+      .ip-tbl td.dup,.ip-tbl td.dup b{color:#b91c1c}
+      .ip-tbl .vl{display:inline-block;width:2mm;height:2mm;border-radius:.5mm;margin-right:1.2mm;vertical-align:middle;background:var(--c,#94a3b8)}
+      .ip-tbl tr.cont-row > td{border-top:0}
+      .ip-tbl td.sub{color:#64748b;font-size:${fs*.88}px}
+      /* the A3 sheets */
+      .a3p{break-inside:avoid}
+      .a3p .pflow{padding:1.5mm;display:flex;align-items:center;justify-content:center}
+      .a3p .pflow svg{max-width:100%}
+      .a3-title{display:flex;justify-content:space-between;align-items:flex-end;margin:0 0 3mm;padding-bottom:2mm;border-bottom:.6mm solid var(--db,${acc})}
+      .a3-title b{font-size:${fs*2}px;font-weight:800;letter-spacing:-.01em}.a3-title span{color:#64748b;font-size:${fs*1.05}px}
+      ${screen}`;
   }
 
+  // ===================== Sheets =====================
+  // one sheet with its head (logos of the project and the company, the running text) and foot (texts, page numbers)
+  function makeSheet(doc, L, meta, G, ctx){
+    const s = doc.createElement('section');
+    s.className = `sheet${ctx.cover ? ' cover-sheet' : ''}`;
+    s.setAttribute('data-label', ctx.label || '');
+    const slot = pos => G.logos.filter(x => x.pos === pos).map(x => `<span class="lg lg-${x.key}" style="width:${x.w}mm;height:${x.h}mm"></span>`).join('');
+    const dc = ctx.dc || '';
+    const run = [tokens(L.header.text, meta, dc), ctx.docName].filter(Boolean).join(' — ');
+    const head = ctx.cover || !G.hdrOn ? '' : `<div class="sh-head"><div class="hs l">${slot('header-left')}</div><div class="hm">${L.header.show ? esc(run) : ''}</div><div class="hs r">${slot('header-right')}</div></div>`;
+    const pn = L.footer.pageNumbers ? '<span class="pgl">Page <i class="pn"></i> of <i class="pt"></i></span>' : '';
+    const foot = ctx.cover || !G.ftrOn ? '' : `<div class="sh-foot"><div class="fs l">${slot('footer-left')}<span>${L.footer.show ? esc(tokens(L.footer.left, meta, dc)) : ''}</span></div><div class="fm">${L.footer.show ? esc(tokens(L.footer.center, meta, dc)) : ''}</div><div class="fs r">${L.footer.show ? pn : ''}${slot('footer-right')}</div></div>`;
+    s.innerHTML = `${head}<div class="sh-body"></div>${foot}`;
+    doc.body.appendChild(s);
+    return { sheet:s, body:s.querySelector('.sh-body') };
+  }
 
+  // ===================== Cover, summary, contents =====================
   function buildCover(M, meta, dcs, L){
     const c = L.cover;
     const title = esc(tokens(c.title, meta) || meta.project || 'Untitled project');
@@ -392,7 +508,7 @@
     const date = meta.date ? new Date(meta.date + 'T12:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' }) : '';
     const items = [
       f.area && ['Area', meta.area], f.location && ['Location', meta.location], f.date && ['Date', date], f.prepared && ['Prepared by', meta.prepared],
-      f.dimcities && ['DimCities', dcs.join(', ')]
+      f.dimcities && ['DimCities', dcs.map(dcName).join(', ')]
     ].filter(x => x && x[1]);
     let totals = '';
     if(f.totals){
@@ -402,71 +518,34 @@
       for(const dc of dcs){ for(const [u, x] of universeOverview(M, dc)){ unis.add(u); pts += x.lk + x.veam + x.dmx; } }
       totals = `<div class="cover-totals"><div><b>${dcs.length}</b><span>DimCities</span></div><div><b>${lk}</b><span>LK blocks</span></div><div><b>${ve}</b><span>Veams</span></div><div><b>${unis.size}</b><span>Universes</span></div><div><b>${pts}</b><span>Patch points</span></div></div>`;
     }
-    return `<section class="page cover" data-label="COVER" data-sec="cover"><div class="cover-bar"></div>
+    return `<div class="cover" data-sec="cover"><div class="cover-bar"></div>
       <div class="cover-top"><div><h1>${title}</h1>${sub?`<div class="subtitle">${sub}</div>`:''}${totals}</div></div>${logo}
       ${c.note ? `<div class="cover-note">${esc(c.note)}</div>` : ''}
       ${items.length ? `<dl class="cover-meta">${items.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : '<div style="margin-top:auto"></div>'}
-      <div class="cover-gen">Generated with DimCity PatchLab · ${new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
-      ${footerPreview(L, meta, '')}</section>`;
+      <div class="cover-foot"><div class="cover-gen">Generated with DimCity PatchLab · ${new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>${L.brand?.logo ? `<img class="cover-co" src="${L.brand.logo}" alt="">` : ''}</div></div>`;
   }
-  function buildProjectSummary(M, meta, dcs, L){
+  function buildProjectSummary(M, dcs){
     const rows = dcs.map(dc=>{
       const d = M.byDim?.get?.(dc) || { lks:new Set(), veams:new Set() };
       const u = universeOverview(M, dc);
       const pts = u.reduce((n,[,x])=>n+x.lk+x.veam+x.dmx,0);
       const iss = (M.issues||[]).filter(i=>i.dimcity===dc);
       const e = iss.filter(i=>i.severity==='RED').length, w = iss.length - e;
-      return `<tr><td><span class="dot" style="background:${dcColor(M,dc)}"></span><b>${esc(window.DimLabel ? window.DimLabel(dc) : dc)}</b></td><td class="num">${d.lks?.size||0}</td><td class="num">${d.veams?.size||0}</td><td class="num">${u.length}</td><td class="num">${pts}</td><td class="num">${plan(M,dc).nodes?.length||0}</td><td class="num">${plan(M,dc).splitters?.length||0}</td><td>${e?`<span class="tag red">${e} error${e>1?'s':''}</span> `:''}${w?`<span class="tag yellow">${w} warning${w>1?'s':''}</span>`:''}${!e&&!w?'<span class="tag green">OK</span>':''}</td></tr>`;
+      return `<tr><td><span class="dot" style="background:${dcColor(M,dc)}"></span><b>${esc(dcName(dc))}</b></td><td class="num">${d.lks?.size||0}</td><td class="num">${d.veams?.size||0}</td><td class="num">${u.length}</td><td class="num">${pts}</td><td class="num">${plan(M,dc).nodes?.length||0}</td><td class="num">${plan(M,dc).splitters?.length||0}</td><td>${e?`<span class="tag red">${e} error${e>1?'s':''}</span> `:''}${w?`<span class="tag yellow">${w} warning${w>1?'s':''}</span>`:''}${!e&&!w?'<span class="tag green">OK</span>':''}</td></tr>`;
     }).join('');
-    return `<section class="page" data-label="PROJECT SUMMARY" data-sec="cover">${runHead(L, meta, '')}<div class="doc-h2">Project summary</div>
-      <table><thead><tr><th>DimCity</th><th class="num">LK</th><th class="num">Veam</th><th class="num">Universes</th><th class="num">Patch points</th><th class="num">Nodes</th><th class="num">Splitters</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
-      ${footerPreview(L, meta, '')}</section>`;
+    return `<div class="section" data-sec="cover"><h2 class="doc-h2">Project summary</h2>
+      <table><thead><tr><th>DimCity</th><th class="num">LK</th><th class="num">Veam</th><th class="num">Universes</th><th class="num">Patch points</th><th class="num">Nodes</th><th class="num">Splitters</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
-  function runHead(L, meta, dc){
-    if(!L.header.show) return '';
-    const t = tokens(L.header.text, meta, dc);
-    return t ? `<div class="run-head"><span>${esc(t)}</span><span>${esc(meta.location||'')}</span></div>` : '';
-  }
-  function footerPreview(L, meta, dc){
-    if(!L.footer.show) return '';
-    return `<div class="pv-footer"><span>${esc(tokens(L.footer.left, meta, dc))}</span><span>${esc(tokens(L.footer.center, meta, dc))}</span><span>${L.footer.pageNumbers?'Page n of N':''}</span></div>`;
-  }
+  const tocHtml = entries => `<div class="toc"><h2 class="toc-h">Contents</h2>${entries.map((e, i) => `<div class="toc-row l${e.level}"${e.color ? ` style="--db:${esc(e.color)}"` : ''}><span class="t">${e.level === 1 && e.color ? '<i class="dot"></i>' : ''}${esc(e.title)}</span><span class="dots"></span><span class="pg" data-toc="${i}">00</span></div>`).join('')}</div>`;
 
-  function buildDimCity(M, meta, dc, L, preview=false){
-    let n = 0;
-    const wrap = (s, html) => secWrap(s, html, preview);
-    const parts = L.sections.filter(s => s.on).map(s => {
-      const o = s.opts || {};
-      if(s.key === 'notes' && !o.text) return '';
-      if(s.key === 'summary') return wrap(s, buildDbHeader(M, meta, dc, L));
-      n++;
-      switch(s.key){
-        case 'network':   return wrap(s, buildNetwork(M, dc, L, n, o));
-        case 'switches':  return wrap(s, buildSwitches(M, dc, L, n, o));
-        case 'splitters': return wrap(s, buildSplitters(M, dc, L, n));
-        case 'racks':     { const h = buildRacks(M, dc, L, n, o); if(!h) n--; return wrap(s, h); }
-        case 'flow':      { const h = buildFlow(M, dc, L, n, o); if(!h) n--; return wrap(s, h); }
-        case 'patch':     return wrap(s, buildPatch(M, dc, L, n, o));
-        case 'universes': return wrap(s, buildUniverses(M, dc, L, n));
-        case 'patchlist': return wrap(s, buildPatchList(M, dc, L, n, o));
-        case 'warnings':  return wrap(s, buildWarnings(M, dc, L, n, o));
-        case 'qr':        { const h = buildQr(M, dc, L, n, o); if(!h) n--; return wrap(s, h); }
-        case 'notes':     return wrap(s, `<div class="section">${h3(n, 'Notes')}<div class="notes">${esc(fillTokens(o.text, meta, dc))}</div></div>`);
-      }
-      return '';
-    }).join('');
-    const grid = preview && L.sections.some(s => s.on && s.pos) ? ' grid-bg' : '';
-    return `<section class="page${grid}" style="--db:${dcColor(M,dc)}" data-label="${esc(dc)}">${runHead(L, meta, dc)}${parts || '<div class="placeholder">No sections enabled. Turn sections on in the Content tab.</div>'}${footerPreview(L, meta, dc)}</section>`;
-  }
-  // Sectie-wrapper: automatisch in de stroom, of vast op x/y (mm) met een breedte. In de preview
-  // krijgt elke sectie een greep om te slepen.
-  function secWrap(s, html, preview){
+  // Sectie-wrapper: automatisch in de stroom, of vast op x/y (mm) met een breedte (op het eerste blad van de DimCity).
+  function secWrap(s, html, db){
     if(!html) return '';
     const p = normPos(s.pos);
-    const style = p ? ` style="--x:${p.x}mm;--y:${p.y}mm;--w:${p.w}mm"` : '';
-    const grip = preview ? `<span class="sec-grip" data-grip="${s.key}" title="Drag to position this section on the sheet">${I('grip', 10)}</span>` : '';
-    return `<div data-sec="${s.key}" class="${p ? 'fixed' : ''}"${style}>${grip}${html}</div>`;
+    const st = [db ? `--db:${db}` : '', p ? `--x:${p.x}mm;--y:${p.y}mm;--w:${p.w}mm` : ''].filter(Boolean).join(';');
+    return `<div data-sec="${s.key}" class="${p ? 'fixed' : ''}"${st ? ` style="${st}"` : ''}>${html}</div>`;
   }
+
   // QR codes with the whole DB (and, on the first DB, the whole system) as plain text, in numbered parts
   function buildQr(M, dc, L, n, o){
     const Q = window.QrInfo; if(!Q) return '';
@@ -476,6 +555,7 @@
     if(!cells.length) return '';
     return `<div class="section">${h3(n, 'QR codes', 'scan to read the whole DB')}<div class="qrgrid">${cells.join('')}</div></div>`;
   }
+
   const h3 = (n, title, small='') => `<h3><span><span class="n">${n}</span>${esc(title)}</span>${small?`<small>${small}</small>`:''}</h3>`;
 
   function buildDbHeader(M, meta, dc, L){
@@ -485,7 +565,7 @@
     const iss = (M.issues||[]).filter(i=>i.dimcity===dc);
     const e = iss.filter(i=>i.severity==='RED').length, w = iss.length - e;
     const sub = [meta.project, meta.area, meta.location].filter(Boolean).map(esc).join(' · ');
-    return `<div class="db-head ${L.style.dimBand?'band':''}"><div><div class="db-title">${L.style.dimBand?'<i></i>':''}${esc(window.DimLabel ? window.DimLabel(dc) : dc)}</div>${sub?`<div class="db-sub">${sub}</div>`:''}</div>
+    return `<div class="db-head ${L.style.dimBand?'band':''}"><div><h2 class="db-title">${L.style.dimBand?'<i></i>':''}${esc(window.DimLabel ? window.DimLabel(dc) : dc)}</h2>${sub?`<div class="db-sub">${sub}</div>`:''}</div>
       <div class="stats"><div class="stat"><b>${dim.lks?.size||0}</b><span>LK</span></div><div class="stat"><b>${dim.veams?.size||0}</b><span>Veam</span></div><div class="stat"><b>${u.length}</b><span>Universes</span></div><div class="stat"><b>${pts}</b><span>Patch pts</span></div>${e?`<div class="stat err"><b>${e}</b><span>Errors</span></div>`:''}${w?`<div class="stat warn"><b>${w}</b><span>Warnings</span></div>`:''}</div></div>`;
   }
   function buildUniverseTable(M, dc, L){
@@ -494,7 +574,7 @@
   }
   function buildNetwork(M, dc, L, n, o){
     const p = plan(M, dc), nodes = p.nodes || [], switches = p.switches || [];
-    const nodeHtml = nodes.length ? nodes.map(nd=>{
+    const nodeHtml = nodes.length ? '<div class="grid cols2">' + nodes.map(nd=>{
       const ports = (Array.isArray(nd.universes) ? nd.universes : []).map((u,i)=>`<div class="port ${u?'':'empty'}" style="--uni:${u?uniColor(u,L):'#cbd5e1'}"><div class="nr">${i+1}</div><div class="uni">${u?'U'+esc(u):'—'}</div></div>`).join('');
       const nt = (M.networkDevices?.nodeTypes || []).find(t => t.id === nd.typeId) || {};
       const eth = Math.min(2, Math.max(1, Number(nt.ethernetCount) || 1));
@@ -503,7 +583,7 @@
       const first = F && nd.ip && o.addresses !== false ? F.classify(nd.ip)?.vlan : null;
       const addr = more.length ? `<div class="small" style="margin-bottom:1.2mm">${first ? `<b>${esc(nd.ip)}</b>${esc(' ' + first.name + ' ' + first.id)}` : esc(nd.ip || '')}${more.map(x => ` · <b>${esc(x.ip)}</b>${esc(vname(x.vlan))}${eth > 1 ? ' ETH' + x.eth : ''}`).join('')}</div>` : '';
       return `<div class="card node"><div class="card-h"><span>${esc(nd.id || 'Node')}</span><small>${esc(nd.ip || '')}${nd.subnet?' / '+esc(nd.subnet):''}${eth > 1 ? ' · 2× RJ45' : ''}</small></div><div class="card-b"><div class="small" style="margin-bottom:1.2mm">${esc(nd.name || '')}</div>${addr}<div class="ports p8">${ports || '<span class="small">No ports</span>'}</div></div></div>`;
-    }).join('') : '<div class="placeholder">No nodes planned for this DimCity.</div>';
+    }).join('') + '</div>' : '<div class="placeholder">No nodes planned for this DimCity.</div>';
     const consoles = (p.consoles || []).map(c => { const F = window.Fent, eth = c.ethCount === 2 ? 2 : 1, ifs = F ? F.ifaces(c, eth).filter(x => x.ip) : [];
       return `<div class="card"><div class="card-h"><span>${esc(c.name || c.id || 'Console')}</span><small>${esc(c.id || '')}${eth > 1 ? ' · 2× RJ45' : ''}</small></div>${ifs.length ? `<div class="card-b small">${ifs.map(x => `<b>${esc(x.ip)}</b>${F?.vlanById(x.vlan) ? esc(' ' + F.vlanById(x.vlan).name + ' ' + x.vlan) : ''}`).join(' · ')}</div>` : ''}</div>`; }).join('');
     const sw = o.switches ? (switches.length ? switches.map(s=>`<div class="card"><div class="card-h"><span>${esc(s.id||'Switch')}</span><small>${esc(s.ip||'')}</small></div></div>`).join('') : '<div class="placeholder">Network switches will appear here.</div>') : '';
@@ -512,20 +592,21 @@
     const fl = o.addresses !== false ? (window.Fibers?.links?.(dc) || []) : [];
     const fiberCard = fl.length ? `<div class="card"><div class="card-h"><span>Fibre links</span><small>${fl.length}</small></div><div class="card-b"><table><thead><tr><th>ID</th><th>Cable</th><th>A</th><th>B</th></tr></thead><tbody>${fl.map(l => { const ty = window.Fibers.typeOf(l.typeId); return `<tr><td><b style="border-left:2mm solid ${window.Fibers.color(l)};padding-left:1mm">${esc(l.id)}</b></td><td>${esc(window.Fibers.typeName(ty))}<br><span class="small">${ty ? esc(`${ty.medium === 'smf' ? 'Singlemode' : ty.medium === 'mmf' ? 'Multimode' : ty.medium === 'dac' ? 'SFP patch' : 'Cat'} · ${ty.cores}-core · ${ty.connA || ''} · ${ty.lengthM} m`) : ''}</span></td><td>${esc(window.Fibers.endLabel(l.a))}</td><td>${esc(window.Fibers.endLabel(l.b))}</td></tr>`; }).join('')}</tbody></table></div></div>` : '';
     const right = portCard + fiberCard + (o.universeTable !== false ? `<div class="card"><div class="card-h"><span>Universe overview</span><small>physical patch points</small></div><div class="card-b">${buildUniverseTable(M, dc, L)}</div></div>` : '') + sw;
-    return `<div class="section">${h3(n, 'Network / DMX nodes', `${nodes.length} node${nodes.length===1?'':'s'}`)}<div class="grid ${right?'cols2':''}"><div>${nodeHtml}${consoles ? `<div class="small" style="margin:2mm 0 1.5mm"><b>Consoles and other network devices</b></div>${consoles}` : ''}</div>${right?`<div>${right}</div>`:''}</div></div>`;
+    if(!nodes.length && !consoles && !right.trim()) return '';
+    return `<div class="section">${h3(n, 'Network / DMX nodes', `${nodes.length} node${nodes.length===1?'':'s'}`)}${nodeHtml}${consoles ? `<div class="small" data-keepnext="1" style="margin:2mm 0 1.5mm"><b>Consoles and other network devices</b></div><div class="grid cols2">${consoles}</div>` : ''}${right}</div>`;
   }
   // ---- the switches: a drawing of the ports in the VLAN colours and a table of what hangs on them ----
   function buildSwitches(M, dc, L, n, o){
     const NS = window.NetSwitches, PP = window.PortPlan, F = window.Fent;
     const sws = NS && PP ? NS.list(dc) : [];
-    if(!sws.length) return `<div class="section">${h3(n, 'Switches', '0 switches')}<div class="placeholder">No network switches in this DimCity.</div></div>`;
+    if(!sws.length) return '';
     const rows = window.FentUI.portPlan(dc).rows, fibres = window.Fibers?.links?.(dc) || [];
     const vl = id => F?.vlanById(id), vtxt = id => { const v = vl(id); return v ? `${v.id} ${v.name}` : (id != null ? String(id) : ''); };
     const vcell = p => p.trunk ? '<b style="border-left:2mm solid #38bdf8;padding-left:1.2mm">Trunk</b>' : p.vid != null ? `<span style="border-left:2mm solid ${esc(vl(p.vid)?.color || '#cbd5e1')};padding-left:1.2mm">${esc(vtxt(p.vid))}</span>` : '';
     const per = sws.map(s => {
       const ports = PP.swPorts(dc, s), mine = rows.filter(r => r.sw === s.label), by = new Map(mine.map(r => [r.swPort, r]));
       const fib = window.Fibers ? window.Fibers.usage(dc, s.label) : new Map();
-      const used = ports.filter(p => by.has(p.n) || p.trunk || p.vid != null || p.manualName || (p.kind === 'sfp' && fib.size && fib.has(ports.filter(x => x.kind === 'sfp').indexOf(p) + 1)));
+      const used = ports.filter(p => by.has(p.n) || p.link || p.manualName || p.manualVlan || p.manualExtra || (p.kind === 'sfp' && fib.size && fib.has(ports.filter(x => x.kind === 'sfp').indexOf(p) + 1)));   // the drawing shows every port, the table the ports in use
       const vids = [...new Set(ports.filter(p => !p.trunk && p.vid != null).map(p => p.vid))].sort((a, b) => a - b);
       const mgmt = s.dev?.ip && F ? F.classify(s.dev.ip)?.vlan : null;
       const name = p => (o.names === false ? (by.get(p.n)?.device || '') : (p.name || ''));
@@ -550,6 +631,7 @@
   }
   function buildSplitters(M, dc, L, n){
     const sps = plan(M, dc).splitters || [];
+    if(!sps.length) return '';
     const body = sps.length ? `<div class="grid cols2">${sps.map(inst=>{
       const t = splitterType(M, inst.typeId);
       const count = Number(t.outputCount || inst.portAssignments?.length || 0) || 8;
@@ -568,7 +650,7 @@
     const pp = (cls, label, color, free) => `<span class="pp ${cls} ${free ? 'free' : ''}" style="${color ? `--c:${color}` : ''}">${esc(label)}</span>`;
     const grp = inner => inner ? `<span class="pp-grp">${inner}</span>` : '';
     const H = R.rack.heightU;
-    const [, ph] = pageDims(L); const { mt, mb } = pageMargins(L);
+    const G = curG(), ph = G.ph, mt = G.mt, mb = G.mb;
     const uh = Math.max(3.2, Math.min(6.5, (ph - mt - mb - 45) / H));   // mm per U, zodat het rek op één pagina past
     const nodes = new Map(P.nodes.filter(x => x.rack === ri).map(x => [x.iid, x]));
     const splits = new Map(P.splitters.filter(x => x.rack === ri).map(x => [x.iid, x]));
@@ -616,7 +698,7 @@
     const legend = o.legend === false ? '' : `<div class="pflow-legend"><span><i style="height:1.6mm"></i>LK multicore</span><span><i style="height:1.1mm"></i>Veam cable</span><span><i style="height:.6mm;background:linear-gradient(90deg,#f87171,#60a5fa,#4ade80)"></i>DMX line (universe colour)</span><span><i style="height:.8mm;background:linear-gradient(90deg,#325197,#E80000,#32CD32)"></i>Network cable (VLAN colour)</span><span><i style="height:1.3mm;background:#22c3d6"></i>Fibre</span><span>Every LK and every Veam has its own colour, on the rack, in the flow and on the node ports</span></div>`;
     const sub = [r.racks ? `${r.racks} rack${r.racks===1?'':'s'}` : '', `${r.lk} LK`, `${r.veams} Veam`, `${r.lines} lines`].filter(Boolean).join(' · ');
     const net = o.netOnly !== false ? window.Flow?.printSvg?.(dc, 'net') : null;
-    const netBlock = net ? `<div class="pflow-sub">Network only</div><div class="pflow">${net.svg}</div>` : '';
+    const netBlock = net ? `<div class="pflow-sub" data-keepnext="1">Network only</div><div class="pflow">${net.svg}</div>` : '';
     return `<div class="section ${o.ownPage === false ? '' : 'pflow-page'}">${h3(n, 'Signal flow', sub)}<div class="pflow">${r.svg}</div>${legend}${netBlock}</div>`;
   }
   function buildRacks(M, dc, L, n, o={}){
@@ -667,6 +749,7 @@
       const has = m.universe != null && m.universe !== '';
       return `<div class="port ${has?'':'empty'} ${m.conflict?'conflict':''}" style="--uni:${has?uniColor(m.universe,L):'#e2e8f0'}"><div class="nr">${nr}</div><div class="uni">${has?'U'+esc(m.universe):'—'}</div>${has ? feedOf(owner, ownerPort) : ''}${o.location!==false?`<div class="dest">${esc(m.dest||'')}</div>`:''}${o.source && has?`<div class="src">${esc(m.source||'')}${m.veamId?' · '+esc(m.veamId)+'/'+esc(m.veamPort):''}</div>`:''}</div>`;
     };
+    if(!lks.length && !loose.length) return '';
     const lkHtml = lks.map(lk=>{
       const mode = effBlock(lk), col = ownerCol(lk.id);
       const head = `<div class="card-h"><span>${col ? `<i class="dot" style="background:${col}"></i>` : ''}${esc(lk.id)} <small>${esc(loc(lk))}</small></span><small>${esc(blockLabel(mode))}</small></div>`;
@@ -691,12 +774,14 @@
   }
   function buildUniverses(M, dc, L, n){
     const pts = allPoints(M, dc).filter(p=>p.universe!=null && p.universe!=='');
+    if(!pts.length) return '';
     const by = new Map(); for(const p of pts){ const k = String(p.universe); if(!by.has(k)) by.set(k, []); by.get(k).push(p); }
     const rows = [...by.entries()].sort((a,b)=>Number(a[0])-Number(b[0])).map(([u, list])=>`<tr><td><span class="dot" style="background:${uniColor(u,L)}"></span><b>UNI ${esc(u)}</b></td><td class="num">${list.length}</td><td>${list.map(p=>esc(p.kind==='DMX'?'DMX':`${p.id}/${p.port}`)).join(', ')}</td></tr>`).join('');
     return `<div class="section">${h3(n, 'Universe overview', `${by.size} universes`)}<table><thead><tr><th style="width:22mm">Universe</th><th class="num" style="width:14mm">Points</th><th>Patched on</th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="small">No universes</td></tr>'}</tbody></table></div>`;
   }
   function buildPatchList(M, dc, L, n, o){
     const pts = allPoints(M, dc, o.dmx !== false);
+    if(!pts.length) return '';
     const label = st => st==='RED' ? '<span class="tag red">Error</span>' : st==='GREEN' ? '<span class="tag green">OK</span>' : '<span class="tag yellow">Incomplete</span>';
     const rows = pts.map(p=>`<tr><td>${esc(p.kind)}</td><td><b>${esc(p.id)}</b></td><td class="num">${esc(p.port)}</td><td class="num">${p.universe ?? ''}</td><td>${esc(p.dest)}</td><td>${label(p.status)}</td></tr>`).join('');
     return `<div class="section">${h3(n, 'Patch list', `${pts.length} rows`)}<table><thead><tr><th>Type</th><th>ID</th><th class="num">Port</th><th class="num">Universe</th><th>Location</th><th>Status</th></tr></thead><tbody>${rows || '<tr><td colspan="6" class="small">No rows</td></tr>'}</tbody></table></div>`;
@@ -707,597 +792,210 @@
     return `<div class="section">${h3(n, 'Warnings & errors', list.length ? `${list.length} item${list.length===1?'':'s'}` : '')}${list.length ? `<table><thead><tr><th style="width:20mm">Status</th><th>Message</th><th style="width:40mm">Code</th></tr></thead><tbody>${rows}</tbody></table>` : '<div class="placeholder">No issues — all checks passed.</div>'}</div>`;
   }
 
-  function buildPdfHtml({ M, meta, dcs, layout, preview=false, coverOnce=true }){
-    const L = layout;
-    const cover = L.cover.show ? buildCover(M, meta, dcs, L) : '';
-    const summary = L.cover.summaryPage && dcs.length > 1 ? buildProjectSummary(M, meta, dcs, L) : '';
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(meta.project || 'PatchLab report')}</title><style>${printCss(L, { preview, meta })}</style></head><body>${preview ? '' : printWatermark(L, meta)}${coverOnce ? cover + summary : ''}${dcs.map(dc => buildDimCity(M, meta, dc, L, preview)).join('')}</body></html>`;
-  }
-
-  // ===================== Builder UI =====================
-  let B = null; // builder state
-
-  function currentMeta(){
-    const M = getM() || {};
-    return { project:'', area:'', location:'', date:'', prepared:'', logo:null, ...(M.projectMeta || {}) };
-  }
-  function allDims(){ const M = getM(); return (App()?.sortedDims?.() || keysFromMap(M?.byDim).sort()); }
-  function selectedDims(){
-    const all = allDims();
-    if(B.L.scope !== 'SEL') return all;
-    const sel = all.filter(d => B.L.dims.includes(d));
-    return sel;
-  }
-
-  function open(opts = {}){
-    const M = getM(); if(!M) return;
-    if(!keysFromMap(M.byDim).length){ App()?.ui?.toast?.('Nothing to export yet — import a CSV or add an LK first.', 'info'); return; }
-    const L = layoutFromSettings(M.pdfSettings);
-    if(Array.isArray(opts.dcs) && opts.dcs.length){ L.scope = 'SEL'; L.dims = opts.dcs.slice(); }
-    if(opts.preset && PRESETS[opts.preset]) PRESETS[opts.preset].apply(L);
-    // een preset via een knop (Print racks) is een tijdelijke indeling: de opgeslagen layout blijft staan
-    B = { L, tab:'content', expanded:null, zoom:'fit', selSec:null, timer:null, temp:!!opts.preset };
-    mount();
-  }
-  function close(save = true){
-    if(!B) return;
-    if(save) persist();
-    document.getElementById('rbRoot')?.remove();
-    document.removeEventListener('keydown', onKey, true);
-    B = null;
-  }
-  function persist(){
-    const M = getM(); if(!M || !B || B.temp) return;
-    const before = JSON.stringify(M.pdfSettings?.layout || null);
-    M.pdfSettings = { ...(M.pdfSettings || {}), layout: clone(B.L), page: B.L.page.orientation, output: B.L.output };
-    if(before !== JSON.stringify(B.L) && M.ui) M.ui.dirty = true;
-  }
-  function onKey(e){
-    if(!B) return;
-    if(e.key === 'Escape' && !document.querySelector('.modal-backdrop')){ e.preventDefault(); close(true); }
-  }
-
-  function mount(){
-    document.getElementById('rbRoot')?.remove();
-    const root = document.createElement('div');
-    root.id = 'rbRoot';
-    root.className = 'rb';
-    root.innerHTML = `
-      <div class="rb-top">
-        <div class="rb-title">${I('file',18)}<div><b>Report Builder</b><span id="rbSummary"></span></div></div>
-        <div class="rb-top-mid">
-          <label class="rb-inline">Template<select id="rbTemplate"></select></label>
-          <button class="sm" id="rbSaveTpl">${I('copy',14)}Save as template</button>
-        </div>
-        <div class="rb-top-actions">
-          <button id="rbClose">Close</button>
-          <button class="primary" id="rbExport">${I('download',15)}<span>Export PDF</span></button>
-        </div>
-      </div>
-      <div class="rb-body">
-        <aside class="rb-panel">
-          <div class="rb-tabs segmented" id="rbTabs">
-            <button data-tab="content">${I('layers',14)}Content</button>
-            <button data-tab="style">${I('sliders',14)}Style</button>
-            <button data-tab="cover">${I('image',14)}Cover</button>
-            <button data-tab="brand">${I('star',14)}Brand</button>
-          </div>
-          <div class="rb-panel-body" id="rbPanel"></div>
-        </aside>
-        <section class="rb-preview">
-          <div class="rb-preview-bar">
-            <span class="subtle" id="rbPageInfo"></span>
-            <span class="spacer"></span>
-            <span class="subtle rb-hint">${I('info',13)} Click a part of the preview to edit it · orange lines mark page breaks</span>
-            <div class="segmented" id="rbZoom">
-              <button data-z="fit">Fit</button><button data-z="0.5">50%</button><button data-z="0.75">75%</button><button data-z="1">100%</button>
-            </div>
-          </div>
-          <iframe id="rbFrame" title="Report preview"></iframe>
-        </section>
-      </div>`;
-    document.body.appendChild(root);
-    document.addEventListener('keydown', onKey, true);
-
-    root.querySelector('#rbClose').onclick = ()=> close(true);
-    root.querySelector('#rbExport').onclick = onExport;
-    root.querySelector('#rbSaveTpl').onclick = saveTemplate;
-    root.querySelector('#rbTemplate').onchange = e => applyTemplate(e.target.value);
-    root.querySelectorAll('#rbTabs button').forEach(b => b.onclick = ()=>{ B.tab = b.dataset.tab; renderPanel(); });
-    root.querySelectorAll('#rbZoom button').forEach(b => b.onclick = ()=>{ B.zoom = b.dataset.z; applyZoom(); syncZoomButtons(); });
-    window.addEventListener('resize', applyZoom);
-    renderTemplates();
-    renderPanel();
-    renderPreview(true);
-  }
-
-  // ---- Templates ----
-  function renderTemplates(){
-    const M = getM();
-    const sel = document.getElementById('rbTemplate'); if(!sel) return;
-    const tpls = Array.isArray(M.pdfTemplates) ? M.pdfTemplates : [];
-    sel.innerHTML = `<option value="">Choose…</option><optgroup label="Presets">${Object.entries(PRESETS).map(([k,p])=>`<option value="preset:${k}">${esc(p.name)}</option>`).join('')}</optgroup>${tpls.length?`<optgroup label="My templates">${tpls.map(t=>`<option value="tpl:${esc(t.id)}">${esc(t.name)}</option>`).join('')}</optgroup><optgroup label="Manage"><option value="manage">Delete a template…</option></optgroup>`:''}`;
-    sel.value = '';
-  }
-  function applyTemplate(v){
-    if(!v) return;
-    const M = getM();
-    if(v === 'manage') return manageTemplates();
-    const keep = { scope:B.L.scope, dims:B.L.dims.slice(), output:B.L.output };
-    if(v.startsWith('preset:')){
-      const p = PRESETS[v.slice(7)]; if(!p) return;
-      const L = defaultLayout(); L.style.accent = B.L.style.accent; p.apply(L);
-      B.L = { ...L, ...keep };
-      App()?.ui?.toast?.(`Preset “${p.name}” applied`, 'info');
-    } else if(v.startsWith('tpl:')){
-      const t = (M.pdfTemplates||[]).find(x=>x.id === v.slice(4)); if(!t) return;
-      B.L = { ...mergeLayout(t.layout), ...keep };
-      App()?.ui?.toast?.(`Template “${t.name}” applied`, 'info');
+  // ===================== The documents =====================
+  // The blocks (sections) of one DimCity for a document: kind = 'book' | 'lk' | 'nodes'. Only the sections that belong in that document.
+  function dbBlocks(M, meta, dc, L, kind){
+    const ctx = { dc, docName:kind === 'book' ? '' : DOCS[kind].title, label:dcName(dc) };
+    const group = `dc:${dc}`, blocks = [], toc = [], db = dcColor(M, dc);
+    let n = 0, first = true, real = 0;
+    for(const s of L.sections){
+      if(!s.on || !SECTIONS[s.key].docs.includes(kind)) continue;
+      const o = s.opts || {};
+      if(s.key === 'notes' && !o.text) continue;
+      let html = '';
+      if(s.key === 'summary') html = buildDbHeader(M, meta, dc, L);
+      else {
+        n++;
+        switch(s.key){
+          case 'network':   html = buildNetwork(M, dc, L, n, o); break;
+          case 'switches':  html = buildSwitches(M, dc, L, n, o); break;
+          case 'splitters': html = buildSplitters(M, dc, L, n); break;
+          case 'racks':     html = buildRacks(M, dc, L, n, o); break;
+          case 'flow':      html = buildFlow(M, dc, L, n, o); break;
+          case 'patch':     html = buildPatch(M, dc, L, n, o); break;
+          case 'universes': html = buildUniverses(M, dc, L, n); break;
+          case 'patchlist': html = buildPatchList(M, dc, L, n, o); break;
+          case 'warnings':  html = buildWarnings(M, dc, L, n, o); break;
+          case 'qr':        html = buildQr(M, dc, L, n, o); break;
+          case 'notes':     html = `<div class="section">${h3(n, 'Notes')}<div class="notes">${esc(fillTokens(o.text, meta, dc))}</div></div>`; break;
+        }
+        if(!html) n--;
+      }
+      if(!html) continue;
+      if(s.key !== 'summary' && s.key !== 'notes' && (s.key !== 'warnings' || (M.issues || []).some(i => i.dimcity === dc))) real++;
+      const entry = { level:first ? 1 : 2, title:first ? dcName(dc) : SECTIONS[s.key].title, color:first ? db : null, page:0 };
+      toc.push(entry);
+      blocks.push({ html:secWrap(s, html, db), ctx, group, breakBefore:first || (s.key === 'flow' && (s.opts || {}).ownPage !== false), fixed:!!normPos(s.pos) && !first, chapter:entry });
+      first = false;
     }
-    renderTemplates(); renderPanel(); renderPreview();
-  }
-  function saveTemplate(){
-    const ui = App()?.ui; const M = getM();
-    const d = ui.openDialog({ title:'Save as Template', subtitle:'Saves sections, order, style, header/footer and cover settings. Project details are not part of a template.', width:'460px',
-      body:`<label class="field">Template name<input id="tplName" type="text" placeholder="e.g. Mainstage crew sheets"></label>`,
-      footer:`<button data-a="c">Cancel</button><button class="primary" data-a="s">Save Template</button>` });
-    const inp = d.modal.querySelector('#tplName'); setTimeout(()=>inp.focus(), 30);
-    const save = ()=>{
-      const name = inp.value.trim(); if(!name){ inp.focus(); return; }
-      if(!Array.isArray(M.pdfTemplates)) M.pdfTemplates = [];
-      const existing = M.pdfTemplates.find(t => t.name.toLowerCase() === name.toLowerCase());
-      const layout = clone(B.L); layout.scope = 'ALL'; layout.dims = [];
-      const tpl = existing || { id:`tpl_${Date.now().toString(36)}`, name };
-      tpl.layout = layout;
-      if(!existing) M.pdfTemplates.push(tpl);
-      window.Library?.put?.('pdfTemplates', tpl);
-      if(M.ui) M.ui.dirty = true;
-      d.close(); renderTemplates();
-      ui.toast(`Template “${name}” saved in this project and your library`);
-    };
-    d.footer.querySelector('[data-a=c]').onclick = d.close;
-    d.footer.querySelector('[data-a=s]').onclick = save;
-    inp.onkeydown = e => { if(e.key === 'Enter') save(); };
-  }
-  function manageTemplates(){
-    const ui = App()?.ui; const M = getM();
-    const draw = d => {
-      const tpls = M.pdfTemplates || [];
-      d.body.innerHTML = tpls.length ? `<div class="table-wrap"><table class="data-table"><tbody>${tpls.map(t=>`<tr><td>${esc(t.name)}</td><td class="num"><button class="sm danger" data-del="${esc(t.id)}">${I('trash',13)}Delete</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty"><p>No templates left.</p></div>';
-      d.body.querySelectorAll('[data-del]').forEach(b => b.onclick = ()=>{ M.pdfTemplates = tpls.filter(t => t.id !== b.dataset.del); window.Library?.del?.('pdfTemplates', b.dataset.del); if(M.ui) M.ui.dirty = true; draw(d); renderTemplates(); });
-    };
-    const d = ui.openDialog({ title:'Templates', subtitle:'Deleting removes the template from this project and your library.', width:'440px', body:'', footer:'<button class="primary" data-a="ok">Done</button>' });
-    d.footer.querySelector('[data-a=ok]').onclick = d.close;
-    draw(d); renderTemplates();
+    if(!blocks.length){ const e = { level:1, title:dcName(dc), color:db, page:0 }; toc.push(e); blocks.push({ html:`<div class="placeholder">No sections for this document are switched on. Turn sections on in the Content step.</div>`, ctx, group, breakBefore:true, chapter:e }); }
+    else if(kind !== 'book' && !real) return { blocks:[], toc:[] };      // only the header: this DimCity has nothing for this document
+    return { blocks, toc };
   }
 
-  // ---- Panel ----
-  const sw = (id, on, label, extra='') => `<label class="rb-row"><span>${label}</span><span class="switch"><input type="checkbox" id="${id}" ${on?'checked':''} ${extra}><span></span></span></label>`;
-  function renderPanel(){
-    const root = document.getElementById('rbRoot'); if(!root) return;
-    root.querySelectorAll('#rbTabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === B.tab));
-    const P = root.querySelector('#rbPanel');
-    if(B.tab === 'content') P.innerHTML = panelContent();
-    else if(B.tab === 'style') P.innerHTML = panelStyle();
-    else if(B.tab === 'brand') P.innerHTML = panelBrand();
-    else P.innerHTML = panelCover();
-    bindPanel(P);
-  }
-  function panelContent(){
-    const L = B.L, dims = allDims();
-    const scope = `<div class="rb-group"><div class="rb-label">DimCities</div>
-      <div class="segmented rb-full" id="rbScope"><button data-v="ALL" class="${L.scope!=='SEL'?'active':''}">All (${dims.length})</button><button data-v="SEL" class="${L.scope==='SEL'?'active':''}">Select…</button></div>
-      ${L.scope==='SEL' ? `<div class="rb-chips">${dims.map(dc=>`<label class="rb-chip ${L.dims.includes(dc)?'on':''}"><input type="checkbox" data-dim="${esc(dc)}" ${L.dims.includes(dc)?'checked':''}><span class="dot" style="background:${dcColor(getM(),dc)}"></span>${esc(dc)}</label>`).join('')}</div>` : ''}
-      <div class="rb-label" style="margin-top:14px">Output</div>
-      <div class="segmented rb-full" id="rbOutput"><button data-v="SINGLE" class="${L.output!=='PER_DIM'?'active':''}">One PDF</button><button data-v="PER_DIM" class="${L.output==='PER_DIM'?'active':''}">One PDF per DimCity</button></div>
-      <div class="hint">${L.output==='PER_DIM' ? 'Each DimCity gets its own file, each with its own cover page.' : 'All selected DimCities in one file, one cover page.'}</div></div>`;
-    const secs = L.sections.map((s, i)=>{
-      const meta = SECTIONS[s.key];
-      const open = B.expanded === s.key;
-      const opts = SECTION_OPTS[s.key] || [];
-      const optHtml = s.key === 'notes'
-        ? `<label class="field" style="margin-top:4px">Text<textarea rows="5" data-notes placeholder="Crew instructions, contact numbers… Supports {project}, {dimcity}, {date}.">${esc(s.opts?.text || '')}</textarea></label>`
-        : opts.map(([k, label, def])=>`<label class="rb-row sm"><span>${label}</span><span class="switch"><input type="checkbox" data-opt="${k}" data-sec="${s.key}" ${(s.opts?.[k] ?? def)?'checked':''}><span></span></span></label>`).join('');
-      const p = normPos(s.pos), cbx = contentBox(L);
-      const posHtml = `<div class="rb-pos-sec">
-          <div class="rb-pos-head"><span>Position on the sheet</span><div class="segmented" data-posmode="${s.key}"><button data-v="auto" class="${p?'':'active'}">Auto</button><button data-v="fixed" class="${p?'active':''}">Fixed</button></div></div>
-          ${p ? `<div class="rb-pos-fields">
-            <label>X <input type="number" data-pos="x" data-sec="${s.key}" min="0" max="${Math.floor(cbx.w)}" step="${GRID_MM}" value="${p.x}"><span>mm</span></label>
-            <label>Y <input type="number" data-pos="y" data-sec="${s.key}" min="0" max="${Math.floor(cbx.h)}" step="${GRID_MM}" value="${p.y}"><span>mm</span></label>
-            <label>Width <input type="number" data-pos="w" data-sec="${s.key}" min="20" max="${Math.floor(cbx.w)}" step="${GRID_MM}" value="${p.w}"><span>mm</span></label>
-          </div><div class="hint">Drag the orange handle in the preview to move it (snaps to ${GRID_MM} mm). Sheet is ${Math.round(cbx.w)} × ${Math.round(cbx.h)} mm inside the margins.</div>` : `<div class="hint">Auto: sections follow each other from top to bottom. Choose Fixed, or drag the handle in the preview, to place this section yourself.</div>`}
-        </div>`;
-      return `<div class="rb-sec ${s.on?'':'off'} ${open?'open':''} ${B.selSec===s.key?'sel':''} ${p?'has-pos':''}" draggable="true" data-key="${s.key}">
-        <div class="rb-sec-head">
-          <span class="grip" title="Drag to reorder">${I('grip',14)}</span>
-          <label class="switch" title="${s.on?'Hide':'Show'} section"><input type="checkbox" data-on="${s.key}" ${s.on?'checked':''}><span></span></label>
-          <div class="rb-sec-title" data-toggle="${s.key}"><b>${I(meta.icon,14)} ${esc(meta.title)}${p?`<span class="tag" title="Fixed position">${p.x}, ${p.y} mm</span>`:''}</b><span>${esc(meta.desc)}</span></div>
-          <div class="rb-sec-move"><button class="ghost sm icon-only" data-up="${i}" ${i===0?'disabled':''} title="Move up">${I('chevronDown',13).replace('<svg','<svg style="transform:rotate(180deg)"')}</button><button class="ghost sm icon-only" data-down="${i}" ${i===L.sections.length-1?'disabled':''} title="Move down">${I('chevronDown',13)}</button></div>
-          <button class="ghost sm icon-only" data-toggle="${s.key}" title="Options">${I(open?'chevronDown':'chevronRight',14)}</button>
-        </div>
-        ${open ? `<div class="rb-sec-opts">${optHtml}${posHtml}</div>` : ''}
-      </div>`;
-    }).join('');
-    return `${scope}<div class="rb-group"><div class="rb-label">Sections per DimCity <span class="subtle">· drag to reorder</span></div><div class="rb-secs" id="rbSecs">${secs}</div></div>`;
-  }
-  function panelStyle(){
-    const L = B.L;
-    const accents = ['#ff8a1f','#2563eb','#0f766e','#7c3aed','#dc2626','#0f172a'];
-    return `<div class="rb-group"><div class="rb-label">Page</div>
-        <div class="form-grid">
-          <label class="field">Paper size<select id="rbSize">${Object.keys(PAGE_MM).map(k=>`<option ${L.page.size===k?'selected':''}>${k}</option>`).join('')}</select></label>
-          <label class="field">Orientation<select id="rbOrient"><option value="landscape" ${L.page.orientation!=='portrait'?'selected':''}>Landscape</option><option value="portrait" ${L.page.orientation==='portrait'?'selected':''}>Portrait</option></select></label>
-          <label class="field span-2">Margins <span class="subtle" id="rbMarginVal">${L.page.margin} mm</span><input type="range" id="rbMargin" min="5" max="20" step="1" value="${L.page.margin}"></label>
-        </div></div>
-      <div class="rb-group"><div class="rb-label">Look</div>
-        <label class="field">Accent color</label>
-        <div class="rb-swatches">${accents.map(c=>`<button class="color-swatch ${L.style.accent===c?'active':''}" data-accent="${c}" style="background:${c}"></button>`).join('')}<input type="color" id="rbAccent" value="${hex(L.style.accent,'#ff8a1f')}"></div>
-        <div class="form-grid" style="margin-top:12px">
-          <label class="field">Font<select id="rbFont"><option value="helvetica" ${L.style.font==='helvetica'?'selected':''}>Helvetica / Arial</option><option value="system" ${L.style.font==='system'?'selected':''}>System UI</option><option value="georgia" ${L.style.font==='georgia'?'selected':''}>Georgia (serif)</option></select></label>
-          <label class="field">Text size<select id="rbFs">${[8,8.5,9,9.5,10,11].map(v=>`<option value="${v}" ${Number(L.style.fontSize)===v?'selected':''}>${v} pt</option>`).join('')}</select></label>
-          <label class="field span-2">Density<div class="segmented rb-full" id="rbDensity"><button data-v="compact" class="${L.style.density==='compact'?'active':''}">Compact</button><button data-v="comfortable" class="${L.style.density!=='compact'?'active':''}">Comfortable</button></div></label>
-        </div>
-        <label class="field" style="margin-top:12px">Line weight<div class="segmented rb-full" id="rbLine">${[['light','Light'],['normal','Normal'],['bold','Bold']].map(([v,l])=>`<button data-v="${v}" class="${(L.style.lineWeight||'normal')===v?'active':''}">${l}</button>`).join('')}</div></label>
-        <div class="hint">Normal and Bold give darker, thicker lines that stay readable on paper.</div>
-        ${sw('rbColorU', L.style.colorUniverses, 'Color-code universes')}
-        ${sw('rbBand', L.style.dimBand, 'Use DimCity color in headers')}
-        ${sw('rbGray', L.style.grayscale, 'Print-friendly grayscale')}
-      </div>
-      <div class="rb-group"><div class="rb-label">Header & footer</div>
-        ${sw('rbHead', L.header.show, 'Running header on DimCity pages')}
-        ${L.header.show ? `<label class="field"><input type="text" id="rbHeadText" value="${esc(L.header.text)}"></label>` : ''}
-        ${sw('rbFoot', L.footer.show, 'Footer on every page')}
-        ${L.footer.show ? `<div class="form-grid"><label class="field">Left<input type="text" id="rbFootL" value="${esc(L.footer.left)}"></label><label class="field">Center<input type="text" id="rbFootC" value="${esc(L.footer.center)}"></label></div>${sw('rbPageNo', L.footer.pageNumbers, 'Page numbers (Page 1 of 12)')}` : ''}
-        <div class="hint">Placeholders: {project} {area} {location} {date} {prepared} {dimcity}</div>
-      </div>`;
-  }
-  function panelBrand(){
-    const b = B.L.brand, wm = b.wm, meta = currentMeta();
-    const range = (id, label, v, min, max, unit, step=1) => `<label class="field">${label} <span class="subtle" id="${id}Val">${v}${unit}</span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${v}"></label>`;
-    return `<div class="rb-group"><div class="rb-label">Company logo</div>
-        <div class="rb-logo">${b.logo ? `<img src="${b.logo}" alt="">` : `<div class="rb-logo-empty">${I('image',22)}<span>No company logo</span></div>`}
-          <div class="rb-logo-actions"><button class="sm" id="rbBrandPick">${I('upload',13)}${b.logo?'Replace':'Upload'}</button>
-            ${b.logo ? `<button class="sm ghost" id="rbBrandDel">${I('trash',13)}Remove</button>` : meta.logo ? `<button class="sm ghost" id="rbBrandUseProject">Use project logo</button>` : ''}</div></div>
-        <input type="file" id="rbBrandFile" accept="image/*" hidden>
-        ${b.logo ? `<div class="rb-label" style="margin-top:14px">On every page</div>
-          <div class="segmented rb-full rb-wrap" id="rbBrandPos">${[['none','Off'],['header-left','Top left'],['header-right','Top right'],['footer-left','Bottom left'],['footer-right','Bottom right']].map(([v,l])=>`<button data-v="${v}" class="${b.logoPos===v?'active':''}">${l}</button>`).join('')}</div>
-          ${b.logoPos !== 'none' ? range('rbBrandH', 'Logo height', Number(b.logoHeight) || 9, 5, 25, ' mm') : ''}` : ''}
-      </div>
-      <div class="rb-group"><div class="rb-label">Watermark</div>
-        <div class="segmented rb-full" id="rbWmType">${[['none','None'],['logo','Logo'],['text','Text']].map(([v,l])=>`<button data-v="${v}" class="${wm.type===v?'active':''}">${l}</button>`).join('')}</div>
-        ${wm.type === 'logo' && !(b.logo || meta.logo) ? `<div class="hint">${I('info',12)} Upload a company logo above first.</div>` : ''}
-        ${wm.type === 'text' ? `<label class="field" style="margin-top:12px">Text<input type="text" id="rbWmText" value="${esc(wm.text)}" placeholder="CONFIDENTIAL / DRAFT / CONCEPT"></label>` : ''}
-        ${wm.type !== 'none' ? `<div class="rb-stack">
-          ${range('rbWmOp', 'Strength', Number(wm.opacity) || 8, 2, 40, '%')}
-          ${range('rbWmSize', 'Size', Number(wm.size) || 55, 15, 100, '%')}
-          ${range('rbWmAngle', 'Angle', Number(wm.angle) || 0, -90, 90, '°', 5)}</div>` : ''}
-      </div>
-      <div class="hint">${I('info',12)} Your company style is part of the layout: use <b>Save as template</b> to reuse it in every show — templates are stored in your library.</div>`;
-  }
-  function panelCover(){
-    const L = B.L, c = L.cover, meta = currentMeta();
-    const f = c.fields;
-    return `${sw('rbCover', c.show, '<b>Cover page</b>')}
-      ${c.show ? `<div class="rb-group">
-        <div class="form-grid">
-          <label class="field span-2">Title <span class="subtle">(empty = project name)</span><input type="text" id="rbCTitle" placeholder="${esc(meta.project || 'Project name')}" value="${esc(c.title)}"></label>
-          <label class="field span-2">Subtitle<input type="text" id="rbCSub" value="${esc(c.subtitle)}"></label>
-        </div>
-        <div class="rb-label" style="margin-top:14px">Show on cover</div>
-        <div class="rb-chips">${[['area','Area'],['location','Location'],['date','Date'],['prepared','Prepared by'],['dimcities','DimCity list'],['totals','Totals']].map(([k,l])=>`<label class="rb-chip ${f[k]?'on':''}"><input type="checkbox" data-field="${k}" ${f[k]?'checked':''}>${l}</label>`).join('')}</div>
-        <div class="rb-label" style="margin-top:14px">Logo</div>
-        <div class="rb-logo">${meta.logo ? `<img src="${meta.logo}" alt="">` : `<div class="rb-logo-empty">${I('image',22)}<span>No logo</span></div>`}
-          <div class="rb-logo-actions"><button class="sm" id="rbLogoPick">${I('upload',13)}${meta.logo?'Replace':'Upload'}</button>${meta.logo?`<button class="sm ghost" id="rbLogoDel">${I('trash',13)}Remove</button>`:''}
-          </div></div>
-        <input type="file" id="rbLogoFile" accept="image/*" hidden>
-        ${meta.logo ? `<div class="rb-pos-row">
-          <div class="rb-pos" id="rbLogoPos" title="Position on the cover">${[0, .5, 1].map(y => [0, .5, 1].map(x => `<button data-x="${x}" data-y="${y}" class="${Number(c.logoX) === x && Number(c.logoY) === y ? 'active' : ''}"></button>`).join('')).join('')}</div>
-          <div style="flex:1"><label class="field">Size <span class="subtle" id="rbLogoWVal">${Number(c.logoW) || 60} mm</span><input type="range" id="rbLogoW" min="15" max="180" step="1" value="${Number(c.logoW) || 60}"></label>
-          <div class="hint">${I('info',12)} Or drag the image in the preview.</div></div>
-        </div>` : ''}
-        <label class="field" style="margin-top:14px">Note on cover<textarea id="rbCNote" rows="3" placeholder="Optional — e.g. version, revision or crew note">${esc(c.note)}</textarea></label>
-      </div>` : ''}
-      ${sw('rbSummaryPage', c.summaryPage, 'Project summary page (when exporting more than one DimCity)')}
-      <div class="rb-group"><div class="rb-label">Project details</div>
-        <div class="form-grid">
-          <label class="field span-2">Project<input type="text" data-meta="project" value="${esc(meta.project)}"></label>
-          <label class="field">Area<input type="text" data-meta="area" value="${esc(meta.area)}"></label>
-          <label class="field">Location<input type="text" data-meta="location" value="${esc(meta.location)}"></label>
-          <label class="field">Date<input type="date" data-meta="date" value="${esc(meta.date)}"></label>
-          <label class="field">Prepared by<input type="text" data-meta="prepared" value="${esc(meta.prepared)}"></label>
-        </div>
-        <div class="hint">These are the project details from Project Info — changes here update the project.</div>
-      </div>`;
-  }
-
-  function bindPanel(P){
-    const L = B.L;
-    const on = (sel, ev, fn) => P.querySelectorAll(sel).forEach(n => n.addEventListener(ev, fn));
-    const changed = (rerenderPanel=false) => { if(rerenderPanel) renderPanel(); schedulePreview(); };
-    const seg = (id, fn) => P.querySelectorAll(`#${id} button`).forEach(b => b.onclick = ()=>{ fn(b.dataset.v); changed(true); });
-
-    // Content
-    seg('rbScope', v => { L.scope = v; if(v==='SEL' && !L.dims.length) L.dims = allDims().slice(); });
-    seg('rbOutput', v => { L.output = v; updateSummary(); });
-    on('[data-dim]', 'change', e => { const d = e.target.dataset.dim; L.dims = e.target.checked ? [...new Set([...L.dims, d])] : L.dims.filter(x=>x!==d); changed(true); });
-    on('[data-on]', 'change', e => { const s = L.sections.find(x=>x.key===e.target.dataset.on); s.on = e.target.checked; changed(true); });
-    on('[data-toggle]', 'click', e => { const k = e.currentTarget.dataset.toggle; B.expanded = B.expanded===k ? null : k; B.selSec = k; renderPanel(); highlightPreview(); });
-    on('[data-opt]', 'change', e => { const s = L.sections.find(x=>x.key===e.target.dataset.sec); s.opts = { ...(s.opts||{}), [e.target.dataset.opt]: e.target.checked }; changed(); });
-    on('[data-notes]', 'input', e => { const s = L.sections.find(x=>x.key==='notes'); s.opts = { ...(s.opts||{}), text:e.target.value }; if(e.target.value && !s.on){ s.on = true; P.querySelector('[data-on="notes"]').checked = true; P.querySelector('.rb-sec[data-key="notes"]').classList.remove('off'); } changed(); });
-    on('[data-up]', 'click', e => { move(Number(e.currentTarget.dataset.up), -1); });
-    on('[data-down]', 'click', e => { move(Number(e.currentTarget.dataset.down), 1); });
-    // positie op het blad
-    P.querySelectorAll('[data-posmode]').forEach(seg => seg.querySelectorAll('button').forEach(b => b.onclick = ()=>{
-      const s = L.sections.find(x=>x.key===seg.dataset.posmode); if(!s) return;
-      if(b.dataset.v === 'auto') s.pos = null;
-      else if(!normPos(s.pos)){ const cbx = contentBox(L); s.pos = { x:0, y:0, w:Math.min(120, snap(cbx.w)) }; }
-      changed(true);
-    }));
-    on('[data-pos]', 'change', e => {
-      const s = L.sections.find(x=>x.key===e.target.dataset.sec); const p = normPos(s?.pos); if(!p) return;
-      p[e.target.dataset.pos] = Number(e.target.value); s.pos = normPos(p); changed(true);
-    });
-    // drag & drop volgorde
-    let dragKey = null;
-    on('.rb-sec', 'dragstart', e => { dragKey = e.currentTarget.dataset.key; e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
-    on('.rb-sec', 'dragend', e => { e.currentTarget.classList.remove('dragging'); P.querySelectorAll('.rb-sec').forEach(n=>n.classList.remove('drop-before','drop-after')); });
-    on('.rb-sec', 'dragover', e => {
-      e.preventDefault();
-      const r = e.currentTarget.getBoundingClientRect(); const after = e.clientY > r.top + r.height/2;
-      P.querySelectorAll('.rb-sec').forEach(n=>n.classList.remove('drop-before','drop-after'));
-      e.currentTarget.classList.add(after ? 'drop-after' : 'drop-before');
-    });
-    on('.rb-sec', 'drop', e => {
-      e.preventDefault();
-      const target = e.currentTarget.dataset.key; if(!dragKey || dragKey === target) return;
-      const r = e.currentTarget.getBoundingClientRect(); const after = e.clientY > r.top + r.height/2;
-      const from = L.sections.findIndex(s=>s.key===dragKey);
-      const [item] = L.sections.splice(from, 1);
-      let to = L.sections.findIndex(s=>s.key===target) + (after ? 1 : 0);
-      L.sections.splice(to, 0, item);
-      changed(true);
-    });
-
-    // Style
-    const val = (id, fn, ev='change') => { const n = P.querySelector('#'+id); if(n) n.addEventListener(ev, ()=>{ fn(n); changed(); }); };
-    val('rbSize', n => L.page.size = n.value);
-    val('rbOrient', n => L.page.orientation = n.value);
-    val('rbMargin', n => { L.page.margin = Number(n.value); P.querySelector('#rbMarginVal').textContent = `${n.value} mm`; }, 'input');
-    on('[data-accent]', 'click', e => { L.style.accent = e.currentTarget.dataset.accent; changed(true); });
-    val('rbAccent', n => L.style.accent = n.value, 'input');
-    val('rbFont', n => L.style.font = n.value);
-    val('rbFs', n => L.style.fontSize = Number(n.value));
-    seg('rbDensity', v => L.style.density = v);
-    seg('rbLine', v => L.style.lineWeight = v);
-    val('rbColorU', n => L.style.colorUniverses = n.checked);
-    val('rbBand', n => L.style.dimBand = n.checked);
-    val('rbGray', n => L.style.grayscale = n.checked);
-    const valP = (id, fn) => { const n = P.querySelector('#'+id); if(n) n.addEventListener('change', ()=>{ fn(n); changed(true); }); };
-    valP('rbHead', n => L.header.show = n.checked);
-    valP('rbFoot', n => L.footer.show = n.checked);
-    val('rbHeadText', n => L.header.text = n.value, 'input');
-    val('rbFootL', n => L.footer.left = n.value, 'input');
-    val('rbFootC', n => L.footer.center = n.value, 'input');
-    val('rbPageNo', n => L.footer.pageNumbers = n.checked);
-
-    // Cover
-    valP('rbCover', n => L.cover.show = n.checked);
-    val('rbSummaryPage', n => L.cover.summaryPage = n.checked);
-    val('rbCTitle', n => L.cover.title = n.value, 'input');
-    val('rbCSub', n => L.cover.subtitle = n.value, 'input');
-    val('rbCNote', n => L.cover.note = n.value, 'input');
-    on('[data-field]', 'change', e => { L.cover.fields[e.target.dataset.field] = e.target.checked; e.target.closest('.rb-chip').classList.toggle('on', e.target.checked); changed(); });
-    on('#rbLogoPos button', 'click', e => { L.cover.logoX = Number(e.currentTarget.dataset.x); L.cover.logoY = Number(e.currentTarget.dataset.y); changed(true); });
-    val('rbLogoW', n => { L.cover.logoW = Number(n.value); P.querySelector('#rbLogoWVal').textContent = `${n.value} mm`; }, 'input');
-
-    // Brand
-    const bfile = P.querySelector('#rbBrandFile');
-    on('#rbBrandPick', 'click', () => bfile.click());
-    if(bfile) bfile.onchange = async () => {
-      const f = bfile.files?.[0]; if(!f) return;
-      try { L.brand.logo = await imageToDataUrl(f); if(L.brand.logoPos === 'none') L.brand.logoPos = 'header-right'; changed(true); }
-      catch(err){ App()?.ui?.toast?.(`Could not read image: ${err.message || err}`, 'err'); }
-    };
-    on('#rbBrandDel', 'click', () => { L.brand.logo = null; changed(true); });
-    on('#rbBrandUseProject', 'click', () => { L.brand.logo = currentMeta().logo; if(L.brand.logoPos === 'none') L.brand.logoPos = 'header-right'; changed(true); });
-    seg('rbBrandPos', v => L.brand.logoPos = v);
-    val('rbBrandH', n => { L.brand.logoHeight = Number(n.value); P.querySelector('#rbBrandHVal').textContent = `${n.value} mm`; }, 'input');
-    seg('rbWmType', v => L.brand.wm.type = v);
-    val('rbWmText', n => L.brand.wm.text = n.value, 'input');
-    const rng = (id, key, unit) => val(id, n => { L.brand.wm[key] = Number(n.value); P.querySelector(`#${id}Val`).textContent = `${n.value}${unit}`; }, 'input');
-    rng('rbWmOp', 'opacity', '%'); rng('rbWmSize', 'size', '%'); rng('rbWmAngle', 'angle', '°');
-    const M = getM();
-    const setMeta = (k, v) => { M.projectMeta = { ...(M.projectMeta||{}), [k]: v }; if(M.ui) M.ui.dirty = true; };
-    on('[data-meta]', 'input', e => { setMeta(e.target.dataset.meta, e.target.value); changed(); });
-    on('[data-meta]', 'change', ()=> App()?.renderAll?.());
-    const pick = P.querySelector('#rbLogoPick'), file = P.querySelector('#rbLogoFile');
-    if(pick) pick.onclick = ()=> file.click();
-    if(file) file.onchange = async ()=>{
-      const f = file.files?.[0]; if(!f) return;
-      try { setMeta('logo', await imageToDataUrl(f)); changed(true); }
-      catch(err){ App()?.ui?.toast?.(`Could not read image: ${err.message || err}`, 'err'); }
-    };
-    const del = P.querySelector('#rbLogoDel'); if(del) del.onclick = ()=>{ setMeta('logo', null); changed(true); };
-  }
-  function move(i, d){
-    const L = B.L, j = i + d;
-    if(j < 0 || j >= L.sections.length) return;
-    [L.sections[i], L.sections[j]] = [L.sections[j], L.sections[i]];
-    renderPanel(); schedulePreview();
-  }
-  function fileToDataUrl(file){ return new Promise((res, rej)=>{ const r = new FileReader(); r.onload = ()=>res(r.result); r.onerror = rej; r.readAsDataURL(file); }); }
-  // Afbeeldingen verkleinen (max 1200 px, PNG met transparantie) zodat project, templates en PDF klein blijven
-  async function imageToDataUrl(file){
-    if(file.size > 15 * 1024 * 1024) throw new Error('image is larger than 15 MB');
-    const url = await fileToDataUrl(file);
-    if(/svg/i.test(file.type)) return url;
-    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('not a supported image')); i.src = url; });
-    const k = Math.min(1, 1200 / Math.max(img.naturalWidth, img.naturalHeight));
-    if(k === 1 && file.size < 400 * 1024) return url;
-    const c = document.createElement('canvas');
-    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
-    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-    return c.toDataURL('image/png');
-  }
-
-  // ---- Preview ----
-  function schedulePreview(){ clearTimeout(B.timer); B.timer = setTimeout(()=>renderPreview(), 140); updateSummary(); }
-  function updateSummary(){
-    const dcs = selectedDims();
-    const s = document.getElementById('rbSummary');
-    if(s) s.textContent = `${dcs.length} DimCit${dcs.length===1?'y':'ies'} · ${B.L.output==='PER_DIM' ? `${dcs.length} PDF file${dcs.length===1?'':'s'}` : 'one PDF'} · ${B.L.page.size} ${B.L.page.orientation}${B.temp ? ' · temporary layout (your saved layout is kept)' : ''}`;
-    const btn = document.querySelector('#rbExport span');
-    if(btn) btn.textContent = B.L.output==='PER_DIM' && dcs.length > 1 ? `Export ${dcs.length} PDFs` : 'Export PDF';
-    const ex = document.getElementById('rbExport'); if(ex) ex.disabled = !dcs.length;
-  }
-  function renderPreview(first=false){
-    if(!B) return;
-    const frame = document.getElementById('rbFrame'); if(!frame) return;
-    const M = getM(), meta = currentMeta();
-    let dcs = selectedDims();
-    updateSummary();
-    // Bij "één PDF per DimCity" tonen we de eerste DimCity als voorbeeld
-    const previewDcs = B.L.output === 'PER_DIM' ? dcs.slice(0, 1) : dcs;
-    const html = previewDcs.length ? buildPdfHtml({ M, meta, dcs:previewDcs, layout:B.L, preview:true })
-      : `<!doctype html><html><body style="background:#2a2e35;color:#9aa3b2;font:14px system-ui;display:grid;place-items:center;height:90vh">Select at least one DimCity.</body></html>`;
-    const scrollY = first ? 0 : (frame.contentWindow?.scrollY || 0);
-    frame.onload = ()=>{
-      const doc = frame.contentDocument; if(!doc) return;
-      applyZoom();
-      frame.contentWindow.scrollTo(0, scrollY);
-      const pages = doc.querySelectorAll('.page').length;
-      const info = document.getElementById('rbPageInfo');
-      if(info) info.textContent = `${pages} sheet${pages===1?'':'s'} in preview${B.L.output==='PER_DIM' && dcs.length>1 ? ` · showing ${previewDcs[0]} (each DimCity becomes its own file)` : ''}`;
-      doc.addEventListener('click', e=>{
-        if(e.target.closest('.sec-grip')) return;
-        const sec = e.target.closest('[data-sec]'); if(!sec) return;
-        const key = sec.dataset.sec;
-        if(key === 'cover'){ B.tab = 'cover'; B.selSec = null; }
-        else { B.tab = 'content'; B.selSec = key; B.expanded = (SECTION_OPTS[key] || key==='notes') ? key : B.expanded; }
-        renderPanel(); highlightPreview();
-        document.querySelector(`.rb-sec[data-key="${key}"]`)?.scrollIntoView({ block:'nearest', behavior:'smooth' });
+  // ---- the IP address book: every address of the nodes, switches and consoles ----
+  const ipCmp = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for(let i = 0; i < 4; i++) if((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); return 0; };
+  const natCmp = (a, b) => String(a).localeCompare(String(b), undefined, { numeric:true });
+  function ipRows(dcs){
+    const IP = window.IpPlan, F = window.Fent; if(!IP || !F) return [];
+    const list = IP.all().filter(d => dcs.includes(d.dc));
+    const seen = new Map(); for(const d of list) for(const x of d.ifs){ const k = String(x.ip || '').trim(); if(k) seen.set(k, (seen.get(k) || 0) + 1); }
+    const fentOn = !!getM()?.networkDevices?.prefs?.fent?.on;
+    const ports = new Map(); for(const dc of dcs){ try { ports.set(dc, window.FentUI.portPlan(dc).rows); } catch { ports.set(dc, []); } }
+    const rank = { switch:0, node:1, splitter:2, console:3 };
+    const kindName = { switch:'Switch', node:'Node', splitter:'Splitter', console:'Console' };
+    return list.map(d => {
+      const prow = (ports.get(d.dc) || []).filter(r => r.kind === d.kind && r.idx === d.idx);
+      const ifs = d.ifs.map(x => {
+        const v = x.vlan != null ? F.vlanById(x.vlan) : null, r = prow.find(q => q.eth === x.eth) || (d.eth === 1 ? prow[0] : null);
+        const role = F.ROLES[x.role]?.en || '';
+        return { ip:String(x.ip || '').trim(), mask:x.mask || (fentOn ? F.MASK : ''), vlan:v, vlanId:x.vlan, role, eth:d.eth > 1 ? x.eth : 0, port:r?.sw && r?.swPort ? `${r.sw} · ${r.swPort}` : '', dup:!!(x.ip && seen.get(String(x.ip).trim()) > 1) };
       });
-      highlightPreview();
-      bindCoverLogoDrag(doc);
-      bindSectionDrag(doc);
+      return { dc:d.dc, kind:d.kind, kindName:kindName[d.kind] || d.kind, label:d.label, type:d.typeName || '', where:d.kind === 'switch' ? (d.where || '') : (d.dev?.name && d.dev.name !== d.label ? d.dev.name : ''), ifs, gone:!!d.gone };
+    }).sort((a, b) => natCmp(a.dc, b.dc) || (rank[a.kind] - rank[b.kind]) || natCmp(a.label, b.label));
+  }
+  const vlanChip = (v, id) => v ? `<span class="vl" style="--c:${esc(v.color || '#94a3b8')}"></span>${esc(v.name)} <span class="small">${v.id}</span>` : (id != null ? esc(String(id)) : '');
+  function ipBlocks(M, meta, dcs, L){
+    const F = window.Fent, rows = ipRows(dcs), blocks = [];
+    const ctx = { docName:'IP address book', label:'IP address book' };
+    const all = rows.flatMap(r => r.ifs.map(x => ({ r, x })));
+    const dups = new Set(all.filter(a => a.x.dup).map(a => a.x.ip));
+    // 1. overview
+    const byVlan = new Map();
+    for(const { x } of all){ const k = x.vlanId != null ? String(x.vlanId) : '-'; if(!byVlan.has(k)) byVlan.set(k, { vlan:x.vlan, id:x.vlanId, n:0, masks:new Set(), ips:[] }); const e = byVlan.get(k); e.n++; if(x.mask) e.masks.add(x.mask); e.ips.push(x.ip); }
+    const vl = [...byVlan.values()].sort((a, b) => (Number(a.id) || 1e9) - (Number(b.id) || 1e9));
+    const range = e => { const r = e.id != null ? F?.rangeOf(Number(e.id)) : null; if(r) return r.text; const ips = e.ips.filter(Boolean).sort(ipCmp); return ips.length ? `${ips[0].split('.').slice(0, 2).join('.')}.x.x` : ''; };
+    const vlTable = vl.length ? `<div class="card"><div class="card-h"><span>VLANs in use</span><small>${vl.length} VLAN${vl.length === 1 ? '' : 's'}</small></div><div class="card-b"><table><thead><tr><th>VLAN</th><th>Name</th><th>Address range</th><th>Mask</th><th class="num">Addresses</th></tr></thead><tbody>${vl.map(e => `<tr><td class="mono">${e.id ?? '—'}</td><td>${vlanChip(e.vlan, null) || '<span class="small">no VLAN</span>'}</td><td class="mono">${esc(range(e))}</td><td class="mono">${esc([...e.masks].join(' · '))}</td><td class="num"><b>${e.n}</b></td></tr>`).join('')}</tbody></table></div></div>` : '';
+    const issues = window.IpPlan?.check?.().filter(i => i.level !== 'info' && (!i.dc || dcs.includes(i.dc))) || [];
+    const totals = `<div class="cover-totals" style="margin-top:2mm"><div><b>${rows.length}</b><span>Devices</span></div><div><b>${all.filter(a => a.x.ip).length}</b><span>Addresses</span></div><div><b>${vl.length}</b><span>VLANs</span></div><div><b>${dups.size}</b><span>Double</span></div></div>`;
+    const e0 = { level:1, title:'Overview', page:0 };
+    blocks.push({ html:`<div class="section"><h2 class="doc-h2">IP address book</h2><div class="small" style="margin:-2mm 0 3mm">${esc([meta.project, meta.area, meta.location].filter(Boolean).join(' · '))}</div>${totals}${vlTable}</div>`, ctx, breakBefore:true, chapter:e0 });
+    if(issues.length) blocks.push({ html:`<div class="section"><h3><span>Check</span><small>${issues.length} item${issues.length === 1 ? '' : 's'}</small></h3><table class="ip-tbl"><thead><tr><th style="width:16mm">Level</th><th>Device</th><th>Address</th><th>What</th></tr></thead><tbody>${issues.map(i => `<tr><td>${i.level === 'err' ? '<span class="tag red">Error</span>' : '<span class="tag yellow">Warning</span>'}</td><td>${esc([i.dc && dcName(i.dc), i.label].filter(Boolean).join(' · '))}</td><td class="ip">${esc(i.ip || '')}</td><td>${esc(i.en || '')}</td></tr>`).join('')}</tbody></table></div>`, ctx });
+    // 2. per DimCity
+    let n = 0;
+    for(const dc of dcs){
+      const mine = rows.filter(r => r.dc === dc); if(!mine.length) continue;
+      n++;
+      const body = mine.map(r => {
+        const ifs = r.ifs.length ? r.ifs : [{ ip:'', mask:'', vlan:null, port:'', role:'', eth:0 }];
+        return ifs.map((x, i) => `<tr class="${i ? 'cont-row' : ''}"${i < ifs.length - 1 ? ' data-keepnext="1"' : ''}><td>${i ? '<span class="small">↳</span>' : `<b>${esc(r.label)}</b>`}</td><td class="sub">${i ? '' : esc(r.kindName + (r.type ? ` · ${r.type}` : ''))}</td><td class="sub">${i ? esc(x.role) : esc(r.where || x.role || '')}${x.eth ? ` ETH${x.eth}` : ''}</td><td class="ip ${x.dup ? 'dup' : ''}">${x.ip ? `<b>${esc(x.ip)}</b>` : '<span class="small">no address</span>'}</td><td class="mono sub">${esc(x.mask)}</td><td>${vlanChip(x.vlan, x.vlanId)}</td><td class="sub">${esc(x.port)}</td></tr>`).join('');
+      }).join('');
+      const e = { level:1, title:dcName(dc), color:dcColor(M, dc), page:0 };
+      blocks.push({ html:`<div class="section" data-keep="1" style="--db:${dcColor(M, dc)}"><h3><span><span class="n">${n}</span>${esc(dcName(dc))}</span><small>${mine.length} device${mine.length === 1 ? '' : 's'}</small></h3><table class="ip-tbl"><thead><tr><th>Device</th><th>Type</th><th>Where / use</th><th>IP address</th><th>Mask</th><th>VLAN</th><th>Switch · port</th></tr></thead><tbody>${body}</tbody></table></div>`, ctx:{ ...ctx, dc }, chapter:e });
+    }
+    // 3. all addresses by number
+    const sorted = all.filter(a => a.x.ip).sort((a, b) => ipCmp(a.x.ip, b.x.ip));
+    if(sorted.length) blocks.push({ html:`<div class="section"><h3><span><span class="n">${n + 1}</span>All addresses by number</span><small>${sorted.length} addresses</small></h3><table class="ip-tbl"><thead><tr><th>IP address</th><th>Device</th><th>DimCity</th><th>VLAN</th><th>Mask</th><th>Switch · port</th></tr></thead><tbody>${sorted.map(({ r, x }) => `<tr><td class="ip ${x.dup ? 'dup' : ''}"><b>${esc(x.ip)}</b></td><td><b>${esc(r.label)}</b> <span class="small">${esc(r.kindName)}${x.eth ? ` ETH${x.eth}` : ''}</span></td><td class="sub">${esc(dcName(r.dc))}</td><td>${vlanChip(x.vlan, x.vlanId)}</td><td class="mono sub">${esc(x.mask)}</td><td class="sub">${esc(x.port)}</td></tr>`).join('')}</tbody></table></div>`, ctx, breakBefore:true, chapter:{ level:1, title:'All addresses by number', page:0 } });
+    if(!rows.length) blocks.splice(0, blocks.length, { html:`<div class="section"><h2 class="doc-h2">IP address book</h2><div class="placeholder">There are no network devices yet. Add nodes and switches on the Network page and give them an address.</div></div>`, ctx, breakBefore:true });
+    return blocks;
+  }
+
+  // ---- the A3 sheets: the network flow and the signal flow, one drawing per sheet ----
+  const flowLegend = () => `<div class="pflow-legend"><span><i style="height:1.6mm"></i>LK multicore</span><span><i style="height:1.1mm"></i>Veam cable</span><span><i style="height:.6mm;background:linear-gradient(90deg,#f87171,#60a5fa,#4ade80)"></i>DMX line (universe colour)</span><span><i style="height:.8mm;background:linear-gradient(90deg,#325197,#E80000,#32CD32)"></i>Network cable (VLAN colour)</span><span><i style="height:1.3mm;background:#22c3d6"></i>Fibre</span></div>`;
+  function a3Blocks(M, meta, dcs, L, kind){
+    const blocks = [], F = window.Flow; if(!F?.printSvg) return blocks;
+    const meta2 = (title, sub, db) => `<div class="a3-title" style="--db:${db}"><b>${esc(title)}</b><span>${esc(sub)}</span></div>`;
+    const one = (dc, layer, title, ctx, db, svgFrom) => {
+      const r = F.printSvg(svgFrom || dc, layer); if(!r) return null;
+      const sub = layer === 'net' ? 'Switches · Cat cables · fibres' : [r.racks ? `${r.racks} rack${r.racks === 1 ? '' : 's'}` : '', `${r.lk} LK`, `${r.veams} Veam`, `${r.lines} lines`].filter(Boolean).join(' · ');
+      return { html:`<div class="a3p" data-sec="flow">${meta2(title, sub, db)}<div class="pflow">${r.svg}</div>${flowLegend()}</div>`, ctx, breakBefore:true };
     };
-    frame.srcdoc = html;
-  }
-  // Secties verslepen in de preview: de greep pakken, op een raster van 5 mm neerzetten.
-  // Een automatische sectie wordt bij het slepen 'vast' op de plek waar hij nu staat.
-  function bindSectionDrag(doc){
-    doc.querySelectorAll('.sec-grip').forEach(grip => grip.addEventListener('mousedown', e => {
-      e.preventDefault(); e.stopPropagation();
-      const sec = grip.closest('[data-sec]'), page = sec.closest('.page'); if(!sec || !page) return;
-      const s = B.L.sections.find(x => x.key === sec.dataset.sec); if(!s) return;
-      const [pw] = pageDims(B.L), { m, mt } = pageMargins(B.L), cbx = contentBox(B.L);
-      const pr = page.getBoundingClientRect(), sr = sec.getBoundingClientRect();
-      const mmpp = pw / pr.width;                       // mm per pixel, ongeacht zoom
-      let p = normPos(s.pos);
-      if(!p){
-        p = { x:snap((sr.left - pr.left) * mmpp - m), y:snap((sr.top - pr.top) * mmpp - mt), w:Math.max(20, snap(sr.width * mmpp)) };
-        s.pos = p;
-        sec.classList.add('fixed');
-        sec.style.setProperty('--w', `${p.w}mm`);
-      }
-      const x0 = p.x, y0 = p.y, sx = e.clientX, sy = e.clientY;
-      const setVars = () => { sec.style.setProperty('--x', `${p.x}mm`); sec.style.setProperty('--y', `${p.y}mm`); };
-      setVars(); sec.classList.add('dragging'); page.classList.add('grid-bg');
-      const mv = ev => {
-        p.x = Math.max(0, Math.min(cbx.w - p.w, snap(x0 + (ev.clientX - sx) * mmpp)));
-        p.y = Math.max(0, Math.min(cbx.h - 10, snap(y0 + (ev.clientY - sy) * mmpp)));
-        setVars();
-      };
-      const up = () => {
-        doc.removeEventListener('mousemove', mv); doc.removeEventListener('mouseup', up);
-        sec.classList.remove('dragging');
-        s.pos = normPos(p);
-        B.tab = 'content'; B.selSec = s.key; B.expanded = s.key;
-        renderPanel(); schedulePreview();
-        document.querySelector(`.rb-sec[data-key="${s.key}"]`)?.scrollIntoView({ block:'nearest' });
-      };
-      doc.addEventListener('mousemove', mv); doc.addEventListener('mouseup', up);
-    }));
-  }
-  // Coverafbeelding vrij verslepen in de preview
-  function bindCoverLogoDrag(doc){
-    const logo = doc.getElementById('coverLogo'); if(!logo) return;
-    const cover = logo.closest('.cover');
-    logo.addEventListener('mousedown', e => {
-      e.preventDefault();
-      const c = B.L.cover, cr = cover.getBoundingClientRect(), lr = logo.getBoundingClientRect();
-      const [pw, ph] = pageDims(B.L), { m, mt, mb } = pageMargins(B.L);
-      const freeW = cr.width * (1 - 2*m/pw) - lr.width, freeH = cr.height * (1 - (mt+mb)/ph) - lr.height;
-      const sx = e.clientX, sy = e.clientY, x0 = Number(c.logoX ?? 1), y0 = Number(c.logoY ?? 0);
-      let moved = false;
-      const clamp = v => Math.round(Math.max(0, Math.min(1, v)) * 1000) / 1000;
-      const mv = ev => {
-        moved = true;
-        c.logoX = clamp(x0 + (freeW > 0 ? (ev.clientX - sx) / freeW : 0));
-        c.logoY = clamp(y0 + (freeH > 0 ? (ev.clientY - sy) / freeH : 0));
-        logo.style.setProperty('--x', c.logoX); logo.style.setProperty('--y', c.logoY);
-      };
-      const up = () => {
-        doc.removeEventListener('mousemove', mv); doc.removeEventListener('mouseup', up);
-        if(moved){ B.tab = 'cover'; renderPanel(); }
-      };
-      doc.addEventListener('mousemove', mv); doc.addEventListener('mouseup', up);
-    });
-  }
-  function highlightPreview(){
-    const doc = document.getElementById('rbFrame')?.contentDocument; if(!doc) return;
-    doc.querySelectorAll('[data-sec]').forEach(n => n.classList.toggle('sel', !!B.selSec && n.dataset.sec === B.selSec));
-  }
-  function applyZoom(){
-    if(!B) return;
-    const frame = document.getElementById('rbFrame'); const doc = frame?.contentDocument; if(!doc?.body) return;
-    let z = Number(B.zoom);
-    if(B.zoom === 'fit'){
-      const [w, h] = PAGE_MM[B.L.page.size] || PAGE_MM.A4;
-      const pw = (B.L.page.orientation === 'portrait' ? w : h) * MM;
-      z = Math.max(0.25, Math.min(1.25, (frame.clientWidth - 56) / pw));
+    if(kind === 'a3all'){
+      const ctx = { docName:'Network overview', label:'Network overview' };
+      const b = one(null, 'net', 'Network overview — all DimCities', ctx, '#ff8a1f', dcs); if(b) blocks.push(b);
+      return blocks;
     }
-    doc.body.style.setProperty('--zoom', String(z));
-    syncZoomButtons();
-  }
-  function syncZoomButtons(){ document.querySelectorAll('#rbZoom button').forEach(b => b.classList.toggle('active', b.dataset.z === String(B.zoom))); }
-
-  // ---- Export ----
-  async function onExport(){
-    const M = getM(); if(!M || !B) return;
-    const dcs = selectedDims();
-    if(!dcs.length){ App()?.ui?.toast?.('Select at least one DimCity.', 'err'); return; }
-    persist();
-    const meta = currentMeta();
-    const L = B.L;
-    const landscape = L.page.orientation !== 'portrait';
-    const footer = dc => L.footer.show ? { left:tokens(L.footer.left, meta, dc), center:tokens(L.footer.center, meta, dc), pageNumbers:L.footer.pageNumbers } : null;
-    const base = safeFile(meta.project || 'PatchLab');
-    const brand = brandLogoOn(L) ? { logo:L.brand.logo, pos:L.brand.logoPos, height:L.brand.logoHeight, margin:pageMargins(L).m } : null;
-    const btn = document.getElementById('rbExport');
-    btn.disabled = true; const label = btn.querySelector('span').textContent; btn.querySelector('span').textContent = 'Exporting…';
-    try{
-      if(L.output === 'PER_DIM'){
-        const items = dcs.map(dc => ({ fileName:`${base}-${safeFile(dc)}.pdf`, html:buildPdfHtml({ M, meta, dcs:[dc], layout:L }), footer:footer(dc) }));
-        const res = await window.app?.exportPdfBatch?.({ items, landscape, pageSize:L.page.size, brand });
-        if(!res) return;
-        App()?.ui?.toast?.(`${res.files.length} PDF file${res.files.length===1?'':'s'} exported`, 'ok', { action:{ label:'Show in folder', run:()=>window.app?.showItemInFolder?.(res.files[0]) }, ms:6000 });
-      } else {
-        const all = allDims();
-        const name = dcs.length === all.length ? `${base}.pdf` : `${base}-${dcs.map(safeFile).join('_')}.pdf`;
-        const out = await window.app?.exportPdfFromHtml?.({ html:buildPdfHtml({ M, meta, dcs, layout:L }), defaultPath:name, landscape, pageSize:L.page.size, footer:footer(''), brand });
-        if(!out) return;
-        App()?.ui?.toast?.(`Exported ${out.split(/[\\/]/).pop()}`, 'ok', { action:{ label:'Show in folder', run:()=>window.app?.showItemInFolder?.(out) }, ms:6000 });
-      }
-      close(true);
-    } catch(err){
-      App()?.ui?.toast?.(`PDF export failed: ${err?.message || err}`, 'err', { ms:7000 });
-    } finally {
-      if(btn.isConnected){ btn.disabled = false; btn.querySelector('span').textContent = label; }
-    }
+    const dc = dcs[0], ctx = { dc, docName:'Network flow', label:dcName(dc) }, db = dcColor(M, dc);
+    const a = one(dc, 'net', `${dcName(dc)} — Network flow`, ctx, db), b = one(dc, 'all', `${dcName(dc)} — Signal flow`, ctx, db);
+    if(a) blocks.push(a); if(b) blocks.push(b);
+    return blocks;
   }
 
-  window.PdfExport = { open, close, buildPdfHtml, defaultLayout, layoutFromSettings };
-  function hook(){ const btn = document.getElementById('fileExportPdf'); if(!btn || btn.dataset.pdfHooked) return false; btn.addEventListener('click', e=>{ e.preventDefault(); open(); }); btn.dataset.pdfHooked = '1'; return true; }
-  if(!hook()) document.addEventListener('DOMContentLoaded', hook);
+  // ===================== The file plan =====================
+  const fname = s => String(s || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s*·\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  // every file that is made with the choices of the What step: where it goes (dir / name) and what it is
+  function filePlan(L, dcs, meta = currentMeta()){
+    const proj = fname(meta.project) || 'PatchLab', st = L.publish.structure !== false, root = st ? (fname(L.publish.folder) || proj) : '';
+    const j = (...p) => p.filter(Boolean).join('/');
+    const out = [], add = f => out.push({ ...f, rel:j(root, f.dir, f.name) });
+    const k = L.docs.stickerKinds || {};
+    if(L.docs.book && dcs.length) add({ id:'book', kind:'book', title:DOCS.book.title, dir:'', name:`${proj} - DB book.pdf`, dcs });
+    if(L.docs.ip && dcs.length) add({ id:'ip', kind:'ip', title:DOCS.ip.title, dir:'', name:`${proj} - IP address book.pdf`, dcs });
+    if(L.docs.a3 && dcs.length > 1) add({ id:'a3all', kind:'a3all', title:'Network overview (A3)', dir:st ? 'A3' : '', name:`${proj} - Network overview A3.pdf`, dcs });
+    for(const dc of dcs){
+      const d = fname(dcName(dc)), dir = st ? d : '', sd = st ? j(d, 'Stickers') : '';
+      if(L.docs.lk) add({ id:`lk:${dc}`, kind:'lk', dc, title:`${dcName(dc)} · LK info`, dir, name:`${d} - LK info.pdf`, dcs:[dc] });
+      if(L.docs.nodes) add({ id:`nodes:${dc}`, kind:'nodes', dc, title:`${dcName(dc)} · Node info`, dir, name:`${d} - Node info.pdf`, dcs:[dc] });
+      if(L.docs.stickers){
+        if(k.nodes) add({ id:`st-nodes:${dc}`, kind:'stickers', variant:'nodes', ports:!!k.nodePorts, dc, title:`${dcName(dc)} · Node stickers`, dir:sd, name:`${d} - Node stickers.pdf`, dcs:[dc] });
+        if(k.switches) add({ id:`st-switches:${dc}`, kind:'stickers', variant:'switches', ports:!!k.switchPorts, dc, title:`${dcName(dc)} · Switch stickers`, dir:sd, name:`${d} - Switch stickers.pdf`, dcs:[dc] });
+        if(k.cables) add({ id:`st-cables:${dc}`, kind:'stickers', variant:'cables', dc, title:`${dcName(dc)} · Cable stickers`, dir:sd, name:`${d} - Cable stickers.pdf`, dcs:[dc] });
+      }
+      if(L.docs.a3) add({ id:`a3:${dc}`, kind:'a3', dc, title:`${dcName(dc)} · Network flow (A3)`, dir:st ? 'A3' : '', name:`${d} - Network flow A3.pdf`, dcs:[dc] });
+    }
+    return out;
+  }
+
+  // ===================== Render a document =====================
+  // → { html, pages, over, size, landscape, empty }   (null when a newer render took over: isStale)
+  async function renderDocument({ kind, dcs, layout:L, preview = false, isStale = null, title = '' }){
+    const M = getM(), meta = currentMeta();
+    if(!M || !dcs.length) return { html:'', pages:0, empty:true };
+    await Promise.all([loadLogoDims(L.brand?.logo), loadLogoDims(meta.logo)]);
+    const a3 = kind === 'a3' || kind === 'a3all';
+    const G = geo(L, meta, a3 ? 'a3' : 'book', a3 ? a3Orientation(L, meta, dcs, kind) : null);
+    CTX = { G, meta, kind };
+    // all the blocks are built here, in one go (they read CTX)
+    let cover = '', toc = [], blocks = [];
+    if(kind === 'book'){
+      if(L.cover.show) cover = buildCover(M, meta, dcs, L);
+      if(L.cover.summaryPage && dcs.length > 1){ const e = { level:1, title:'Project summary', page:0 }; toc.push(e); blocks.push({ html:buildProjectSummary(M, dcs), ctx:{ label:'Project summary' }, breakBefore:true, chapter:e }); }
+      for(const dc of dcs){ const r = dbBlocks(M, meta, dc, L, 'book'); blocks.push(...r.blocks); toc.push(...r.toc); }
+    } else if(kind === 'lk' || kind === 'nodes') blocks = dbBlocks(M, meta, dcs[0], L, kind).blocks;
+    else if(kind === 'ip') blocks = ipBlocks(M, meta, dcs, L);
+    else if(a3) blocks = a3Blocks(M, meta, dcs, L, kind);
+    if(!blocks.length) return { html:'', pages:0, empty:true };
+
+    const fr = document.createElement('iframe');
+    fr.setAttribute('aria-hidden', 'true'); fr.tabIndex = -1;
+    fr.style.cssText = 'position:fixed;left:-30000px;top:0;width:2000px;height:1200px;border:0;opacity:0;pointer-events:none';
+    document.body.appendChild(fr);
+    try {
+      const doc = fr.contentDocument;
+      doc.open(); doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title || meta.project || 'PatchLab')}</title><style>${docCss(L, G, meta, { preview })}</style></head><body></body></html>`); doc.close();
+      const mk = ctx => makeSheet(doc, L, meta, G, ctx);
+      const o = { bodyW:G.bodyW * MM, bodyH:(G.bodyH - 1.5) * MM, frame:mk, isStale, contLabel:'continued' };
+      if(cover){ const s = mk({ cover:true, label:'Cover' }); s.body.innerHTML = cover; }
+      let tocPages = 0;
+      const useToc = kind === 'book' && L.cover.contents !== false && toc.length > 1;
+      if(useToc){ const t = await window.Paginate.run(doc, { ...o, blocks:[{ html:tocHtml(toc), ctx:{ label:'Contents' }, breakBefore:true }] }); if(!t) return null; tocPages = t.length; }
+      const pages = await window.Paginate.run(doc, { ...o, blocks });
+      if(!pages) return null;
+      const sheets = [...doc.querySelectorAll('.sheet')], off = (cover ? 1 : 0) + tocPages;
+      doc.querySelectorAll('[data-toc]').forEach(e => { const en = toc[Number(e.dataset.toc)]; e.textContent = en ? String(off + (en.page || 1)) : ''; });
+      sheets.forEach((s, i) => { s.setAttribute('data-n', String(i + 1)); s.querySelectorAll('.pn').forEach(x => { x.textContent = String(i + 1); }); s.querySelectorAll('.pt').forEach(x => { x.textContent = String(sheets.length); }); });
+      if(preview) sheets.forEach((s, i) => s.insertAdjacentHTML('beforebegin', `<div class="pv-label">Page ${i + 1} of ${sheets.length}${s.dataset.label ? ` · ${esc(s.dataset.label)}` : ''}</div>`));
+      const html = '<!doctype html>' + doc.documentElement.outerHTML;
+      return { html, pages:sheets.length, over:(pages.over || []).map(x => x.page), size:G.size, landscape:G.land, empty:false, G };
+    } finally { fr.remove(); }
+  }
+
+  // one file of the plan → { html, pages, size, landscape, empty } (stickers come from ui/labels.js, the rest from the sheets above)
+  async function renderFile(f, L, { preview = false, isStale = null } = {}){
+    if(f.kind === 'stickers'){
+      const r = window.Labels?.docHtml?.({ dc:f.dc, variant:f.variant, ports:!!f.ports, preview });
+      if(!r || !r.count) return { html:'', pages:0, empty:true };
+      return { html:r.html, pages:r.pages, size:'A4', landscape:false, empty:false, count:r.count, sticker:true, G:{ pw:210, ph:297 } };
+    }
+    return renderDocument({ kind:f.kind, dcs:f.dcs, layout:L, preview, isStale, title:String(f.name || '').replace(/\.pdf$/i, '') });
+  }
+
+  // ===================== Public API =====================
+  window.PdfExport = {
+    DOCS, SECTIONS, SECTION_OPTS, PRESETS, GRID_MM,
+    defaultLayout, layoutFromSettings, mergeLayout, normPos, snap, setOn,
+    currentMeta, allDims, selectedDims, geo, contentBox, loadLogoDims, logoList, tokens, safeFile, fname,
+    filePlan, renderDocument, renderFile, dcName,
+    open: (...a) => window.Publish?.open?.(...a), close: (...a) => window.Publish?.close?.(...a)
+  };
 })();

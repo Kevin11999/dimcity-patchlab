@@ -563,4 +563,22 @@ ipcMain.handle('exportPdfBatch', async (_evt, { items, landscape, pageSize, foot
   return { dir, files: written };
 });
 
+// One PDF of a published set: the folder is the one the user chose, relPath may hold sub folders ("Project/DB01/DB01 - LK info.pdf").
+// The pages are already sheets (core/paginate.js), so they are printed as they are: no margins, no header or footer of the print engine.
+const pubPart = s => String(s).replace(/[\u0000-\u001f<>:"|?*\\]/g, ' ').replace(/\s+/g, ' ').replace(/[. ]+$/, '').trim();
+ipcMain.handle('publishPdf', async (_evt, { dir, relPath, html, pageSize, landscape } = {}) => {
+  if (!dir || typeof dir !== 'string') throw new Error('No folder chosen');
+  const st = await fs.stat(dir).catch(() => null);
+  if (!st || !st.isDirectory()) throw new Error('The folder does not exist (anymore) — choose it again');
+  const parts = String(relPath || '').split(/[\\/]+/).map(pubPart).filter(p => p && p !== '.' && p !== '..');
+  if (!parts.length) throw new Error('No file name');
+  if (!/\.pdf$/i.test(parts[parts.length - 1])) parts[parts.length - 1] += '.pdf';
+  const out = path.join(dir, ...parts);
+  if (path.relative(dir, out).startsWith('..')) throw new Error('Not a place inside the chosen folder');
+  const pdf = await renderHtmlToPdf(String(html || ''), { landscape: !!landscape, pageSize: pageSize || 'A4' });
+  await fs.mkdir(path.dirname(out), { recursive: true });
+  await fs.writeFile(out, pdf);
+  return out;
+});
+
 ipcMain.handle('showItemInFolder', async (_evt, p) => { if (p) shell.showItemInFolder(p); return true; });

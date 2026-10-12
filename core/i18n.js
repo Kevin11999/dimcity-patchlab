@@ -14,6 +14,7 @@ const NL = {
   'No issues':'Geen problemen', 'Project overview':'Projectoverzicht', 'Project Overview':'Projectoverzicht', 'Add LK or Veam':'LK of Veam toevoegen',
   'Search everything (⌘K)':'Alles doorzoeken (⌘K)', 'Import CSV (⌘I)':'CSV importeren (⌘I)', 'Edit patch rows (⌘E)':'Patchregels bewerken (⌘E)',
   'Recalculate validation and statistics (⌘R)':'Validatie en statistieken herberekenen (⌘R)', 'Save project (⌘S)':'Project opslaan (⌘S)',
+  'Publish':'Publiceren', 'Publish the PDFs, the stickers and the IP address book (⌘P)':'De PDF’s, de stickers en het IP-adresboek publiceren (⌘P)',
   'Open the report builder (⌘P)':'Rapportbouwer openen (⌘P)', 'Unsaved changes ':'Niet-opgeslagen wijzigingen',
 
   // algemene knoppen

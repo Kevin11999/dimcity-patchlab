@@ -1171,7 +1171,7 @@ function renderRightHome(){
     eyebrow: 'Project overview',
     title: esc(meta.project || 'Untitled project'),
     sub: subParts.join('<span class="subtle"> · </span>') || '<span class="subtle">No project details yet — add them via Project Info.</span>',
-    actions: `<button data-cmd="projectInfo">${I('edit',15)}Project Info</button><button data-cmd="importCsv">${I('upload',15)}Import CSV</button><button class="primary" data-cmd="exportPdf">${I('file',15)}Export PDF</button>`
+    actions: `<button data-cmd="projectInfo">${I('edit',15)}Project Info</button><button data-cmd="importCsv">${I('upload',15)}Import CSV</button><button class="primary" data-cmd="exportPdf">${I('file',15)}Publish</button>`
   });
   const root = $('#lkDetail');
   if(!hasData){

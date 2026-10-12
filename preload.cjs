@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('app', {
   openCsv: () => ipcRenderer.invoke('openCsv'),
   exportPdfFromHtml: (args) => ipcRenderer.invoke('exportPdfFromHtml', args),
   exportPdfBatch: (args) => ipcRenderer.invoke('exportPdfBatch', args),
+  publishPdf: (args) => ipcRenderer.invoke('publishPdf', args),
   showSaveDialog: (options) => ipcRenderer.invoke('showSaveDialog', options),
   showOpenDialog: (options) => ipcRenderer.invoke('showOpenDialog', options),
   writeTextFile: (args) => ipcRenderer.invoke('writeTextFile', args),

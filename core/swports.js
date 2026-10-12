@@ -88,7 +88,7 @@
     of(t){ return String(t?.short || '').trim() || ShortName.derive(t); },
     // a compact code for a port name on a switch: "LumiNode 12" → "LN12", "GigaCore 16Xt" → "GC16Xt" (the capitals of every word, numbers as they are), at most `max` characters
     code(t, max = 8){
-      const base = ShortName.derive(t), out = base.split(/\s+/).filter(Boolean).map(w => /^\d/.test(w) ? w : (w.match(/[A-Z]/g) || []).length > 1 ? w.match(/[A-Z]/g).join('') : w[0].toUpperCase()).join('');
+      const base = ShortName.derive(t).replace(/\s*\([^)]*\)/g, '').trim() || ShortName.derive(t), out = base.split(/\s+/).filter(Boolean).map(w => /^\d/.test(w) ? w : (w.match(/[A-Z]/g) || []).length > 1 ? w.match(/[A-Z]/g).join('') : w[0].toUpperCase()).join('');
       return (out || base).slice(0, max);
     },
     // what goes after the ID in a port name: the short name you typed (Device Builder), else the code

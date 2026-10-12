@@ -18,7 +18,7 @@
   const M = () => App.getMODEL();
   const F = () => window.Fent;
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-  const S = { swBrush:null, swExtra:{ poe:'', speed:'' }, ndBrush:{ universe:null, auto:true, klass:'', dir:'' }, sel:null, extra:new Set(), drag:null, dragDev:null, armed:null, fill:{ order:'nodes', sort:'id', keep:true, all:false } };
+  const S = { swBrush:null, swExtra:{ poe:'', speed:'' }, sel:null, extra:new Set(), drag:null, dragDev:null, armed:null, rerender:null, down:false, fill:{ order:'nodes', sort:'id', keep:true, all:false } };
   const SPEEDS = ['auto', '1gbps fdx', '100mbps fdx', '100mbps hdx', '10mbps fdx', '10mbps hdx', '10gbps fdx', '2.5gbps fdx'];
   const DIRS = () => [['output', t('Output — network → DMX', 'Uitgang — netwerk → DMX')], ['input', t('Input — DMX → network', 'Ingang — DMX → netwerk')], ['idle', t('Off', 'Uit')]];
 
@@ -323,14 +323,38 @@
   // ---- nodes ----
   // what a DMX port does when nothing else is chosen for it: prefs.dmx = { klass:'sacn'|'artnet', dir:'output'|'input'|'idle' } (set in the card of the node ports)
   const dmxDef = () => { const d = M().networkDevices?.prefs?.dmx || {}; return { klass:d.klass === 'artnet' ? 'artnet' : 'sacn', dir:['output', 'input', 'idle'].includes(d.dir) ? d.dir : 'output' }; };
+  // `use` = what the racks put on that port (inst.rackPorts, kept by RackPlan.syncNodes): { by:'LK201 · 1', uni } or null when the port is free.
+  // The universe of a port in use comes from the CSV / the LK; the other settings of a port (name, protocol, direction) are always the user's.
   function ndPorts(dc, inst, i, car = carOf(dc)){
     const ty = (M().networkDevices.nodeTypes || []).find(x => x.id === inst.typeId) || {}, n = Math.max(1, Number(ty.portCount) || (Array.isArray(inst.universes) ? inst.universes.length : 0) || 1);
     const ov = get(ndKey(dc, inst, i)), u = Array.isArray(inst.universes) ? inst.universes : [], out = [], def = dmxDef();
+    const racks = !inst.gone && Array.isArray(inst.rackPorts) ? inst.rackPorts : [];
     for(let j = 0; j < n; j++){
       const o = ov[j + 1] || {}, uni = u[j] == null || u[j] === '' ? null : Number(u[j]), auto = autoDmxName(inst, j, uni, car);
-      out.push({ n:j + 1, uni, name:o.name || auto, autoName:auto, manualName:!!o.name, klass:o.klass || def.klass, dir:o.dir || def.dir, manualKlass:!!o.klass, manualDir:!!o.dir });
+      out.push({ n:j + 1, uni, name:o.name || auto, autoName:auto, manualName:!!o.name, klass:o.klass || def.klass, dir:o.dir || def.dir, manualKlass:!!o.klass, manualDir:!!o.dir, use:racks[j] || null });
     }
     return out;
+  }
+  // A universe typed by hand on a FREE port. A node that follows the racks gets the universes of its other ports from the racks every time (RackPlan.syncNodes),
+  // so the number is also kept in inst.manualUni, which that sync leaves alone.
+  function setNodeUniverse(inst, n, v){
+    inst.universes = Array.isArray(inst.universes) ? inst.universes : [];
+    inst.universes[n - 1] = v;
+    if(inst.src){
+      if(v == null) { if(inst.manualUni) delete inst.manualUni[n]; } else (inst.manualUni ||= {})[n] = v;
+      if(inst.manualUni && !Object.keys(inst.manualUni).length) delete inst.manualUni;
+    }
+  }
+  const wasText = w => [w.name ? `${t('name', 'naam')} “${w.name}”` : '', w.uni != null ? `universe ${w.uni}` : '', w.klass ? protoName(w.klass) : '', w.dir ? (DIRS().find(d => d[0] === w.dir)?.[1] || '').split(' — ')[0].toLowerCase() : ''].filter(Boolean).join(', ');
+  // The racks start using a port of this node (an LK line needs it): what was set by hand on that port goes — the LK decides — and the user is told.
+  // Returns the sentence for the pop-up, or '' when nothing was set on that port.
+  function takeOver(dc, inst, i, n, by){
+    const key = ndKey(dc, inst, i), e = store()[key]?.ports?.[n], was = {};
+    if(e){ for(const k of ['name', 'klass', 'dir']) if(e[k]) was[k] = e[k]; delete store()[key].ports[n]; prune(key); }
+    if(inst.manualUni && inst.manualUni[n] != null){ was.uni = inst.manualUni[n]; delete inst.manualUni[n]; if(!Object.keys(inst.manualUni).length) delete inst.manualUni; }
+    if(!Object.keys(was).length) return '';
+    (inst.takeovers ||= []).push({ port:n, by, was });
+    return t(`${inst.id || dc} port ${n} is now used by ${by}: your own settings (${wasText(was)}) are replaced`, `${inst.id || dc} poort ${n} wordt nu gebruikt door ${by}: jouw eigen instelling (${wasText(was)}) is vervangen`);
   }
   // The lighting data the data group of an advanced node takes part in follows its DMX ports: output ports → 'output', input ports → 'input', both → 'input+output', all off → ''
   function pipeOf(dc, inst, i){
@@ -353,13 +377,16 @@
       <label>${t('Name', 'Naam')}<input data-ppname value="${esc(p.manualName ? p.name : '')}" placeholder="${esc(p.autoName)}" maxlength="64" style="width:210px"></label>
       <label>${t('Protocol', 'Protocol')}<select data-ppklass><option value="">${t('Default', 'Standaard')} (${protoName(dmxDef().klass)})</option><option value="sacn" ${p.manualKlass && p.klass === 'sacn' ? 'selected' : ''}>sACN</option><option value="artnet" ${p.manualKlass && p.klass === 'artnet' ? 'selected' : ''}>Art-Net</option></select></label>
       <label>${t('Direction', 'Richting')}<select data-ppdir><option value="">${t('Default', 'Standaard')} (${(DIRS().find(d => d[0] === dmxDef().dir)?.[1] || '').split(' — ')[0]})</option>${DIRS().map(([v, l]) => `<option value="${v}" ${p.manualDir && p.dir === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      <button class="sm ghost" data-ppreset>${t('Reset this port', 'Poort terugzetten')}</button></div>`;
+      <button class="sm ghost" data-ppreset>${t('Reset this port', 'Poort terugzetten')}</button>
+      <div class="su-warn" data-ppwarn style="flex:1 0 100%;display:none"></div></div>`;
   }
+  // a port that the racks have taken over while it had settings of its own: stays on screen until you click OK
+  const takeoverNotes = (inst, i) => (inst.takeovers || []).map((x, k) => `<div class="su-warn">${I('alert', 13)} <span>${esc(t(`Port ${x.port} is now used by ${x.by}: your own settings (${wasText(x.was)}) are replaced by the name and function of the LK.`, `Poort ${x.port} wordt nu gebruikt door ${x.by}: jouw eigen instelling (${wasText(x.was)}) is vervangen door de naam en functie van de LK.`))}</span> <button class="sm ghost" data-pptake="${i}:${k}">OK</button></div>`).join('');
   function ndBlock(dc, inst, i, car){
     const key = ndKey(dc, inst, i), ports = ndPorts(dc, inst, i, car);
     return `<div class="pp-sw" data-ppkey="${esc(key)}"><div class="pp-head"><b>${esc(inst.id || `Node ${i + 1}`)}</b><span class="subtle">${esc(inst.name || '')}</span><span style="flex:1"></span>
       <button class="sm" data-ppndcopy="${i}">${I('copy', 13)} ${t('Copy to other nodes…', 'Naar andere nodes kopiëren…')}</button>
-      <button class="sm ghost" data-ppndnames="${i}">${t('Automatic names', 'Automatische namen')}</button></div>
+      <button class="sm ghost" data-ppndnames="${i}">${t('Automatic names', 'Automatische namen')}</button></div>${takeoverNotes(inst, i)}
       <div class="pp-grid">${ports.map(p => ndTile(dc, inst, i, p)).join('')}</div>${ndDetail(dc, inst, i, car)}${namesList(ndKey(dc, inst, i), t('DMX port names as a list', 'DMX-poortnamen als lijst'), `data-ppnnode="${i}"`, ports.map(p => ({ n:p.n, label:`DMX ${p.n}`, info:p.uni == null ? '' : `U${p.uni}`, name:p.manualName ? p.name : '', auto:p.autoName, attr:'data-ppnn', max:64 })))}</div>`;
   }
   // the show-wide default of every DMX port; a port can have its own choice (click it)
@@ -369,14 +396,6 @@
       <label>${t('Protocol', 'Protocol')}<select data-ppdefklass><option value="sacn" ${d.klass === 'sacn' ? 'selected' : ''}>sACN</option><option value="artnet" ${d.klass === 'artnet' ? 'selected' : ''}>Art-Net</option></select></label>
       <label>${t('Direction', 'Richting')}<select data-ppdefdir>${DIRS().map(([v, l]) => `<option value="${v}" ${d.dir === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <span class="subtle">${t('Click a port below to give just that port its own protocol or direction.', 'Klik hieronder op een poort om alleen die poort een eigen protocol of richting te geven.')}</span></div>`;
-  }
-  function ndBar(){
-    const b = S.ndBrush;
-    return `<div class="pp-bar"><span class="subtle">${t('Type a universe, then click or drag over the DMX ports', 'Typ een universe, klik of sleep dan over de DMX-poorten')}:</span>
-      <label>Universe<input data-ppbuni type="number" min="0" max="63999" value="${b.universe ?? ''}" style="width:90px"></label>
-      <label class="nc-chk"><input type="checkbox" data-ppbauto ${b.auto ? 'checked' : ''}> ${t('next port gets the next universe', 'volgende poort krijgt het volgende universe')}</label>
-      <label>${t('Protocol', 'Protocol')}<select data-ppbklass><option value="">–</option><option value="sacn" ${b.klass === 'sacn' ? 'selected' : ''}>sACN</option><option value="artnet" ${b.klass === 'artnet' ? 'selected' : ''}>Art-Net</option></select></label>
-      <label>${t('Direction', 'Richting')}<select data-ppbdir><option value="">–</option>${DIRS().map(([v, l]) => `<option value="${v}" ${b.dir === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>`;
   }
 
   // A list of every port with a field for its name (empty = the automatic name, which is the placeholder). rows: [{ n, label, info, name, auto, attr, max, off }]
@@ -402,48 +421,60 @@
   function nodesCard(dc){
     const nodes = App.net.getDimPlan(dc).nodes || [];
     return nodes.length ? App.ui.card({ key:`${dc}:ppnd`, title:t('Node ports: universes, protocol and direction', 'Nodepoorten: universes, protocol en richting'), icon:'network', meta:`${nodes.length} nodes`, collapsible:true, collapsed:false,
-      body:`<div class="pp" style="padding:4px 14px 12px">${ndDefaults()}${ndBar()}${(() => { const car = carOf(dc); return nodes.map((n, i) => ndBlock(dc, n, i, car)).join(''); })()}</div>` }) : '';
+      body:`<div class="pp" style="padding:4px 14px 12px">${ndDefaults()}${(() => { const car = carOf(dc); return nodes.map((n, i) => ndBlock(dc, n, i, car)).join(''); })()}</div>` }) : '';
   }
   const html = dc => boardCard(dc) + switchesHtml(dc) + nodesCard(dc);
 
   // ---- events ----
+  // painting needs a VLAN (or Trunk / Automatic) picked in the bar; PoE and speed in the bar are painted along with it
   function apply(dc, s, n){
-    const br = S.swBrush, x = S.swExtra; if(!br && !x.poe && !x.speed) return false;
+    const br = S.swBrush, x = S.swExtra; if(!br) return false;
     if(window.NetSwitches.linkAt(dc, s.label, n)) return false;
     const key = swKey(dc, s.label), e = put(key, n);
-    if(br){ if(br.clear){ delete e.vid; delete e.trunk; } else if(br.trunk){ e.trunk = true; delete e.vid; } else { e.vid = br.vid; delete e.trunk; } }
+    if(br.clear){ delete e.vid; delete e.trunk; } else if(br.trunk){ e.trunk = true; delete e.vid; } else { e.vid = br.vid; delete e.trunk; }
     if(x.poe) e.poe = x.poe; if(x.speed) e.speed = x.speed;
     prune(key); dirty(); return true;
   }
-  function applyNode(dc, inst, i, n){
-    const b = S.ndBrush; if(b.universe == null && !b.klass && !b.dir) return false;
-    const key = ndKey(dc, inst, i); inst.universes = Array.isArray(inst.universes) ? inst.universes : [];
-    if(b.universe != null){ inst.universes[n - 1] = b.universe; if(b.auto) b.universe = Math.min(63999, b.universe + 1); }
-    const e = put(key, n); if(b.klass) e.klass = b.klass; if(b.dir) e.dir = b.dir; prune(key); dirty(); return true;
-  }
+  // the mouse button goes up (anywhere, or outside the window): the row of ports you were painting ends. One listener for the whole page, that never runs out.
+  const endDrag = () => { if(S.drag){ S.drag = null; S.rerender?.(); } };
+  document.addEventListener('mousedown', () => { S.down = true; }, true);
+  document.addEventListener('mouseup', () => { S.down = false; }, true);
+  document.addEventListener('mouseup', endDrag, true); window.addEventListener('blur', () => { S.down = false; endDrag(); });
   function bind(root, dc, rerender){
-    if(!root.querySelector('[data-ppkey], [data-ppb], [data-ppbuni], [data-pbroot], [data-ppcrow]')) return;
+    if(!root.querySelector('[data-ppkey], [data-ppb], [data-pbroot], [data-ppcrow]')) return;
+    S.rerender = rerender;
     const sw = l => (window.NetSwitches.list(dc) || []).find(s => s.label === l);
-    const redrawTile = el => { const dcs = dc; if(el.dataset.ppsw){ const s = sw(el.dataset.ppsw), p = swPorts(dcs, s).find(x => x.n === Number(el.dataset.pport)); el.outerHTML = swTile(dcs, s, p); } else { const i = Number(el.dataset.ppnd), inst = App.net.getDimPlan(dcs).nodes[i], p = ndPorts(dcs, inst, i).find(x => x.n === Number(el.dataset.pport)); el.outerHTML = ndTile(dcs, inst, i, p); } };
+    // one tile drawn again (a tile that was painted, or a panel that changed its port); the new tile gets its mouse handlers too
+    const redrawTile = el => {
+      let html;
+      if(el.dataset.ppsw){ const s = sw(el.dataset.ppsw), p = swPorts(dc, s).find(x => x.n === Number(el.dataset.pport)); html = swTile(dc, s, p); }
+      else { const i = Number(el.dataset.ppnd), inst = App.net.getDimPlan(dc).nodes[i], p = ndPorts(dc, inst, i).find(x => x.n === Number(el.dataset.pport)); html = ndTile(dc, inst, i, p); }
+      const tmp = document.createElement('div'); tmp.innerHTML = html; const nu = tmp.firstElementChild; el.replaceWith(nu); wireTile(nu); return nu;
+    };
+    const tileOf = (attr, id, n) => [...root.querySelectorAll('.pp-port')].find(x => x.dataset[attr] === String(id) && Number(x.dataset.pport) === n);
+    // A panel (one port): a change is saved and shown on the tile at once, and the panel stays as it is, so you can go from field to field.
+    // The page is rebuilt when you are done with the panel (the focus leaves it; a click on a button still lands first).
+    const panelDone = box => box.addEventListener('focusout', ev => {
+      if(!box.dataset.dirty || box.contains(ev.relatedTarget)) return;
+      const go = () => { if(box.isConnected && !box.contains(document.activeElement) && document.hasFocus()) rerender(); };
+      if(S.down) document.addEventListener('mouseup', () => setTimeout(go, 0), { once:true }); else setTimeout(go, 0);
+    });
     root.querySelectorAll('[data-ppb]').forEach(b => b.onclick = () => { const k = b.dataset.ppb; S.swBrush = S.swBrush && ((k === 'vid' && S.swBrush.vid === Number(b.dataset.vid)) || (k === 'trunk' && S.swBrush.trunk) || (k === 'clear' && S.swBrush.clear)) ? null : k === 'vid' ? { vid:Number(b.dataset.vid) } : k === 'trunk' ? { trunk:true } : { clear:true }; rerender(); });
     const xp = root.querySelector('[data-ppxpoe]'); if(xp){ xp.onchange = () => { S.swExtra.poe = xp.value; }; root.querySelector('[data-ppxspeed]').onchange = e => { S.swExtra.speed = e.target.value; }; }
     const more = root.querySelector('[data-ppmore]'); if(more) more.onchange = () => { if(more.value){ S.extra.add(Number(more.value)); S.swBrush = { vid:Number(more.value) }; } rerender(); };
-    // ports: click paints with the brush (or selects the port), dragging paints a row of ports
-    const finish = () => { if(S.drag){ S.drag = null; rerender(); } };
-    root.querySelectorAll('.pp-port').forEach(el => {
-      const paint = () => {
-        if(el.dataset.ppsw){ const s = sw(el.dataset.ppsw); if(s && apply(dc, s, Number(el.dataset.pport))) { redrawTile(el); return true; } return false; }
-        const i = Number(el.dataset.ppnd), inst = App.net.getDimPlan(dc).nodes[i]; if(inst && applyNode(dc, inst, i, Number(el.dataset.pport))){ redrawTile(el); return true; } return false;
-      };
-      const isSw = !!el.dataset.ppsw, nb0 = S.ndBrush;
-      const painting = () => isSw ? !!(S.swBrush || S.swExtra.poe || S.swExtra.speed) : (nb0.universe != null || nb0.klass || nb0.dir);
+    // ports: with a VLAN picked in the bar a click paints the port, and dragging with the button held down paints a row of ports.
+    // Moving over ports never paints. Without a VLAN a click selects the port (its own panel opens) and a double-click types a name.
+    const wireTile = el => {
+      const isSw = !!el.dataset.ppsw;
+      const painting = () => isSw && !!S.swBrush;
       const selKey = () => isSw ? swKey(dc, el.dataset.ppsw) : ndKey(dc, App.net.getDimPlan(dc).nodes[Number(el.dataset.ppnd)], Number(el.dataset.ppnd));
-      // with a brush the mouse paints; without one a click selects the port and a drag moves the device on it
-      el.onmousedown = ev => { if(!painting()) return; ev.preventDefault(); if(paint()){ S.drag = isSw ? 'sw' : 'nd'; S.sel = null; } };
+      const paint = () => { const s = isSw && sw(el.dataset.ppsw); if(s && apply(dc, s, Number(el.dataset.pport))){ redrawTile(el); return true; } return false; };
+      el.onmousedown = ev => { if(ev.button !== 0 || !painting()) return; ev.preventDefault(); if(paint()){ S.drag = 'sw'; S.sel = null; } };
       el.onclick = () => { if(painting() || S.drag) return; const key = selKey(), n = Number(el.dataset.pport); S.sel = S.sel && S.sel.key === key && S.sel.port === n ? null : { key, port:n }; rerender(); };
-      el.onmouseenter = () => { if(S.drag && (el.dataset.ppsw ? 'sw' : 'nd') === S.drag) paint(); };
-    });
-    window.addEventListener('mouseup', function once(){ window.removeEventListener('mouseup', once); finish(); });
+      el.onmouseenter = ev => { if(!S.drag) return; if(!(ev.buttons & 1)){ endDrag(); return; } if(isSw && S.drag === 'sw') paint(); };
+      el.ondblclick = ev => { ev.preventDefault(); inlineEdit(el); };
+    };
+    root.querySelectorAll('.pp-port').forEach(wireTile);
     // ---- names: double-click a port to type its name there and then; the lists hold every port ----
     const inlineEdit = el => {
       const isSw = !!el.dataset.ppsw, n = Number(el.dataset.pport); let key, cur, auto, max;
@@ -457,7 +488,6 @@
       inp.onkeydown = e => { e.stopPropagation(); if(e.key === 'Enter'){ e.preventDefault(); finish(true); } else if(e.key === 'Escape'){ e.preventDefault(); finish(false); } };
       inp.onblur = () => finish(true);
     };
-    root.querySelectorAll('.pp-port').forEach(el => { el.ondblclick = ev => { ev.preventDefault(); inlineEdit(el); }; });
     root.querySelectorAll('.pp-names').forEach(d => {
       d.ontoggle = () => { if(d.open) namesOpen.add(d.dataset.ppnl); else namesOpen.delete(d.dataset.ppnl); };
       d.querySelectorAll('[data-ppnm]').forEach(inp => inp.onchange = () => { const s = sw(d.dataset.ppnsw); if(!s) return; const key = swKey(dc, s.label), n = Number(inp.dataset.ppnm), v = inp.value.trim().slice(0, 16), o = put(key, n); if(v) o.name = v; else delete o.name; prune(key); dirty(); rerender(); });
@@ -523,33 +553,52 @@
       if(sp) sp.onchange = () => { place(dc, key, ssw.value, Number(sp.value)); rerender(); };
       if(un) un.onclick = () => { unplace(dc, key); rerender(); };
     });
-    // detail of a switch port
+    // detail of a switch port (a change is shown on the tile at once; see panelDone)
     root.querySelectorAll('[data-ppdet]').forEach(box => {
       const s = sw(box.dataset.ppdet), key = swKey(dc, s.label), n = S.sel.port;
-      box.querySelector('[data-ppname]').onchange = e => { const v = e.target.value.trim().slice(0, 16); const o = put(key, n); if(v) o.name = v; else delete o.name; prune(key); dirty(); rerender(); };
-      box.querySelector('[data-ppvlan]').onchange = e => { const o = put(key, n), v = e.target.value; delete o.vid; delete o.trunk; if(v === 'trunk') o.trunk = true; else if(v) o.vid = Number(v); prune(key); dirty(); rerender(); };
-      box.querySelector('[data-ppoe]').onchange = e => { const o = put(key, n); if(e.target.value) o.poe = e.target.value; else delete o.poe; prune(key); dirty(); rerender(); };
-      box.querySelector('[data-ppspeed]').onchange = e => { const o = put(key, n); if(e.target.value) o.speed = e.target.value; else delete o.speed; prune(key); dirty(); rerender(); };
+      const changed = () => { box.dataset.dirty = '1'; dirty(); const el = tileOf('ppsw', s.label, n); if(el) redrawTile(el); };
+      box.querySelector('[data-ppname]').onchange = e => { const v = e.target.value.trim().slice(0, 16); const o = put(key, n); if(v) o.name = v; else delete o.name; prune(key); changed(); };
+      box.querySelector('[data-ppvlan]').onchange = e => { const o = put(key, n), v = e.target.value; delete o.vid; delete o.trunk; if(v === 'trunk') o.trunk = true; else if(v) o.vid = Number(v); prune(key); changed(); };
+      box.querySelector('[data-ppoe]').onchange = e => { const o = put(key, n); if(e.target.value) o.poe = e.target.value; else delete o.poe; prune(key); changed(); };
+      box.querySelector('[data-ppspeed]').onchange = e => { const o = put(key, n); if(e.target.value) o.speed = e.target.value; else delete o.speed; prune(key); changed(); };
       box.querySelector('[data-ppreset]').onclick = () => { delete store()[key]?.ports[n]; prune(key); dirty(); rerender(); };
+      panelDone(box);
     });
     root.querySelectorAll('[data-ppcopy]').forEach(b => b.onclick = () => copySwitchDialog(dc, sw(b.dataset.ppcopy), rerender));
     root.querySelectorAll('[data-ppndcopy]').forEach(b => b.onclick = () => copyNodeDialog(dc, Number(b.dataset.ppndcopy), rerender));
     root.querySelectorAll('[data-ppnames]').forEach(b => b.onclick = () => { const key = swKey(dc, b.dataset.ppnames), e = store()[key]; if(e){ for(const v of Object.values(e.ports)) delete v.name; prune(key); dirty(); } rerender(); });
     root.querySelectorAll('[data-ppresetall]').forEach(b => b.onclick = () => { delete store()[swKey(dc, b.dataset.ppresetall)]; dirty(); rerender(); });
     // nodes
-    const nb = S.ndBrush, q = s => root.querySelector(s);
+    const q = s => root.querySelector(s);
     if(q('[data-ppdefklass]')){
       q('[data-ppdefklass]').onchange = e => { const pr = M().networkDevices.prefs; (pr.dmx ||= {}).klass = e.target.value === 'artnet' ? 'artnet' : 'sacn'; window.PatchHistory?.label?.('DMX default protocol'); dirty(); rerender(); };
       q('[data-ppdefdir]').onchange = e => { const pr = M().networkDevices.prefs; (pr.dmx ||= {}).dir = ['output', 'input', 'idle'].includes(e.target.value) ? e.target.value : 'output'; window.PatchHistory?.label?.('DMX default direction'); dirty(); rerender(); };
     }
-    if(q('[data-ppbuni]')){ q('[data-ppbuni]').oninput = e => { nb.universe = e.target.value === '' ? null : Math.max(0, Math.min(63999, Math.round(Number(e.target.value)))); }; q('[data-ppbauto]').onchange = e => { nb.auto = e.target.checked; }; q('[data-ppbklass]').onchange = e => { nb.klass = e.target.value; }; q('[data-ppbdir]').onchange = e => { nb.dir = e.target.value; }; }
+    // detail of a DMX port of a node: every port has its own universe, name, protocol and direction.
+    // A port the racks use (an LK line is on it) keeps the universe of that line; trying to change it gives a warning.
     root.querySelectorAll('[data-ppdet-nd]').forEach(box => {
       const i = Number(box.dataset.ppdetNd), inst = App.net.getDimPlan(dc).nodes[i], key = ndKey(dc, inst, i), n = S.sel.port;
-      box.querySelector('[data-ppuni]').onchange = e => { inst.universes = Array.isArray(inst.universes) ? inst.universes : []; inst.universes[n - 1] = e.target.value === '' ? null : Math.max(0, Math.min(63999, Math.round(Number(e.target.value)))); dirty(); rerender(); };
-      box.querySelector('[data-ppname]').onchange = e => { const v = e.target.value.trim().slice(0, 16), o = put(key, n); if(v) o.name = v; else delete o.name; prune(key); dirty(); rerender(); };
-      box.querySelector('[data-ppklass]').onchange = e => { const o = put(key, n); if(e.target.value) o.klass = e.target.value; else delete o.klass; prune(key); dirty(); rerender(); };
-      box.querySelector('[data-ppdir]').onchange = e => { const o = put(key, n); if(e.target.value) o.dir = e.target.value; else delete o.dir; prune(key); dirty(); rerender(); };
-      box.querySelector('[data-ppreset]').onclick = () => { delete store()[key]?.ports[n]; prune(key); dirty(); rerender(); };
+      const changed = () => { box.dataset.dirty = '1'; dirty(); const el = tileOf('ppnd', i, n); if(el) redrawTile(el); };
+      box.querySelector('[data-ppuni]').onchange = e => {
+        const p = ndPorts(dc, inst, i).find(x => x.n === n); if(!p) return;
+        if(p.use){
+          e.target.value = p.uni ?? '';
+          const w = box.querySelector('[data-ppwarn]');
+          w.innerHTML = `${I('alert', 13)} <span>${esc(t(`Port ${n} is used by ${p.use.by} (universe ${p.uni}). That universe comes from the CSV / the LK and cannot be changed here — change it in the CSV or in the patch.`, `Poort ${n} wordt gebruikt door ${p.use.by} (universe ${p.uni}). Dat universe komt uit de CSV / de LK en kan hier niet aangepast worden — pas het aan in de CSV of in de patch.`))}</span>`;
+          w.style.display = ''; return;
+        }
+        setNodeUniverse(inst, n, e.target.value === '' ? null : Math.max(0, Math.min(63999, Math.round(Number(e.target.value))))); changed();
+      };
+      box.querySelector('[data-ppname]').onchange = e => { const v = e.target.value.trim().slice(0, 64), o = put(key, n); if(v) o.name = v; else delete o.name; prune(key); changed(); };
+      box.querySelector('[data-ppklass]').onchange = e => { const o = put(key, n); if(e.target.value) o.klass = e.target.value; else delete o.klass; prune(key); changed(); };
+      box.querySelector('[data-ppdir]').onchange = e => { const o = put(key, n); if(e.target.value) o.dir = e.target.value; else delete o.dir; prune(key); changed(); };
+      box.querySelector('[data-ppreset]').onclick = () => { delete store()[key]?.ports[n]; prune(key); if(inst.src && inst.manualUni?.[n] != null) setNodeUniverse(inst, n, null); dirty(); rerender(); };
+      panelDone(box);
+    });
+    root.querySelectorAll('[data-pptake]').forEach(b => b.onclick = () => {
+      const [i, k] = b.dataset.pptake.split(':').map(Number), inst = App.net.getDimPlan(dc).nodes[i];
+      if(inst?.takeovers){ inst.takeovers.splice(k, 1); if(!inst.takeovers.length) delete inst.takeovers; dirty(); }
+      rerender();
     });
     root.querySelectorAll('[data-ppndnames]').forEach(b => b.onclick = () => { const i = Number(b.dataset.ppndnames), key = ndKey(dc, App.net.getDimPlan(dc).nodes[i], i), e = store()[key]; if(e){ for(const v of Object.values(e.ports)) delete v.name; prune(key); dirty(); } rerender(); });
   }
@@ -609,7 +658,7 @@
         <div class="nc-cp-col"><div class="nc-cp-h">${t('What', 'Wat')}</div><div class="nc-cp-opts">
           ${opt('cpProto', true, t('Protocol (sACN / Art-Net) and direction of every port', 'Protocol (sACN / Art-Net) en richting van elke poort'))}
           ${opt('cpNames', false, t('Port names typed by hand', 'Poortnamen die je met de hand typte'), t('Off: the automatic names stay.', 'Uit: de automatische namen blijven.'))}
-          ${opt('cpUni', false, t('The universes too', 'Ook de universes'), t('The same numbers on the other nodes.', 'Dezelfde nummers op de andere nodes.'))}</div></div>
+          ${opt('cpUni', false, t('The universes too', 'Ook de universes'), t('The same numbers on the other nodes (not on ports an LK uses).', 'Dezelfde nummers op de andere nodes (niet op poorten die een LK gebruikt).'))}</div></div>
         <div class="nc-cp-col"><div class="nc-cp-h">${t('To', 'Naar')} <span class="nc-cp-btns"><button id="cpAll">${t('all', 'alle')}</button><button id="cpNone">${t('none', 'geen')}</button></span></div>
           <div class="nc-cp-list">${others.map((x, i) => `<label class="nc-chk"><input type="checkbox" data-cptg="${i}" checked><span><b>${esc(x.inst.id || `Node ${x.i + 1}`)}</b></span><span class="subtle">${esc(x.dc)}</span></label>`).join('')}</div></div>
         <div class="subtle nc-cp-note">${t('Nothing is sent. This only fills the plan of those nodes.', 'Er wordt niets gestuurd. Dit vult alleen het plan van die nodes.')}</div></div>`,
@@ -627,7 +676,7 @@
         for(const p of mine){ if(p.n > tp) continue; const e = put(key, p.n); let hit = false;
           if(o.proto){ if(p.manualKlass){ e.klass = p.klass; hit = true; } if(p.manualDir){ e.dir = p.dir; hit = true; } }
           if(o.names && p.manualName){ e.name = p.name; hit = true; }
-          if(o.uni && p.uni != null){ tg.inst.universes = Array.isArray(tg.inst.universes) ? tg.inst.universes : []; tg.inst.universes[p.n - 1] = p.uni; hit = true; }
+          if(o.uni && p.uni != null){ const tpt = ndPorts(tg.dc, tg.inst, tg.i).find(x => x.n === p.n); if(tpt && !tpt.use){ setNodeUniverse(tg.inst, p.n, p.uni); hit = true; } }
           if(hit) n++; }
         prune(key);
       }
@@ -638,5 +687,5 @@
   // ---- for the Network config page: what the plan wants on a switch / node, including the hand-made choices ----
   const forSwitch = (dc, label) => get(swKey(dc, label));
   const forNode = (dc, inst, i) => get(ndKey(dc, inst, i));
-  window.PortPlan = { autoSwitchName, pipeOf, dmxDef, html, boardCard, boardHtml, switchesHtml, nodesCard, bind, state:S, patch, ensureV2, place, unplace, forget, unplaceAll, autoFill, fillDialog, forSwitch, forNode, swPorts, ndPorts, swKey, ndKey };
+  window.PortPlan = { autoSwitchName, pipeOf, dmxDef, html, boardCard, boardHtml, switchesHtml, nodesCard, bind, state:S, patch, ensureV2, place, unplace, forget, unplaceAll, autoFill, fillDialog, forSwitch, forNode, swPorts, ndPorts, swKey, ndKey, takeOver, setNodeUniverse };
 })();

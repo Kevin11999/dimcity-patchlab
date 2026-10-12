@@ -203,16 +203,11 @@
     const vids = w ? w.groups.map(g => g.vid) : d.cur.groups.map(g => g.vid).filter(v => v != null);
     return { type:'fibre', vids, mgmtVid:w?.mgmt ?? null, groups:w ? w.groups : swBrushes(d) };
   };
+  // only a switch has a brush (a VLAN); a node port is set in its own panel
   function applyBrush(d, port){
-    const b = d.brush; if(!b) return false;
+    const b = d.brush; if(!b || !isSw(d)) return false;
     const e = d.E.get(port) || {};
-    if(isSw(d)){ e.member = b.type === 'fibre' ? fibreMember(d) : { type:'vid', vid:b.vid, name:b.name, color:b.color }; }
-    else {
-      if(b.universe == null && !b.klass && !b.dir) return false;
-      if(b.universe != null){ e.universe = b.universe; if(b.auto) b.universe = Math.min(63999, b.universe + 1); }
-      if(b.klass) e.klass = b.klass;
-      if(b.dir) e.dir = b.dir;
-    }
+    e.member = b.type === 'fibre' ? fibreMember(d) : { type:'vid', vid:b.vid, name:b.name, color:b.color };
     d.E.set(port, e); return true;
   }
   // ---------- calls ----------
@@ -704,7 +699,7 @@
       <span class="nc-vl"><small>${v.klass === 'sacn' ? 'sACN' : v.klass === 'artnet' ? 'Art' : ''}</small> ${v.uni == null || off ? '–' : v.uni}</span></button>`;
   }
   function detailHtml(d){
-    const idx = d.sel; if(idx == null) return `<div class="subtle nc-det">${isSw(d) ? t('Pick a VLAN and click ports, or click a port to edit it.', 'Kies een VLAN en klik op poorten, of klik op een poort om hem aan te passen.') : t('Set a universe (and protocol / direction) in the brush and click ports, or click a port to edit it.', 'Stel een universe (en protocol / richting) in de kwast in en klik op poorten, of klik op een poort om hem aan te passen.')}</div>`;
+    const idx = d.sel; if(idx == null) return `<div class="subtle nc-det">${isSw(d) ? t('Pick a VLAN and click ports, or click a port to edit it.', 'Kies een VLAN en klik op poorten, of klik op een poort om hem aan te passen.') : t('Click a port to set its universe, name, protocol and direction.', 'Klik op een poort om zijn universe, naam, protocol en richting in te stellen.')}</div>`;
     if(isSw(d)){
       const r = api.portRows(d.cur).find(x => x.port === idx); if(!r) return '';
       const v = swTile(d, r), brushes = swBrushes(d);
@@ -740,12 +735,7 @@
       const b = d.brush;
       return `<div class="nc-brush"><span class="subtle">${t('Pick a VLAN, then click or drag over ports', 'Kies een VLAN, klik of sleep dan over poorten')}:</span>${swBrushes(d).map(x => `<button class="nc-chip ${b?.vid === x.vid && b.type === 'vid' ? 'on' : ''}" data-brush="vid:${x.vid}" style="--pc:${esc(x.color || '#64748b')}"><i></i>${x.vid} ${esc(x.name)}${x.isNew ? ' +' : ''}</button>`).join('')}<button class="nc-chip ${b?.type === 'fibre' ? 'on' : ''}" data-brush="fibre" style="--pc:#38bdf8"><i></i>Trunk</button>${b ? `<button class="nc-chip x" data-brush="">${I('x', 11)} ${t('no brush', 'geen kwast')}</button>` : ''}</div>`;
     }
-    const b = d.brush || {};
-    return `<div class="nc-brush"><span class="subtle">${t('Brush', 'Kwast')}:</span>
-      <label class="nc-bl">${t('Direction', 'Richting')}<select data-bdir><option value="" ${!b.dir ? 'selected' : ''}>${t('keep', 'houden')}</option><option value="output" ${b.dir === 'output' ? 'selected' : ''}>${t('Output', 'Uitgang')}</option><option value="input" ${b.dir === 'input' ? 'selected' : ''}>${t('Input', 'Ingang')}</option><option value="idle" ${b.dir === 'idle' ? 'selected' : ''}>${t('Off', 'Uit')}</option></select></label>
-      <label class="nc-bl">${t('Protocol', 'Protocol')}<select data-bklass><option value="" ${!b.klass ? 'selected' : ''}>${t('keep', 'houden')}</option><option value="sacn" ${b.klass === 'sacn' ? 'selected' : ''}>sACN</option><option value="artnet" ${b.klass === 'artnet' ? 'selected' : ''}>Art-Net</option></select></label>
-      <label class="nc-bl">Universe<input type="number" min="0" max="63999" data-uni value="${esc(b.universe ?? '')}" placeholder="–" style="width:90px"></label>
-      <label class="nc-chk"><input type="checkbox" data-auto ${b.auto !== false ? 'checked' : ''}> ${t('next port gets the next universe', 'volgende poort krijgt het volgende universe')}</label>${d.brush ? `<button class="nc-chip x" data-brush="">${I('x', 11)} ${t('no brush', 'geen kwast')}</button>` : ''}</div>`;
+    return '';       // a node has no brush: click a port and fill in its panel
   }
   function cardHtml(d){
     const it = planOf(d), open = C.open.has(d.ip), n = d.cur ? changeCount(d) : 0;
@@ -813,8 +803,9 @@
     root.querySelectorAll('[data-scrollkey]').forEach(w => { const p = wraps[w.dataset.scrollkey]; if(p){ w.scrollLeft = p[0]; w.scrollTop = p[1]; } });
     bind();
   }
+  const cardOf = d => [...root.querySelectorAll('.nc-card')].find(c => c.querySelector('[data-toggle]')?.dataset.toggle === d.ip);
   function tileUpdate(d, port){
-    const el = root.querySelector(`.nc-port[data-port="${port}"]`); if(!el) return;
+    const el = cardOf(d)?.querySelector(`.nc-port[data-port="${port}"]`); if(!el) return;
     const html = isSw(d) ? swTileHtml(d, api.portRows(d.cur).find(r => r.port === port)) : ndTileHtml(d, d.cur.ports[port]);
     const tmp = document.createElement('div'); tmp.innerHTML = html; el.replaceWith(tmp.firstElementChild);
   }
@@ -839,10 +830,6 @@
     qa('[data-df]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const k = i.dataset.df, v = i.value.trim(); d.dev[k] = v; if(k === 'ip' && !ipOk(v)) delete d.dev.ip; if(k === 'ip' && d.dev.ip && !d.dev.mask) d.dev.mask = planOf(d)?.s?.dev?.subnet || planOf(d)?.inst?.subnet || '255.255.255.0'; paint(); });
     // brushes
     qa('[data-brush]').forEach(b => b.onclick = () => { const d = D(b.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const v = b.dataset.brush; if(!v) d.brush = null; else if(v === 'fibre') d.brush = { type:'fibre' }; else { const x = swBrushes(d).find(y => y.vid === Number(v.split(':')[1])); d.brush = { type:'vid', ...x }; } paint(); });
-    qa('[data-uni]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const n = i.value === '' ? null : Math.max(0, Math.min(63999, Math.round(Number(i.value)))); d.brush = { ...(d.brush || {}), universe:n, auto:d.brush?.auto !== false }; paint(); });
-    qa('[data-auto]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.brush = { ...(d.brush || {}), auto:i.checked }; });
-    qa('[data-bdir]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.brush = { ...(d.brush || {}), dir:i.value || undefined, auto:d.brush?.auto !== false }; paint(); });
-    qa('[data-bklass]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.brush = { ...(d.brush || {}), klass:i.value || undefined, auto:d.brush?.auto !== false }; paint(); });
     qa('[data-trunkun]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.trunkEdit = { tid:Number(i.dataset.trunkun), vid:Number(i.value) || 0 }; paint(); });
     qa('[data-rainbow]').forEach(b => b.onclick = () => rainbowShow(D(b.dataset.rainbow)));
     qa('[data-rainbowf]').forEach(b => b.onclick = () => rainbowFlow(D(b.dataset.rainbowf)));
@@ -864,21 +851,32 @@
     // ports: click = paint with the brush (or select), drag = paint a row of ports
     qa('.nc-grid').forEach(g => {
       const dev = () => D(g.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle), noOf = el => Number(el.closest('.nc-port')?.dataset.port);
-      g.onmousedown = ev => { const el = ev.target.closest('.nc-port'); if(!el) return; ev.preventDefault(); const d = dev(), p = noOf(el); if(d.brush && applyBrush(d, p)){ C.drag = d; d.sel = p; tileUpdate(d, p); } else { d.sel = p; paint(); } };
+      g.onmousedown = ev => { const el = ev.target.closest('.nc-port'); if(!el || ev.button !== 0) return; ev.preventDefault(); const d = dev(), p = noOf(el); if(d.brush && applyBrush(d, p)){ C.drag = d; d.sel = p; tileUpdate(d, p); } else { d.sel = p; paint(); } };
       g.onmouseover = ev => { if(C.drag && !(ev.buttons & 1)){ endDrag(); return; } const el = ev.target.closest('.nc-port'); if(!el || !C.drag || C.drag !== dev()) return; const d = C.drag, p = noOf(el); if(applyBrush(d, p)) tileUpdate(d, p); };
     });
-    // detail panel
-    qa('.nc-det [data-f]').forEach(i => i.onchange = () => {
-      const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle), p = d.sel, f = i.dataset.f, e = d.E.get(p) || {};
-      if(f === 'legend' || f === 'name') e[f] = i.value; else if(f === 'dir' || f === 'klass') e[f] = i.value; else if(f === 'poe') e.poe = i.checked; else if(f === 'speed') e.speed = i.value;
-      else if(f === 'universe'){ if(i.value === '') delete e.universe; else e.universe = Math.max(0, Math.min(63999, Math.round(Number(i.value)))); }
-      else if(f === 'member'){ if(!i.value) delete e.member; else if(i.value === 'fibre') e.member = fibreMember(d); else { const x = swBrushes(d).find(y => y.vid === Number(i.value.split(':')[1])); e.member = { type:'vid', vid:x.vid, name:x.name, color:x.color }; } }
-      if(Object.keys(e).length) d.E.set(p, e); else d.E.delete(p);
-      paint();
+    // detail panel of one port: a change is saved and shown on the tile at once, and the panel stays as it is so you can go from field to field.
+    // The page is rebuilt when you are done with the panel (the focus leaves it; a click on a button still lands first).
+    qa('.nc-det').forEach(box => {
+      box.querySelectorAll('[data-f]').forEach(i => i.onchange = () => {
+        const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle), p = d.sel, f = i.dataset.f, e = d.E.get(p) || {};
+        if(f === 'legend' || f === 'name') e[f] = i.value; else if(f === 'dir' || f === 'klass') e[f] = i.value; else if(f === 'poe') e.poe = i.checked; else if(f === 'speed') e.speed = i.value;
+        else if(f === 'universe'){ if(i.value === '') delete e.universe; else e.universe = Math.max(0, Math.min(63999, Math.round(Number(i.value)))); }
+        else if(f === 'member'){ if(!i.value) delete e.member; else if(i.value === 'fibre') e.member = fibreMember(d); else { const x = swBrushes(d).find(y => y.vid === Number(i.value.split(':')[1])); e.member = { type:'vid', vid:x.vid, name:x.name, color:x.color }; } }
+        if(Object.keys(e).length) d.E.set(p, e); else d.E.delete(p);
+        box.dataset.dirty = '1'; tileUpdate(d, p);
+      });
+      box.addEventListener('focusout', ev => {
+        if(!box.dataset.dirty || box.contains(ev.relatedTarget)) return;
+        const go = () => { if(box.isConnected && !box.contains(document.activeElement) && document.hasFocus()) paint(); };
+        if(mouseDown) document.addEventListener('mouseup', () => setTimeout(go, 0), { once:true }); else setTimeout(go, 0);
+      });
     });
   }
   const endDrag = () => { if(C.drag){ C.drag = null; paint(); } };
-  document.addEventListener('mouseup', endDrag, true); document.addEventListener('pointerup', endDrag, true); window.addEventListener('blur', endDrag);
+  let mouseDown = false;       // the mouse button is down (the panel of a port is rebuilt only after it is up again)
+  document.addEventListener('mousedown', () => { mouseDown = true; }, true);
+  document.addEventListener('mouseup', () => { mouseDown = false; }, true);
+  document.addEventListener('mouseup', endDrag, true); document.addEventListener('pointerup', endDrag, true); window.addEventListener('blur', () => { mouseDown = false; endDrag(); });
 
   async function render(){
     root = App.$('#lkDetail'); if(!root) return;

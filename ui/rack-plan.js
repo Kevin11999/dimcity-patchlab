@@ -357,6 +357,9 @@ function bind(root, dc, rerender0){
 // `src`, so it keeps its id, addresses and switch port while something else in the racks changes. A device that disappears from the racks is
 // not thrown away: it stays in the plan as `gone` (port, address and universes are kept) until it is replaced by another node or removed.
 const nodeUni = n => n.ports.map(p => p ? p.universe : null);
+// who uses each port of a node in the racks (an LK / Veam line, a splitter, or a line of the CSV) and its universe; null = the port is free.
+// Kept on the node as inst.rackPorts: the Network page shows it and warns when someone tries to change the universe of such a port.
+const nodeUse = n => n.ports.map(p => p ? { by:p.fixed ? `CSV ${p.to}` : (p.to || `${p.owner} ${p.ownerPort}`), uni:p.universe } : null);
 const sameJson = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 function freshNode(dc, type, universes){
   const nodes = App.net.getDimPlan(dc).nodes, used = new Set(nodes.map(n => n.id));
@@ -388,18 +391,28 @@ function syncNodes(dc){
     for(let i = 0; i < Math.min(oldS.length, usedS.length); i++){ if(oldS[i].typeId !== usedS[i].type.id) break; oldS[i].src = usedS[i].key; }
     plan.syncV = 1; changed = true;
   }
-  const byKey = new Map(nodes.filter(n => n.src).map(n => [n.src, n])), seen = new Set(), added = [];
+  const byKey = new Map(nodes.filter(n => n.src).map(n => [n.src, n])), seen = new Set(), added = [], took = [];
   for(const w of wantN){
     seen.add(w.key);
-    const uni = nodeUni(w); let inst = byKey.get(w.key);
+    const uni = nodeUni(w), use = nodeUse(w); let inst = byKey.get(w.key);
     if(!inst){
-      inst = freshNode(dc, w.type, uni); inst.src = w.key; if(w.loose && w.name) inst.name = `${dc} ${w.name}`;
+      inst = freshNode(dc, w.type, uni); inst.src = w.key; inst.rackPorts = use; if(w.loose && w.name) inst.name = `${dc} ${w.name}`;
       nodes.push(inst); added.push(inst); changed = true; continue;
     }
     if(inst.gone){ delete inst.gone; changed = true; }
     if(inst.typeId !== w.type.id){ inst.typeId = w.type.id; changed = true; }
+    // A port the racks start to use now (an LK line needs it) while it had settings of its own: the LK decides, and the user is told.
+    // (A node from an older file has no inst.rackPorts yet: it only gets it now, nothing is taken over.)
+    if(Array.isArray(inst.rackPorts)){
+      const at = nodes.indexOf(inst);
+      for(let j = 0; j < use.length; j++) if(use[j] && !inst.rackPorts[j]){ const msg = window.PortPlan?.takeOver?.(dc, inst, at, j + 1, use[j].by); if(msg){ took.push(msg); changed = true; } }
+    }
+    if(!sameJson(inst.rackPorts, use)) inst.rackPorts = use;
+    // a universe typed by hand on a free port stays (the racks give a free port no universe of its own)
+    for(let j = 0; j < uni.length; j++) if(uni[j] == null && inst.manualUni && inst.manualUni[j + 1] != null) uni[j] = inst.manualUni[j + 1];
     if(!sameJson(inst.universes, uni)){ inst.universes = uni; changed = true; if(inst.csvRef) window.NodeLink?.refill?.(inst); }
   }
+  if(took.length) App.ui.toast(took.join(' · '), 'info');
   for(const n of nodes) if(n.src && !seen.has(n.src) && !n.gone){ n.gone = true; changed = true; }
   // splitters: only the ones that are used get an entry; an entry stays (and keeps its address) when the splitter is not needed for a while
   const byKeyS = new Map(spl.filter(x => x.src).map(x => [x.src, x])), seenS = new Set(), addedS = [];

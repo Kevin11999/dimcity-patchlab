@@ -1241,6 +1241,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.17.1', date:'2026-10-12',
+    en:['Fixed: ports no longer fill when you only move the mouse over them; a click on a node port opens its own settings (universe, name, input/output/off, sACN/Art-Net) that stay put; a port an LK uses warns when you change its universe, and you are told when an LK takes over a port you had set yourself.'],
+    nl:['Opgelost: poorten worden niet meer gevuld door er alleen overheen te bewegen; een klik op een nodepoort opent zijn eigen instellingen (universe, naam, ingang/uitgang/uit, sACN/Art-Net) die blijven staan; een poort die de LK gebruikt waarschuwt als je het universe wijzigt, en je krijgt een melding als een LK een poort overneemt die je zelf had ingesteld.']
+  },
+  {
     version:'0.17.0', date:'2026-10-12',
     en:['Fixed: CSV node lines (Node601,1) sit only on the node you link them to (no longer also on a rack node), loose nodes can be marked “In the DB” or “Elsewhere”, saving a project no longer loses the LK ↔ Veam link rows (LK201 …) or the places of node lines, the Patch List shows the link rows and the import wizard no longer greys out C and CL lines.'],
     nl:['Opgelost: CSV-nodelijnen (Node601,1) staan alleen op de node die je koppelt (niet meer ook op een rek-node), losse nodes kun je markeren als “In de DB” of “Elders”, opslaan verliest de LK ↔ Veam-koppelregels (LK201 …) en de plek van nodelijnen niet meer, de Patch List toont de koppelregels en de importwizard grijst C- en CL-regels niet meer uit.']

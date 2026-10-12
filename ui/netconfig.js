@@ -13,7 +13,7 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const ipNum = ip => String(ip).split('.').reduce((n, o) => n * 256 + (+o || 0), 0);
   const ipOk = ip => /^\d{1,3}(\.\d{1,3}){3}$/.test(String(ip || '').trim());
-  const C = { user:'admin', pass:'', https:false, ranges:'', withIp:false, slot:'', offset:0, einkOpen:new Set(), eink:new Map(), found:null, busy:false, err:'', info:'', dev:new Map(), open:new Set(), simDevs:null, drag:null };
+  const C = { user:'admin', pass:'', https:false, ranges:'', withIp:false, slot:'', offset:0, einkOpen:new Set(), eink:new Map(), found:null, busy:false, err:'', info:'', dev:new Map(), open:new Set(), simDevs:null, drag:null, watching:false, watchState:null, nets:null };
   let api = null, simm = null, root = null, SET = null;
   const load = async () => { if(!api){ const b = document.baseURI; api = await import(new URL('./core/luminex-api.js', b).href); simm = await import(new URL('./core/luminex-sim.js', b).href); SET = await import(new URL('./core/luminex-settings.js', b).href); } };
   const real = () => !!window.app?.luminexHttp;
@@ -55,6 +55,68 @@
   function transport(ip){
     if(real()) return (method, path, body, opts = {}) => window.app.luminexHttp({ ip, method, path, body, user:C.user, pass:C.pass, https:C.https, ...opts });
     return async (method, path, body, opts = {}) => { const d = simNet().find(x => simIp(x) === ip); await new Promise(r => setTimeout(r, 20)); if(!d || !reaches(ip, C.simNets)) throw new Error('Timeout — no answer from ' + ip); return d.dev.h(method, path, body, opts); };
+  }
+
+  // ---------- where to look and how: Settings > Network (one place; here only a line that says it) ----------
+  const netPrefs = () => window.Settings?.get?.().network || { auto:false, adapters:{}, range:'' };
+  const autoOn = () => netPrefs().auto === true;
+  let offWatch = null, guard = null, settingsHooked = false;
+  async function refreshNets(){ try { C.nets = real() && window.app.netAdapters ? (await window.app.netAdapters()).filter(a => a.on) : null; } catch { C.nets = null; } }
+  function searchLine(){
+    const nets = C.nets, p = netPrefs();
+    const where = !real() ? t('simulated devices', 'gesimuleerde apparaten')
+      : p.range ? `<span class="mono">${esc(p.range)}</span>`
+      : nets === null ? '…'
+      : nets.length ? nets.map(a => `<b>${esc(a.label)}</b> <span class="mono">${esc(a.addresses.map(x => x.address).join(', '))}</span>`).join(' · ')
+      : `<span class="nc-bad">${t('no network adapter ticked', 'geen netwerkadapter aangevinkt')}</span>`;
+    return `<div class="nc-via">${I('network', 14)}<span>${t('Searching via', 'Zoekt via')} ${where} · ${autoOn() ? t('automatic', 'automatisch') : t('scan', 'scannen')}</span><button class="sm" data-opennet>${t('Change in Settings', 'Wijzigen in Instellingen')}</button></div>`;
+  }
+  // Automatic: while this page (or the Align tool) is open, the main process keeps looking and tells what it sees (core/netwatch.js)
+  const visible = () => App.getMODEL?.()?.ui?.view === 'NETCONFIG' || !!document.getElementById('alRoot');
+  const seedOf = () => [...C.dev.values()].map(d => ({ ip:d.ip, kind:d.kind, name:d.name, longName:d.longName, model:d.model, version:d.version, auth:d.auth, via:d.via || [], reach:!d.far }));
+  const devsChanged = () => { try { window.dispatchEvent(new Event('nc-devices')); } catch {} };
+  function liveHtml(){
+    const s = C.watchState; if(!C.watching) return '';
+    const ad = (s?.adapters || []).map(a => esc(a.label || a.name)).join(', ') || t('no adapter ticked', 'geen adapter aangevinkt');
+    const sw = s?.sweep?.total && s.sweep.done < s.sweep.total ? ` · ${t('looking through the range', 'zoekt door het bereik')} ${Math.round(100 * s.sweep.done / s.sweep.total)}%` : '';
+    return `<i class="nc-pulse"></i>${t('Automatic: listening on', 'Automatisch: luistert op')} ${ad}${sw}`;
+  }
+  const liveUpdate = () => { const el = root?.querySelector?.('#ncLive'); if(el) el.innerHTML = liveHtml(); };
+  function startWatch(){
+    if(C.watching || !autoOn()) return;
+    C.watching = true; C.watchState = null; if(!C.found) C.found = [...C.dev.keys()];
+    if(real() && window.app.netWatchStart && window.app.onNetWatch){
+      offWatch = window.app.onNetWatch((kind, data) => { if(kind === 'seen') addSeen(data); else if(kind === 'gone') markGone(data.ip); else if(kind === 'state'){ C.watchState = data; liveUpdate(); } });
+      window.app.netWatchStart({ user:C.user, pass:C.pass, https:C.https, seed:seedOf() }).catch(x => { stopWatch(); C.err = String(x.message || x); paint(); });
+    } else if(!C.dev.size) discover();                 // outside the desktop app the simulated devices appear at once
+    if(!guard) guard = setInterval(() => { if(C.watching && !visible()) stopWatch(); }, 2500);
+    paint();
+  }
+  function stopWatch(){
+    if(!C.watching) return; C.watching = false; C.watchState = null;
+    try { offWatch?.(); } catch {} offWatch = null;
+    try { window.app?.netWatchStop?.(); } catch {}
+    if(guard){ clearInterval(guard); guard = null; }
+  }
+  const restartWatch = () => { if(C.watching){ stopWatch(); startWatch(); } };
+  const ensureWatch = () => { if(autoOn()) startWatch(); else stopWatch(); };
+  // a device was seen by the watcher: new, back again after it was gone, or something new about it
+  function addSeen(f){
+    const was = C.dev.get(f.ip), wasGone = !!was?.gone;
+    addFound(f);
+    const d = C.dev.get(f.ip);
+    if(d && wasGone && !f.gone && d.cur && !d.busy) readDev(d, true).then(paint);          // it was away: read what it says now (what you changed here stays)
+  }
+  function markGone(ip){ const d = C.dev.get(ip); if(d){ d.gone = true; paint(); devsChanged(); } }
+  // a device in another IP range: give this computer an address in that range (the system asks permission), then read it
+  async function fixFar(d){
+    if(!d?.far) return;
+    const r = await addAddresses([{ to:d.ip, mask:d.far.mask || '255.255.255.0' }]);
+    if(!r.ok){ App.ui.toast(`${t('Could not add the address', 'Kon het adres niet toevoegen')}: ${r.error}`, 'err', { ms:8000 }); return; }
+    if(real()) await sleep(1500);
+    await readDev(d);
+    if(d.cur){ d.far = null; d.err = ''; App.ui.toast(t('Reached it.', 'Bereikt.'), 'ok'); }
+    paint(); devsChanged();
   }
 
   // ---------- the plan ----------
@@ -115,7 +177,10 @@
 
   // ---------- one device ----------
   const D = ip => C.dev.get(ip);
-  function mk(f){ return { ip:f.ip, kind:f.kind, name:f.name || '', longName:f.longName || '', model:f.model || '', version:f.version || '', auth:!!f.auth, link:null, cur:null, E:new Map(), dev:{}, brush:null, sel:null, tree:null, treeBusy:false, S:new Map(), setOpen:false, setSec:null, setQ:'', busy:false, err:'', note:'', verified:false, step:1 }; }
+  function mk(f){ return { ip:f.ip, kind:f.kind, name:f.name || '', longName:f.longName || '', model:f.model || '', version:f.version || '', auth:!!f.auth, link:null, cur:null, E:new Map(), dev:{}, brush:null, sel:null, tree:null, treeBusy:false, S:new Map(), setOpen:false, setSec:null, setQ:'', busy:false, err:'', note:'', verified:false, step:1, via:f.via || [], from:'', far:null, gone:false }; }
+  // how it was found, for the small line under the name
+  const viaName = v => ({ sweep:t('IP scan', 'IP-scan'), mdns:'mDNS', lldp:'LLDP', artnet:'Art-Net' }[v] || v);
+  const viaText = d => [(d.via || []).map(viaName).join(' + '), d.from ? `${t('port', 'poort')} ${d.fromPort ?? '?'} ${t('of', 'van')} ${d.from}` : ''].filter(Boolean).join(' · ');
   const isSw = d => d.kind === 'gigacore';
   const ports = d => (isSw(d) ? api.portRows(d.cur) : d.cur.ports);
   // what the ports look like with the pending changes on top
@@ -242,17 +307,20 @@
     const prev = old?.get(f.ip) || C.dev.get(f.ip);
     const d = prev && prev.kind === f.kind ? Object.assign(prev, { name:prev.name || f.name, auth:!!f.auth }) : mk(f);
     const isNew = !C.dev.has(f.ip); C.dev.set(f.ip, d); C.found = [...C.dev.keys()];
-    autoLink(); paint(); if(isNew || !d.cur) queueRead(d);
+    if(f.via?.length) d.via = [...new Set([...(d.via || []), ...f.via])]; if(f.from){ d.from = f.from; d.fromPort = f.port; }
+    d.far = f.reach === false ? (d.far || { mask:'255.255.255.0' }) : null; d.gone = !!f.gone;          // far: in another IP range, this computer cannot ask it yet
+    autoLink(); paint(); devsChanged(); if((isNew || !d.cur) && !d.far) queueRead(d);
   }
   async function discover(){
-    C.busy = true; C.err = ''; C.info = ''; const old = C.dev; C.dev = new Map(); C.found = []; paint();
+    // while the page listens by itself the devices stay (they are tracked live); a scan then only adds to them
+    C.busy = true; C.err = ''; C.info = ''; const old = C.dev; if(!C.watching) C.dev = new Map(); C.found = [...C.dev.keys()]; paint();
     let off = null;
     try {
       if(real()){
         if(!window.app.luminexScan) throw new Error(t('This version of the app cannot scan.', 'Deze versie van de app kan niet scannen.'));
-        off = window.app.onLuminexDevice?.(f => addFound(f, old));
-        const r = await window.app.luminexScan({ ranges:C.ranges, user:C.user, pass:C.pass, https:C.https });
-        for(const f of (r.devices || [])) if(!C.dev.has(f.ip)) addFound(f, old);
+        off = window.app.onLuminexDevice?.(f => addFound({ ...f, via:['sweep'] }, old));
+        const r = await window.app.luminexScan({ ranges:'', user:C.user, pass:C.pass, https:C.https });
+        for(const f of (r.devices || [])) if(!C.dev.has(f.ip)) addFound({ ...f, via:['sweep'] }, old);
         C.info = `${r.count} ${t('addresses checked', 'adressen gecontroleerd')} · ${r.ranges}`;
       } else {
         await load();
@@ -682,16 +750,16 @@
   function cardHtml(d){
     const it = planOf(d), open = C.open.has(d.ip), n = d.cur ? changeCount(d) : 0;
     const ico = d.kind === 'gigacore' ? 'switchDev' : 'network';
-    const status = d.busy ? `<span class="tag">${t('working…', 'bezig…')}</span>` : d.moved ? `<span class="tag yellow">${t('moved', 'verhuisd')}</span>` : d.err ? `<span class="tag red" title="${esc(d.err)}">${t('error', 'fout')}</span>` : d.kind === 'unknown' ? `<span class="tag yellow">${t('login needed', 'login nodig')}</span>` : !d.cur ? `<span class="tag">${t('not read', 'niet gelezen')}</span>` : n ? `<span class="tag yellow">${n} ${t('changes', 'wijzigingen')}</span>` : d.verified ? `<span class="tag green">${t('sent and checked', 'verstuurd en gecontroleerd')}</span>` : `<span class="tag green">${t('up to date', 'actueel')}</span>`;
+    const status = d.busy ? `<span class="tag">${t('working…', 'bezig…')}</span>` : d.gone ? `<span class="tag red">${t('offline', 'offline')}</span>` : d.far ? `<span class="tag yellow">${t('other IP range', 'ander IP-bereik')}</span>` : d.moved ? `<span class="tag yellow">${t('moved', 'verhuisd')}</span>` : d.err ? `<span class="tag red" title="${esc(d.err)}">${t('error', 'fout')}</span>` : d.kind === 'unknown' ? `<span class="tag yellow">${t('login needed', 'login nodig')}</span>` : !d.cur ? `<span class="tag">${t('not read', 'niet gelezen')}</span>` : n ? `<span class="tag yellow">${n} ${t('changes', 'wijzigingen')}</span>` : d.verified ? `<span class="tag green">${t('sent and checked', 'verstuurd en gecontroleerd')}</span>` : `<span class="tag green">${t('up to date', 'actueel')}</span>`;
     const opts = planItems().filter(x => x.kind === (isSw(d) ? 'sw' : 'nd') && (x.id === d.link || ![...C.dev.values()].some(o => o.link === x.id)));
     const head = `<div class="nc-head" data-toggle="${esc(d.ip)}"><span class="nc-chev ${open ? 'open' : ''}">${I('chevronRight', 14)}</span><span class="nc-ic ${d.kind}">${I(ico, 18)}</span>
-      <span class="nc-title"><b>${esc(d.name || d.model || d.ip)}</b><small>${esc(d.ip)} · ${esc(d.kind === 'gigacore' ? (d.model || 'GigaCore') : `LumiNode${d.version ? ' ' + d.version : ''}`)}${d.cur ? ` · ${isSw(d) ? d.cur.ports.length + ' ' + t('ports', 'poorten') : d.cur.ports.length + ' DMX'}` : ''}</small></span>
+      <span class="nc-title"><b>${esc(d.name || d.model || d.ip)}</b><small>${esc(d.ip)} · ${esc(d.kind === 'gigacore' ? (d.model || 'GigaCore') : `LumiNode${d.version ? ' ' + d.version : ''}`)}${d.cur ? ` · ${isSw(d) ? d.cur.ports.length + ' ' + t('ports', 'poorten') : d.cur.ports.length + ' DMX'}` : ''}${viaText(d) ? ' · ' + esc(viaText(d)) : ''}</small></span>
       ${d.kind === 'unknown' ? '' : `<select class="nc-link" data-link="${esc(d.ip)}" title="${t('Which switch or node of the plan this is', 'Welke switch of node uit het plan dit is')}"><option value="">${t('not linked to the plan', 'niet gekoppeld aan het plan')}</option>${opts.map(x => `<option value="${esc(x.id)}" ${x.id === d.link ? 'selected' : ''}>${esc(linkLabel(x))}</option>`).join('')}</select>`}
       ${status}</div>`;
     if(!open) return `<div class="nc-card">${head}</div>`;
     let body = '';
     if(d.kind === 'unknown') body = `<div class="nc-body"><div class="subtle">${t('This device asks for a login. Fill in the user name and password above and discover again.', 'Dit apparaat vraagt om een login. Vul gebruikersnaam en wachtwoord hierboven in en ontdek opnieuw.')}</div></div>`;
-    else if(!d.cur) body = `<div class="nc-body">${d.moved ? `<div class="su-warn">${I('alert', 13)} ${t(`This device moved to ${d.moved.to} (was ${d.moved.from}). This computer has no address in that range.`, `Dit apparaat is verhuisd naar ${d.moved.to} (was ${d.moved.from}). Deze computer heeft geen adres in dat bereik.`)} <button class="sm" data-fixmoved="${esc(d.ip)}">${t('Add address to this computer', 'Adres toevoegen aan deze computer')}</button></div>` : ''}${d.err ? `<div class="su-warn">${esc(d.err)}</div>` : ''}<button data-read="${esc(d.ip)}" ${d.busy ? 'disabled' : ''}>${I('refresh', 13)}${t('Read the device', 'Apparaat uitlezen')}</button></div>`;
+    else if(!d.cur) body = `<div class="nc-body">${d.far ? `<div class="su-warn">${I('alert', 13)} ${t(`This device is at ${esc(d.ip)}, in another IP range than this computer. PatchLab can add an address in that range to this computer (the system asks permission) so you can reach it.`, `Dit apparaat staat op ${esc(d.ip)}, in een ander IP-bereik dan deze computer. PatchLab kan een adres in dat bereik aan deze computer toevoegen (het systeem vraagt toestemming) zodat je erbij kunt.`)} <button class="sm" data-fixfar="${esc(d.ip)}">${t('Add address to this computer', 'Adres toevoegen aan deze computer')}</button></div>` : ''}${d.moved ? `<div class="su-warn">${I('alert', 13)} ${t(`This device moved to ${d.moved.to} (was ${d.moved.from}). This computer has no address in that range.`, `Dit apparaat is verhuisd naar ${d.moved.to} (was ${d.moved.from}). Deze computer heeft geen adres in dat bereik.`)} <button class="sm" data-fixmoved="${esc(d.ip)}">${t('Add address to this computer', 'Adres toevoegen aan deze computer')}</button></div>` : ''}${d.err ? `<div class="su-warn">${esc(d.err)}</div>` : ''}<button data-read="${esc(d.ip)}" ${d.busy ? 'disabled' : ''}>${I('refresh', 13)}${t('Read the device', 'Apparaat uitlezen')}</button></div>`;
     else {
       const o = opsOf(d), f = d.dev;
       const grid = isSw(d)
@@ -723,22 +791,21 @@
     const missing = planItems().filter(x => !devs.some(d => d.link === x.id));
     const nSw = devs.filter(d => d.kind === 'gigacore').length, nNd = devs.filter(d => d.kind === 'lumi').length, nUn = devs.filter(d => d.kind === 'unknown').length;
     App.pageHead?.({ eyebrow:t('Network', 'Netwerk'), title:t('Network config', 'Netwerkconfig'), sub:t('All your LumiNodes and GigaCore switches on one page: discover them, paint the VLANs and universes, apply.', 'Al je LumiNodes en GigaCore-switches op één pagina: ontdek ze, schilder de VLAN’s en universes, pas toe.'),
-      actions:`<button data-cmd="align" title="${t('Find, blink, link and send in guided steps', 'Zoeken, knipperen, koppelen en sturen in stappen')}">${I('compass', 15)}${t('Align tool', 'Uitlijntool')}</button><button class="primary" id="ncDisc" ${C.busy ? 'disabled' : ''}>${I('search', 15)}${C.busy ? t('Searching…', 'Zoeken…') : C.found ? t('Discover again', 'Opnieuw ontdekken') : t('Discover devices', 'Apparaten ontdekken')}</button>` });
+      actions:`<button data-cmd="align" title="${t('Find, blink, link and send in guided steps', 'Zoeken, knipperen, koppelen en sturen in stappen')}">${I('compass', 15)}${t('Align tool', 'Uitlijntool')}</button><button class="primary" id="ncDisc" ${C.busy ? 'disabled' : ''}>${I('search', 15)}${C.busy ? t('Searching…', 'Zoeken…') : C.watching ? t('Search now', 'Nu zoeken') : C.found ? t('Discover again', 'Opnieuw ontdekken') : t('Discover devices', 'Apparaten ontdekken')}</button>` });
     root.innerHTML = `<div class="stack nc">
-      <details class="nc-conn" ${C.found ? '' : 'open'}><summary>${I('sliders', 14)} ${t('Connection', 'Verbinding')} <span class="subtle">${esc(C.user)}${C.ranges ? ' · ' + esc(C.ranges) : ''}</span></summary>
+      ${searchLine()}${C.watching ? `<div class="nc-live" id="ncLive">${liveHtml()}</div>` : ''}
+      <details class="nc-conn" ${C.found ? '' : 'open'}><summary>${I('sliders', 14)} ${t('Connection', 'Verbinding')} <span class="subtle">${esc(C.user)}</span></summary>
         <div class="nc-row"><label>${t('User name', 'Gebruikersnaam')}<input id="ncUser" value="${esc(C.user)}" style="width:110px" autocomplete="off"></label><label>${t('Password', 'Wachtwoord')}<input id="ncPass" type="password" value="${esc(C.pass)}" style="width:110px" autocomplete="off"></label>
-          <label class="nc-chk"><input type="checkbox" id="ncTls" ${C.https ? 'checked' : ''}> https</label>
-          <label>${t('Where to look', 'Waar zoeken')}<input id="ncRanges" value="${esc(C.ranges)}" placeholder="${t('empty = the networks of this computer', 'leeg = de netwerken van deze computer')}" style="width:300px"></label></div>
+          <label class="nc-chk"><input type="checkbox" id="ncTls" ${C.https ? 'checked' : ''}> https</label></div>
         <div class="nc-row"><label>${t('Art-Net universe numbers', 'Art-Net-universenummers')}<select id="ncOff"><option value="0" ${C.offset === 0 ? 'selected' : ''}>${t('as the node shows them (default)', 'zoals de node ze toont (standaard)')}</option><option value="-1" ${C.offset === -1 ? 'selected' : ''}>${t('one lower (universe 1 = Art-Net 0)', 'één lager (universe 1 = Art-Net 0)')}</option></select></label>
           <label>${t('Save switch in profile slot', 'Bewaar switch in profielslot')}<input id="ncSlot" value="${esc(C.slot)}" placeholder="–" style="width:60px"></label>
           <label class="nc-chk"><input type="checkbox" id="ncNames" ${C.withNames !== false ? 'checked' : ''}> ${t('“Fill from the plan” also sets the port names', '“Invullen uit het plan” zet ook de poortnamen')}</label>
           <label class="nc-chk"><input type="checkbox" id="ncIp" ${C.withIp ? 'checked' : ''}> ${t('“Fill from the plan” also sets the IP address', '“Invullen uit het plan” zet ook het IP-adres')}</label></div>
-        <div class="subtle" style="font-size:12px">${t('Examples to look: 192.168.40.0/24 · 10.90.101.20-60 · 192.168.1.10. Leave empty to search the whole network of this computer (up to a /16, about 15 seconds).', 'Voorbeelden: 192.168.40.0/24 · 10.90.101.20-60 · 192.168.1.10. Leeg laten doorzoekt het hele netwerk van deze computer (tot een /16, ongeveer 15 seconden).')}</div>
         ${real() ? '' : `<div class="hint nd-sim">${I('info', 13)} ${t('Simulated devices — one pretend device on every planned address, so you can try this out. In the desktop app the real devices answer.', 'Gesimuleerde apparaten — één nepapparaat op elk gepland adres, zodat je dit kunt uitproberen. In de desktop-app antwoorden de echte apparaten.')}</div>`}</details>
       ${C.err ? `<div class="su-warn">${esc(C.err)}</div>` : ''}
       ${C.found ? `<div class="nc-bar"><span><b>${nSw}</b> GigaCore · <b>${nNd}</b> LumiNode${nUn ? ` · <b>${nUn}</b> ${t('need a login', 'vragen een login')}` : ''}${C.info ? ` <span class="subtle">· ${esc(C.info)}</span>` : ''}</span><span style="flex:1"></span>
         <button id="ncFillAll">${t('Fill all from the plan', 'Alles invullen uit het plan')}</button><button id="ncReadAll">${I('refresh', 13)}${t('Read all', 'Alles lezen')}</button><button class="primary" id="ncApplyAll" ${total ? '' : 'disabled'}>${t('Apply all', 'Alles toepassen')} (${total})…</button></div>
-        ${devs.length ? devs.map(cardHtml).join('') : `<div class="subtle" style="margin:14px 0">${t('Nothing answered. Check the cable and the address range, and fill in the user name and password if the devices ask for a login.', 'Niets antwoordde. Controleer de kabel en het adresbereik, en vul gebruikersnaam en wachtwoord in als de apparaten om een login vragen.')}</div>`}
+        ${devs.length ? devs.map(cardHtml).join('') : `<div class="subtle" style="margin:14px 0">${C.watching ? t('Listening… connect a LumiNode or GigaCore and it shows up here by itself. Fill in the user name and password if the devices ask for a login.', 'Luistert… sluit een LumiNode of GigaCore aan en hij verschijnt hier vanzelf. Vul gebruikersnaam en wachtwoord in als de apparaten om een login vragen.') : t('Nothing answered. Check the cable and the adapter in Settings > Network, and fill in the user name and password if the devices ask for a login.', 'Niets antwoordde. Controleer de kabel en de adapter bij Instellingen > Netwerk, en vul gebruikersnaam en wachtwoord in als de apparaten om een login vragen.')}</div>`}
         ${missing.length ? `<details class="nc-missing"><summary>${missing.length} ${t('items of the plan have no device yet', 'onderdelen uit het plan hebben nog geen apparaat')}</summary><div class="subtle">${missing.map(x => `${esc(linkLabel(x))}${x.ip ? ` · ${esc(x.ip)}` : ''}`).join('<br>')}</div></details>` : ''}`
         : `<div class="nc-empty">${I('search', 30)}<b>${t('Find your devices', 'Vind je apparaten')}</b><span>${t('Press Discover to list every LumiNode and GigaCore switch on the network at once. Each one is linked to a switch or node of your plan.', 'Druk op Ontdekken om elke LumiNode en GigaCore-switch op het netwerk in één keer te tonen. Elk apparaat wordt gekoppeld aan een switch of node uit je plan.')}</span></div>`}
     </div>`;
@@ -756,7 +823,9 @@
     q('#ncDisc') ; const disc = document.querySelector('#ncDisc'); if(disc) disc.onclick = discover;
     qa('[data-fixmoved]').forEach(b => b.onclick = async () => { b.disabled = true; await fixMoved(D(b.dataset.fixmoved)); });
     const bindVal = (id, fn) => { const e = q(id); if(e) e.onchange = ev => fn(ev.target); };
-    bindVal('#ncUser', e => { C.user = e.value; }); bindVal('#ncPass', e => { C.pass = e.value; }); bindVal('#ncTls', e => { C.https = e.checked; }); bindVal('#ncRanges', e => { C.ranges = e.value.trim(); });
+    bindVal('#ncUser', e => { C.user = e.value; restartWatch(); }); bindVal('#ncPass', e => { C.pass = e.value; restartWatch(); }); bindVal('#ncTls', e => { C.https = e.checked; restartWatch(); });
+    qa('[data-opennet]').forEach(b => b.onclick = () => window.Settings?.open?.('network'));
+    qa('[data-fixfar]').forEach(b => b.onclick = async () => { b.disabled = true; await fixFar(D(b.dataset.fixfar)); });
     bindVal('#ncOff', e => { C.offset = Number(e.value); paint(); }); bindVal('#ncSlot', e => { C.slot = e.value.trim(); }); bindVal('#ncIp', e => { C.withIp = e.checked; }); bindVal('#ncNames', e => { C.withNames = e.checked; });
     if(q('#ncReadAll')) q('#ncReadAll').onclick = async () => { await pool([...C.dev.values()].filter(d => d.kind !== 'unknown'), 4, async d => { await readDev(d); paint(); }); };
     if(q('#ncFillAll')) q('#ncFillAll').onclick = () => { let n = 0; for(const d of C.dev.values()) if(fillFromPlan(d)) n++; paint(); App.ui.toast(`${n} ${t('devices filled from the plan — nothing is sent yet', 'apparaten ingevuld uit het plan — er is nog niets gestuurd')}`, 'info'); };
@@ -814,7 +883,8 @@
   async function render(){
     root = App.$('#lkDetail'); if(!root) return;
     await load().catch(() => {});
-    paint();
+    if(!settingsHooked && window.Settings?.onChange){ settingsHooked = true; window.Settings.onChange(() => { refreshNets().then(() => { if(visible()) paint(); }); if(visible()) ensureWatch(); else if(!autoOn()) stopWatch(); }); }
+    await refreshNets(); paint(); ensureWatch();
   }
-  window.NetConfig = { moveWarnings, addAddresses, fixMoved, render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D, applyDevs, autoLink, real, changeCount, netPending };
+  window.NetConfig = { moveWarnings, addAddresses, fixMoved, fixFar, render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D, applyDevs, autoLink, real, changeCount, netPending, searchLine, ensureWatch, restartWatch, refreshNets };
 })();

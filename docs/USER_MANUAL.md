@@ -737,6 +737,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.16.0 — 2026-10-12
+- New **Network** tab in Settings: tick the network adapters PatchLab looks at (faster), and an **Automatic** switch that shows LumiNodes and GigaCores by themselves, whatever their IP address (also in another IP range, with a button to reach them) and how each was found; Network config and the Align tool only show where they search.
+
 ### Version 0.15.0 — 2026-10-12
 - New **Publish** window: all the paperwork in one go into a folder (total DB book, LK info and Node info per DB, stickers for nodes and switches, IP address book, network flow on A3) with the real pages in the preview, both logos and page numbers on every page; also the Fibres grid and snap in the Signal Flow, port names with a short name per device type, network devices in the Device Builder, DB + FOH and more in Setup.
 
@@ -1697,6 +1700,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.16.0 — 2026-10-12
+- Nieuw tabblad **Netwerk** bij Instellingen: vink de netwerkadapters aan waar PatchLab naar kijkt (sneller), en een schakelaar **Automatisch** die LumiNodes en GigaCores vanzelf toont, welk IP-adres ze ook hebben (ook in een ander IP-bereik, met een knop om erbij te komen) en hoe elk gevonden is; Netwerkconfig en de Uitlijntool tonen alleen nog waar ze zoeken.
 
 ### Versie 0.15.0 — 2026-10-12
 - Nieuw venster **Publiceren**: al het papierwerk in één keer in een map (totaal DB-boek, LK-info en Node-info per DB, stickers voor nodes en switches, IP-adresboek, netwerkflow op A3) met de echte pagina’s in het voorbeeld, beide logo’s en bladnummers op elke pagina; ook het raster en snappen bij Fibers in de Signaalstroom, poortnamen met een korte naam per devicetype, netwerkapparaten in de Device Builder, DB + FOH en meer in Setup.

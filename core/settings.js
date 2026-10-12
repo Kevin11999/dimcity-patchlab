@@ -20,6 +20,11 @@ const DEFAULTS = {
   recovery: true,                // herstelbestand bijhouden voor na een crash
   updates: { repo:'Kevin11999/dimcity-patchlab', token:'', checkOnStart:true },
   library: { checkOnStart:true },    // standaardbibliotheek (Luminex / ELC …) van GitHub bijwerken
+  network: {
+    auto: false,                     // false = zoeken als je op Ontdekken drukt; true = apparaten vanzelf zien (welk IP ze ook hebben)
+    adapters: {},                    // aangevinkte netwerkadapters per id (MAC-adres): true / false; ontbreekt = ethernet aan, de rest uit
+    range: ''                        // eigen zoekbereik; leeg = de netwerken van de aangevinkte adapters
+  },
   fun: { confetti:true }             // confetti zodra de validatie schoon is
 };
 
@@ -80,7 +85,28 @@ function open(section = 'general'){
   d.footer.querySelector('[data-a=done]').onclick = d.close;
   const seg = (name, value, options) => `<div class="segmented rb-full" data-seg="${name}">${options.map(([v, l]) => `<button data-v="${v}" class="${String(value) === String(v) ? 'active' : ''}">${l}</button>`).join('')}</div>`;
   const sw = (name, on, label, hint='') => `<label class="rb-row"><span>${label}${hint ? `<span class="hint" style="display:block;margin:2px 0 0">${hint}</span>` : ''}</span><span class="switch"><input type="checkbox" data-sw="${name}" ${on ? 'checked' : ''}><span></span></span></label>`;
+  let nets = null;                                    // the network adapters of this computer (null = not asked yet)
+  const loadNets = async () => { try { nets = window.app?.netAdapters ? await window.app.netAdapters() : []; } catch { nets = []; } };
   const sections = {
+    network: () => {
+      const n = S.network, kinds = { ethernet:'Ethernet', wifi:'Wi-Fi', virtual:tt('Virtual / VPN', 'Virtueel / VPN'), other:tt('Other', 'Overig') }, color = { ethernet:'#35c47c', wifi:'#4ea8ff' };
+      const rows = (nets || []).map(a => `<label class="rb-row"><span><b>${esc(a.label !== a.name ? `${a.label} (${a.name})` : a.name)}</b> <span class="fent-chip" style="--c:${color[a.kind] || '#94a3b8'}">${kinds[a.kind] || a.kind}</span><span class="hint" style="display:block;margin:2px 0 0">${a.addresses.map(x => `${esc(x.address)}/${x.prefix}`).join(' · ')}${a.addresses.some(x => x.linkLocal) ? ' · ' + tt('self-assigned address (no DHCP)', 'zelf toegekend adres (geen DHCP)') : ''}</span></span><span class="switch"><input type="checkbox" data-adapter="${esc(a.id)}" ${a.on ? 'checked' : ''}><span></span></span></label>`).join('');
+      const list = !window.app?.netAdapters ? `<div class="hint">${I('info', 13)} ${tt('The adapters of this computer are listed in the desktop app.', 'De adapters van deze computer staan in de desktop-app.')}</div>`
+        : nets === null ? `<div class="hint">…</div>` : rows || `<div class="hint">${I('alert', 13)} ${tt('No network adapter with an address found. Connect the cable, wait a moment and refresh the list.', 'Geen netwerkadapter met een adres gevonden. Sluit de kabel aan, wacht even en vernieuw de lijst.')}</div>`;
+      return `
+      <div class="rb-group"><div class="rb-label">${tt('How devices are found', 'Hoe apparaten gevonden worden')}</div>
+        ${sw('network.auto', n.auto, tt('Automatic: see devices as soon as they are connected', 'Automatisch: apparaten direct zien zodra ze aangesloten zijn'), tt('On: the Network config page and the Align tool list the LumiNodes and GigaCores by themselves, whatever their IP address, and keep the list up to date (like Araneo). A device in another IP range is shown too; PatchLab can add an address to this computer so you can reach it. Off: devices are searched for in an IP range when you press Discover.', 'Aan: de pagina Netwerkconfig en de Uitlijntool tonen de LumiNodes en GigaCores vanzelf, welk IP-adres ze ook hebben, en houden de lijst bij (zoals Araneo). Een apparaat in een ander IP-bereik wordt ook getoond; PatchLab kan een adres aan deze computer toevoegen zodat je erbij kunt. Uit: apparaten worden gezocht in een IP-bereik als je op Ontdekken drukt.'))}
+      </div>
+      <div class="rb-group"><div class="rb-label">${tt('Network adapters', 'Netwerkadapters')}</div>
+        <div class="hint" style="margin-bottom:8px">${tt('Tick the adapter(s) your devices are connected to: the fixed network port or a USB-C dongle. PatchLab only looks there, which saves time. Wi-Fi and virtual adapters (VPN, VMware …) are off by default. A new dongle is on when it is a wired adapter.', 'Vink de adapter(s) aan waar je apparaten op zitten: de vaste netwerkpoort of een USB-C-dongle. PatchLab zoekt alleen daar, dat scheelt tijd. Wifi en virtuele adapters (VPN, VMware …) staan standaard uit. Een nieuwe dongle staat aan als het een bedrade adapter is.')}</div>
+        ${list}
+        <div style="margin-top:8px"><button class="sm" data-a="netrefresh">${I('refresh', 13)} ${tt('Refresh the list', 'Lijst vernieuwen')}</button></div>
+      </div>
+      <div class="rb-group"><div class="rb-label">${tt('Search range', 'Zoekbereik')} <span class="subtle">(${tt('optional', 'optioneel')})</span></div>
+        <input type="text" data-text="network.range" value="${esc(n.range)}" placeholder="${tt('empty = the networks of the ticked adapters', 'leeg = de netwerken van de aangevinkte adapters')}">
+        <div class="hint">${tt('Examples: 192.168.40.0/24 · 10.90.101.20-60 · 192.168.1.10. Leave empty to search the whole network of the ticked adapters (up to a /16).', 'Voorbeelden: 192.168.40.0/24 · 10.90.101.20-60 · 192.168.1.10. Leeg laten doorzoekt het hele netwerk van de aangevinkte adapters (tot een /16).')}</div>
+      </div>`;
+    },
     show: () => {
       if(!draft) loadDraft();
       const m = showModel(), cur = CR().rules(m), changed = JSON.stringify(CR().rules({ rules:draft })) !== JSON.stringify(cur);
@@ -150,7 +176,7 @@ function open(section = 'general'){
   const getPath = p => p.split('.').reduce((o, k) => o?.[k], S);
   function render(){
     d.body.innerHTML = `<div class="settings-layout">
-      <nav class="settings-nav">${[['show', 'file', tt('This show', 'Deze show')], ['general', 'sliders', 'General'], ['autosave', 'save', 'Autosave & backup'], ['updates', 'download', 'Updates'], ['library', 'network', 'Device library']].map(([k, ic, l]) => `<button data-tab="${k}" class="${tab === k ? 'active' : ''}">${I(ic, 15)}${l}</button>`).join('')}</nav>
+      <nav class="settings-nav">${[['show', 'file', tt('This show', 'Deze show')], ['general', 'sliders', 'General'], ['network', 'network', tt('Network', 'Netwerk')], ['autosave', 'save', 'Autosave & backup'], ['updates', 'download', 'Updates'], ['library', 'network', 'Device library']].map(([k, ic, l]) => `<button data-tab="${k}" class="${tab === k ? 'active' : ''}">${I(ic, 15)}${l}</button>`).join('')}</nav>
       <div class="settings-body">${sections[tab]()}</div></div>`;
     d.body.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); });
     d.body.querySelectorAll('[data-seg]').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = async () => { setPath(g.dataset.seg, b.dataset.v); await save(); render(); }));
@@ -176,6 +202,11 @@ function open(section = 'general'){
         App.ui.toast(tt('The CSV is read again with these names', 'De CSV is opnieuw gelezen met deze namen'), 'ok');
         loadDraft(); render();
       });
+    }
+    if(tab === 'network'){
+      if(nets === null) loadNets().then(() => { if(tab === 'network') render(); });
+      d.body.querySelectorAll('[data-adapter]').forEach(n => n.onchange = async () => { S.network.adapters[n.dataset.adapter] = n.checked; await save(); await loadNets(); render(); });
+      const rf = d.body.querySelector('[data-a="netrefresh"]'); if(rf) rf.onclick = async () => { await loadNets(); render(); };
     }
     d.body.querySelectorAll('[data-num]').forEach(n => n.onchange = async () => {
       const v = Math.max(Number(n.min) || 1, Math.min(Number(n.max) || 999, Math.round(Number(n.value) || getPath(n.dataset.num))));

@@ -1241,6 +1241,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.16.0', date:'2026-10-12',
+    en:['New **Network** tab in Settings: tick the network adapters PatchLab looks at (faster), and an **Automatic** switch that shows LumiNodes and GigaCores by themselves, whatever their IP address (also in another IP range, with a button to reach them) and how each was found; Network config and the Align tool only show where they search.'],
+    nl:['Nieuw tabblad **Netwerk** bij Instellingen: vink de netwerkadapters aan waar PatchLab naar kijkt (sneller), en een schakelaar **Automatisch** die LumiNodes en GigaCores vanzelf toont, welk IP-adres ze ook hebben (ook in een ander IP-bereik, met een knop om erbij te komen) en hoe elk gevonden is; Netwerkconfig en de Uitlijntool tonen alleen nog waar ze zoeken.']
+  },
+  {
     version:'0.15.0', date:'2026-10-12',
     en:['New **Publish** window: all the paperwork in one go into a folder (total DB book, LK info and Node info per DB, stickers for nodes and switches, IP address book, network flow on A3) with the real pages in the preview, both logos and page numbers on every page; also the Fibres grid and snap in the Signal Flow, port names with a short name per device type, network devices in the Device Builder, DB + FOH and more in Setup.'],
     nl:['Nieuw venster **Publiceren**: al het papierwerk in één keer in een map (totaal DB-boek, LK-info en Node-info per DB, stickers voor nodes en switches, IP-adresboek, netwerkflow op A3) met de echte pagina’s in het voorbeeld, beide logo’s en bladnummers op elke pagina; ook het raster en snappen bij Fibers in de Signaalstroom, poortnamen met een korte naam per devicetype, netwerkapparaten in de Device Builder, DB + FOH en meer in Setup.']

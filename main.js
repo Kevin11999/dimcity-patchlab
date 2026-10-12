@@ -331,18 +331,43 @@ ipcMain.handle('artnetApply', async (_evt, job = {}) => {
 ipcMain.handle('netProbe', async (_evt, { ip, ports } = {}) => { const io = await artIo(); if(!/^\d+\.\d+\.\d+\.\d+$/.test(ip || '')) return []; return io.probe(ip, Array.isArray(ports) && ports.length ? ports.slice(0, 6) : [80, 443]); });
 
 // ---- Luminex devices over their documented HTTP API (core/luminex-http.js) ----
+// Where to look is chosen in Settings > Network: the ticked network adapters (core/netadapters.js) and an optional own range.
+const lazy = rel => import(new URL(rel, import.meta.url).href);
+const netPrefs = async () => { try { return JSON.parse(await fs.readFile(settingsFile(), 'utf8')).network || {}; } catch { return {}; } };
+const netChosen = async () => (await lazy('./core/netadapters.js')).selected((await netPrefs()).adapters || {});
+ipcMain.handle('netAdapters', async () => (await lazy('./core/netadapters.js')).listAdapters((await netPrefs()).adapters || {}));
 ipcMain.handle('luminexScan', async (_evt, req = {}) => {
-  const lh = await import(new URL('./core/luminex-http.js', import.meta.url).href);
-  const ranges = String(req.ranges || '').trim() || (await lh.localRanges()).join(' ');
+  const lh = await lazy('./core/luminex-http.js'), na = await lazy('./core/netadapters.js'), chosen = await netChosen();
+  const ranges = String(req.ranges || (await netPrefs()).range || '').trim() || na.rangesOf(chosen).join(' ');
+  if(!ranges) throw new Error('No network adapter is ticked. Tick the adapter your devices are connected to in Settings > Network.');
   let ips = lh.expandRanges(ranges, 262144);
   // the /24 around this computer first: the devices on the cable in front of you show up within a second
-  try { const near = new Set((await lh.localRanges()).map(r => r.split('/')[0].split('.').slice(0, 3).join('.'))); ips = [...ips.filter(x => near.has(x.split('.').slice(0, 3).join('.'))), ...ips.filter(x => !near.has(x.split('.').slice(0, 3).join('.')))]; } catch {}
+  try { const near = new Set(chosen.flatMap(a => a.addresses.map(x => x.address.split('.').slice(0, 3).join('.')))); ips = [...ips.filter(x => near.has(x.split('.').slice(0, 3).join('.'))), ...ips.filter(x => !near.has(x.split('.').slice(0, 3).join('.')))]; } catch {}
   // every device is sent to the window as soon as it is found (luminexScanDevice); the end result is the sorted list
   return { ranges, count: ips.length, devices: await lh.luminexScan({ ips, user: req.user, pass: req.pass, https: !!req.https, onDevice: d => { try { _evt.sender.send('luminexScanDevice', d); } catch {} } }) };
 });
-ipcMain.handle('luminexLocalNets', async () => (await import(new URL('./core/luminex-http.js', import.meta.url).href)).localNets());
-ipcMain.handle('luminexAddAddress', async (_evt, req = {}) => (await import(new URL('./core/luminex-http.js', import.meta.url).href)).addLocalAddresses({ adds: Array.isArray(req.adds) ? req.adds.slice(0, 16) : [], adapter: String(req.adapter || '') }));
-ipcMain.handle('luminexHttp', async (_evt, req) => (await import(new URL('./core/luminex-http.js', import.meta.url).href)).luminexHttp(req));
+ipcMain.handle('luminexLocalNets', async () => (await lazy('./core/luminex-http.js')).localNets());
+ipcMain.handle('luminexAddAddress', async (_evt, req = {}) => (await lazy('./core/luminex-http.js')).addLocalAddresses({ adds: Array.isArray(req.adds) ? req.adds.slice(0, 16) : [], adapter: String(req.adapter || '') || (await netChosen())[0]?.name || '' }));
+ipcMain.handle('luminexHttp', async (_evt, req) => (await lazy('./core/luminex-http.js')).luminexHttp(req));
+
+// ---- Automatic discovery (core/netwatch.js): devices show up by themselves while the Network config page or the Align tool is open ----
+let watcher = null;
+const stopWatch = () => { try { watcher?.stop(); } catch {} watcher = null; };
+ipcMain.handle('netWatchStart', async (evt, req = {}) => {
+  stopWatch();
+  const nw = await lazy('./core/netwatch.js'), na = await lazy('./core/netadapters.js'), sender = evt.sender;
+  const tell = (channel, data) => { try { if(!sender.isDestroyed()) sender.send(channel, data); } catch {} };
+  const w = nw.createWatcher({
+    getAdapters: async () => na.selected((await netPrefs()).adapters || {}), range: String((await netPrefs()).range || req.ranges || ''),
+    user: req.user, pass: req.pass, https: !!req.https, seed: Array.isArray(req.seed) ? req.seed.slice(0, 300) : [],
+    onSeen: d => tell('netWatchSeen', d), onGone: ip => tell('netWatchGone', { ip }), onState: s => tell('netWatchState', s)
+  });
+  watcher = w; sender.once('destroyed', () => { if(watcher === w) stopWatch(); });
+  w.start();
+  return true;
+});
+ipcMain.handle('netWatchStop', async () => { stopWatch(); return true; });
+app.on('before-quit', stopWatch);
 
 ipcMain.handle('readTextFile', async (_evt, filePath) => {
   if (!filePath) return null;

@@ -48,9 +48,27 @@ export function expandRanges(text, max = 1024){
   return [...out].slice(0, max);
 }
 
-// Find LumiNodes / LumiCores and GigaCores. Step 1: which addresses have port 80 open (fast, many at once).
-// Step 2: ask those — GET /api/software/version with a "current" field is a LumiNode / LumiCore, GET /api/device with a model is a GigaCore.
-// A device that asks for a login answers 401: listed as "unknown", login needed. Things with port 80 open that are neither (routers, printers) are left out.
+// What is at this address? GET /api/software/version with a "current" field is a LumiNode / LumiCore, GET /api/device with a model is a GigaCore.
+// A device that asks for a login answers 401: "unknown", login needed. Anything else (a router, a printer, nothing) gives null.
+export async function luminexIdentify({ ip, user, pass, https: useTls, timeoutMs = 1500 } = {}){
+  const base = { ip, user, pass, https: useTls, timeoutMs };
+  let auth = false;
+  try {
+    const v = await luminexHttp({ ...base, path: '/api/software/version' });
+    if(v && typeof v === 'object' && v.current != null){
+      let info = {}; try { info = (await luminexHttp({ ...base, path: '/api/deviceinfo' })) || {}; } catch {}
+      return { ip, kind: 'lumi', name: info.short_name || '', longName: info.long_name || '', model: '', version: String(v.current), auth: false };
+    }
+  } catch(e) { if(e.status === 401) auth = true; }
+  try {
+    const d = await luminexHttp({ ...base, path: '/api/device' });
+    if(d && typeof d === 'object' && (d.model != null || d.name != null)) return { ip, kind: 'gigacore', name: d.name || '', longName: d.description || '', model: d.model || '', mac: d.mac_address || '', version: '', auth: false };
+  } catch(e) { if(e.status === 401) auth = true; }
+  return auth ? { ip, kind: 'unknown', name: '', longName: '', model: '', version: '', auth: true } : null;
+}
+
+// Find LumiNodes / LumiCores and GigaCores. Step 1: which addresses have port 80 open (fast, many at once). Step 2: ask those (luminexIdentify).
+// Things with port 80 open that are neither (routers, printers) are left out.
 export async function luminexScan({ ips = [], user, pass, https: useTls, timeoutMs = 1500, tcpMs = 600, concurrency = 400, onDevice = null } = {}){
   const net = await import('node:net');
   const list = (ips || []).filter(x => /^\d{1,3}(\.\d{1,3}){3}$/.test(x)).slice(0, 262144), open = [];
@@ -62,22 +80,7 @@ export async function luminexScan({ ips = [], user, pass, https: useTls, timeout
   });
   const found = [];
   const add = d => { found.push(d); try { onDevice?.(d); } catch {} };
-  const one = async ip => {
-    const base = { ip, user, pass, https: useTls, timeoutMs };
-    let auth = false;
-    try {
-      const v = await luminexHttp({ ...base, path: '/api/software/version' });
-      if(v && typeof v === 'object' && v.current != null){
-        let info = {}; try { info = (await luminexHttp({ ...base, path: '/api/deviceinfo' })) || {}; } catch {}
-        return add({ ip, kind: 'lumi', name: info.short_name || '', longName: info.long_name || '', model: '', version: String(v.current), auth: false });
-      }
-    } catch(e) { if(e.status === 401) auth = true; }
-    try {
-      const d = await luminexHttp({ ...base, path: '/api/device' });
-      if(d && typeof d === 'object' && (d.model != null || d.name != null)) return add({ ip, kind: 'gigacore', name: d.name || '', longName: d.description || '', model: d.model || '', mac: d.mac_address || '', version: '', auth: false });
-    } catch(e) { if(e.status === 401) auth = true; }
-    if(auth) add({ ip, kind: 'unknown', name: '', longName: '', model: '', version: '', auth: true });
-  };
+  const one = async ip => { const d = await luminexIdentify({ ip, user, pass, https: useTls, timeoutMs }); if(d) add(d); };
   // a device is identified the moment its port answers (no waiting for the whole sweep), so it can be shown at once
   const w = async () => { while(i < list.length){ const ip = list[i++]; if(await probePort(ip)){ open.push(ip); try { await one(ip); } catch {} } } };
   await Promise.all(Array.from({ length: Math.min(concurrency, list.length || 1) }, w));

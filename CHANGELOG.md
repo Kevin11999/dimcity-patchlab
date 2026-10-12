@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.16.0 — 2026-10-12
+
+- New **Network** tab in Settings: tick the network adapters PatchLab looks at (faster), and an **Automatic** switch that shows LumiNodes and GigaCores by themselves, whatever their IP address (also in another IP range, with a button to reach them) and how each was found; Network config and the Align tool only show where they search.
+
+<details><summary>Nederlands</summary>
+
+- Nieuw tabblad **Netwerk** bij Instellingen: vink de netwerkadapters aan waar PatchLab naar kijkt (sneller), en een schakelaar **Automatisch** die LumiNodes en GigaCores vanzelf toont, welk IP-adres ze ook hebben (ook in een ander IP-bereik, met een knop om erbij te komen) en hoe elk gevonden is; Netwerkconfig en de Uitlijntool tonen alleen nog waar ze zoeken.
+
+</details>
+
 ## 0.15.0 — 2026-10-12
 
 - New **Publish** window: all the paperwork in one go into a folder (total DB book, LK info and Node info per DB, stickers for nodes and switches, IP address book, network flow on A3) with the real pages in the preview, both logos and page numbers on every page; also the Fibres grid and snap in the Signal Flow, port names with a short name per device type, network devices in the Device Builder, DB + FOH and more in Setup.

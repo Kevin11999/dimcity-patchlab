@@ -18,6 +18,13 @@ contextBridge.exposeInMainWorld('app', {
   luminexAddAddress: (req) => ipcRenderer.invoke('luminexAddAddress', req),
   onLuminexDevice: (cb) => { const h = (_e, d) => cb(d); ipcRenderer.on('luminexScanDevice', h); return () => ipcRenderer.removeListener('luminexScanDevice', h); },
   luminexHttp: (req) => ipcRenderer.invoke('luminexHttp', req),
+  netAdapters: () => ipcRenderer.invoke('netAdapters'),
+  netWatchStart: (req) => ipcRenderer.invoke('netWatchStart', req),
+  netWatchStop: () => ipcRenderer.invoke('netWatchStop'),
+  onNetWatch: (cb) => {
+    const on = ['netWatchSeen', 'netWatchGone', 'netWatchState'].map(ch => { const h = (_e, d) => cb(ch.slice(8).toLowerCase(), d); ipcRenderer.on(ch, h); return [ch, h]; });
+    return () => on.forEach(([ch, h]) => ipcRenderer.removeListener(ch, h));
+  },
   showItemInFolder: (filePath) => ipcRenderer.invoke('showItemInFolder', filePath),
   appInfo: () => ipcRenderer.invoke('appInfo'),
   ping: () => ipcRenderer.invoke('ping'),

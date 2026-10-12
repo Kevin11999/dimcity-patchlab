@@ -20,7 +20,7 @@
 
   const isSw = d => d.kind === 'gigacore';
   const ipNum = ip => String(ip).split('.').reduce((n, x) => n * 256 + Number(x), 0);
-  const devs = () => [...NC().state.dev.values()].filter(d => d.kind !== 'unknown').sort((a, b) => (isSw(a) ? 0 : 1) - (isSw(b) ? 0 : 1) || ipNum(a.ip) - ipNum(b.ip));
+  const devs = () => [...NC().state.dev.values()].filter(d => d.kind !== 'unknown' && !d.far).sort((a, b) => (isSw(a) ? 0 : 1) - (isSw(b) ? 0 : 1) || ipNum(a.ip) - ipNum(b.ip));
   // the devices that still have a free place in the plan come first; devices the plan has no place for wait at the end
   const queue = () => { const q = devs().filter(d => !d.link && !A.skipped.has(d.ip)), fit = d => freeItems(d).length > 0; return [...q.filter(fit), ...q.filter(d => !fit(d))]; };
   const freeItems = d => NC().planItems().filter(x => x.kind === (isSw(d) ? 'sw' : 'nd') && !devs().some(y => y.link === x.id));
@@ -82,13 +82,14 @@
   // ---- screen ----
   const steps = () => [['find', t('1 · Find', '1 · Zoeken')], ['align', t('2 · Align', '2 · Uitlijnen')], ['send', t('3 · Send', '3 · Sturen')]];
   function bodyFind(){
-    const C = NC().state, n = devs();
+    const C = NC().state, n = devs(), far = [...C.dev.values()].filter(d => d.far);
     return `<div class="su-big">${n.length ? `<b>${n.length}</b> ${t('devices found', 'apparaten gevonden')} · ${n.filter(isSw).length} GigaCore · ${n.filter(d => !isSw(d)).length} LumiNode` : t('Nothing searched yet.', 'Nog niet gezocht.')}</div>
-      <div class="su-row"><label>${t('Look in', 'Zoek in')}<input id="alRanges" value="${esc(C.ranges)}" placeholder="${t('empty = the network of this computer', 'leeg = het netwerk van deze computer')}" style="width:300px"></label>
-        <label>${t('User', 'Gebruiker')}<input id="alUser" value="${esc(C.user)}" style="width:110px"></label><label>${t('Password', 'Wachtwoord')}<input id="alPass" type="password" value="${esc(C.pass)}" style="width:130px"></label></div>
-      <div class="su-row"><button class="primary" id="alFind" ${A.busy ? 'disabled' : ''}>${I('refresh', 14)}${A.busy ? t('Searching…', 'Zoeken…') : t('Search the network', 'Zoek in het netwerk')}</button>${n.length ? `<button id="alToAlign">${t('Next: align', 'Verder: uitlijnen')}</button>` : ''}</div>
+      ${NC().searchLine()}
+      <div class="su-row"><label>${t('User', 'Gebruiker')}<input id="alUser" value="${esc(C.user)}" style="width:110px"></label><label>${t('Password', 'Wachtwoord')}<input id="alPass" type="password" value="${esc(C.pass)}" style="width:130px"></label></div>
+      <div class="su-row"><button class="primary" id="alFind" ${A.busy ? 'disabled' : ''}>${I('refresh', 14)}${A.busy ? t('Searching…', 'Zoeken…') : C.watching ? t('Search now', 'Nu zoeken') : t('Search the network', 'Zoek in het netwerk')}</button>${n.length ? `<button id="alToAlign">${t('Next: align', 'Verder: uitlijnen')}</button>` : ''}</div>
+      ${C.watching ? `<div class="subtle"><i class="nc-pulse"></i>${t('Automatic: devices that are connected show up here by themselves.', 'Automatisch: apparaten die je aansluit verschijnen hier vanzelf.')}</div>` : ''}
       ${C.info ? `<div class="subtle">${esc(C.info)}</div>` : ''}
-      <div class="su-list">${n.map(d => `<div class="su-item"><b>${esc(nameOf(d))}</b><span class="subtle">${esc(d.ip)} · ${isSw(d) ? 'GigaCore' : 'LumiNode'}</span></div>`).join('')}</div>`;
+      <div class="su-list">${n.map(d => `<div class="su-item"><b>${esc(nameOf(d))}</b><span class="subtle">${esc(d.ip)} · ${isSw(d) ? 'GigaCore' : 'LumiNode'}${d.gone ? ' · ' + t('offline', 'offline') : ''}</span></div>`).join('')}${far.map(d => `<div class="su-item"><b>${esc(nameOf(d))}</b><span class="subtle">${esc(d.ip)} · ${t('other IP range', 'ander IP-bereik')}</span><button class="sm" data-alfar="${esc(d.ip)}">${t('Add address to this computer', 'Adres toevoegen aan deze computer')}</button></div>`).join('')}</div>`;
   }
   function bodyAlign(){
     const all = devs(), done = all.filter(d => d.link).length, q = queue(), d = A.cur && NC().dev(A.cur);
@@ -141,7 +142,9 @@
     const q = s => R.querySelector(s), qa = s => [...R.querySelectorAll(s)];
     qa('[data-alphase]').forEach(b => b.onclick = async () => { A.phase = b.dataset.alphase; if(A.phase === 'align') await showCurrent(); else { await stopAll(); paint(); } });
     const set = (id, fn) => { const e = q(id); if(e) e.onclick = fn; };
-    set('#alFind', async () => { const C = NC().state; C.ranges = q('#alRanges').value.trim(); C.user = q('#alUser').value.trim() || 'admin'; C.pass = q('#alPass').value; await find(); });
+    set('#alFind', async () => { const C = NC().state, user = q('#alUser').value.trim() || 'admin', pass = q('#alPass').value, same = user === C.user && pass === C.pass; C.user = user; C.pass = pass; if(!same) NC().restartWatch(); await find(); });
+    qa('[data-opennet]').forEach(b => b.onclick = () => window.Settings?.open?.('network'));
+    qa('[data-alfar]').forEach(b => b.onclick = async () => { b.disabled = true; await NC().fixFar(NC().dev(b.dataset.alfar)); paint(); });
     set('#alToAlign', async () => { A.phase = 'align'; await showCurrent(); });
     set('#alToSend', async () => { A.phase = 'send'; await stopAll(); paint(); });
     set('#alUndo', undo); set('#alUnskip', async () => { A.skipped.clear(); await showCurrent(); });
@@ -154,7 +157,9 @@
     set('#alFill', fillAll); set('#alSend', send); set('#alPrep', prepare);
   }
 
-  async function close(){ await stopAll(); document.removeEventListener('keydown', onKey, true); R?.remove(); R = null; }
+  // a device shows up (or goes away) by itself while the Find step is open: draw the list again, unless someone is typing
+  const onDevs = () => { const f = document.activeElement; if(R && A.phase === 'find' && !A.busy && !(f && R.contains(f) && /^(input|select|textarea)$/i.test(f.tagName))) paint(); };
+  async function close(){ await stopAll(); window.removeEventListener('nc-devices', onDevs); document.removeEventListener('keydown', onKey, true); R?.remove(); R = null; }
   const onKey = e => { if(e.key === 'Escape' && R && !document.querySelector('.modal-backdrop')){ e.stopPropagation(); close(); } };
   async function open(opts = {}){
     if(!App.getMODEL?.()) return;
@@ -163,8 +168,9 @@
     R = document.createElement('div'); R.id = 'alRoot'; R.className = 'rb';
     R.innerHTML = `<div class="rb-top"><div class="rb-title">${I('compass', 18)}<div><b>${t('Align tool', 'Uitlijntool')}</b><span>${t('find · blink · link · send', 'zoeken · knipperen · koppelen · sturen')}</span></div></div><div class="rb-top-actions"><button class="primary" id="alStop">${t('Close', 'Sluiten')}</button></div></div>
       <div class="rb-body su-body"><aside class="rb-panel"><div class="rb-panel-body" id="alSteps"></div></aside><section class="su-main" id="alMain"></section></div>`;
-    document.body.appendChild(R); document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(R); document.addEventListener('keydown', onKey, true); window.addEventListener('nc-devices', onDevs);
     R.querySelector('#alStop').onclick = close;
+    try { await NC().refreshNets?.(); NC().ensureWatch?.(); } catch {}
     if(A.phase === 'align') await showCurrent(); else paint();
   }
   window.Align = { open, close, state:A };

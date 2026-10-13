@@ -738,6 +738,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.20.0 — 2026-10-13
+- New: Publish makes one DB booklet per DimCity (start sheet, what is in it, how to build it, LK overview, node addresses, switch IP scheme; every sheet can be switched off) and four books for the whole show with a cover: IP & VLAN, nodes & switches, LK & splitters, signal flow. Three folders: DB booklets, Network info, Stickers. A switch shows one address.
+
 ### Version 0.19.2 — 2026-10-13
 - Fixed: Luminex nodes (a switched-off input is found again, a change that cannot finish is no longer half sent, universes outside the allowed range are refused, group names cut on bytes). New: “Apply all without IP” and a confirmation before IP addresses are sent. Removed: confetti, the rainbow show and rainbow flow, and unused code.
 
@@ -1719,6 +1722,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.20.0 — 2026-10-13
+- Nieuw: Publiceren maakt per DimCity één DB-boekje (startblad, wat erin zit, hoe het gebouwd wordt, LK-overzicht, node-adressen, IP-schema van de switches; elk blad kan uit) en vier boeken voor de hele show met voorblad: IP & VLAN, nodes & switches, LK & splitters, signal flow. Drie mappen: DB-boekjes, Netwerkinfo, Stickers. Een switch toont één adres.
 
 ### Versie 0.19.2 — 2026-10-13
 - Opgelost: Luminex-nodes (een uitgeschakelde ingang wordt weer gevonden, een wijziging die niet kan slagen wordt niet meer half gestuurd, universes buiten het toegestane bereik worden geweigerd, groepsnamen afgekapt op bytes). Nieuw: “Alles toepassen zonder IP” en een bevestiging voordat IP-adressen worden gestuurd. Weg: confetti, de regenboogshow en regenboogstroom, en ongebruikte code.

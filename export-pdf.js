@@ -1,6 +1,6 @@
 // export-pdf.js — the PDF engine of the Publish window (ui/publish.js).
 // The layout (sections, order, style, cover, header / footer, logos) is kept in the project (MODEL.pdfSettings.layout) and can be
-// stored as a template. The documents — the total DB book, LK info, Node info, the IP address book, the A3 network flow — are built
+// stored as a template. The documents — the DB booklets, the IP & VLAN book, the nodes & switches book, the LK & splitters book, the signal flow book — are built
 // from it as fixed sheets (core/paginate.js): the preview and the PDF are made from the same pages, with the logos of the company
 // and the project, the page numbers and the contents on them. ui/labels.js makes the sticker sheets.
 (function(){
@@ -21,15 +21,17 @@
   const dcName = dc => window.DimLabel ? window.DimLabel(dc) : dc;
 
   // ===================== Layout model =====================
-  // `docs` says in which documents a section appears (book = the total DB book, lk = LK info, nodes = Node info)
+  // `docs` says in which documents a section appears (book = the DB booklet, lk = the LK & splitters book, nodes = the nodes & switches book)
   const SECTIONS = {
     summary:   { title:'DimCity header & key figures', icon:'layout',   desc:'DimCity name, project line and totals.', docs:['book', 'lk', 'nodes'] },
+    contents:  { title:'What is in this DimCity',      icon:'box',      desc:'What comes in and what has to be built: racks, loose spiders, LK blocks, Veams, nodes, splitters, switches and cables, with the totals.', docs:['book'] },
+    racks:     { title:'Racks (how to build)',         icon:'rack',     desc:'The racks as they are built: what sits where, on which port, with the addresses of the nodes.', docs:['book'] },
+    patch:     { title:'LK / Veam patch',              icon:'box',      desc:'Every LK with its block type (12 ports, or 4 XLR + 3 Veam4s): universe, and the node and node port each port is on.', docs:['book', 'lk'] },
+    network:   { title:'Network / DMX nodes',          icon:'network',  desc:'The nodes with ID, address, VLAN, the universe on every port and (advanced) the extra addresses.', docs:['book', 'nodes'] },
     switches:  { title:'Switches: ports and VLAN',   icon:'network',  desc:'Per switch: a drawing of the ports in the VLAN colours and a table with device, VLAN, PoE, speed and universes.', docs:['book', 'nodes'] },
-    network:   { title:'Network / DMX nodes',          icon:'network',  desc:'Planned nodes with IP and universe per port.', docs:['book', 'nodes'] },
-    splitters: { title:'Splitters',                    icon:'cable',    desc:'Splitters with input feed and output map.', docs:['book', 'nodes'] },
-    racks:     { title:'Racks',                        icon:'rack',     desc:'Racks with sockets, node colours and patch table.', docs:['book', 'nodes'] },
+    ipschema:  { title:'IP scheme of the switches',    icon:'table',    desc:'All switches of the whole show with their one management address, the DimCity this booklet is about marked.', docs:['book'] },
+    splitters: { title:'Splitters',                    icon:'cable',    desc:'Splitters with input feed and output map.', docs:['book', 'lk'] },
     flow:      { title:'Signal flow drawing',          icon:'cable',    desc:'The cabling from rack to objects, as arranged on the Signal Flow page.', docs:['book'] },
-    patch:     { title:'LK / Veam patch',              icon:'box',      desc:'Every LK as a row of 12 ports with its Veam4s underneath: universe, and the node and node port each one is on.', docs:['book', 'lk'] },
     universes: { title:'Universe overview',            icon:'universe', desc:'Patch points per universe (LK / Veam / DMX).', docs:['book', 'lk'] },
     patchlist: { title:'Patch list table',             icon:'table',    desc:'All rows of this DimCity sorted by universe.', docs:['book', 'lk'] },
     warnings:  { title:'Warnings & errors',            icon:'alert',    desc:'Validation results for this DimCity.', docs:['book', 'lk'] },
@@ -37,7 +39,7 @@
     notes:     { title:'Notes',                        icon:'note',     desc:'Free text, e.g. crew instructions.', docs:['book', 'lk', 'nodes'] }
   };
   const SECTION_OPTS = {
-    network:   [['universeTable','Include universe overview table', true], ['switches','Show switches placeholder', false], ['addresses','All addresses of a device and the switch port plan', true]],
+    network:   [['universeTable','Include universe overview table', false], ['switches','Show switches placeholder', false], ['addresses','All addresses of a device and the switch port plan', true]],
     switches:  [['overview','Overview of all switches and their fibres first', true], ['names','Show the port names typed by hand', true]],
     patch:     [['nodePorts','Show the node and node port per port', true], ['standaloneVeams','Include Veams that are not linked to an LK', true], ['location','Show location per port', true], ['source','Show source (LK / Veam) per port', false], ['groupColors','Tint Veam groups A / B / C', true]],
     patchlist: [['dmx','Include loose DMX', true]],
@@ -48,19 +50,19 @@
   };
   // the documents that can be published (the window is ui/publish.js); `per`: one for the whole show or one for every DimCity
   const DOCS = {
-    book:     { title:'Total DB book',     per:'all',   desc:'All chosen DimCities in one booklet: cover, contents, page numbers and the sections you choose.' },
-    lk:       { title:'LK info',           per:'dc',    desc:'The LK / Veam patch sheets, the universes and the patch list of a DimCity.' },
-    nodes:    { title:'Node info',         per:'dc',    desc:'Nodes, splitters, switches, racks and node ports of a DimCity.' },
+    book:     { title:'DB booklet',        per:'all',   desc:'Per DimCity a booklet: start sheet, what is in it, how to build it, LK overview, node addresses and the switch IP scheme. You choose the sheets.' },
+    lk:       { title:'LK & splitters book', per:'all', desc:'One booklet with all the LK blocks and splitters of the chosen DimCities, worked out.' },
+    nodes:    { title:'Nodes & switches book', per:'all', desc:'One booklet with all the nodes and all the switches of the chosen DimCities.' },
     stickers: { title:'Stickers',          per:'dc',    desc:'Label sheets for the nodes, the switches and the cables, for the Herma sheets.' },
-    a3:       { title:'Network flow (A3)', per:'dc',    desc:'The network flow and the signal flow drawn on A3: one file per DimCity and one for the whole show.' },
-    ip:       { title:'IP address book',   per:'all',   desc:'Every address of the nodes, switches and consoles: per DimCity, per VLAN and sorted by number.' }
+    a3:       { title:'Signal flow book (A3)', per:'all', desc:'One booklet with the network overview and the network flow and signal flow of every chosen DimCity, on A3.' },
+    ip:       { title:'IP & VLAN book',    per:'all',   desc:'Cover with the IP and VLAN ranges, then every address of the nodes, switches and consoles: per DimCity, per VLAN and sorted by number.' }
   };
 
   function defaultLayout(){
     return {
-      version: 3,
+      version: 4,
       scope: 'ALL', dims: [], output: 'SINGLE',
-      docs: { book:true, bookPerDc:false, lk:true, nodes:true, stickers:true, a3:true, ip:true, stickerKinds:{ nodes:true, nodePorts:false, switches:true, switchPorts:false, cables:false, together:false } },
+      docs: { book:true, bookPerDc:true, lk:true, nodes:true, stickers:true, a3:true, ip:true, stickerKinds:{ nodes:true, nodePorts:false, switches:true, switchPorts:false, cables:false, together:false } },
       publish: { structure:true, folder:'', open:true },
       page: { size:'A4', orientation:'portrait', margin:10 },
       a3: { orientation:'auto' },
@@ -69,11 +71,13 @@
       footer: { show:true, left:'{project} · {area}', center:'Prepared by {prepared} · {date}', pageNumbers:true },
       brand: { logo:null, logoPos:'header-right', logoHeight:9, projectLogoPos:'header-left', projectLogoHeight:9, wm:{ type:'none', text:'CONFIDENTIAL', opacity:8, size:55, angle:-30 } },
       cover: { show:true, title:'', subtitle:'{area} · {location}', showLogo:true, logoX:1, logoY:0, logoW:60, fields:{ area:true, location:true, date:true, prepared:true, dimcities:true, totals:true }, note:'', summaryPage:true, contents:true },
-      sections: [
-        { key:'summary', on:true }, { key:'network', on:true, opts:{ universeTable:true, switches:false, addresses:true } }, { key:'switches', on:true, opts:{ overview:true, names:true } },
-        { key:'splitters', on:true }, { key:'racks', on:true, opts:{ drawing:true, nodes:true, loose:true, table:true, advice:true } }, { key:'flow', on:true, opts:{ legend:true, ownPage:true, netOnly:true } }, { key:'patch', on:true, opts:{ nodePorts:true, standaloneVeams:true, location:true, source:false, groupColors:true } },
+      sections: [          // the order of a DB booklet: overview, what is in it, how to build it, LK, node addresses, the switches, the IP scheme
+        { key:'summary', on:true }, { key:'contents', on:true }, { key:'racks', on:true, opts:{ drawing:true, nodes:true, loose:true, table:true, advice:true } },
+        { key:'patch', on:true, opts:{ nodePorts:true, standaloneVeams:true, location:true, source:false, groupColors:true } },
+        { key:'network', on:true, opts:{ universeTable:false, switches:false, addresses:true } }, { key:'switches', on:true, opts:{ overview:true, names:true } }, { key:'ipschema', on:true },
+        { key:'splitters', on:false }, { key:'flow', on:false, opts:{ legend:true, ownPage:true, netOnly:true } },
         { key:'universes', on:false }, { key:'patchlist', on:false, opts:{ dmx:true } },
-        { key:'warnings', on:true, opts:{ projectWide:true } }, { key:'qr', on:false, opts:{ system:true } }, { key:'notes', on:false, opts:{ text:'' } }
+        { key:'warnings', on:false, opts:{ projectWide:true } }, { key:'qr', on:false, opts:{ system:true } }, { key:'notes', on:false, opts:{ text:'' } }
       ]
     };
   }
@@ -102,7 +106,7 @@
   }
   function mergeLayout(saved){
     const L = defaultLayout();
-    const out = { ...L, ...saved, version:3,
+    const out = { ...L, ...saved, version:4,
       docs:{ ...L.docs, ...(saved.docs||{}), stickerKinds:{ ...L.docs.stickerKinds, ...(saved.docs?.stickerKinds||{}) } }, publish:{ ...L.publish, ...(saved.publish||{}) }, a3:{ ...L.a3, ...(saved.a3||{}) },
       page:{ ...L.page, ...(saved.page||{}) }, style:{ ...L.style, ...(saved.style||{}) },
       header:{ ...L.header, ...(saved.header||{}) }, footer:{ ...L.footer, ...(saved.footer||{}) },
@@ -115,6 +119,13 @@
     const known = Array.isArray(saved.sections) ? saved.sections.filter(s => SECTIONS[s.key]) : [];
     out.sections = known.map(s => ({ ...L.sections.find(d=>d.key===s.key), ...s, opts:{ ...(L.sections.find(d=>d.key===s.key)?.opts||{}), ...(s.opts||{}) }, pos: normPos(s.pos) }));
     for(const d of L.sections) if(!out.sections.some(s=>s.key===d.key)) out.sections.push(clone(d));
+    // a layout from before version 4: the DB booklet gets the new order (what is in it, how to build it, LK, node addresses, switches, IP scheme); what was switched on or off stays
+    if(Number(saved.version) < 4){
+      const order = L.sections.map(s => s.key);
+      out.sections.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+      for(const k of ['contents', 'ipschema']) { const s = out.sections.find(x => x.key === k); if(s) s.on = true; }
+      out.docs.bookPerDc = true;
+    }
     return out;
   }
   // Positie van een sectie op het blad: null = automatisch onder elkaar, anders { x, y, w } in mm
@@ -324,6 +335,10 @@
       .cover-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10mm}
       .cover h1{font-size:${fs*3.8}px;line-height:1.05;letter-spacing:-.02em;font-weight:800;max-width:65%}
       .cover .subtitle{font-size:${fs*1.6}px;color:#475569;margin-top:4mm}
+      .cover-kick{font-size:${fs*3.6}px;letter-spacing:-.02em}
+      .cover-extra{margin-top:auto;font-size:${fs}px}
+      .cover-meta.tight{margin-top:6mm}
+      .cover-extra table{width:100%}
       .cover-db{font-size:${fs*7}px;line-height:1;font-weight:800;letter-spacing:-.03em;color:${acc};margin-bottom:5mm}
       .cover .logo{position:absolute;z-index:2;left:calc(var(--x) * 100%);top:calc(var(--y) * 100%);transform:translate(calc(var(--x) * -100%), calc(var(--y) * -100%))}
       .cover .logo img{object-fit:contain;display:block;width:var(--w);max-height:calc(var(--w) * .8);height:auto}
@@ -354,6 +369,7 @@
       .card{border:var(--bw) solid var(--ln2);border-radius:1.6mm;break-inside:avoid;overflow:hidden;margin-bottom:${gap}mm;background:#fff}
       .card-h{background:#f1f5f9;padding:${compact?1.2:1.8}mm 2.5mm;font-weight:800;display:flex;justify-content:space-between;align-items:center;gap:3mm}
       .card-h small{font-weight:600;color:#64748b}
+      .card-h small.blk{font-size:${fs*1.05}px;font-weight:800;color:#0f172a;background:#fff;border:.3mm solid #94a3b8;border-radius:1mm;padding:.4mm 2mm;white-space:nowrap}
       .card-b{padding:${compact?1.4:2.2}mm}
       table{width:100%;border-collapse:collapse}
       th,td{border-bottom:calc(var(--bw) * .8) solid var(--ln);padding:${compact?.7:1.1}mm 1.6mm;text-align:left;vertical-align:top}
@@ -410,16 +426,16 @@
       .prk-it{grid-column:1;position:relative;z-index:1;padding:.35mm .6mm;min-width:0}
       .pru{height:100%;display:flex;align-items:center;gap:1.5mm;border:.5mm solid #0f172a;border-left:1.8mm solid var(--c,#475569);border-radius:.8mm;background:#fff;padding:0 1.5mm;overflow:hidden}
       .qrgrid{display:flex;flex-wrap:wrap;gap:6mm}.qrf{margin:0;width:48mm;text-align:center}.qrb{width:48mm;height:48mm;border:.3mm solid #cbd5e1}.qrf figcaption{font-size:${fs*.8}px;margin-top:1mm}
-      .pru-label{width:30mm;flex:none;line-height:1.12;overflow:hidden}
-      .pru-label b{display:flex;align-items:center;gap:.6mm;font-size:${fs*.84}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pru-label{width:34mm;flex:none;line-height:1.12;overflow:hidden}
+      .pru-label b{display:flex;align-items:center;gap:.6mm;font-size:${fs*.95}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pru-label span{display:block;font-size:${fs*.66}px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .pru-ports{flex:1;display:flex;gap:1mm;align-items:center;min-width:0;overflow:hidden;flex-wrap:nowrap}
       .pp-grp{display:flex;gap:.6mm;align-items:center;flex:0 1 auto;min-width:0}
       .pp-grp+.pp-grp{margin-left:.4mm;padding-left:1mm;border-left:.3mm solid #94a3b8}
-      .pp{--ps:calc(var(--uh) * .64);width:var(--ps);height:var(--ps);flex:0 1 var(--ps);min-width:1.6mm;border-radius:50%;border:.45mm solid var(--c,#475569);display:flex;align-items:center;justify-content:center;font-size:${fs*.6}px;font-weight:700;color:#0f172a;background:color-mix(in srgb,var(--c,#94a3b8) 18%,#fff);overflow:hidden;white-space:nowrap}
+      .pp{--ps:calc(var(--uh) * .8);width:var(--ps);height:var(--ps);flex:0 1 var(--ps);min-width:1.6mm;border-radius:50%;border:.45mm solid var(--c,#475569);display:flex;align-items:center;justify-content:center;font-size:${fs*.72}px;font-weight:700;color:#0f172a;background:color-mix(in srgb,var(--c,#94a3b8) 18%,#fff);overflow:hidden;white-space:nowrap}
       .pp.free{border-style:dashed;border-color:#94a3b8;color:#94a3b8;background:#fff;font-weight:500}
-      .pp.lk{--ps:calc(var(--uh) * .82);border-width:.75mm}
-      .pp.vim{--ps:calc(var(--uh) * .72);border-style:double;border-width:.95mm}
+      .pp.lk{--ps:calc(var(--uh) * .9);border-width:.75mm}
+      .pp.vim{--ps:calc(var(--uh) * .82);border-style:double;border-width:.95mm}
       .pp.in{border-color:#2563eb}
       .pp.rj,.pp.sfp{border-radius:.5mm;border-width:.3mm;border-color:#475569;background:#f1f5f9;--ps:calc(var(--uh) * .55)}
       .pp.sfp{width:calc(var(--ps) * 1.4);flex-basis:calc(var(--ps) * 1.4)}
@@ -502,7 +518,7 @@
   }
 
   // ===================== Cover, summary, contents =====================
-  function buildCover(M, meta, dcs, L){
+  function buildCover(M, meta, dcs, L, o = {}){
     const c = L.cover;
     const title = esc(tokens(c.title, meta) || meta.project || 'Untitled project');
     const sub = esc(tokens(c.subtitle, meta));
@@ -516,7 +532,8 @@
     ].filter(x => x && x[1]);
     const one = L.docs?.bookPerDc && dcs.length === 1 ? dcs[0] : null;       // the booklet of one DimCity: its start sheet shows that DB
     let totals = '';
-    if(f.totals){
+    if(o.totals != null) totals = o.totals;
+    else if(f.totals){
       const lk = listFromMap(M.byLK).filter(x=>dcs.includes(x.dimcity)).length;
       const ve = listFromMap(M.byVeam).filter(x=>dcs.includes(x.dimcity)).length;
       const unis = new Set(); let pts = 0;
@@ -525,9 +542,10 @@
       totals = `<div class="cover-totals">${one ? `<div><b>${(pl.nodes || []).length}</b><span>Nodes</span></div><div><b>${(pl.switches || []).length}</b><span>Switches</span></div>` : `<div><b>${dcs.length}</b><span>DimCities</span></div>`}<div><b>${lk}</b><span>LK blocks</span></div><div><b>${ve}</b><span>Veams</span></div><div><b>${unis.size}</b><span>Universes</span></div><div><b>${pts}</b><span>Patch points</span></div></div>`;
     }
     return `<div class="cover" data-sec="cover"><div class="cover-bar"></div>
-      <div class="cover-top"><div>${one ? `<div class="cover-db">${esc(dcName(one))}</div>` : ''}<h1>${title}</h1>${sub?`<div class="subtitle">${sub}</div>`:''}${totals}</div></div>${logo}
+      <div class="cover-top"><div>${o.kicker ? `<div class="cover-db cover-kick">${esc(o.kicker)}</div>` : one ? `<div class="cover-db">${esc(dcName(one))}</div>` : ''}<h1>${title}</h1>${sub?`<div class="subtitle">${sub}</div>`:''}${totals}</div></div>${logo}
+      ${o.extra ? `<div class="cover-extra">${o.extra}</div>` : ''}
       ${c.note ? `<div class="cover-note">${esc(c.note)}</div>` : ''}
-      ${items.length ? `<dl class="cover-meta">${items.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : '<div style="margin-top:auto"></div>'}
+      ${items.length ? `<dl class="cover-meta${o.extra ? ' tight' : ''}">${items.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>` : '<div style="margin-top:auto"></div>'}
       <div class="cover-foot"><div class="cover-gen">Generated with DimCity PatchLab · ${new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>${L.brand?.logo ? `<img class="cover-co" src="${L.brand.logo}" alt="">` : ''}</div></div>`;
   }
   function buildProjectSummary(M, dcs){
@@ -578,6 +596,8 @@
     const rows = universeOverview(M, dc).map(([u,x])=>`<tr><td><span class="dot" style="background:${uniColor(u,L)}"></span><b>UNI ${esc(u)}</b></td><td class="num">${x.lk}</td><td class="num">${x.veam}</td><td class="num">${x.dmx}</td><td class="num"><b>${x.lk+x.veam+x.dmx}</b></td></tr>`).join('');
     return `<table><thead><tr><th>Universe</th><th class="num">LK</th><th class="num">Veam</th><th class="num">DMX</th><th class="num">Total</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="small">No universes</td></tr>'}</tbody></table>`;
   }
+  // an address of the device on a switch port (a node can have two: management and lighting), with its VLAN name next to it, so it is clear they belong to that device and not to the switch
+  const ipTag = ip => { const v = window.Fent?.classify?.(ip)?.vlan; return `<b>${esc(ip)}</b>${v ? ` <span class="small">${esc(v.name)}</span>` : ''}`; };
   function buildNetwork(M, dc, L, n, o){
     const p = plan(M, dc), nodes = p.nodes || [], switches = p.switches || [];
     const nodeHtml = nodes.length ? '<div class="grid cols2">' + nodes.map(nd=>{
@@ -594,7 +614,7 @@
       return `<div class="card"><div class="card-h"><span>${esc(c.name || c.id || 'Console')}</span><small>${esc(c.id || '')}${eth > 1 ? ' · 2× RJ45' : ''}</small></div>${ifs.length ? `<div class="card-b small">${ifs.map(x => `<b>${esc(x.ip)}</b>${F?.vlanById(x.vlan) ? esc(' ' + F.vlanById(x.vlan).name + ' ' + x.vlan) : ''}`).join(' · ')}</div>` : ''}</div>`; }).join('');
     const sw = o.switches ? (switches.length ? switches.map(s=>`<div class="card"><div class="card-h"><span>${esc(s.id||'Switch')}</span><small>${esc(s.ip||'')}</small></div></div>`).join('') : '<div class="placeholder">Network switches will appear here.</div>') : '';
     const pp = o.addresses !== false ? window.FentUI?.portPlan?.(dc)?.rows || [] : [];
-    const portCard = pp.length ? `<div class="card"><div class="card-h"><span>Switch ports &amp; VLAN</span><small>${pp.length} ports</small></div><div class="card-b"><table><thead><tr><th>Port</th><th>Device</th><th>Mode</th><th>VLAN</th><th>Address / location</th></tr></thead><tbody>${pp.map(r => `<tr><td><b>${r.sw ? esc(r.sw) + ' · ' + r.swPort : '—'}</b></td><td>${esc(r.device)}${r.ethCount > 1 ? ' ETH' + r.eth : ''}</td><td>${r.mode === 'trunk' ? 'Trunk (tagged)' : 'Access'}</td><td>${r.vlans.map(v => { const x = window.Fent?.vlanById(v); return x ? `<span class="tag" style="${x.color ? `border-left:2mm solid ${x.color}` : ''}">${esc(x.id + ' ' + x.name)}</span>` : esc(v); }).join(' ')}</td><td>${r.cable ? esc(r.dest) : r.ips.map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table></div></div>` : '';
+    const portCard = pp.length ? `<div class="card"><div class="card-h"><span>Switch ports &amp; VLAN</span><small>${pp.length} ports</small></div><div class="card-b"><table><thead><tr><th>Port</th><th>Device</th><th>Mode</th><th>VLAN</th><th>Address of the device / location</th></tr></thead><tbody>${pp.map(r => `<tr><td><b>${r.sw ? esc(r.sw) + ' · ' + r.swPort : '—'}</b></td><td>${esc(r.device)}${r.ethCount > 1 ? ' ETH' + r.eth : ''}</td><td>${r.mode === 'trunk' ? 'Trunk (tagged)' : 'Access'}</td><td>${r.vlans.map(v => { const x = window.Fent?.vlanById(v); return x ? `<span class="tag" style="${x.color ? `border-left:2mm solid ${x.color}` : ''}">${esc(x.id + ' ' + x.name)}</span>` : esc(v); }).join(' ')}</td><td>${r.cable ? esc(r.dest) : r.ips.map(ipTag).join('<br>')}</td></tr>`).join('')}</tbody></table></div></div>` : '';
     const fl = o.addresses !== false ? (window.Fibers?.links?.(dc) || []) : [];
     const fiberCard = fl.length ? `<div class="card"><div class="card-h"><span>Fibre links</span><small>${fl.length}</small></div><div class="card-b"><table><thead><tr><th>ID</th><th>Cable</th><th>A</th><th>B</th></tr></thead><tbody>${fl.map(l => { const ty = window.Fibers.typeOf(l.typeId); return `<tr><td><b style="border-left:2mm solid ${window.Fibers.color(l)};padding-left:1mm">${esc(l.id)}</b></td><td>${esc(window.Fibers.typeName(ty))}<br><span class="small">${ty ? esc(`${ty.medium === 'smf' ? 'Singlemode' : ty.medium === 'mmf' ? 'Multimode' : ty.medium === 'dac' ? 'SFP patch' : 'Cat'} · ${ty.cores}-core · ${ty.connA || ''} · ${ty.lengthM} m`) : ''}</span></td><td>${esc(window.Fibers.endLabel(l.a))}</td><td>${esc(window.Fibers.endLabel(l.b))}</td></tr>`; }).join('')}</tbody></table></div></div>` : '';
     const right = portCard + fiberCard + (o.universeTable !== false ? `<div class="card"><div class="card-h"><span>Universe overview</span><small>physical patch points</small></div><div class="card-b">${buildUniverseTable(M, dc, L)}</div></div>` : '') + sw;
@@ -620,20 +640,71 @@
         return `<div class="port ${r || p.vid != null || p.trunk ? '' : 'empty'}" style="--uni:${esc(col)}"><div class="nr">${p.kind === 'sfp' ? 'SFP ' : ''}${p.n}</div><div class="uni">${p.trunk ? 'T' : p.vid != null ? esc(p.vid) : '—'}</div><div class="dest">${esc(name(p))}</div></div>`; }).join('');
       const trs = used.map(p => { const r = by.get(p.n), sfpNo = p.kind === 'sfp' ? ports.filter(x => x.kind === 'sfp').indexOf(p) + 1 : 0, f = sfpNo ? fib.get(sfpNo) : null;
         const what = r ? esc(r.device) + (r.ethCount > 1 && !r.cable ? ` <span class="small">ETH${r.eth}</span>` : '') + (r.typeName ? ` <span class="small">${esc(r.typeName)}</span>` : '') : p.link ? `Switch link → ${esc(p.link.to.sw)} port ${p.link.to.port} (trunk)` : f ? `Fibre ${esc(f.id)} → ${esc(window.Fibers.endLabel(f.a?.dc === dc && f.a?.sw === s.label && Number(f.a?.sfp) === sfpNo ? f.b : f.a))}` : '';
-        return `<tr><td><b>${p.kind === 'sfp' ? 'SFP ' : ''}${p.n}</b></td><td>${what}</td><td>${esc(o.names === false ? '' : (p.manualName ? p.name : ''))}</td><td>${vcell(p)}</td><td>${p.trunk || r?.mode === 'trunk' ? 'Trunk' : p.vid != null || r ? 'Access' : ''}</td><td>${p.poe ? (p.poe === 'on' ? 'PoE on' : 'PoE off') : ''}</td><td>${esc(p.speed || '')}</td><td>${esc(r?.unis || '')}</td><td>${esc(r ? ((r.ips || []).join(' · ') || r.dest || '') : '')}</td></tr>`; }).join('');
+        return `<tr><td><b>${p.kind === 'sfp' ? 'SFP ' : ''}${p.n}</b></td><td>${what}</td><td>${esc(o.names === false ? '' : (p.manualName ? p.name : ''))}</td><td>${vcell(p)}</td><td>${p.trunk || r?.mode === 'trunk' ? 'Trunk' : p.vid != null || r ? 'Access' : ''}</td><td>${p.poe ? (p.poe === 'on' ? 'PoE on' : 'PoE off') : ''}</td><td>${esc(p.speed || '')}</td><td>${esc(r?.unis || '')}</td><td>${r ? ((r.ips || []).map(ipTag).join('<br>') || esc(r.dest || '')) : ''}</td></tr>`; }).join('');
       return { s, vids, mgmt, used: used.length, html:`<div class="card"><div class="card-h"><span>${esc(s.label)}</span><small>${esc(NS.typeName(s.type))} · ${esc(s.dev?.ip || '')}${mgmt ? ' · ' + esc(vtxt(mgmt.id)) : ''}</small></div><div class="card-b">
         <div class="ports p8" style="margin-bottom:2mm">${tiles}</div>
         ${vids.length ? `<div class="small" style="margin-bottom:2mm">${vids.map(id => `<span style="border-left:2mm solid ${esc(vl(id)?.color || '#cbd5e1')};padding-left:1.2mm;margin-right:3mm">${esc(vtxt(id))}</span>`).join('')}<span style="border-left:2mm solid #38bdf8;padding-left:1.2mm">Trunk</span></div>` : ''}
-        <table><thead><tr><th>Port</th><th>Device / cable</th><th>Name</th><th>VLAN</th><th>Mode</th><th>PoE</th><th>Speed</th><th>Universes</th><th>Address / location</th></tr></thead><tbody>${trs || '<tr><td colspan="9" class="small">No ports in use.</td></tr>'}</tbody></table></div></div>` };
+        <table><thead><tr><th>Port</th><th>Device / cable</th><th>Name</th><th>VLAN</th><th>Mode</th><th>PoE</th><th>Speed</th><th>Universes</th><th>Address of the device / location</th></tr></thead><tbody>${trs || '<tr><td colspan="9" class="small">No ports in use.</td></tr>'}</tbody></table></div></div>` };
     });
     const overview = o.overview === false ? '' : `<div class="card"><div class="card-h"><span>Switch overview</span><small>${sws.length} switch${sws.length === 1 ? '' : 'es'} · ${fibres.length} fibre link${fibres.length === 1 ? '' : 's'}</small></div><div class="card-b"><table><thead><tr><th>Switch</th><th>Type</th><th>IP address</th><th class="num">Ports in use</th><th>VLANs</th></tr></thead><tbody>${per.map(x => `<tr><td><b>${esc(x.s.label)}</b></td><td>${esc(NS.typeName(x.s.type))}</td><td>${esc(x.s.dev?.ip || '')}</td><td class="num">${x.used} / ${x.s.rj + x.s.sfp}</td><td>${x.vids.map(id => esc(vtxt(id))).join(', ')}</td></tr>`).join('')}</tbody></table>
       ${fibres.length ? `<table style="margin-top:2mm"><thead><tr><th>Fibre</th><th>Cable</th><th>A</th><th>B</th></tr></thead><tbody>${fibres.map(l => `<tr><td><b>${esc(l.id)}</b></td><td>${esc(window.Fibers.typeName(window.Fibers.typeOf(l.typeId)))}</td><td>${esc(window.Fibers.endLabel(l.a))}</td><td>${esc(window.Fibers.endLabel(l.b))}</td></tr>`).join('')}</tbody></table>` : ''}</div></div>`;
     // the plug list: where every node and cable goes (switch port, and the network port of the rack panel the node sits behind)
     const nctx = window.NetNodes ? window.NetNodes.ctx(dc) : null;
-    const plug = o.plugList === false || !rows.length ? '' : `<div class="card"><div class="card-h"><span>Plug list</span><small>${rows.filter(r => r.sw).length}/${rows.length} on a port</small></div><div class="card-b"><table><thead><tr><th>Device / cable</th><th>Type</th><th>Switch</th><th>Port</th><th>Panel port</th><th>VLAN</th><th>Address / location</th></tr></thead><tbody>${rows.map(r => {
+    const plug = o.plugList === false || !rows.length ? '' : `<div class="card"><div class="card-h"><span>Plug list</span><small>${rows.filter(r => r.sw).length}/${rows.length} on a port</small></div><div class="card-b"><table><thead><tr><th>Device / cable</th><th>Type</th><th>Switch</th><th>Port</th><th>Panel port</th><th>VLAN</th><th>Address of the device / location</th></tr></thead><tbody>${rows.map(r => {
       const pl = r.kind === 'node' && nctx ? nctx.panelOf(r.idx) : null, v = r.vlans?.[0] != null ? vl(r.vlans[0]) : null;
-      return `<tr><td><b>${esc(r.device)}</b>${r.ethCount > 1 && !r.cable ? ` <span class="small">ETH${r.eth}</span>` : ''}</td><td>${esc(r.typeName || '')}</td><td>${r.sw ? esc(r.sw) : '<span class="small">no port yet</span>'}</td><td>${r.swPort || ''}</td><td>${pl ? `${esc(pl.panel)} · etherCON ${pl.no}` : ''}</td><td>${r.mode === 'trunk' ? 'Trunk' : v ? esc(`${v.id} ${v.name}`) : ''}</td><td>${esc((r.ips || []).join(' · ') || r.dest || '')}</td></tr>`; }).join('')}</tbody></table></div></div>`;
+      return `<tr><td><b>${esc(r.device)}</b>${r.ethCount > 1 && !r.cable ? ` <span class="small">ETH${r.eth}</span>` : ''}</td><td>${esc(r.typeName || '')}</td><td>${r.sw ? esc(r.sw) : '<span class="small">no port yet</span>'}</td><td>${r.swPort || ''}</td><td>${pl ? `${esc(pl.panel)} · etherCON ${pl.no}` : ''}</td><td>${r.mode === 'trunk' ? 'Trunk' : v ? esc(`${v.id} ${v.name}`) : ''}</td><td>${(r.ips || []).map(ipTag).join('<br>') || esc(r.dest || '')}</td></tr>`; }).join('')}</tbody></table></div></div>`;
     return `<div class="section">${h3(n, 'Switches: ports and VLAN', `${sws.length} switch${sws.length === 1 ? '' : 'es'}`)}${overview}${plug}${per.map(x => x.html).join('')}</div>`;
+  }
+  // ---- what is in this DimCity: the list you build from (racks, loose spiders, what comes in, the network devices) ----
+  const countBy = (list, f) => { const m = new Map(); for(const x of list){ const k = f(x); if(k) m.set(k, (m.get(k) || 0) + 1); } return [...m.entries()]; };
+  const nx = (n, label) => `${n}× ${esc(label)}`;
+  function buildContents(M, dc, L, n){
+    const E = window.RackEngine, p = plan(M, dc), nd = M.networkDevices || {};
+    let P = null; try { if(E && (E.hasRackPlan ? E.hasRackPlan(M, dc) : E.placedRacks(M, dc).length)) P = E.computeRackPlan(M, dc); } catch { P = null; }
+    const typeOf = (key, id) => (nd[key] || []).find(x => x.id === id) || {};
+    const lks = listFromMap(M.byLK).filter(x => x.dimcity === dc).sort(byId);
+    const linked = new Set(); for(const lk of lks) for(const sl of [1, 2, 3]) if(lk.veam?.[sl]) linked.add(lk.veam[sl]);
+    const veams = listFromMap(M.byVeam).filter(v => v.dimcity === dc), looseVeams = veams.filter(v => !linked.has(v.id));
+    const dmx = (M.dmxLoose || []).filter(d => d.dimcity === dc).length;
+    const sws = window.NetSwitches ? window.NetSwitches.list(dc) : (p.switches || []).map(x => ({ label:x.id, type:typeOf('switchTypes', x.typeId) }));
+    const cabs = window.NetCables?.cables?.(dc) || [], cabLines = cabs.reduce((k, c) => k + c.lines.filter(l => !l.empty).length, 0);
+    const fib = window.Fibers?.links?.(dc) || [];
+    const racks = (P?.racks || []).filter(R => R.rack);
+    const loose = P?.loose || [];
+    const lkSp = loose.filter(d => d.kind === 'lkSpider').length, veSp = loose.filter(d => d.kind !== 'lkSpider' && d.kind !== 'node').length, looseNodes = loose.filter(d => d.kind === 'node').length;
+    const consoles = p.consoles || [];
+    const tile = (v, label) => `<div><b>${v}</b><span>${esc(label)}</span></div>`;
+    const tiles = `<div class="cover-totals" style="margin:0 0 4mm">${tile(racks.length, 'Racks')}${tile(lkSp + veSp, 'Loose spiders')}${tile(lks.length, 'LK blocks')}${tile(veams.length, 'Veams')}${tile((p.nodes || []).length + looseNodes * 0, 'Nodes')}${tile((p.splitters || []).length, 'Splitters')}${tile(sws.length, 'Switches')}</div>`;
+    const rackRows = racks.map(R => {
+      const items = R.rack.items || [], kinds = countBy(items, it => ({ node:'node', splitter:'splitter', switch:'switch', panel:'panel' })[it.kind]);
+      const names = { node:'node', splitter:'splitter', switch:'switch', panel:'panel' };
+      return `<tr><td><b>${esc(R.placement?.name || R.rack.name || R.rack.id)}</b></td><td class="num">${R.rack.heightU}U</td><td>${kinds.map(([k, c]) => `${c} ${names[k]}${c === 1 ? '' : 's'}`).join(' · ') || '<span class="small">empty</span>'}</td></tr>`;
+    }).join('');
+    const rackCard = `<div class="card"><div class="card-h"><span>Racks to build</span><small>${racks.length}</small></div><div class="card-b"><table><thead><tr><th>Rack</th><th class="num">Height</th><th>Holds</th></tr></thead><tbody>${rackRows || '<tr><td colspan="3" class="small">No racks planned.</td></tr>'}</tbody></table></div></div>`;
+    const blocks = countBy(lks, lk => blockLabel(effBlock(lk)));
+    const inRows = [
+      ...blocks.map(([lbl, c]) => `<tr><td>LK blocks</td><td>${esc(lbl)}</td><td class="num"><b>${c}</b></td></tr>`),
+      `<tr><td>Veams</td><td>${linked.size} on an LK${looseVeams.length ? ` · ${looseVeams.length} on their own` : ''}</td><td class="num"><b>${veams.length}</b></td></tr>`,
+      dmx ? `<tr><td>Loose DMX</td><td>lines not on an LK or Veam</td><td class="num"><b>${dmx}</b></td></tr>` : '',
+      cabs.length ? `<tr><td>Network cables</td><td>${cabs.length} cable${cabs.length === 1 ? '' : 's'}</td><td class="num"><b>${cabLines}</b></td></tr>` : '',
+      fib.length ? `<tr><td>Fibres</td><td>${[...new Set(fib.map(l => window.Fibers.typeName(window.Fibers.typeOf(l.typeId))))].join(' · ')}</td><td class="num"><b>${fib.length}</b></td></tr>` : ''
+    ].join('');
+    const inCard = `<div class="card"><div class="card-h"><span>Coming into this DimCity</span><small>LK, Veam, network</small></div><div class="card-b"><table><thead><tr><th>What</th><th>Type</th><th class="num">Total</th></tr></thead><tbody>${inRows || '<tr><td colspan="3" class="small">Nothing comes in yet.</td></tr>'}</tbody></table></div></div>`;
+    const devRow = (title, list, key) => list.length ? `<tr><td><b>${title}</b></td><td>${countBy(list, d => typeNameOf(typeOf(key, d.typeId)) || d.typeId).map(([k, c]) => nx(c, k)).join(' · ')}</td><td class="num"><b>${list.length}</b></td></tr>` : '';
+    const devRows = devRow('Nodes', p.nodes || [], 'nodeTypes') + devRow('Splitters', p.splitters || [], 'splitterTypes')
+      + (sws.length ? `<tr><td><b>Switches</b></td><td>${countBy(sws, x => x.type ? (window.NetSwitches?.typeName ? window.NetSwitches.typeName(x.type) : typeNameOf(x.type)) : '').map(([k, c]) => nx(c, k)).join(' · ')}</td><td class="num"><b>${sws.length}</b></td></tr>` : '')
+      + (consoles.length ? `<tr><td><b>Consoles</b></td><td>${consoles.map(c => esc(c.name || c.id || 'Console')).join(' · ')}</td><td class="num"><b>${consoles.length}</b></td></tr>` : '')
+      + (lkSp || veSp || looseNodes ? `<tr><td><b>Loose, without a rack</b></td><td>${[lkSp ? nx(lkSp, 'LK spider') : '', veSp ? nx(veSp, 'Veam4 spider') : '', looseNodes ? nx(looseNodes, 'node') : ''].filter(Boolean).join(' · ')}</td><td class="num"><b>${lkSp + veSp + looseNodes}</b></td></tr>` : '');
+    const devCard = `<div class="card"><div class="card-h"><span>Devices</span><small>to build and to bring</small></div><div class="card-b"><table><thead><tr><th>Device</th><th>Types</th><th class="num">Total</th></tr></thead><tbody>${devRows || '<tr><td colspan="3" class="small">No devices planned.</td></tr>'}</tbody></table></div></div>`;
+    return `<div class="section">${h3(n, 'What is in this DimCity', 'the build list')}${tiles}${rackCard}${inCard}${devCard}</div>`;
+  }
+  // ---- the IP scheme of all switches (one management address each), the DimCity of this booklet marked ----
+  function buildIpSchema(M, meta, dc, L, n){
+    const F = window.Fent, rows = ipRows(allDims()).filter(r => r.kind === 'switch');
+    if(!rows.length) return '';
+    const body = rows.map(r => { const x = r.ifs[0] || {}, mine = r.dc === dc;
+      return `<tr${mine ? ' style="background:#fff4e5"' : ''}><td>${mine ? '<b>' : ''}${esc(dcName(r.dc))}${mine ? '</b>' : ''}</td><td><b>${esc(r.label)}</b></td><td class="sub">${esc(r.type)}</td><td class="ip"><b>${esc(x.ip || '')}</b>${x.ip ? '' : '<span class="small">no address</span>'}</td><td class="mono sub">${esc(x.mask || '')}</td><td>${vlanChip(x.vlan, x.vlanId)}</td><td class="sub">${esc(r.where || '')}</td></tr>`; }).join('');
+    return `<div class="section">${h3(n, 'IP scheme of the switches', `${rows.length} switch${rows.length === 1 ? '' : 'es'} · one management address each`)}<table class="ip-tbl"><thead><tr><th>DimCity</th><th>Switch</th><th>Type</th><th>IP address</th><th>Mask</th><th>VLAN</th><th>Where</th></tr></thead><tbody>${body}</tbody></table></div>`;
   }
   function buildSplitters(M, dc, L, n){
     const sps = plan(M, dc).splitters || [];
@@ -651,13 +722,13 @@
   // Racks: de rack-tekening zoals in de app (rail met U-nummers, device-faces, poorten per node),
   // de nodepoorten met de LK-/Veam-poort die erop zit, losse apparaten en de patchtabel.
   const typeNameOf = t => [t?.brand, t?.name].filter(Boolean).join(' ') || t?.id || '';
-  function rackDrawing(M, P, R, ri, L, owners){
+  function rackDrawing(M, P, R, ri, L, owners, dc){
     const find = (key, id) => (M.networkDevices?.[key] || []).find(x => x.id === id);
     const pp = (cls, label, color, free) => `<span class="pp ${cls} ${free ? 'free' : ''}" style="${color ? `--c:${color}` : ''}">${esc(label)}</span>`;
     const grp = inner => inner ? `<span class="pp-grp">${inner}</span>` : '';
     const H = R.rack.heightU;
     const G = curG(), ph = G.ph, mt = G.mt, mb = G.mb;
-    const uh = Math.max(3.2, Math.min(6.5, (ph - mt - mb - 45) / H));   // mm per U, zodat het rek op één pagina past
+    const uh = Math.max(3.4, Math.min(8.5, (ph - mt - mb - 45) / H));   // mm per U, zodat het rek op één pagina past
     const nodes = new Map(P.nodes.filter(x => x.rack === ri).map(x => [x.iid, x]));
     const splits = new Map(P.splitters.filter(x => x.rack === ri).map(x => [x.iid, x]));
     const items = (R.rack.items || []).slice().sort((a, b) => (a.u - b.u) || ((a.side === 'R') - (b.side === 'R'))).map(it => {
@@ -665,9 +736,10 @@
       const key = { node:'nodeTypes', splitter:'splitterTypes', switch:'switchTypes', panel:'panelTypes' }[it.kind];
       const t = find(key, it.typeId); if(!t) return '';
       if(t.special) return `<div class="prk-it" style="grid-row:${it.u} / span ${Math.max(1, Number(t.heightU) || 3)}"><div class="pru pru-special">${window.SwPorts.gc20tSvg({ title:'GigaCore 20t' }, 4.2)}</div></div>`;
-      let ports = '', tag = '';
+      let ports = '', tag = '', ipLine = '';
       if(it.kind === 'node'){
         const x = nodes.get(it.iid);
+        const dv = x ? (plan(M, dc).nodes || []).find(q => q.src === x.key) : null; ipLine = dv?.ip ? String(dv.ip) : '';
         tag = x ? `<b class="prk-tag" style="--c:${x.color}">${x.label}</b>` : '';
         const eth = Math.min(2, Math.max(1, Number(t.ethernetCount) || 1));
         ports = grp((x?.ports || []).map((p, i) => pp('dmx', p ? `U${p.universe}` : String(i + 1), (p && owners.get(p.owner)) || x.color, !p)).join('')) + grp(Array.from({ length:eth }, (_, i) => pp('rj', eth > 1 ? String(i + 1) : '', null)).join(''));
@@ -684,7 +756,7 @@
         ports = grp(Array.from({ length:SP.front(t) }, (_, i) => pp('rj', String(i + 1), null)).join('')) + (SP.fibreOnPanel(t, panels) ? '' : grp(Array.from({ length:Number(t.sfpCount) || 0 }, (_, i) => pp('sfp', SP.short(t, i + 1), null)).join('')));
       }
       const hu = Math.max(1, Number(t.heightU) || 1);
-      return `<div class="prk-it ${t.width === 'half' ? `prk-half prk-${it.side === 'R' ? 'R' : 'L'}` : ''}" style="grid-row:${it.u} / span ${hu}"><div class="pru" style="--c:${hex(t.color, '#475569')}"><div class="pru-label"><b>${tag}${esc(window.ShortName ? window.ShortName.of(t) : typeNameOf(t))}</b><span>${esc(it.kind)} · ${hu}U</span></div><div class="pru-ports">${ports}</div></div></div>`;
+      return `<div class="prk-it ${t.width === 'half' ? `prk-half prk-${it.side === 'R' ? 'R' : 'L'}` : ''}" style="grid-row:${it.u} / span ${hu}"><div class="pru" style="--c:${hex(t.color, '#475569')}"><div class="pru-label"><b>${tag}${esc(window.ShortName ? window.ShortName.of(t) : typeNameOf(t))}</b><span>${esc(it.kind)} · ${hu}U${ipLine ? ' · ' + esc(ipLine) : ''}</span></div><div class="pru-ports">${ports}</div></div></div>`;
     }).join('');
     const rail = `<div class="prk-rail">${Array.from({ length:H }, (_, i) => `<span>${H - i}</span>`).join('')}</div>`;
     const slots = Array.from({ length:H }, (_, i) => `<div class="prk-slot" style="grid-row:${i + 1}"></div>`).join('');
@@ -712,7 +784,7 @@
     if(!E || !(E.hasRackPlan ? E.hasRackPlan(M, dc) : E.placedRacks(M, dc).length)) return '';
     const P = E.computeRackPlan(M, dc);
     const owners = E.ownerColors(P);
-    const drawing = o.drawing === false ? '' : `<div class="prk-row">${P.racks.map((R, ri) => R.rack ? rackDrawing(M, P, R, ri, L, owners) : '').join('')}</div>`;
+    const drawing = o.drawing === false ? '' : `<div class="prk-row">${P.racks.map((R, ri) => R.rack ? rackDrawing(M, P, R, ri, L, owners, dc) : '').join('')}</div>`;
     const whereOf = x => x.loose ? (x.field ? (x.name ? `Elsewhere · ${x.name}` : 'Elsewhere (belongs to this DB)') : (x.name ? `Loose · ${x.name}` : 'Loose node')) : (P.racks[x.rack]?.placement.name || P.racks[x.rack]?.rack?.name || '');
     const nodeList = o.nodes === false || !P.nodes.length ? '' : `<div class="pnp-grid">${P.nodes.map(x => nodePortsPrint(P, x, whereOf(x), owners)).join('')}</div>`;
     const loose = P.loose || [];
@@ -735,6 +807,8 @@
     const st = P.stats;
     return `<div class="section">${h3(n, 'Racks', `${st.lkUsed}/${st.lkSockets} LK37 · ${st.vimUsed}/${st.vimSockets} Veam4 · ${st.nodePortsUsed}/${st.nodePorts} node ports`)}${advice}${drawing}${nodeList}${looseHtml}${table}</div>`;
   }
+  // how the LK block is built, in words: one block of 12 ports, or 3 groups of 4 (4× XLR on the block itself and up to 3 Veam4s)
+  const blockForm = mode => mode === 'XLR12' ? '12 ports · 12× XLR' : mode === 'VEAM_ONLY' ? '3 × 4 ports · 3× Veam4' : '3 × 4 ports · 4× XLR + 3× Veam4';
   function buildPatch(M, dc, L, n, o){
     const lks = listFromMap(M.byLK).filter(x=>x.dimcity===dc).sort(byId);
     const linked = new Set(); for(const lk of lks) for(const s of [1,2,3]) if(lk.veam?.[s]) linked.add(lk.veam[s]);
@@ -753,7 +827,7 @@
     if(!lks.length && !loose.length) return '';
     const lkHtml = lks.map(lk=>{
       const mode = effBlock(lk), col = ownerCol(lk.id);
-      const head = `<div class="card-h"><span>${col ? `<i class="dot" style="background:${col}"></i>` : ''}${esc(lk.id)} <small>${esc(loc(lk))}</small></span><small>${esc(blockLabel(mode))}</small></div>`;
+      const head = `<div class="card-h"><span>${col ? `<i class="dot" style="background:${col}"></i>` : ''}${esc(lk.id)} <small>${esc(loc(lk))}</small></span><small class="blk">${esc(blockForm(mode))}</small></div>`;
       if(mode === 'XLR12'){
         return `<div class="card">${head}<div class="card-b"><div class="lkrow">${Array.from({length:12},(_,i)=>`<div class="c1">${cell(merged(lk,i+1), i+1, lk.id, i+1)}</div>`).join('')}</div></div></div>`;
       }
@@ -795,12 +869,13 @@
 
   // ===================== The documents =====================
   // The blocks (sections) of one DimCity for a document: kind = 'book' | 'lk' | 'nodes'. Only the sections that belong in that document.
-  function dbBlocks(M, meta, dc, L, kind){
+  // `force`: the booklets of the whole show (nodes & switches, LK & splitters) use fixed sections, whatever is switched on for the DB booklet
+  function dbBlocks(M, meta, dc, L, kind, force = null){
     const ctx = { dc, docName:kind === 'book' ? '' : DOCS[kind].title, label:dcName(dc) };
     const group = `dc:${dc}`, blocks = [], toc = [], db = dcColor(M, dc);
     let n = 0, first = true, real = 0;
     for(const s of L.sections){
-      if(!s.on || !SECTIONS[s.key].docs.includes(kind)) continue;
+      if(force ? !force.includes(s.key) : (!s.on || !SECTIONS[s.key].docs.includes(kind))) continue;
       const o = s.opts || {};
       if(s.key === 'notes' && !o.text) continue;
       let html = '';
@@ -808,6 +883,8 @@
       else {
         n++;
         switch(s.key){
+          case 'contents':  html = buildContents(M, dc, L, n); break;
+          case 'ipschema':  html = buildIpSchema(M, meta, dc, L, n); break;
           case 'network':   html = buildNetwork(M, dc, L, n, o); break;
           case 'switches':  html = buildSwitches(M, dc, L, n, o); break;
           case 'splitters': html = buildSplitters(M, dc, L, n); break;
@@ -856,21 +933,27 @@
     }).sort((a, b) => natCmp(a.dc, b.dc) || (rank[a.kind] - rank[b.kind]) || natCmp(a.label, b.label));
   }
   const vlanChip = (v, id) => v ? `<span class="vl" style="--c:${esc(v.color || '#94a3b8')}"></span>${esc(v.name)} <span class="small">${v.id}</span>` : (id != null ? esc(String(id)) : '');
-  function ipBlocks(M, meta, dcs, L){
-    const F = window.Fent, rows = ipRows(dcs), blocks = [];
-    const ctx = { docName:'IP address book', label:'IP address book' };
+  // the numbers behind the IP book and its cover: the rows, every address, the double ones and the VLANs in use with their range
+  function ipSummary(dcs){
+    const F = window.Fent, rows = ipRows(dcs);
     const all = rows.flatMap(r => r.ifs.map(x => ({ r, x })));
     const dups = new Set(all.filter(a => a.x.dup).map(a => a.x.ip));
-    // 1. overview
     const byVlan = new Map();
     for(const { x } of all){ const k = x.vlanId != null ? String(x.vlanId) : '-'; if(!byVlan.has(k)) byVlan.set(k, { vlan:x.vlan, id:x.vlanId, n:0, masks:new Set(), ips:[] }); const e = byVlan.get(k); e.n++; if(x.mask) e.masks.add(x.mask); e.ips.push(x.ip); }
     const vl = [...byVlan.values()].sort((a, b) => (Number(a.id) || 1e9) - (Number(b.id) || 1e9));
     const range = e => { const r = e.id != null ? F?.rangeOf(Number(e.id)) : null; if(r) return r.text; const ips = e.ips.filter(Boolean).sort(ipCmp); return ips.length ? `${ips[0].split('.').slice(0, 2).join('.')}.x.x` : ''; };
+    return { rows, all, dups, vl, range };
+  }
+  function ipBlocks(M, meta, dcs, L){
+    const blocks = [];
+    const ctx = { docName:'IP & VLAN book', label:'IP & VLAN book' };
+    const { rows, all, dups, vl, range } = ipSummary(dcs);
+    // 1. overview
     const vlTable = vl.length ? `<div class="card"><div class="card-h"><span>VLANs in use</span><small>${vl.length} VLAN${vl.length === 1 ? '' : 's'}</small></div><div class="card-b"><table><thead><tr><th>VLAN</th><th>Name</th><th>Address range</th><th>Mask</th><th class="num">Addresses</th></tr></thead><tbody>${vl.map(e => `<tr><td class="mono">${e.id ?? '—'}</td><td>${vlanChip(e.vlan, null) || '<span class="small">no VLAN</span>'}</td><td class="mono">${esc(range(e))}</td><td class="mono">${esc([...e.masks].join(' · '))}</td><td class="num"><b>${e.n}</b></td></tr>`).join('')}</tbody></table></div></div>` : '';
     const issues = window.IpPlan?.check?.().filter(i => i.level !== 'info' && (!i.dc || dcs.includes(i.dc))) || [];
     const totals = `<div class="cover-totals" style="margin-top:2mm"><div><b>${rows.length}</b><span>Devices</span></div><div><b>${all.filter(a => a.x.ip).length}</b><span>Addresses</span></div><div><b>${vl.length}</b><span>VLANs</span></div><div><b>${dups.size}</b><span>Double</span></div></div>`;
     const e0 = { level:1, title:'Overview', page:0 };
-    blocks.push({ html:`<div class="section"><h2 class="doc-h2">IP address book</h2><div class="small" style="margin:-2mm 0 3mm">${esc([meta.project, meta.area, meta.location].filter(Boolean).join(' · '))}</div>${totals}${vlTable}</div>`, ctx, breakBefore:true, chapter:e0 });
+    blocks.push({ html:`<div class="section"><h2 class="doc-h2">IP & VLAN book</h2><div class="small" style="margin:-2mm 0 3mm">${esc([meta.project, meta.area, meta.location].filter(Boolean).join(' · '))}</div>${totals}${vlTable}</div>`, ctx, breakBefore:true, chapter:e0 });
     if(issues.length) blocks.push({ html:`<div class="section"><h3><span>Check</span><small>${issues.length} item${issues.length === 1 ? '' : 's'}</small></h3><table class="ip-tbl"><thead><tr><th style="width:16mm">Level</th><th>Device</th><th>Address</th><th>What</th></tr></thead><tbody>${issues.map(i => `<tr><td>${i.level === 'err' ? '<span class="tag red">Error</span>' : '<span class="tag yellow">Warning</span>'}</td><td>${esc([i.dc && dcName(i.dc), i.label].filter(Boolean).join(' · '))}</td><td class="ip">${esc(i.ip || '')}</td><td>${esc(i.en || '')}</td></tr>`).join('')}</tbody></table></div>`, ctx });
     // 2. per DimCity
     let n = 0;
@@ -889,6 +972,22 @@
     if(sorted.length) blocks.push({ html:`<div class="section"><h3><span><span class="n">${n + 1}</span>All addresses by number</span><small>${sorted.length} addresses</small></h3><table class="ip-tbl"><thead><tr><th>IP address</th><th>Device</th><th>DimCity</th><th>VLAN</th><th>Mask</th><th>Switch · port</th></tr></thead><tbody>${sorted.map(({ r, x }) => `<tr><td class="ip ${x.dup ? 'dup' : ''}"><b>${esc(x.ip)}</b></td><td><b>${esc(r.label)}</b> <span class="small">${esc(r.kindName)}${x.eth ? ` ETH${x.eth}` : ''}</span></td><td class="sub">${esc(dcName(r.dc))}</td><td>${vlanChip(x.vlan, x.vlanId)}</td><td class="mono sub">${esc(x.mask)}</td><td class="sub">${esc(x.port)}</td></tr>`).join('')}</tbody></table></div>`, ctx, breakBefore:true, chapter:{ level:1, title:'All addresses by number', page:0 } });
     if(!rows.length) blocks.splice(0, blocks.length, { html:`<div class="section"><h2 class="doc-h2">IP address book</h2><div class="placeholder">There are no network devices yet. Add nodes and switches on the Network page and give them an address.</div></div>`, ctx, breakBefore:true });
     return blocks;
+  }
+
+  // the cover of the booklets of the whole show: a kicker (what it is), the numbers, and a short table underneath
+  function bookCover(M, meta, dcs, L, kind){
+    const tile = (v, label) => `<div><b>${v}</b><span>${esc(label)}</span></div>`, tot = html => `<div class="cover-totals">${html}</div>`;
+    const tbl = (head, rows) => `<table><thead><tr>${head.map((h, i) => `<th${i ? ' class="num"' : ''}>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map((c, i) => `<td${i ? ' class="num"' : ''}>${i ? esc(c) : `<b>${esc(c)}</b>`}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    if(kind === 'ip'){
+      const { rows, all, dups, vl, range } = ipSummary(dcs);
+      const vt = vl.length ? `<table><thead><tr><th>VLAN</th><th>Name</th><th>Address range</th><th>Mask</th></tr></thead><tbody>${vl.map(e => `<tr><td class="mono"><b>${e.id ?? '—'}</b></td><td>${vlanChip(e.vlan, null)}</td><td class="mono">${esc(range(e))}</td><td class="mono">${esc([...e.masks].join(' · '))}</td></tr>`).join('')}</tbody></table>` : '';
+      return buildCover(M, meta, dcs, L, { kicker:'IP & VLAN book', totals:tot(tile(rows.length, 'Devices') + tile(all.filter(a => a.x.ip).length, 'Addresses') + tile(vl.length, 'VLANs') + tile(dups.size, 'Double')), extra:vt });
+    }
+    const per = dc => { const p = plan(M, dc); return { nodes:(p.nodes || []).length, sw:(window.NetSwitches?.list(dc) || []).length, spl:(p.splitters || []).length,
+      lk:listFromMap(M.byLK).filter(x => x.dimcity === dc).length, ve:listFromMap(M.byVeam).filter(x => x.dimcity === dc).length }; };
+    const rows = dcs.map(dc => ({ dc, ...per(dc) })), sum = k => rows.reduce((n, r) => n + r[k], 0);
+    if(kind === 'nodes') return buildCover(M, meta, dcs, L, { kicker:'Nodes & switches', totals:tot(tile(dcs.length, 'DimCities') + tile(sum('nodes'), 'Nodes') + tile(sum('sw'), 'Switches')), extra:tbl(['DimCity', 'Nodes', 'Switches'], rows.map(r => [dcName(r.dc), r.nodes, r.sw])) });
+    return buildCover(M, meta, dcs, L, { kicker:'LK & splitters', totals:tot(tile(dcs.length, 'DimCities') + tile(sum('lk'), 'LK blocks') + tile(sum('ve'), 'Veams') + tile(sum('spl'), 'Splitters')), extra:tbl(['DimCity', 'LK blocks', 'Veams', 'Splitters'], rows.map(r => [dcName(r.dc), r.lk, r.ve, r.spl])) });
   }
 
   // ---- the A3 sheets: the network flow and the signal flow, one drawing per sheet ----
@@ -915,31 +1014,32 @@
   // ===================== The file plan =====================
   const fname = s => String(s || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s*·\s*/g, ' ').replace(/\s+/g, ' ').trim();
   // every file that is made with the choices of the What step: where it goes (dir / name) and what it is
+  // The folders: DB booklets (one PDF per DimCity), Network info (the booklets of the whole show), Stickers.
   function filePlan(L, dcs, meta = currentMeta()){
     const proj = fname(meta.project) || 'PatchLab', st = L.publish.structure !== false, root = st ? (fname(L.publish.folder) || proj) : '';
     const j = (...p) => p.filter(Boolean).join('/');
     const out = [], add = f => out.push({ ...f, rel:j(root, f.dir, f.name) });
+    const dDb = st ? 'DB booklets' : '', dNet = st ? 'Network info' : '', dStk = st ? 'Stickers' : '';
     const k = L.docs.stickerKinds || {}, together = !!k.together && dcs.length > 1;       // stickers of all the chosen DimCities run on, one file per kind
-    if(L.docs.book && dcs.length && !L.docs.bookPerDc) add({ id:'book', kind:'book', title:DOCS.book.title, dir:'', name:`${proj} - DB book.pdf`, dcs });
-    if(L.docs.ip && dcs.length) add({ id:'ip', kind:'ip', title:DOCS.ip.title, dir:'', name:`${proj} - IP address book.pdf`, dcs });
-    if(L.docs.a3 && dcs.length > 1) add({ id:'a3all', kind:'a3all', title:'Network overview (A3)', dir:st ? 'A3' : '', name:`${proj} - Network overview A3.pdf`, dcs });
-    for(const dc of dcs){
-      const d = fname(dcName(dc)), dir = st ? d : '', sd = st ? j(d, 'Stickers') : '';
-      if(L.docs.book && L.docs.bookPerDc) add({ id:`book:${dc}`, kind:'book', dc, title:`${dcName(dc)} · DB book`, dir, name:`${d} - DB book.pdf`, dcs:[dc] });       // one booklet per DimCity
-      if(L.docs.lk) add({ id:`lk:${dc}`, kind:'lk', dc, title:`${dcName(dc)} · LK info`, dir, name:`${d} - LK info.pdf`, dcs:[dc] });
-      if(L.docs.nodes) add({ id:`nodes:${dc}`, kind:'nodes', dc, title:`${dcName(dc)} · Node info`, dir, name:`${d} - Node info.pdf`, dcs:[dc] });
-      if(L.docs.stickers && !together){
-        if(k.nodes) add({ id:`st-nodes:${dc}`, kind:'stickers', variant:'nodes', ports:!!k.nodePorts, dc, title:`${dcName(dc)} · Node stickers`, dir:sd, name:`${d} - Node stickers.pdf`, dcs:[dc] });
-        if(k.switches) add({ id:`st-switches:${dc}`, kind:'stickers', variant:'switches', ports:!!k.switchPorts, dc, title:`${dcName(dc)} · Switch stickers`, dir:sd, name:`${d} - Switch stickers.pdf`, dcs:[dc] });
-        if(k.cables) add({ id:`st-cables:${dc}`, kind:'stickers', variant:'cables', dc, title:`${dcName(dc)} · Cable stickers`, dir:sd, name:`${d} - Cable stickers.pdf`, dcs:[dc] });
-      }
-      if(L.docs.a3) add({ id:`a3:${dc}`, kind:'a3', dc, title:`${dcName(dc)} · Network flow (A3)`, dir:st ? 'A3' : '', name:`${d} - Network flow A3.pdf`, dcs:[dc] });
+    if(L.docs.book && dcs.length){
+      if(L.docs.bookPerDc) for(const dc of dcs) add({ id:`book:${dc}`, kind:'book', dc, title:`${dcName(dc)} · DB booklet`, dir:dDb, name:`${fname(dcName(dc))} - DB booklet.pdf`, dcs:[dc] });       // one booklet per DimCity
+      else add({ id:'book', kind:'book', title:DOCS.book.title, dir:dDb, name:`${proj} - DB book.pdf`, dcs });
     }
-    if(L.docs.stickers && together){
-      const sd = st ? 'Stickers' : '';
-      if(k.nodes) add({ id:'st-nodes:ALL', kind:'stickers', variant:'nodes', ports:!!k.nodePorts, dc:null, title:'Node stickers · all DimCities', dir:sd, name:`${proj} - Node stickers.pdf`, dcs });
-      if(k.switches) add({ id:'st-switches:ALL', kind:'stickers', variant:'switches', ports:!!k.switchPorts, dc:null, title:'Switch stickers · all DimCities', dir:sd, name:`${proj} - Switch stickers.pdf`, dcs });
-      if(k.cables) add({ id:'st-cables:ALL', kind:'stickers', variant:'cables', dc:null, title:'Cable stickers · all DimCities', dir:sd, name:`${proj} - Cable stickers.pdf`, dcs });
+    if(L.docs.ip && dcs.length) add({ id:'ip', kind:'ip', title:DOCS.ip.title, dir:dNet, name:`${proj} - IP and VLAN book.pdf`, dcs });
+    if(L.docs.nodes && dcs.length) add({ id:'nodes', kind:'nodes', title:DOCS.nodes.title, dir:dNet, name:`${proj} - Nodes and switches book.pdf`, dcs });
+    if(L.docs.lk && dcs.length) add({ id:'lk', kind:'lk', title:DOCS.lk.title, dir:dNet, name:`${proj} - LK and splitters book.pdf`, dcs });
+    if(L.docs.a3 && dcs.length) add({ id:'a3', kind:'a3', title:DOCS.a3.title, dir:dNet, name:`${proj} - Signal flow book A3.pdf`, dcs });
+    if(L.docs.stickers){
+      if(together){
+        if(k.nodes) add({ id:'st-nodes:ALL', kind:'stickers', variant:'nodes', ports:!!k.nodePorts, dc:null, title:'Node stickers · all DimCities', dir:dStk, name:`${proj} - Node stickers.pdf`, dcs });
+        if(k.switches) add({ id:'st-switches:ALL', kind:'stickers', variant:'switches', ports:!!k.switchPorts, dc:null, title:'Switch stickers · all DimCities', dir:dStk, name:`${proj} - Switch stickers.pdf`, dcs });
+        if(k.cables) add({ id:'st-cables:ALL', kind:'stickers', variant:'cables', dc:null, title:'Cable stickers · all DimCities', dir:dStk, name:`${proj} - Cable stickers.pdf`, dcs });
+      } else for(const dc of dcs){
+        const d = fname(dcName(dc));
+        if(k.nodes) add({ id:`st-nodes:${dc}`, kind:'stickers', variant:'nodes', ports:!!k.nodePorts, dc, title:`${dcName(dc)} · Node stickers`, dir:dStk, name:`${d} - Node stickers.pdf`, dcs:[dc] });
+        if(k.switches) add({ id:`st-switches:${dc}`, kind:'stickers', variant:'switches', ports:!!k.switchPorts, dc, title:`${dcName(dc)} · Switch stickers`, dir:dStk, name:`${d} - Switch stickers.pdf`, dcs:[dc] });
+        if(k.cables) add({ id:`st-cables:${dc}`, kind:'stickers', variant:'cables', dc, title:`${dcName(dc)} · Cable stickers`, dir:dStk, name:`${d} - Cable stickers.pdf`, dcs:[dc] });
+      }
     }
     return out;
   }
@@ -959,9 +1059,17 @@
       if(L.cover.show) cover = buildCover(M, meta, dcs, L);
       if(L.cover.summaryPage && dcs.length > 1){ const e = { level:1, title:'Project summary', page:0 }; toc.push(e); blocks.push({ html:buildProjectSummary(M, dcs), ctx:{ label:'Project summary' }, breakBefore:true, chapter:e }); }
       for(const dc of dcs){ const r = dbBlocks(M, meta, dc, L, 'book'); blocks.push(...r.blocks); toc.push(...r.toc); }
-    } else if(kind === 'lk' || kind === 'nodes') blocks = dbBlocks(M, meta, dcs[0], L, kind).blocks;
-    else if(kind === 'ip') blocks = ipBlocks(M, meta, dcs, L);
-    else if(a3) blocks = a3Blocks(M, meta, dcs, L, kind);
+    } else if(kind === 'lk' || kind === 'nodes'){
+      const force = kind === 'nodes' ? ['summary', 'network', 'switches'] : ['summary', 'patch', 'splitters'];
+      if(L.cover.show) cover = bookCover(M, meta, dcs, L, kind);
+      for(const dc of dcs){ const r = dbBlocks(M, meta, dc, L, kind, force); blocks.push(...r.blocks); toc.push(...r.toc); }
+    } else if(kind === 'ip'){
+      if(L.cover.show) cover = bookCover(M, meta, dcs, L, 'ip');
+      blocks = ipBlocks(M, meta, dcs, L); toc = blocks.map(b => b.chapter).filter(Boolean);
+    } else if(kind === 'a3'){
+      if(dcs.length > 1) blocks.push(...a3Blocks(M, meta, dcs, L, 'a3all'));
+      for(const dc of dcs) blocks.push(...a3Blocks(M, meta, [dc], L, 'a3'));
+    } else if(a3) blocks = a3Blocks(M, meta, dcs, L, kind);
     if(!blocks.length) return { html:'', pages:0, empty:true };
 
     const fr = document.createElement('iframe');
@@ -975,7 +1083,7 @@
       const o = { bodyW:G.bodyW * MM, bodyH:(G.bodyH - 1.5) * MM, frame:mk, isStale, contLabel:'continued' };
       if(cover){ const s = mk({ cover:true, label:'Cover' }); s.body.innerHTML = cover; }
       let tocPages = 0;
-      const useToc = kind === 'book' && L.cover.contents !== false && toc.length > 1;
+      const useToc = !a3 && L.cover.contents !== false && toc.length > 1;
       if(useToc){ const t = await window.Paginate.run(doc, { ...o, blocks:[{ html:tocHtml(toc), ctx:{ label:'Contents' }, breakBefore:true }] }); if(!t) return null; tocPages = t.length; }
       const pages = await window.Paginate.run(doc, { ...o, blocks });
       if(!pages) return null;

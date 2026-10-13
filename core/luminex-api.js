@@ -39,6 +39,13 @@ export function gigacorePlan(cur, want, { withIp = false } = {}){
   // groups (= VLANs), matched on the VLAN id
   const gid = new Map(), used = new Set(cur.groups.map(g => g.group_id));
   const nextId = () => { let i = 21; while(used.has(i)) i++; used.add(i); return i; };
+  // name and colour of a group the switch already has. VLAN 1 (the management group) is left as it is; a built-in group the switch refuses is a soft call
+  const look = (have, vid, name, color) => {
+    if(vid === 1 || have.vid === 1) return;
+    const soft = !!have.predefined;
+    if(name && have.name !== name){ add('PUT', `/api/groups/group/${have.group_id}/name`, name, `Group ${have.group_id} (VLAN ${vid}): name “${have.name}” → “${name}”`); ops[ops.length - 1].soft = soft; }
+    if(color && String(have.color).toLowerCase() !== color.toLowerCase()){ add('PUT', `/api/groups/group/${have.group_id}/color`, color, `Group ${have.group_id} (VLAN ${vid}): colour ${have.color} → ${color}`); ops[ops.length - 1].soft = soft; }
+  };
   for(const g of want.groups){
     const have = cur.groups.find(x => x.vid === g.vid);
     const name = clipBytes(g.name, MAX_GROUP_NAME), color = /^#[0-9a-f]{6}$/i.test(g.color || '') ? g.color : null;
@@ -46,13 +53,17 @@ export function gigacorePlan(cur, want, { withIp = false } = {}){
       gid.set(g.vid, have.group_id);
       // the name and colour of the plan are always sent, also for the built-in groups (1–20), so every device in the system has the same group names;
       // a built-in group may be refused by the switch: that is reported, the rest of the configuration goes on
-      const soft = !!have.predefined;
-      if(name && have.name !== name){ add('PUT', `/api/groups/group/${have.group_id}/name`, name, `Group ${have.group_id} (VLAN ${g.vid}): name “${have.name}” → “${name}”`); ops[ops.length - 1].soft = soft; }
-      if(color && String(have.color).toLowerCase() !== color.toLowerCase()){ add('PUT', `/api/groups/group/${have.group_id}/color`, color, `Group ${have.group_id} (VLAN ${g.vid}): colour ${have.color} → ${color}`); ops[ops.length - 1].soft = soft; }
+      look(have, g.vid, name, color);
     } else {
       const id = nextId(); gid.set(g.vid, id);
       add('POST', '/api/groups/group', { group_id: id, name: name || `VLAN ${g.vid}`, vid: g.vid, ...(color ? { color } : {}) }, `New group ${id}: VLAN ${g.vid} “${name || `VLAN ${g.vid}`}”`);
     }
+  }
+  // every other VLAN of the VLAN overview: the groups the switch has already (the 20 standard ones) get the name and colour of the overview, so every device has the same names
+  for(const g of want.names || []){
+    if(want.groups.some(x => x.vid === g.vid)) continue;
+    const have = cur.groups.find(x => x.vid === g.vid); if(!have) continue;
+    look(have, g.vid, clipBytes(g.name, MAX_GROUP_NAME), /^#[0-9a-f]{6}$/i.test(g.color || '') ? g.color : null);
   }
   // the trunk: always the switch's own predefined trunk (never a trunk of our own); groups made later are added to it
   const fibrePorts = want.ports.filter(p => p.trunk).map(p => p.port);
@@ -288,7 +299,12 @@ export function lumiNetWant(ifs, ethCount = 1, vlanOf = () => null, portVids = n
   const ports = Array.from({ length:Math.max(1, ethCount) }, (_, i) => ({ eth:i + 1, vids:portVids ? [...new Set((portVids[i + 1] || []).map(Number).filter(Number.isFinite))] : [...new Set((ifs || []).filter(x => (Number(x.eth) || 1) === i + 1 && x.vlan != null && x.ip).map(x => Number(x.vlan)))] }));
   for(const p of ports) for(const v of p.vids) if(!groups.has(v)) groups.set(v, mk(v));           // a port can carry a VLAN that has no address of its own
   for(const g of groups.values()) g.listen = !!g.pipe;
-  return { groups:[...groups.values()].sort((a, b) => a.vid - b.vid), ports };
+  return { groups:[...groups.values()].sort((a, b) => a.vid - b.vid), ports, names:[] };
+}
+// the group of a wanted node network that carries the lighting: the VLAN of the "lighting" role, else a group that takes part in the lighting data (not management)
+export function lumiLightGroup(net){
+  const gs = net?.groups || [];
+  return gs.find(g => g.addresses.some(a => a.role === 'lighting')) || gs.find(g => g.listen && !g.mgmt) || gs.find(g => g.listen) || null;
 }
 // the node's own (predefined) trunk: the one that cannot be edited, if the node has one
 const predefTrunk = trunks => Object.entries(trunks || {}).find(([, t]) => t.editable === false)?.[0] ?? null;
@@ -300,22 +316,24 @@ export const prefixToMask = p => { const n = Math.max(0, Math.min(32, Number(p) 
 export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAddresses = false } = {}){
   const ops = [], notes = [], changes = [], nc = cur?.netcfg;
   if(!want?.groups?.length) return { ops, notes, changes, moveTo:null, moveMask:null };
+  const wantNames = (want.names || []).filter(g => g.vid !== 1 && !want.groups.some(x => x.vid === g.vid));
   if(!nc){ notes.push('This LumiNode does not offer the advanced network (no /api/network_config) — only its basic IP address can be set.'); return { ops, notes, changes, moveTo:null, moveMask:null }; }
   const next = { groups:clone(nc.groups || {}), trunks:clone(nc.trunks || {}), ports:clone(nc.ports || {}), stp_mode:nc.stp_mode || 'rstp', allow_ipv6_only_configurability:!!nc.allow_ipv6_only_configurability };
   const gid = new Map(Object.entries(next.groups).map(([k, g]) => [Number(g.vid), Number(k)]));
   let top = Math.max(0, ...Object.keys(next.groups).map(Number)), ttop = Math.max(0, ...Object.keys(next.trunks).map(Number));
   const cidr = a => `${a.ip}/${a.prefix}`;
+  // the name and colour of the plan go to a group the node already has, so the group names are the same in the whole system. VLAN 1 (management) is left as it is;
+  // a group the node does not let us change keeps its own (a note says so)
+  const look = (k, g) => {
+    const cg = next.groups[k], nm = clipBytes(g.name, MAX_GROUP_NAME); if(!cg || g.vid === 1) return;
+    if(cg.editable === false){ if(nm && cg.name !== nm) notes.push(`Group ${k} (VLAN ${g.vid}) is built into the node — its name “${cg.name}” cannot be changed.`); return; }
+    if(nm && cg.name !== nm){ changes.push(`Group ${k} (VLAN ${g.vid}): name “${cg.name}” → “${nm}”`); cg.name = nm; }
+    if(/^#[0-9a-f]{6}$/i.test(g.color || '') && String(cg.color || '').toLowerCase() !== g.color.toLowerCase()){ changes.push(`Group ${k} (VLAN ${g.vid}): colour ${cg.color || 'none'} → ${g.color}`); cg.color = g.color; }
+  };
   for(const g of want.groups){
     let k = gid.get(g.vid), fresh = false;
     if(k == null){ if(top >= 255){ notes.push(`No room for a group for VLAN ${g.vid} (a node holds 255 groups).`); continue; } k = ++top; fresh = true; next.groups[k] = { name:g.name, vid:g.vid, color:g.color, editable:true, network_settings:{ addresses:[], routes:[], pipeline_setting:'', allow_config:true } }; gid.set(g.vid, k); }
-    if(!fresh){        // the name and colour of the plan go to a group the node already has, so the group names are the same in the whole system (a built-in group the node does not let us change keeps its own)
-      const cg = next.groups[k], nm = clipBytes(g.name, MAX_GROUP_NAME);
-      if(cg.editable === false){ if(nm && cg.name !== nm) notes.push(`Group ${k} (VLAN ${g.vid}) is built into the node — its name “${cg.name}” cannot be changed.`); }
-      else {
-        if(nm && cg.name !== nm){ changes.push(`Group ${k} (VLAN ${g.vid}): name “${cg.name}” → “${nm}”`); cg.name = nm; }
-        if(/^#[0-9a-f]{6}$/i.test(g.color || '') && String(cg.color || '').toLowerCase() !== g.color.toLowerCase()){ changes.push(`Group ${k} (VLAN ${g.vid}): colour ${cg.color || 'none'} → ${g.color}`); cg.color = g.color; }
-      }
-    }
+    if(!fresh) look(k, g);
     const ns = (next.groups[k].network_settings ||= { addresses:[], routes:[], pipeline_setting:'', allow_config:true });
     if(!fresh && !g.addresses.length) continue;       // a group the node has and the plan gives no address: leave it as it is (its ports are still set below)
     const old = (ns.addresses || []).map(a => a.ip), wantIps = g.addresses.map(cidr), keep = keepAddresses && !fresh;
@@ -328,6 +346,7 @@ export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAd
     }
     ns.addresses = addrs; ns.pipeline_setting = pipe; if(g.mgmt) ns.allow_config = true;
   }
+  for(const g of wantNames){ const k = gid.get(g.vid); if(k != null) look(k, g); }          // the other VLANs of the overview that the node has (not used on it)
   const rj = Object.entries(next.ports).filter(([, p]) => (p.type || 'rj45') === 'rj45').map(([name]) => name);
   (want.ports || []).forEach((wp, i) => {
     const name = rj[i]; if(!name){ if(wp.vids.length) notes.push(`This node has no network port ${i + 1}.`); return; }
@@ -376,7 +395,7 @@ export const uniShown = (p, offset = 0) => (p.universe == null ? null : p.klass 
 
 // want = { shortName, longName, ip:{address,mask,gateway}|null, ports:[ { name?, dir?:'output'|'input'|'idle', klass?:'sacn'|'artnet', universe? } per port, null = untouched ] }
 // opt = { artnetOffset (0), protocol:'sacn'|'artnet' for inputs made without a stated protocol }
-export function lumiPlan(cur, want, { withIp = false, artnetOffset = 0, protocol = 'sacn' } = {}){
+export function lumiPlan(cur, want, { withIp = false, artnetOffset = 0, protocol = 'sacn', lightGroup = null } = {}){
   const ops = [], notes = [];
   const add = (method, path, body, text, kind = 'config', extra = {}) => ops.push({ method, path, body, text, kind, ...extra });
   const sn = clip(want.shortName, 17), ln = clip(want.longName, 63);
@@ -511,6 +530,21 @@ export function lumiPlan(cur, want, { withIp = false, artnetOffset = 0, protocol
     add('PUT', `/api/processblock/${b}/output`, c => ({ io_id: c.n }), `${P}: … and connect it to engine ${b}`);
     if(p.net) del(`${P}: remove the old ${label(p.klass)} ${p.via === 'input' ? 'output' : 'input'}`, `/api/IO/${p.net.id}`);
   });
+  // advanced network: the network inputs and outputs of the engines sit on the lighting group (the VLAN the lighting data comes in on and goes out on)
+  if(lightGroup != null){
+    const del = new Set(ops.filter(o => o.method === 'DELETE' && /^\/api\/IO\/\d+$/.test(o.path)).map(o => Number(o.path.split('/').pop()))), set = new Set();
+    for(const o of ops){
+      if(o.method === 'POST' && o.path === '/api/IO' && o.body && NET.has(o.body.io_class)) o.body.group = lightGroup;
+      const m = o.method === 'PUT' && String(o.path).match(/^\/api\/IO\/(\d+)$/);
+      if(m && o.body && NET.has(o.body.io_class)){ o.body.group = lightGroup; set.add(Number(m[1])); }
+    }
+    for(const p of cur.ports){
+      const n = p.net, dir = wants[p.index]?.w.dir ?? p.dir;
+      if(!n || !NET.has(n.io_class) || dir === 'idle' || del.has(n.id) || set.has(n.id) || Number(n.group ?? 0) === lightGroup) continue;
+      set.add(n.id); const { duplicate_ios, ...rest } = n;
+      add('PUT', `/api/IO/${n.id}`, { ...rest, group: lightGroup }, `DMX ${p.index + 1}: ${label(n.io_class)} ${n.io_class === 'artnet' ? n.universe - artnetOffset : n.universe} on the lighting group ${lightGroup}`);
+    }
+  }
   if(withIp && want.ip?.address){
     const cip = cur.ip;
     if(cip?.ipaddress !== want.ip.address || cip?.netmask !== want.ip.mask)

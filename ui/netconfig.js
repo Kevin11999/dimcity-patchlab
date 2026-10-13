@@ -128,6 +128,17 @@
   // the VLAN of the management address of a switch, in the numbering of the project (Luminex: management = 1, FENT: 1090)
   const mgmtVid = s => { try { if(!s?.dev?.ip) return null; const v = FENT().classify(s.dev.ip)?.vlan, role = v && ({ 90:'management', 40:'lighting' })[v.second]; return role ? FENT().roleVlan(role, App.getMODEL().networkDevices?.prefs?.fent?.vlanMode || 'luminex') : (v?.id ?? null); } catch { return null; } };
   // the management VLAN every RJ45 port starts on: the one of the switch's own address, else the management VLAN of the numbering of the project
+  // every VLAN of the VLAN overview with its name and colour: sent to the groups a device has already (the standard 20), so all devices have the same names
+  const allNames = () => { try { const mode = App.getMODEL().networkDevices?.prefs?.fent?.vlanMode || 'luminex'; return FENT().vlanList(mode).filter(v => !v.extension).map(v => ({ vid:v.id, name:v.name, color:v.color })); } catch { return []; } };
+  // the group of an advanced node that carries the lighting (the VLAN with the role "lighting", 200): the network inputs and outputs of its engines belong to it. null while the node does not have that group yet.
+  const lightGroupOf = d => {
+    try {
+      const it = planOf(d), nc = d.cur?.netcfg; if(!it || it.kind !== 'nd' || !it.inst.advanced || !nc || nc.is_basic_config) return null;
+      const g = api.lumiLightGroup(wantNode(it).net); if(!g) return null;
+      const k = Object.entries(nc.groups || {}).find(([, x]) => Number(x.vid) === g.vid)?.[0];
+      return k == null ? null : Number(k);
+    } catch { return null; }
+  };
   const defMgmt = s => { try { return mgmtVid(s) ?? FENT().roleVlan('management', App.getMODEL().networkDevices?.prefs?.fent?.vlanMode || 'luminex'); } catch { return null; } };
   const vlansOf = (dc, label) => { const set = new Set(); for(const r of (window.FentUI?.portPlan(dc).rows || [])) if(r.sw === label) (r.vlans || []).forEach(v => set.add(Number(v))); const m = defMgmt(swList().find(x => x.dc === dc && x.label === label)?.s); if(m != null) set.add(m); return set; };
   function wantSwitch(it){
@@ -162,7 +173,7 @@
     for(let k = fibre.length - 1; k >= 0; k--) if(vidPorts.has(fibre[k])) fibre.splice(k, 1);
     for(const n of trunkPorts) if(!fibre.includes(n)) fibre.push(n);
     const groups = [...vset].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean).map(v => ({ vid:v.id, name:v.name, color:v.color }));
-    return { name:s.dev?.id || s.label, ip:s.dev?.ip ? { address:s.dev.ip, mask:s.dev.subnet || DEF_MASK, gateway:s.dev.gateway || '' } : null, ports, fibre, groups, mgmt:mgmtVid(s) };
+    return { name:s.dev?.id || s.label, ip:s.dev?.ip ? { address:s.dev.ip, mask:s.dev.subnet || DEF_MASK, gateway:s.dev.gateway || '' } : null, ports, fibre, groups, names:allNames(), mgmt:mgmtVid(s) };
   }
   function wantNode(it){
     const inst = it.inst, u = Array.isArray(inst.universes) ? inst.universes : [];
@@ -171,7 +182,7 @@
     // the lighting data of the groups follows the DMX ports of the node (output by default), unless a group was given its own choice
     const pipe = PP?.pipeOf ? PP.pipeOf(it.dc, inst, it.i) : 'input+output';
     const ifs = FENT().ifaces(inst, eth).map(x => ((x.listen === undefined || x.listen === null) && x.role !== 'management') ? { ...x, listen:pipe } : x);
-    return { shortName:inst.id, longName:inst.name, advanced:!!inst.advanced, net:inst.advanced ? api.lumiNetWant(ifs, eth, id => FENT().vlanById(id), inst.advPorts || null) : null, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || DEF_MASK, gateway:inst.gateway || '' } : null,
+    return { shortName:inst.id, longName:inst.name, advanced:!!inst.advanced, net:inst.advanced ? { ...api.lumiNetWant(ifs, eth, id => FENT().vlanById(id), inst.advPorts || null), names:allNames() } : null, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || DEF_MASK, gateway:inst.gateway || '' } : null,
       ports:u.map((x, j) => { if(x == null || x === '') return null; const p = pp[j] || {}; return { universe:Number(x), name:p.name || `${inst.id || 'N'}.${j + 1}`, klass:p.klass || undefined, dir:p.dir || undefined }; }) };
   }
   const projectVlans = () => { const set = new Set(); for(const it of swList()) vlansOf(it.dc, it.s.label).forEach(v => set.add(v)); return [...set].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean); };
@@ -225,7 +236,7 @@
       const n = d.cur.ports.length, per = Array(n).fill(null);
       for(const [i, e] of d.E) if(i < n) per[i] = clone(e);
       const adv = d.dev.net && d.cur.netcfg;       // an advanced network configuration is on its way: the addresses go with it, not through /api/ipsettings
-      const p = api.lumiPlan(d.cur, { shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || DEF_MASK, gateway:d.dev.gateway || '' } : null, ports:per }, { withIp:!!d.dev.ip && !adv, artnetOffset:C.offset });
+      const p = api.lumiPlan(d.cur, { lightGroup:lightGroupOf(d), shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || DEF_MASK, gateway:d.dev.gateway || '' } : null, ports:per }, { withIp:!!d.dev.ip && !adv, artnetOffset:C.offset });
       ops.push(...p.ops); notes.push(...p.notes);
       if(d.dev.net){
         const np = api.lumiNetPlan(d.cur, d.dev.net, { currentIp:d.ip, keepAddresses:!!d.dev.netKeep });

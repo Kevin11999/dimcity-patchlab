@@ -1243,6 +1243,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.20.3', date:'2026-10-13',
+    en:['New: the config sends the name and colour of every VLAN of the VLAN overview (groups 2–20, VLAN 1 stays) to the groups a GigaCore or LumiNode already has, and on an advanced LumiNode the network inputs and outputs of the engines are put on the lighting group (VLAN 200).'],
+    nl:['Nieuw: de config stuurt de naam en kleur van elke VLAN uit het VLAN-overzicht (groep 2–20, VLAN 1 blijft) naar de groepen die een GigaCore of LumiNode al heeft, en bij een advanced LumiNode staan de netwerkingangen en -uitgangen van de engines op de lichtgroep (VLAN 200).']
+  },
+  {
     version:'0.20.2', date:'2026-10-13',
     en:['Fixed: a device or address without its own mask gets 255.255.0.0 (not 255.255.255.0); the group names and colours of the plan are always sent to the switches and nodes (a built-in GigaCore group the switch refuses is reported); the Align tool stops every blinking switch when you link, skip, go on or close it (a LumiNode has no stop in its API).'],
     nl:['Opgelost: een apparaat of adres zonder eigen mask krijgt 255.255.0.0 (niet 255.255.255.0); de groepsnamen en kleuren uit het plan gaan altijd mee naar de switches en nodes (een ingebouwde GigaCore-groep die de switch weigert wordt gemeld); de Uitlijntool stopt elke knipperende switch bij koppelen, overslaan, doorgaan en sluiten (een LumiNode heeft geen stop in zijn API).']

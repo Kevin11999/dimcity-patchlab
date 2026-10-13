@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.20.3 — 2026-10-13
+
+- New: the config sends the name and colour of every VLAN of the VLAN overview (groups 2–20, VLAN 1 stays) to the groups a GigaCore or LumiNode already has, and on an advanced LumiNode the network inputs and outputs of the engines are put on the lighting group (VLAN 200).
+
+<details><summary>Nederlands</summary>
+
+- Nieuw: de config stuurt de naam en kleur van elke VLAN uit het VLAN-overzicht (groep 2–20, VLAN 1 blijft) naar de groepen die een GigaCore of LumiNode al heeft, en bij een advanced LumiNode staan de netwerkingangen en -uitgangen van de engines op de lichtgroep (VLAN 200).
+
+</details>
+
 ## 0.20.2 — 2026-10-13
 
 - Fixed: a device or address without its own mask gets 255.255.0.0 (not 255.255.255.0); the group names and colours of the plan are always sent to the switches and nodes (a built-in GigaCore group the switch refuses is reported); the Align tool stops every blinking switch when you link, skip, go on or close it (a LumiNode has no stop in its API).

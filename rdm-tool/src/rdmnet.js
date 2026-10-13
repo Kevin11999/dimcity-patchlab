@@ -113,7 +113,7 @@ export class RdmNet extends EventEmitter {
 
   onRpt(vector, body){
     if(body.length < 21) return;
-    const seq = body.readUInt32BE(14), data = body.subarray(21);
+    const seq = body.readUInt32BE(16), data = body.subarray(21);   // header: src UID, src endpoint, dest UID, dest endpoint, seq
     const wait = this.pending.get(seq);
     if(!wait) return;
     if(vector === RPT.STATUS){

@@ -103,7 +103,7 @@ export const prefixOf = mask => mask.split('.').reduce((n, o) => n + (Number(o) 
 export async function addLocalAddresses({ adds = [], adapter = '' } = {}){
   const { execFile } = await import('node:child_process'), os = await import('node:os');
   const ok4 = s => /^\d{1,3}(\.\d{1,3}){3}$/.test(s) && s.split('.').every(o => Number(o) <= 255);
-  const list = adds.filter(x => ok4(x.ip) && ok4(x.mask || '255.255.255.0'));
+  const list = adds.filter(x => ok4(x.ip) && ok4(x.mask || '255.255.0.0'));
   if(!list.length) throw new Error('No valid address to add');
   const nets = await localNets(); const pick = (adapter && nets.find(n => n.name === adapter)) || nets.find(n => /^(192\.168|10\.|172\.(1[6-9]|2\d|3[01])|2\.)/.test(n.address)) || nets[0];
   if(!pick) throw new Error('This computer has no network adapter with an address');
@@ -111,13 +111,13 @@ export async function addLocalAddresses({ adds = [], adapter = '' } = {}){
   const run = (cmd, args) => new Promise((res, rej) => execFile(cmd, args, { timeout: 90000 }, (e, so, se) => (e ? rej(new Error((se || e.message || '').toString().trim() || 'The command was refused')) : res(so))));
   const plat = os.platform();
   if(plat === 'win32'){
-    const cmds = list.map(x => `netsh interface ip add address name="${name}" ${x.ip} ${x.mask || '255.255.255.0'}`).join(' & ');
+    const cmds = list.map(x => `netsh interface ip add address name="${name}" ${x.ip} ${x.mask || '255.255.0.0'}`).join(' & ');
     await run('powershell', ['-NoProfile', '-Command', `Start-Process cmd -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '/c ${cmds.replace(/'/g, "''")}'`]);
   } else if(plat === 'darwin'){
-    const sh = list.map(x => `ifconfig ${name} alias ${x.ip} ${x.mask || '255.255.255.0'}`).join('; ');
+    const sh = list.map(x => `ifconfig ${name} alias ${x.ip} ${x.mask || '255.255.0.0'}`).join('; ');
     await run('osascript', ['-e', `do shell script "${sh}" with administrator privileges`]);
   } else {
-    const sh = list.map(x => `ip addr add ${x.ip}/${prefixOf(x.mask || '255.255.255.0')} dev ${name}`).join('; ');
+    const sh = list.map(x => `ip addr add ${x.ip}/${prefixOf(x.mask || '255.255.0.0')} dev ${name}`).join('; ');
     await run('pkexec', ['sh', '-c', sh]);
   }
   return { adapter: name, added: list };

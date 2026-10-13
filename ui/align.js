@@ -15,7 +15,7 @@
   const I = (n, s) => App.ui.icon(n, s);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const NC = () => window.NetConfig;
-  const A = { phase:'find', cur:null, skipped:new Set(), history:[], blink:true, busy:false, err:'', filled:false };
+  const A = { touched:new Set(), phase:'find', cur:null, skipped:new Set(), history:[], blink:true, busy:false, err:'', filled:false };
   let R = null;
 
   const isSw = d => d.kind === 'gigacore';
@@ -27,19 +27,28 @@
   const nameOf = d => d.name || d.model || (isSw(d) ? 'GigaCore' : 'LumiNode');
 
   // ---- make a device blink ----
+  // every switch that was ever told to blink is remembered by address (A.touched), also when the device list is read again and the device objects are new:
+  // a switch can be stopped (duration 0), so it is always stopped when we leave it. A LumiNode has no stop in its API (only "identify"): it ends by itself.
   async function blink(d, on){
     if(!d) return;
+    if(on && isSw(d)) A.touched.add(d.ip);
     try { const h = NC().transport(d.ip);
       if(isSw(d)) await h('PUT', '/api/identify', { duration:on ? 60 : 0 });
       else if(on) await h('POST', '/api/identify', {});
+      if(!on && isSw(d)) A.touched.delete(d.ip);
       A.err = '';
     } catch(x) { A.err = `${t('Could not make', 'Kon')} ${d.ip} ${t('blink', 'niet laten knipperen')}: ${String(x.message || x)}`; }
   }
-  async function stopAll(){ for(const d of devs()) if(isSw(d) && d.blinking){ d.blinking = false; await blink(d, false); } }
+  const stopSw = async ip => { try { await NC().transport(ip)('PUT', '/api/identify', { duration:0 }); A.touched.delete(ip); } catch(x) { A.err = `${t('Could not stop the blinking of', 'Kon het knipperen niet stoppen van')} ${ip}: ${String(x.message || x)}`; } };
+  async function stopAll(except = null){
+    const ips = new Set([...A.touched, ...devs().filter(d => isSw(d) && d.blinking).map(d => d.ip)]); ips.delete(except);
+    for(const d of devs()) if(d.blinking && d.ip !== except) d.blinking = false;
+    await Promise.all([...ips].map(stopSw));
+  }
   async function showCurrent(){
     const q = queue(); A.cur = q.find(d => d.ip === A.cur)?.ip || q[0]?.ip || null;
     const d = A.cur && NC().dev(A.cur);
-    for(const o of devs()) if(o !== d && o.blinking){ o.blinking = false; if(isSw(o)) await blink(o, false); }
+    await stopAll(d ? d.ip : null);
     if(d && A.blink){ d.blinking = true; await blink(d, true); }
     paint();
   }
@@ -53,13 +62,13 @@
   }
   async function link(d, it){
     A.history.push({ ip:d.ip, prev:d.link }); d.link = it.id; d.blinking = false;
-    if(isSw(d)) await blink(d, false);
+    await stopAll();
     A.cur = null; await showCurrent();
   }
   async function undo(){
     const h = A.history.pop(); if(!h) return; const d = NC().dev(h.ip); if(d) d.link = h.prev || null; A.skipped.delete(h.ip); A.cur = h.ip; await showCurrent();
   }
-  async function skip(d){ A.skipped.add(d.ip); if(isSw(d)) await blink(d, false); d.blinking = false; A.cur = null; await showCurrent(); }
+  async function skip(d){ A.skipped.add(d.ip); d.blinking = false; await stopAll(); A.cur = null; await showCurrent(); }
   async function fillAll(){
     A.busy = true; paint();
     NC().state.withIp = !!A.withIp; NC().state.withNames = A.withNames !== false;
@@ -100,7 +109,7 @@
     const items = freeItems(d), guess = items.find(x => x.ip && x.ip === d.ip) || items[0];
     const byDc = {}; items.forEach(x => (byDc[x.dc] ||= []).push(x));
     return `${bar}<div class="al-now"><div class="al-blink ${A.blink ? 'on' : ''}"></div><div><b style="font-size:18px">${esc(nameOf(d))}</b> <span class="subtle">${esc(d.ip)}${d.model ? ' · ' + esc(d.model) : ''}</span>
-        <div>${A.blink ? t('This device is blinking now (screen and port lights, or the LEDs). Go to the device and say what it is:', 'Dit apparaat knippert nu (scherm en poortlampjes, of de LED\'s). Ga naar het apparaat en geef aan wat het is:') : t('Blinking is off.', 'Knipperen staat uit.')}</div></div></div>
+        ${!isSw(d) && A.blink ? `<div class="subtle" style="font-size:12px">${t('A LumiNode has no “stop blinking” in its API: it stops by itself after a while.', 'Een LumiNode heeft geen “stop met knipperen” in zijn API: hij stopt na een tijdje vanzelf.')}</div>` : ''}<div>${A.blink ? t('This device is blinking now (screen and port lights, or the LEDs). Go to the device and say what it is:', 'Dit apparaat knippert nu (scherm en poortlampjes, of de LED\'s). Ga naar het apparaat en geef aan wat het is:') : t('Blinking is off.', 'Knipperen staat uit.')}</div></div></div>
       <div class="su-row"><button id="alBlink">${I('refresh', 13)}${t('Blink again', 'Laat opnieuw knipperen')}</button><button id="alSkip">${t('Skip this device', 'Dit apparaat overslaan')}</button>${A.history.length ? `<button id="alUndo">${t('Undo last link', 'Laatste koppeling ongedaan')}</button>` : ''}${done ? `<button id="alToSend">${t('Go on to send →', 'Door naar sturen →')}</button>` : ''}
         <label class="nc-chk"><input type="checkbox" id="alAuto" ${A.blink ? 'checked' : ''}> ${t('blink automatically', 'automatisch laten knipperen')}</label></div>
       ${A.err ? `<div class="su-warn">${I('alert', 13)} ${esc(A.err)}</div>` : ''}
@@ -163,6 +172,7 @@
   const onKey = e => { if(e.key === 'Escape' && R && !document.querySelector('.modal-backdrop')){ e.stopPropagation(); close(); } };
   async function open(opts = {}){
     if(!App.getMODEL?.()) return;
+    if(R) await stopAll();
     document.getElementById('alRoot')?.remove();
     A.phase = opts.phase || (devs().length ? 'align' : 'find'); A.cur = null; A.skipped = new Set(); A.history = []; A.filled = false; A.err = ''; if(A.withIp === undefined) A.withIp = true;
     R = document.createElement('div'); R.id = 'alRoot'; R.className = 'rb';

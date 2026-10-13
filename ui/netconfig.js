@@ -35,13 +35,14 @@
   // ---------- this computer's own addresses: can it still talk to a device after the device moves? ----------
   const ipn = x => String(x).split('.').reduce((n, o) => n * 256 + Number(o), 0) >>> 0;
   const sameNet = (a, b, mask) => ((ipn(a) & ipn(mask)) >>> 0) === ((ipn(b) & ipn(mask)) >>> 0);
+  const DEF_MASK = '255.255.0.0';          // the FENT mask: a device or an address without its own mask gets /16, not /24
   const reaches = (ip, nets) => !nets || nets.some(n => sameNet(ip, n.address, n.netmask || '255.255.255.0'));
   async function localNets(){ if(real()) return window.app.luminexLocalNets ? await window.app.luminexLocalNets() : null; return C.simNets || null; }
   const hostIn = ip => { const p = ip.split('.'); p[3] = p[3] === '250' ? '251' : '250'; return p.join('.'); };
   // the devices of this list whose pending IP change puts them where this computer has no address
   async function moveWarnings(devs){
     const nets = await localNets(), out = [];
-    for(const d of devs){ const to = d.dev?.ip; if(!to || to === d.ip) continue; out.push({ d, from:d.ip, to, mask:d.dev.mask || '255.255.255.0', reachable:reaches(to, nets) }); }
+    for(const d of devs){ const to = d.dev?.ip; if(!to || to === d.ip) continue; out.push({ d, from:d.ip, to, mask:d.dev.mask || DEF_MASK, reachable:reaches(to, nets) }); }
     return out;
   }
   // give this computer an address in the range of the devices that are about to move (or just moved); the OS asks permission
@@ -111,7 +112,7 @@
   // a device in another IP range: give this computer an address in that range (the system asks permission), then read it
   async function fixFar(d){
     if(!d?.far) return;
-    const r = await addAddresses([{ to:d.ip, mask:d.far.mask || '255.255.255.0' }]);
+    const r = await addAddresses([{ to:d.ip, mask:d.far.mask || DEF_MASK }]);
     if(!r.ok){ App.ui.toast(`${t('Could not add the address', 'Kon het adres niet toevoegen')}: ${r.error}`, 'err', { ms:8000 }); return; }
     if(real()) await sleep(1500);
     await readDev(d);
@@ -161,7 +162,7 @@
     for(let k = fibre.length - 1; k >= 0; k--) if(vidPorts.has(fibre[k])) fibre.splice(k, 1);
     for(const n of trunkPorts) if(!fibre.includes(n)) fibre.push(n);
     const groups = [...vset].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean).map(v => ({ vid:v.id, name:v.name, color:v.color }));
-    return { name:s.dev?.id || s.label, ip:s.dev?.ip ? { address:s.dev.ip, mask:s.dev.subnet || '255.255.255.0', gateway:s.dev.gateway || '' } : null, ports, fibre, groups, mgmt:mgmtVid(s) };
+    return { name:s.dev?.id || s.label, ip:s.dev?.ip ? { address:s.dev.ip, mask:s.dev.subnet || DEF_MASK, gateway:s.dev.gateway || '' } : null, ports, fibre, groups, mgmt:mgmtVid(s) };
   }
   function wantNode(it){
     const inst = it.inst, u = Array.isArray(inst.universes) ? inst.universes : [];
@@ -170,7 +171,7 @@
     // the lighting data of the groups follows the DMX ports of the node (output by default), unless a group was given its own choice
     const pipe = PP?.pipeOf ? PP.pipeOf(it.dc, inst, it.i) : 'input+output';
     const ifs = FENT().ifaces(inst, eth).map(x => ((x.listen === undefined || x.listen === null) && x.role !== 'management') ? { ...x, listen:pipe } : x);
-    return { shortName:inst.id, longName:inst.name, advanced:!!inst.advanced, net:inst.advanced ? api.lumiNetWant(ifs, eth, id => FENT().vlanById(id), inst.advPorts || null) : null, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || '255.255.255.0', gateway:inst.gateway || '' } : null,
+    return { shortName:inst.id, longName:inst.name, advanced:!!inst.advanced, net:inst.advanced ? api.lumiNetWant(ifs, eth, id => FENT().vlanById(id), inst.advPorts || null) : null, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || DEF_MASK, gateway:inst.gateway || '' } : null,
       ports:u.map((x, j) => { if(x == null || x === '') return null; const p = pp[j] || {}; return { universe:Number(x), name:p.name || `${inst.id || 'N'}.${j + 1}`, klass:p.klass || undefined, dir:p.dir || undefined }; }) };
   }
   const projectVlans = () => { const set = new Set(); for(const it of swList()) vlansOf(it.dc, it.s.label).forEach(v => set.add(v)); return [...set].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean); };
@@ -217,14 +218,14 @@
     if(isSw(d)){
       const edits = [...d.E.entries()].map(([port, v]) => ({ port, ...clone(v) }));
       const p = api.gigacorePortPlan(d.cur, edits); ops.push(...p.ops); notes.push(...p.notes);
-      const dp = api.gigacoreDevicePlan(d.cur, { name:d.dev.name ?? d.cur.device?.name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || '255.255.255.0', gateway:d.dev.gateway || '' } : null }, { withIp:!!d.dev.ip });
+      const dp = api.gigacoreDevicePlan(d.cur, { name:d.dev.name ?? d.cur.device?.name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || DEF_MASK, gateway:d.dev.gateway || '' } : null }, { withIp:!!d.dev.ip });
       ops.push(...dp.ops); notes.push(...dp.notes);
       if(d.trunkEdit){ const tp = api.gigacoreTrunkPlan(d.cur, d.trunkEdit.tid, d.trunkEdit.vid); ops.push(...tp.ops); notes.push(...tp.notes); }
     } else {
       const n = d.cur.ports.length, per = Array(n).fill(null);
       for(const [i, e] of d.E) if(i < n) per[i] = clone(e);
       const adv = d.dev.net && d.cur.netcfg;       // an advanced network configuration is on its way: the addresses go with it, not through /api/ipsettings
-      const p = api.lumiPlan(d.cur, { shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || '255.255.255.0', gateway:d.dev.gateway || '' } : null, ports:per }, { withIp:!!d.dev.ip && !adv, artnetOffset:C.offset });
+      const p = api.lumiPlan(d.cur, { shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || DEF_MASK, gateway:d.dev.gateway || '' } : null, ports:per }, { withIp:!!d.dev.ip && !adv, artnetOffset:C.offset });
       ops.push(...p.ops); notes.push(...p.notes);
       if(d.dev.net){
         const np = api.lumiNetPlan(d.cur, d.dev.net, { currentIp:d.ip, keepAddresses:!!d.dev.netKeep });
@@ -302,7 +303,7 @@
     const d = prev && prev.kind === f.kind ? Object.assign(prev, { name:prev.name || f.name, auth:!!f.auth }) : mk(f);
     const isNew = !C.dev.has(f.ip); C.dev.set(f.ip, d); C.found = [...C.dev.keys()];
     if(f.via?.length) d.via = [...new Set([...(d.via || []), ...f.via])]; if(f.from){ d.from = f.from; d.fromPort = f.port; }
-    d.far = f.reach === false ? (d.far || { mask:'255.255.255.0' }) : null; d.gone = !!f.gone;          // far: in another IP range, this computer cannot ask it yet
+    d.far = f.reach === false ? (d.far || { mask:DEF_MASK }) : null; d.gone = !!f.gone;          // far: in another IP range, this computer cannot ask it yet
     autoLink(); paint(); devsChanged(); if((isNew || !d.cur) && !d.far) queueRead(d);
   }
   async function discover(){
@@ -339,11 +340,11 @@
       if(!ok) return;
     }
     let failed = 0; await load();
-    for(const x of todo){ x.cfg = x.ops.filter(o => o.kind !== 'ip'); x.ipOps = x.ops.filter(o => o.kind === 'ip'); x.newIp = x.d.dev?.ip || null; x.mask = x.d.dev?.mask || '255.255.255.0'; x.d.err = ''; x.d.moved = null; }
+    for(const x of todo){ x.cfg = x.ops.filter(o => o.kind !== 'ip'); x.ipOps = x.ops.filter(o => o.kind === 'ip'); x.newIp = x.d.dev?.ip || null; x.mask = x.d.dev?.mask || DEF_MASK; x.d.err = ''; x.d.warn = ''; x.d.moved = null; }
     // 1 · everything but the address, to every device
     for(const x of todo){
       const { d } = x; d.busy = true; paint();
-      try { const h = logged(d); if(x.cfg.length) await api.runOps(h, x.cfg); if(isSw(d) && Number(C.slot) >= 1 && Number(C.slot) <= 20 && x.cfg.length) await h('PUT', `/api/config/profiles/${Number(C.slot)}/save`); }
+      try { const h = logged(d); if(x.cfg.length){ const done = await api.runOps(h, x.cfg), refused = done.filter(o => o.failed); if(refused.length) d.warn = t(`The device did not accept ${refused.length} setting(s): ${refused.map(o => o.text).join('; ')}. Open “Last calls” for what it said.`, `Het apparaat nam ${refused.length} instelling(en) niet aan: ${refused.map(o => o.text).join('; ')}. Open “Laatste aanroepen” voor wat het zei.`); } if(isSw(d) && Number(C.slot) >= 1 && Number(C.slot) <= 20 && x.cfg.length) await h('PUT', `/api/config/profiles/${Number(C.slot)}/save`); }
       catch(e) { failed++; x.dead = true; d.err = t(`Stopped after an error: ${e.message || e}. Read the device again to see what was applied.`, `Gestopt door een fout: ${e.message || e}. Lees het apparaat opnieuw uit om te zien wat is toegepast.`); }
       d.busy = false; paint();
     }
@@ -388,7 +389,7 @@
   function resultDialog(todo, failed){
     const n = todo.reduce((k, x) => k + x.ops.length, 0);
     const body = `<div style="max-height:420px;overflow:auto">${todo.map(({ d, ops }) => `<h4 style="margin:12px 0 4px">${d.err ? I('alert', 14) : I('check', 14)} ${esc(d.name || d.model)} <span class="subtle">${esc(d.ip)}</span> <span class="subtle">${d.err ? t('failed', 'mislukt') : d.moved ? t('sent · moved, out of reach', 'gestuurd · verhuisd, buiten bereik') : d.verified ? t('sent and checked', 'gestuurd en gecontroleerd') : t('sent', 'gestuurd')}</span></h4>
-        ${d.err ? `<p class="su-warn">${esc(d.err)}</p>` : ''}${d.moved ? `<p class="su-warn">${I('alert', 13)} ${t(`Now at ${d.moved.to} (was ${d.moved.from}). This computer has no address in that range, so it cannot read the device back. Add an address to this computer (the system asks permission), or give your network adapter an address in that range yourself.`, `Nu op ${d.moved.to} (was ${d.moved.from}). Deze computer heeft geen adres in dat bereik en kan het apparaat dus niet terugcontroleren. Voeg een adres toe aan deze computer (het systeem vraagt toestemming), of geef je netwerkadapter zelf een adres in dat bereik.`)} <button class="sm" data-fix="${esc(d.ip)}">${t('Add address to this computer', 'Adres toevoegen aan deze computer')}</button></p>` : ''}<ol>${ops.map(o => `<li>${esc(o.text)}</li>`).join('')}</ol>${ops.some(o => o.kind === 'ip') ? `<p class="subtle">${t('The IP address changed; the device now answers on the new address.', 'Het IP-adres is veranderd; het apparaat antwoordt nu op het nieuwe adres.')}</p>` : ''}`).join('')}</div>`;
+        ${d.err ? `<p class="su-warn">${esc(d.err)}</p>` : ''}${d.warn ? `<p class="su-warn">${I('alert', 13)} ${esc(d.warn)}</p>` : ''}${d.moved ? `<p class="su-warn">${I('alert', 13)} ${t(`Now at ${d.moved.to} (was ${d.moved.from}). This computer has no address in that range, so it cannot read the device back. Add an address to this computer (the system asks permission), or give your network adapter an address in that range yourself.`, `Nu op ${d.moved.to} (was ${d.moved.from}). Deze computer heeft geen adres in dat bereik en kan het apparaat dus niet terugcontroleren. Voeg een adres toe aan deze computer (het systeem vraagt toestemming), of geef je netwerkadapter zelf een adres in dat bereik.`)} <button class="sm" data-fix="${esc(d.ip)}">${t('Add address to this computer', 'Adres toevoegen aan deze computer')}</button></p>` : ''}<ol>${ops.map(o => `<li>${esc(o.text)}</li>`).join('')}</ol>${ops.some(o => o.kind === 'ip') ? `<p class="subtle">${t('The IP address changed; the device now answers on the new address.', 'Het IP-adres is veranderd; het apparaat antwoordt nu op het nieuwe adres.')}</p>` : ''}`).join('')}</div>`;
     const dlg = App.ui.openDialog({ title:failed ? `${failed} ${t('of', 'van')} ${todo.length} ${t('devices failed', 'apparaten mislukt')}` : `${n} ${t('changes sent to', 'wijzigingen gestuurd naar')} ${todo.length} ${t('devices', 'apparaten')}`, subtitle:real() ? '' : t('Simulated devices — nothing real was changed.', 'Gesimuleerde apparaten — er is niets echts veranderd.'), width:'620px', body, footer:`<button class="primary" data-a="ok">OK</button>` });
     dlg.footer.querySelector('[data-a=ok]').onclick = () => dlg.close();
     dlg.body.querySelectorAll('[data-fix]').forEach(b => b.onclick = async () => { const d = C.dev.get(b.dataset.fix); if(d){ b.disabled = true; await fixMoved(d); if(!d.moved) b.closest('p').innerHTML = I('check', 13) + ' ' + t('Reached again.', 'Weer bereikbaar.'); else b.disabled = false; } });
@@ -730,7 +731,7 @@
       const devFields = isSw(d)
         ? `<label>${t('Name', 'Naam')}<input data-df="name" value="${esc(f.name ?? d.cur.device?.name ?? '')}" maxlength="64"></label><label>IP<input data-df="ip" value="${esc(f.ip ?? d.cur.ip?.ip_address ?? '')}" style="width:130px"></label>`
         : `<label>${t('Name', 'Naam')}<input data-df="shortName" value="${esc(f.shortName ?? d.cur.info?.short_name ?? '')}" maxlength="17"></label><label>${t('Long name', 'Lange naam')}<input data-df="longName" value="${esc(f.longName ?? d.cur.info?.long_name ?? '')}" maxlength="63"></label><label>IP<input data-df="ip" value="${esc(f.ip ?? d.cur.ip?.ipaddress ?? '')}" style="width:130px"></label>`;
-      body = `<div class="nc-body">${d.err ? `<div class="su-warn">${esc(d.err)}</div>` : ''}
+      body = `<div class="nc-body">${d.err ? `<div class="su-warn">${esc(d.err)}</div>` : ''}${d.warn ? `<div class="su-warn">${esc(d.warn)}</div>` : ''}
         <div class="nc-row">${devFields}<span style="flex:1"></span>${it ? `<button data-fill="${esc(d.ip)}">${t('Fill from the plan', 'Invullen uit het plan')}</button>` : ''}<button data-read="${esc(d.ip)}">${I('refresh', 13)}${t('Read again', 'Opnieuw lezen')}</button></div>
         ${f.ip && f.ip !== (isSw(d) ? d.cur.ip?.ip_address : d.cur.ip?.ipaddress) ? `<div class="su-warn">${t('The IP address changes when you apply; the device then moves to the new address.', 'Het IP-adres verandert bij het toepassen; het apparaat verhuist dan naar het nieuwe adres.')}</div>` : ''}
         ${isSw(d) && d.cur.mode === 'advanced' ? `<div class="su-warn">${t('This switch is in “advanced” configuration mode: it is also set with its command line, so groups and trunks made here may not show correctly.', 'Deze switch staat in “advanced” configuratiemodus: hij wordt ook met zijn commandoregel ingesteld, dus groepen en trunks die hier gemaakt worden kunnen verkeerd getoond worden.')} <button data-lxmode="${esc(d.ip)}">${t('Switch to Luminex mode…', 'Naar Luminex-modus…')}</button></div>` : ''}
@@ -800,7 +801,7 @@
     qa('[data-fill]').forEach(b => b.onclick = () => { const d = D(b.dataset.fill); fillFromPlan(d); paint(); });
     qa('[data-undo]').forEach(b => b.onclick = () => { const d = D(b.dataset.undo); d.E = new Map(); d.dev = {}; d.trunkEdit = null; d.S = new Map(); paint(); });
     qa('[data-apply]').forEach(b => b.onclick = () => applyDevs([D(b.dataset.apply)]));
-    qa('[data-df]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const k = i.dataset.df, v = i.value.trim(); d.dev[k] = v; if(k === 'ip' && !ipOk(v)) delete d.dev.ip; if(k === 'ip' && d.dev.ip && !d.dev.mask) d.dev.mask = planOf(d)?.s?.dev?.subnet || planOf(d)?.inst?.subnet || '255.255.255.0'; paint(); });
+    qa('[data-df]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const k = i.dataset.df, v = i.value.trim(); d.dev[k] = v; if(k === 'ip' && !ipOk(v)) delete d.dev.ip; if(k === 'ip' && d.dev.ip && !d.dev.mask) d.dev.mask = planOf(d)?.s?.dev?.subnet || planOf(d)?.inst?.subnet || DEF_MASK; paint(); });
     // brushes
     qa('[data-brush]').forEach(b => b.onclick = () => { const d = D(b.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const v = b.dataset.brush; if(!v) d.brush = null; else if(v === 'fibre') d.brush = { type:'fibre' }; else { const x = swBrushes(d).find(y => y.vid === Number(v.split(':')[1])); d.brush = { type:'vid', ...x }; } paint(); });
     qa('[data-trunkun]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.trunkEdit = { tid:Number(i.dataset.trunkun), vid:Number(i.value) || 0 }; paint(); });

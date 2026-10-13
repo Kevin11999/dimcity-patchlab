@@ -9,7 +9,8 @@ export const MAX_GROUP_NAME = 31, MAX_LEGEND = 16;
 const clip = (s, n) => String(s ?? '').slice(0, n);
 const clipBytes = (s, n) => { let out = '', used = 0; for(const ch of String(s ?? '')){ const b = new TextEncoder().encode(ch).length; if(used + b > n) break; out += ch; used += b; } return out; };      // group names are limited in bytes, not characters
 export const gcName = s => String(s ?? '').replace(/[^a-zA-Z0-9\-_ ]/g, '').trim().slice(0, 64);       // device name pattern ^[a-zA-Z0-9\-_ ]*$
-export const prefixOf = mask => String(mask || '255.255.255.0').split('.').reduce((n, o) => n + (Number(o) >>> 0).toString(2).replace(/0/g, '').length, 0);
+export const DEFAULT_MASK = '255.255.0.0';
+export const prefixOf = mask => String(mask || DEFAULT_MASK).split('.').reduce((n, o) => n + (Number(o) >>> 0).toString(2).replace(/0/g, '').length, 0);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const clone = x => JSON.parse(JSON.stringify(x));
 
@@ -43,11 +44,11 @@ export function gigacorePlan(cur, want, { withIp = false } = {}){
     const name = clipBytes(g.name, MAX_GROUP_NAME), color = /^#[0-9a-f]{6}$/i.test(g.color || '') ? g.color : null;
     if(have){
       gid.set(g.vid, have.group_id);
-      if(have.predefined){ if(name && have.name !== name) notes.push(`Group ${have.group_id} (VLAN ${g.vid}) is a built-in group of the switch — its name “${have.name}” is kept.`); }
-      else {
-      if(name && have.name !== name) add('PUT', `/api/groups/group/${have.group_id}/name`, name, `Group ${have.group_id} (VLAN ${g.vid}): name “${have.name}” → “${name}”`);
-      if(color && String(have.color).toLowerCase() !== color.toLowerCase()) add('PUT', `/api/groups/group/${have.group_id}/color`, color, `Group ${have.group_id} (VLAN ${g.vid}): colour ${have.color} → ${color}`);
-      }
+      // the name and colour of the plan are always sent, also for the built-in groups (1–20), so every device in the system has the same group names;
+      // a built-in group may be refused by the switch: that is reported, the rest of the configuration goes on
+      const soft = !!have.predefined;
+      if(name && have.name !== name){ add('PUT', `/api/groups/group/${have.group_id}/name`, name, `Group ${have.group_id} (VLAN ${g.vid}): name “${have.name}” → “${name}”`); ops[ops.length - 1].soft = soft; }
+      if(color && String(have.color).toLowerCase() !== color.toLowerCase()){ add('PUT', `/api/groups/group/${have.group_id}/color`, color, `Group ${have.group_id} (VLAN ${g.vid}): colour ${have.color} → ${color}`); ops[ops.length - 1].soft = soft; }
     } else {
       const id = nextId(); gid.set(g.vid, id);
       add('POST', '/api/groups/group', { group_id: id, name: name || `VLAN ${g.vid}`, vid: g.vid, ...(color ? { color } : {}) }, `New group ${id}: VLAN ${g.vid} “${name || `VLAN ${g.vid}`}”`);
@@ -307,6 +308,14 @@ export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAd
   for(const g of want.groups){
     let k = gid.get(g.vid), fresh = false;
     if(k == null){ if(top >= 255){ notes.push(`No room for a group for VLAN ${g.vid} (a node holds 255 groups).`); continue; } k = ++top; fresh = true; next.groups[k] = { name:g.name, vid:g.vid, color:g.color, editable:true, network_settings:{ addresses:[], routes:[], pipeline_setting:'', allow_config:true } }; gid.set(g.vid, k); }
+    if(!fresh){        // the name and colour of the plan go to a group the node already has, so the group names are the same in the whole system (a built-in group the node does not let us change keeps its own)
+      const cg = next.groups[k], nm = clipBytes(g.name, MAX_GROUP_NAME);
+      if(cg.editable === false){ if(nm && cg.name !== nm) notes.push(`Group ${k} (VLAN ${g.vid}) is built into the node — its name “${cg.name}” cannot be changed.`); }
+      else {
+        if(nm && cg.name !== nm){ changes.push(`Group ${k} (VLAN ${g.vid}): name “${cg.name}” → “${nm}”`); cg.name = nm; }
+        if(/^#[0-9a-f]{6}$/i.test(g.color || '') && String(cg.color || '').toLowerCase() !== g.color.toLowerCase()){ changes.push(`Group ${k} (VLAN ${g.vid}): colour ${cg.color || 'none'} → ${g.color}`); cg.color = g.color; }
+      }
+    }
     const ns = (next.groups[k].network_settings ||= { addresses:[], routes:[], pipeline_setting:'', allow_config:true });
     if(!fresh && !g.addresses.length) continue;       // a group the node has and the plan gives no address: leave it as it is (its ports are still set below)
     const old = (ns.addresses || []).map(a => a.ip), wantIps = g.addresses.map(cidr), keep = keepAddresses && !fresh;
@@ -505,7 +514,7 @@ export function lumiPlan(cur, want, { withIp = false, artnetOffset = 0, protocol
   if(withIp && want.ip?.address){
     const cip = cur.ip;
     if(cip?.ipaddress !== want.ip.address || cip?.netmask !== want.ip.mask)
-      add('PUT', '/api/ipsettings', { ipaddress: want.ip.address, netmask: want.ip.mask || '255.255.255.0', gateway: want.ip.gateway || '0.0.0.0' }, `IP address ${cip?.ipaddress ?? '?'} → ${want.ip.address}`, 'ip');
+      add('PUT', '/api/ipsettings', { ipaddress: want.ip.address, netmask: want.ip.mask || DEFAULT_MASK, gateway: want.ip.gateway || '0.0.0.0' }, `IP address ${cip?.ipaddress ?? '?'} → ${want.ip.address}`, 'ip');
   }
   return { ops, notes };
 }

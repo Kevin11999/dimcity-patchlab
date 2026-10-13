@@ -1767,7 +1767,7 @@ function normalizeNetworkDevices(net){
         usageType: n.usageType || '',
         portCount: Number(n.portCount || 8),
         defaultIp: n.ip || '',
-        subnet: n.subnet || '255.255.255.0',
+        subnet: n.subnet || '255.255.0.0',
         color: n.color || '#4ea8ff'
       });
     }
@@ -1966,7 +1966,7 @@ function createNodeInstance(dc, nt, index, universes=[]){
     deviceNo: num,
     segment: segmentFromDim(dc),
     ip: ipWithLastOctet(nt.defaultIp || '', num),
-    subnet: nt.subnet || '255.255.255.0',
+    subnet: nt.subnet || '255.255.0.0',
     universes: Array.isArray(universes) ? universes.slice() : []
   };
 }
@@ -2002,7 +2002,7 @@ function refreshDimDeviceIdentity(dc){
     n.segment = segmentFromDim(dc);
     if(!n.id) n.id = nextNode();
     if(nt && !n.ip) n.ip = ipWithLastOctet(nt.defaultIp || '', num);
-    if(nt && !n.subnet) n.subnet = nt.subnet || '255.255.255.0';
+    if(nt && !n.subnet) n.subnet = nt.subnet || '255.255.0.0';
   });
   plan.splitters.forEach((s,idx)=>{
     const sp = MODEL.networkDevices.splitterTypes.find(x=>x.id===s.typeId);
@@ -2207,7 +2207,7 @@ function renderDimNetworkDevices(dc){
         <label>ID<input class="dimNodeField" data-node-index="${idx}" data-field="id" value="${esc(n.id || '')}"></label>
         <label>Name<input class="dimNodeField" data-node-index="${idx}" data-field="name" value="${esc(n.name || '')}"></label>
         <label>IP address<input class="dimNodeField ipv4" data-node-index="${idx}" data-field="ip" value="${esc(n.ip || '')}" inputmode="numeric" placeholder="192.168.1.10"></label>
-        <label>Subnet<input class="dimNodeField ipv4" data-node-index="${idx}" data-field="subnet" value="${esc(n.subnet || nt.subnet || '255.255.255.0')}" inputmode="numeric"></label>
+        <label>Subnet<input class="dimNodeField ipv4" data-node-index="${idx}" data-field="subnet" value="${esc(n.subnet || nt.subnet || '255.255.0.0')}" inputmode="numeric"></label>
       </div>
       ${window.NodeLink?.selectHtml(dc, idx, n) || ''}
       ${window.FentUI?.deviceBlock(dc, 'node', idx, n) || ''}

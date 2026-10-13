@@ -738,6 +738,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.20.2 — 2026-10-13
+- Fixed: a device or address without its own mask gets 255.255.0.0 (not 255.255.255.0); the group names and colours of the plan are always sent to the switches and nodes (a built-in GigaCore group the switch refuses is reported); the Align tool stops every blinking switch when you link, skip, go on or close it (a LumiNode has no stop in its API).
+
 ### Version 0.20.1 — 2026-10-13
 - Fixed: the Windows build of 0.19.2 and 0.20.0 failed because the syntax check could not find its files on Windows. Nothing else changed.
 
@@ -1725,6 +1728,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.20.2 — 2026-10-13
+- Opgelost: een apparaat of adres zonder eigen mask krijgt 255.255.0.0 (niet 255.255.255.0); de groepsnamen en kleuren uit het plan gaan altijd mee naar de switches en nodes (een ingebouwde GigaCore-groep die de switch weigert wordt gemeld); de Uitlijntool stopt elke knipperende switch bij koppelen, overslaan, doorgaan en sluiten (een LumiNode heeft geen stop in zijn API).
 
 ### Versie 0.20.1 — 2026-10-13
 - Opgelost: de Windows-build van 0.19.2 en 0.20.0 mislukte doordat de syntaxcontrole op Windows zijn bestanden niet vond. Verder is niets veranderd.

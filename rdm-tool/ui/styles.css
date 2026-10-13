@@ -61,3 +61,7 @@ td.err { color: var(--bad); }
 .dialog .log { max-height: 240px; overflow: auto; background: var(--bg); padding: 8px; border-radius: 6px; font-size: 12px; }
 .modes label { display: flex; gap: 8px; padding: 4px 0; color: var(--text); }
 .ipinput { width: 130px; } .maskinput { width: 60px !important; }
+.row > input, .row > select { min-width: 0; width: 100%; }
+.row > input[type=number] { width: 90px; }
+.row .val { white-space: nowrap; }
+.row .val input.ipinput { width: 130px; }

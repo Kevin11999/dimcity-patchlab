@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <title>DimCity RDM Tool</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="bar">
+    <strong class="brand">DimCity RDM Tool</strong>
+    <label>Netwerkkaart <select id="iface"></select></label>
+    <span class="sep"></span>
+    <button id="btnArtnet" class="primary">Art-Net zoeken</button>
+    <label class="check"><input type="checkbox" id="fullDisc"> volledige discovery</label>
+    <span class="sep"></span>
+    <label>RDMnet-broker <input id="broker" placeholder="automatisch (mDNS)" size="16"></label>
+    <button id="btnRdmnet">RDMnet verbinden</button>
+    <span id="rdmnetState" class="pill off">RDMnet uit</span>
+    <span class="grow"></span>
+    <span id="status" class="status">Kies een netwerkkaart en klik op zoeken.</span>
+  </header>
+
+  <main>
+    <section class="list">
+      <div class="listbar">
+        <label>Lijn <select id="groupFilter"><option value="">Alle lampen</option></select></label>
+        <span class="grow"></span>
+        <button id="btnAlign" class="accent">Align</button>
+      </div>
+      <div id="alignBar" class="alignbar hidden">
+        <div class="aligninfo">
+          <div>Knippert nu: <strong id="alignCurrent">–</strong></div>
+          <div class="muted" id="alignCount"></div>
+        </div>
+        <div class="alignbtns">
+          <button id="alPrev">◀ Previous</button>
+          <button id="alNext">Next ▶</button>
+          <button id="alAlign" class="accent">Align</button>
+          <button id="alUndo">Ongedaan</button>
+          <button id="alDone" class="primary">Klaar</button>
+          <button id="alStop">Stoppen</button>
+        </div>
+        <ol id="alignOrder" class="alignorder"></ol>
+      </div>
+      <div class="tablewrap">
+        <table id="devTable">
+          <thead><tr><th></th><th>Model</th><th>Label</th><th>UID</th><th>Mode</th><th>Adres</th><th>Kan.</th><th>Universe</th><th>Lijn</th><th>Identify</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="empty" class="empty">Nog geen lampen gevonden.</div>
+      </div>
+    </section>
+
+    <section class="detail" id="detail">
+      <div class="empty">Klik op een lamp om alle RDM-instellingen te zien.</div>
+    </section>
+  </main>
+
+  <div id="modal" class="modal hidden"><div class="dialog" id="dialog"></div></div>
+  <script src="renderer.js"></script>
+</body>
+</html>

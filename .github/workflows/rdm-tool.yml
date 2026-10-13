@@ -1,0 +1,32 @@
+# Builds the Windows installer of the DimCity RDM Tool (folder rdm-tool/) when something in that
+# folder changes on main, or by hand. The installer is attached to the workflow run as an artifact;
+# no GitHub release is made, so the PatchLab releases are not touched.
+name: RDM Tool (Windows)
+
+on:
+  push:
+    branches: [main]
+    paths: ['rdm-tool/**', '.github/workflows/rdm-tool.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: rdm-tool
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: rdm-tool/package-lock.json
+      - run: npm ci
+      - run: npx electron-builder --win --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DimCity-RDM-Tool-Windows
+          path: rdm-tool/dist/*.exe

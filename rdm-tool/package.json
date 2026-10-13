@@ -1,0 +1,25 @@
+{
+  "name": "dimcity-rdm-tool",
+  "version": "0.1.0",
+  "description": "DimCity RDM Tool – lampen uitlezen en adresseren via RDM over Art-Net en RDMnet",
+  "author": "Kevin van Setten",
+  "main": "main.js",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "^42.1.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "nl.dimcity.rdmtool",
+    "productName": "DimCity RDM Tool",
+    "files": ["main.js", "preload.cjs", "src/**", "ui/**", "assets/**", "package.json"],
+    "win": { "target": ["nsis"], "icon": "assets/icon.ico" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
+    "artifactName": "DimCity-RDM-Tool-${version}-Setup.${ext}"
+  }
+}

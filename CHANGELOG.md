@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.20.1 — 2026-10-13
+
+- Fixed: the Windows build of 0.19.2 and 0.20.0 failed because the syntax check could not find its files on Windows. Nothing else changed.
+
+<details><summary>Nederlands</summary>
+
+- Opgelost: de Windows-build van 0.19.2 en 0.20.0 mislukte doordat de syntaxcontrole op Windows zijn bestanden niet vond. Verder is niets veranderd.
+
+</details>
+
 ## 0.20.0 — 2026-10-13
 
 - New: Publish makes one DB booklet per DimCity (start sheet, what is in it, how to build it, LK overview, node addresses, switch IP scheme; every sheet can be switched off) and four books for the whole show with a cover: IP & VLAN, nodes & switches, LK & splitters, signal flow. Three folders: DB booklets, Network info, Stickers. A switch shows one address.

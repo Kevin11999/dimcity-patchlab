@@ -738,6 +738,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.20.1 — 2026-10-13
+- Fixed: the Windows build of 0.19.2 and 0.20.0 failed because the syntax check could not find its files on Windows. Nothing else changed.
+
 ### Version 0.20.0 — 2026-10-13
 - New: Publish makes one DB booklet per DimCity (start sheet, what is in it, how to build it, LK overview, node addresses, switch IP scheme; every sheet can be switched off) and four books for the whole show with a cover: IP & VLAN, nodes & switches, LK & splitters, signal flow. Three folders: DB booklets, Network info, Stickers. A switch shows one address.
 
@@ -1722,6 +1725,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.20.1 — 2026-10-13
+- Opgelost: de Windows-build van 0.19.2 en 0.20.0 mislukte doordat de syntaxcontrole op Windows zijn bestanden niet vond. Verder is niets veranderd.
 
 ### Versie 0.20.0 — 2026-10-13
 - Nieuw: Publiceren maakt per DimCity één DB-boekje (startblad, wat erin zit, hoe het gebouwd wordt, LK-overzicht, node-adressen, IP-schema van de switches; elk blad kan uit) en vier boeken voor de hele show met voorblad: IP & VLAN, nodes & switches, LK & splitters, signal flow. Drie mappen: DB-boekjes, Netwerkinfo, Stickers. Een switch toont één adres.

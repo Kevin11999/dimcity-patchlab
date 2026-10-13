@@ -1,11 +1,12 @@
 // scripts/check.mjs — a syntax check of every JavaScript file of the app (npm run check).
 // Plain scripts are checked as they are; files that use import / export are checked as modules.
 import { readdirSync, statSync, readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { join, extname } from 'node:path';
+import { join, extname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const skip = new Set(['node_modules', 'dist', '.git', 'release', 'out', 'videos']);
 const files = [];
 (function walk(dir){
@@ -24,7 +25,7 @@ for(const f of files){
   if(r.status !== 0 && /import|export/.test(r.stderr) && extname(f) === '.js'){      // an ES module in a .js file
     const copy = join(tmp, 'm.mjs'); writeFileSync(copy, readFileSync(f)); r = run(copy);
   }
-  if(r.status !== 0){ bad++; console.error(`✗ ${f.slice(root.length)}\n${r.stderr.split('\n').slice(0, 6).join('\n')}`); }
+  if(r.status !== 0){ bad++; console.error(`✗ ${f.slice(root.length + 1)}\n${r.stderr.split('\n').slice(0, 6).join('\n')}`); }
 }
 rmSync(tmp, { recursive: true, force: true });
 console.log(bad ? `${bad} of ${files.length} files have a syntax error` : `${files.length} files OK`);

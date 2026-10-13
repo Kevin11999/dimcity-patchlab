@@ -1243,6 +1243,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.20.1', date:'2026-10-13',
+    en:['Fixed: the Windows build of 0.19.2 and 0.20.0 failed because the syntax check could not find its files on Windows. Nothing else changed.'],
+    nl:['Opgelost: de Windows-build van 0.19.2 en 0.20.0 mislukte doordat de syntaxcontrole op Windows zijn bestanden niet vond. Verder is niets veranderd.']
+  },
+  {
     version:'0.20.0', date:'2026-10-13',
     en:['New: Publish makes one DB booklet per DimCity (start sheet, what is in it, how to build it, LK overview, node addresses, switch IP scheme; every sheet can be switched off) and four books for the whole show with a cover: IP & VLAN, nodes & switches, LK & splitters, signal flow. Three folders: DB booklets, Network info, Stickers. A switch shows one address.'],
     nl:['Nieuw: Publiceren maakt per DimCity één DB-boekje (startblad, wat erin zit, hoe het gebouwd wordt, LK-overzicht, node-adressen, IP-schema van de switches; elk blad kan uit) en vier boeken voor de hele show met voorblad: IP & VLAN, nodes & switches, LK & splitters, signal flow. Drie mappen: DB-boekjes, Netwerkinfo, Stickers. Een switch toont één adres.']

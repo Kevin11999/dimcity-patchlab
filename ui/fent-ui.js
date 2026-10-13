@@ -193,7 +193,6 @@
     }
     return base;
   }
-  const vlanLabel = id => { const v = F().vlanById(id); return v ? `${v.id} ${v.name}` : String(id); };
   function portTable(dc){
     const { rows, cap } = portPlan(dc);
     if(!rows.length) return `<div class="subtle" style="padding:6px 0">${t('No addresses yet — give the nodes an address (or apply the FENT scheme) and the ports appear here.', 'Nog geen adressen — geef de nodes een adres (of pas het FENT-schema toe) en de poorten verschijnen hier.')}</div>`;

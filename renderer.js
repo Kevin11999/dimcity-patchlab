@@ -31,12 +31,6 @@ function statusDot(st){
   const safe = st || 'YELLOW';
   return `<span class="status-dot ${safe}" title="${statusLabel(safe)}"></span><span class="status-text">${statusLabel(safe)}</span>`;
 }
-function issueLabel(st){
-  if(st==='RED') return 'Error';
-  if(st==='YELLOW') return 'Warning';
-  if(st==='GREEN') return 'Good';
-  return st || 'Info';
-}
 function shortFileName(path){
   const s = (path || '').toString();
   return s.split(/[\\/]/).pop() || s || 'CSV file';
@@ -1178,7 +1172,6 @@ function renderRight(){
   if(view === 'DETAIL') renderRightDetail();
   else if(view === 'ISSUES') renderIssuesView();
   else if(view === 'TABLE') renderTableView();
-  else if(view === 'NETWORK') renderNetworkView();
   else if(view === 'NET') window.NetworkPage?.render?.();
   else if(view === 'TASKS') window.Tasks?.render?.();
   else if(view === 'NETCONFIG') window.NetConfig?.render?.();
@@ -1195,7 +1188,6 @@ function renderRightDetail(){
   if (sel.kind === 'DIM')  return renderDimCityDetail(sel.id);
   return renderRightHome();
 }
-function updateRightCsvVisibility(){ /* patch list is a separate view now */ }
 
 // ---- Overview ----
 function renderRightHome(){
@@ -1348,66 +1340,6 @@ function renderRawRows(){
     : `<tr><td colspan="8"><div class="empty" style="padding:28px"><p>${q ? 'No rows match this filter.' : 'No patch rows yet. Import a CSV to get started.'}</p></div></td></tr>`;
 }
 
-// ---- Network planner (page) ----
-function renderNetworkView(){
-  MODEL.networkDevices = normalizeNetworkDevices(MODEL.networkDevices);
-  const nd = MODEL.networkDevices;
-  pageHead({
-    eyebrow:'Project', title:'Nodes & Splitters',
-    sub:'Plan DMX nodes and splitters per DimCity. Device types are kept in reusable libraries. Switches, VLANs and fibres are on the Network page.',
-    actions:`<button data-cmd="deviceBuilder">${I('network',15)}Device Builder <span class="badge">${nd.nodeTypes.length + nd.splitterTypes.length + nd.switchTypes.length + nd.panelTypes.length}</span></button><button data-cmd="deviceBuilder" data-arg="rack">${I('grid',15)}Racks <span class="badge">${nd.rackTypes.length}</span></button>`
-  });
-  const dims = sortedDims();
-  const nodeOpts = sel => nd.nodeTypes.map(nt=>`<option value="${esc(nt.id)}" ${sel===nt.id?'selected':''}>${esc([nt.brand, nt.name || nt.id].filter(Boolean).join(' '))} · ${Number(nt.portCount||0)} ports</option>`).join('') || '<option value="">No node types yet</option>';
-  const splitOpts = sel => nd.splitterTypes.map(sp=>`<option value="${esc(sp.id)}" ${sel===sp.id?'selected':''}>${esc([sp.brand, sp.name || sp.id].filter(Boolean).join(' '))} · ${Number(sp.outputCount||0)} outputs</option>`).join('') || '<option value="">No splitter types yet</option>';
-  const libsEmpty = !nd.nodeTypes.length || !nd.splitterTypes.length;
-
-  const prefs = card({ key:'net-prefs', title:'Preferences', icon:'sliders', collapsible:false, body:`<div class="planner-controls" style="max-width:560px">
-      <label>Spare ports per node<input id="netPrefNodeSpare" type="number" min="0" value="${Number(nd.prefs.nodeSparePorts||0)}"></label>
-      <label>Spare outputs per splitter<input id="netPrefSplitterSpare" type="number" min="0" value="${Number(nd.prefs.splitterSparePorts||0)}"></label></div>
-      ${libsEmpty ? `<div class="hint">${I('info',13)} Create at least one node type and one splitter type first (buttons top right).</div>` : ''}` });
-
-  const rows = dims.map(dc=>{
-    const plan = getDimPlan(dc);
-    const unis = uniqueUniversesInDim(dc);
-    const nt = nd.nodeTypes.find(x=>x.id===plan.nodeTypeId) || nd.nodeTypes[0];
-    const need = nt ? calculateNodeNeedForDim(dc, nt.portCount) : null;
-    return `<div class="planner-row" style="--dim-color:${dimColor(dc)}">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-        <div style="display:flex;align-items:center;gap:10px"><b style="font-size:14px">${esc(dimLabel(dc))}</b><span class="info-pill">${plural(unis.length,'universe')}</span>${need?`<span class="info-pill">${plural(need.nodeCount,'node')} needed</span>`:''}<span class="info-pill">${plural(plan.nodes.length,'node')} placed</span><span class="info-pill">${plural(plan.splitters.length,'splitter')} placed</span></div>
-        <button class="sm ghost" data-open-kind="DIM" data-open-id="${esc(dc)}">Open DimCity ${I('arrowRight',13)}</button>
-      </div>
-      <div class="planner-controls" style="margin-top:12px">
-        <label>Node type<select class="planNodeType" data-dc="${esc(dc)}">${nodeOpts(plan.nodeTypeId)}</select></label>
-        <button class="planAutoNode" data-dc="${esc(dc)}" ${nd.nodeTypes.length?'':'disabled'}>${I('refresh',14)}Auto-assign nodes</button>
-        <label>Splitter type<select class="planSplitterType" data-dc="${esc(dc)}">${splitOpts(plan.lastSplitterTypeId)}</select></label>
-        <button class="planAutoSplit" data-dc="${esc(dc)}" ${nd.splitterTypes.length?'':'disabled'}>${I('refresh',14)}Auto-calculate splitters</button>
-      </div>
-      <div class="universe-chip-grid">${unis.map(u=>`<span class="info-pill"><span class="status-dot" style="background:${uniHue(u)};margin:0"></span>UNI ${u}</span>`).join('') || '<span class="subtle">No universes</span>'}</div>
-    </div>`;
-  }).join('') || '<div class="device-list-empty">No DimCities yet.</div>';
-
-  $('#lkDetail').innerHTML = `<div class="stack">${prefs}${card({ key:'net-dims', title:'DimCities', icon:'layers', collapsible:false, body:rows })}</div>`;
-
-  const root = $('#lkDetail');
-  root.querySelector('#netPrefNodeSpare').oninput = e=>{ nd.prefs.nodeSparePorts = Math.max(0, Number(e.target.value||0)); MODEL.ui.dirty = true; };
-  root.querySelector('#netPrefSplitterSpare').oninput = e=>{ nd.prefs.splitterSparePorts = Math.max(0, Number(e.target.value||0)); MODEL.ui.dirty = true; };
-  root.querySelectorAll('.planNodeType').forEach(sel=> sel.onchange = ()=>{ getDimPlan(sel.dataset.dc).nodeTypeId = sel.value; MODEL.ui.dirty = true; renderNetworkView(); });
-  root.querySelectorAll('.planSplitterType').forEach(sel=> sel.onchange = ()=>{ getDimPlan(sel.dataset.dc).lastSplitterTypeId = sel.value; MODEL.ui.dirty = true; });
-  root.querySelectorAll('.planAutoNode').forEach(btn=> btn.onclick = ()=>{
-    const dc = btn.dataset.dc;
-    const plan = autoAssignDimCityNodes(dc, root.querySelector(`.planNodeType[data-dc="${dc}"]`)?.value || '');
-    if(plan) toast(`${dc}: ${plural(plan.nodes.length,'node')} assigned`);
-    renderNetworkView();
-  });
-  root.querySelectorAll('.planAutoSplit').forEach(btn=> btn.onclick = ()=>{
-    const dc = btn.dataset.dc;
-    const plan = autoAddSplittersForDim(dc, root.querySelector(`.planSplitterType[data-dc="${dc}"]`)?.value || '');
-    if(plan) toast(`${dc}: ${plural(plan.splitters.length,'splitter')} calculated`);
-    renderNetworkView();
-  });
-}
-function showNetworkDevicesTool(){ navigate('NETWORK'); }
 
 // ---- Gedeelde LK/Veam visuals ----
 function lkLineForPort(lk, p){
@@ -1930,13 +1862,6 @@ function bindIpv4Input(input, allowEmpty=false){
   input.addEventListener('blur', update);
   update();
 }
-function nodeInstanceIpFromType(nt, index){
-  const base = String(nt?.defaultIp || '').trim();
-  if(!isValidIpv4(base, true) || !base) return '';
-  const parts = base.split('.').map(Number);
-  parts[3] = Math.min(254, Math.max(1, parts[3] + Number(index || 0)));
-  return parts.join('.');
-}
 function uniqueUniversesInDim(dc){
   const stat = MODEL.uniStats?.get(dc);
   if(!stat || !stat.counts) return [];
@@ -1990,13 +1915,6 @@ function ipWithLastOctet(ip, last){
 }
 function segmentFromDim(dc){
   return dimSlot(dc) || 1;
-}
-function rowsForDimUniverse(dc, uni){
-  const s = String(uni);
-  return []
-    .concat(MODEL.lines.filter(L=>L.dimcity===dc && String(L.universe)===s).map(L=>({type:'LK', id:L.id, port:L.port, dest:L.dest||''})))
-    .concat(MODEL.veamLines.filter(V=>V.dimcity===dc && String(V.universe)===s).map(V=>({type:'Veam', id:V.id, port:V.port, dest:V.dest||''})))
-    .concat((MODEL.dmxLoose||[]).filter(D=>D.dimcity===dc && String(D.universe)===s).map(D=>({type:'DMX', id:'Loose DMX', port:'—', dest:D.dest||''})));
 }
 function dimUniversePointCounts(dc){
   const stat = MODEL.uniStats?.get(dc);

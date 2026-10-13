@@ -1,5 +1,4 @@
-// ui/fun.js — confetti when a show gets clean, "Festival wrapped" card, and sharing a drawing as an image.
-// Confetti can be switched off in Settings (fun.confetti). Nothing here changes the show.
+// ui/fun.js — "Festival wrapped" card and sharing a drawing as an image. Nothing here changes the show.
 (function(){
   'use strict';
   const App = new Proxy({}, { get: (_, k) => window.LKApp?.[k] });   // LKApp is created later than this script
@@ -7,37 +6,6 @@
   const t = (en, nl) => (lang() === 'nl' ? nl : en);
   const I = (n, s) => App.ui.icon(n, s);
   const M = () => App.getMODEL();
-  const enabled = () => window.Settings?.get?.().fun?.confetti !== false;
-
-  // ---------- confetti ----------
-  function confetti(){
-    if(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    const cv = document.createElement('canvas');
-    Object.assign(cv.style, { position:'fixed', inset:'0', width:'100%', height:'100%', pointerEvents:'none', zIndex:99999 });
-    cv.width = innerWidth; cv.height = innerHeight; document.body.appendChild(cv);
-    const g = cv.getContext('2d'), colors = ['#4c9dff', '#35c47c', '#f2b33d', '#e05dd8', '#22c3d6', '#ff7a45', '#a78bfa', '#94d82d'];
-    const bits = Array.from({ length:140 }, () => ({ x:innerWidth * (.2 + Math.random() * .6), y:innerHeight * .75, vx:(Math.random() - .5) * 13, vy:-(7 + Math.random() * 12), s:5 + Math.random() * 6, r:Math.random() * 6, vr:(Math.random() - .5) * .4, c:colors[(Math.random() * colors.length) | 0] }));
-    const t0 = performance.now();
-    (function tick(now){
-      const age = now - t0;
-      g.clearRect(0, 0, cv.width, cv.height);
-      for(const b of bits){ b.vy += .35; b.x += b.vx; b.y += b.vy; b.vx *= .99; b.r += b.vr; g.save(); g.translate(b.x, b.y); g.rotate(b.r); g.globalAlpha = Math.max(0, 1 - age / 3200); g.fillStyle = b.c; g.fillRect(-b.s / 2, -b.s / 4, b.s, b.s / 2); g.restore(); }
-      if(age < 3200) requestAnimationFrame(tick); else cv.remove();
-    })(t0);
-  }
-  function celebrate(){ if(!enabled()) return; confetti(); App.ui.toast(t('Patch perfect! No errors, no warnings.', 'Patch perfect! Geen fouten, geen waarschuwingen.'), 'ok'); }
-
-  // A show that goes from "has issues" to "none" (same project) gets a little party.
-  let prev = null, prevKey = null;
-  setInterval(() => {
-    const m = M(); if(!m) return;
-    const rows = (m.lines?.length || 0) + (m.veamLines?.length || 0) + (m.dmxLoose?.length || 0);
-    const key = `${m.projectMeta?.project || ''}|${m.filePath || ''}`;
-    const n = (m.issues || []).length;
-    if(key !== prevKey || !rows){ prevKey = key; prev = rows ? n : null; return; }
-    if(prev != null && prev > 0 && n === 0) celebrate();
-    prev = n;
-  }, 1200);
 
   // ---------- share a drawing as an image ----------
   function svgToPng(svg, w, h, scale = 2){
@@ -111,5 +79,5 @@
     d.footer.querySelector('[data-a=p]').onclick = async () => shareBlob(await blob(), nm);
   }
 
-  window.Fun = { celebrate, confetti, wrapped, shareFlow, svgToPng, shareBlob, stats };
+  window.Fun = { wrapped, shareFlow, svgToPng, shareBlob, stats };
 })();

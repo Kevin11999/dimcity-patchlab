@@ -25,7 +25,6 @@
   const dirty = () => { const m = M(); if(m?.ui) m.ui.dirty = true; };
   const ROLE_NAME = { management:['Management', 'Beheer'], lighting:['Lighting', 'Licht'], scan:['Scan', 'Scan'], other:['Other', 'Overig'] };
   const PIPES = [['input+output', 'input + output', 'input + output'], ['input', 'input', 'input'], ['output', 'output', 'output'], ['', 'none', 'geen']];
-  const defPipe = role => role === 'management' ? '' : 'input+output';
   // the VLAN of a group is a Luminex one: keep it when it is one (also an own VLAN), else the one of its role
   const isLumi = v => F().luminexGroups().some(g => g.id === Number(v));
   const lumiVlan = (vlan, role) => (vlan != null && vlan !== '' && isLumi(vlan)) ? Number(vlan) : F().groupVlan(role);

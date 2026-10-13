@@ -93,7 +93,6 @@
   const wpatch = dc => { const st = pstore(); const p = (st[dc] ||= {}); p.order ||= 'nodes'; p.sort ||= 'id'; p.manual ||= {}; delete p.auto; return p; };
   const patch = dc => { const p = pstore()[dc]; return { order:'nodes', sort:'id', ...(p || {}), manual:p?.manual || {} }; };
   const baseRows = dc => window.FentUI.portPlanBase(dc).rows;
-  const sameRow = (a, b) => a && b && a.sw === b.sw && Number(a.port) === Number(b.port);
   // Projects made with 0.12 and older filled the ports by themselves. The first time such a project is looked at, what it showed is frozen
   // as "placed", so nothing moves; from then on only your own placing counts.
   function ensureV2(){

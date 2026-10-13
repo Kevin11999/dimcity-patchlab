@@ -762,7 +762,7 @@
         const r = await fileResult(f);
         if(!B || my !== B.countToken || ver !== B.ver) return;
         B.pages.set(f.id, { pages:r?.pages || 0, empty:!!r?.empty });
-      } catch { B.pages.set(f.id, { pages:0, empty:false }); }
+      } catch { if(!B || my !== B.countToken || ver !== B.ver) return; B.pages.set(f.id, { pages:0, empty:false }); }
       renderFiles(); updateSummary();
     }
   }

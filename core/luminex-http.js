@@ -3,7 +3,7 @@
 export async function luminexHttp(req = {}){
   const { ip, method = 'GET', path: apiPath = '', body, bodyBase64, contentType, asBase64, user, pass, https: useTls, timeoutMs = 6000 } = req;
   if(!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip || '')) throw new Error('Bad IP');
-  if(!/^\/api\/[A-Za-z0-9_\-\/{}.]*(\?[A-Za-z0-9_=&]*)?$/.test(apiPath) || apiPath.includes('..')) throw new Error('Bad path');
+  if(!/^\/api\/(?:[A-Za-z0-9_\-\/{}.]|%[0-9A-Fa-f]{2})*(\?[A-Za-z0-9_=&%]*)?$/.test(apiPath) || apiPath.includes('..')) throw new Error('Bad path');
   if(!['GET', 'PUT', 'POST', 'DELETE'].includes(method)) throw new Error('Bad method');
   const mod = await import(useTls ? 'node:https' : 'node:http');
   // JSON by default; a binary body (an image) comes in as base64 and goes out as raw bytes
@@ -17,7 +17,8 @@ export async function luminexHttp(req = {}){
       const chunks = []; let size = 0; res.on('data', c => { size += c.length; if(size < 6e6) chunks.push(c); });
       res.on('end', () => {
         const buf = Buffer.concat(chunks), data = buf.toString('utf8');
-        if(res.statusCode === 401 || res.statusCode === 403) return reject(Object.assign(new Error('401 Wrong user name or password'), { status: 401 }));
+        if(res.statusCode === 401) return reject(Object.assign(new Error('401 Wrong user name or password'), { status: 401 }));
+        if(res.statusCode === 403) return reject(Object.assign(new Error('403 Not allowed — check the user name and password, and that this user may change settings on the device'), { status: 401 }));
         if(res.statusCode < 200 || res.statusCode >= 300) return reject(Object.assign(new Error(`${res.statusCode} ${data.slice(0, 200)}`), { status: res.statusCode }));
         if(asBase64) return resolve({ base64: buf.toString('base64'), contentType: String(res.headers['content-type'] || '') });
         if(!data.trim()) return resolve(null);
@@ -86,16 +87,6 @@ export async function luminexScan({ ips = [], user, pass, https: useTls, timeout
   await Promise.all(Array.from({ length: Math.min(concurrency, list.length || 1) }, w));
   const n = a => a.split('.').reduce((x, o) => x * 256 + +o, 0);
   return found.sort((a, b) => n(a.ip) - n(b.ip));
-}
-
-// the networks this computer is in (whole subnet up to a /16; anything wider or narrower than that becomes the /24 around the address)
-export async function localRanges(){
-  const os = await import('node:os'), out = [];
-  for(const list of Object.values(os.networkInterfaces())) for(const a of list || []) if(a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.')){
-    const bits = a.netmask ? a.netmask.split('.').reduce((n, o) => n + (Number(o) >>> 0).toString(2).replace(/0/g, '').length, 0) : 24;
-    out.push(bits >= 16 && bits <= 30 ? `${a.address}/${bits}` : a.address.split('.').slice(0, 3).join('.') + '.0/24');
-  }
-  return [...new Set(out)];
 }
 
 // ---- the addresses of this computer (so a device that moves to another address can be checked against them) ----

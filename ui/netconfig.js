@@ -251,7 +251,6 @@
       const rowsNow = api.portRows(d.cur);
       for(const p of w.ports){ if(!d.cur.ports.some(x => x.port_number === p.port)) continue; const e = d.E.get(p.port) || {}; if(C.withNames !== false && !p.def) e.legend = String(p.legend).slice(0, 16); const rw = rowsNow.find(x => x.port === p.port); if(p.poe && rw?.poe != null) e.poe = p.poe === 'on'; if(p.speed && api.SPEEDS.includes(p.speed)) e.speed = p.speed; const g = w.groups.find(x => x.vid === p.vid); if(g) e.member = { type:'vid', vid:g.vid, name:g.name, color:g.color }; d.E.set(p.port, e); }
       if(w.fibre.length){ const fm = { type:'fibre', vids:w.groups.map(g => g.vid), mgmtVid:w.mgmt, groups:w.groups }; for(const no of w.fibre) if(d.cur.ports.some(x => x.port_number === no)){ const e = d.E.get(no) || {}; e.member = clone(fm); d.E.set(no, e); } }
-      const pre = d.cur.trunks.find(x => x.predefined), want = w.mgmt != null ? d.cur.groups.find(g => g.vid === w.mgmt) : null;
       if(w.name && w.name !== d.cur.device?.name) d.dev.name = w.name;
       if(C.withIp && w.ip?.address && w.ip.address !== d.cur.ip?.ip_address) Object.assign(d.dev, { ip:w.ip.address, mask:w.ip.mask, gateway:w.ip.gateway });
       return true;
@@ -287,7 +286,7 @@
     for(const d of C.dev.values()){
       if(d.link || d.kind === 'unknown') continue;
       const want = isSw(d) ? 'sw' : 'nd', nm = `${d.name} ${d.longName}`.toLowerCase();
-      const it = items.find(x => x.kind === want && !taken.has(x.id) && x.ip === d.ip) || items.find(x => x.kind === want && !taken.has(x.id) && nm.trim() && String(x.label).length > 1 && nm.includes(String(x.label).toLowerCase()));
+      const it = items.find(x => x.kind === want && !taken.has(x.id) && x.ip === d.ip) || items.find(x => x.kind === want && !taken.has(x.id) && nm.trim() && String(x.label).length > 1 && new RegExp('(^|[^a-z0-9])' + String(x.label).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^a-z0-9]|$)').test(nm));
       if(it){ d.link = it.id; taken.add(it.id); }
     }
   }
@@ -330,9 +329,15 @@
   // The order matters when addresses change: first everything that is not an address, to every device (they are all still where
   // they were); then the addresses to all devices at the same moment, each one checked at its new address. A device this computer can no
   // longer reach is not a failure: it has its new address, and the result says what to do (add an address to this computer).
-  async function applyDevs(devs){
-    const todo = devs.map(d => ({ d, ...opsOf(d) })).filter(x => x.ops.length);
+  async function applyDevs(devs, { noIp = false } = {}){
+    const todo = devs.map(d => ({ d, ...opsOf(d) })).map(x => noIp ? { ...x, ops:x.ops.filter(o => o.kind !== 'ip') } : x).filter(x => x.ops.length);
     if(!todo.length) return;
+    const moving = todo.filter(x => x.ops.some(o => o.kind === 'ip'));
+    if(moving.length){          // a new address can make a device unreachable: say so first
+      const ok = await App.ui.confirmDialog({ title:t('Change IP addresses?', 'IP-adressen veranderen?'), okLabel:t('Send including IP addresses', 'Versturen inclusief IP-adressen'), danger:true,
+        message:moving.map(x => `${x.d.name || x.d.model || ''}  ${x.d.ip}${x.d.dev?.ip && x.d.dev.ip !== x.d.ip ? ' → ' + x.d.dev.ip : ''}`).join('\n') + '\n\n' + t('First the settings go to every device, then the new addresses go to all devices at the same moment. If this computer has no address in the new range, the devices can no longer be read back. To send only the settings, use “Apply all without IP”.', 'Eerst gaan de instellingen naar elk apparaat, daarna gaan de nieuwe adressen op hetzelfde moment naar alle apparaten. Heeft deze computer geen adres in het nieuwe bereik, dan kunnen de apparaten niet meer teruggelezen worden. Wil je alleen de instellingen sturen, gebruik dan “Alles toepassen zonder IP”.') });
+      if(!ok) return;
+    }
     let failed = 0; await load();
     for(const x of todo){ x.cfg = x.ops.filter(o => o.kind !== 'ip'); x.ipOps = x.ops.filter(o => o.kind === 'ip'); x.newIp = x.d.dev?.ip || null; x.mask = x.d.dev?.mask || '255.255.255.0'; x.d.err = ''; x.d.moved = null; }
     // 1 · everything but the address, to every device
@@ -395,16 +400,6 @@
   const logged = d => { const h = transport(d.ip); d.log ||= []; return async (m, p, b, o) => { const line = `${m} ${p}${b !== undefined && !o?.bodyBase64 ? ' ' + JSON.stringify(b).slice(0, 160) : ''}`; try { const r = await h(m, p, b, o); d.log.push({ ok:true, line, res:r == null ? '' : String(JSON.stringify(r)).slice(0, 100) }); if(d.log.length > 80) d.log.shift(); return r; } catch(x) { d.log.push({ ok:false, line, err:String(x.message || x) }); throw x; } }; };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   // ---------- the lights ----------
-  async function rainbowShow(d){
-    if(C.show && C.show.ip === d.ip){ C.show.stop = true; return; }
-    const h = logged(d), run = C.show = { ip:d.ip, stop:false }; paint();
-    let before = 'groups'; try { before = (await h('GET', '/api/interface/info/current_state')) || 'groups'; } catch {}
-    try { await load(); for(let round = 0; round < 4 && !run.stop; round++) for(const st of api.RAINBOW_STATES){ if(run.stop) break; await h('PUT', '/api/interface/set_state', { state:st }); await sleep(520); } }
-    catch(x) { d.err = String(x.message || x); }
-    try { await h('PUT', '/api/interface/set_state', { state:typeof before === 'string' && before ? before : 'groups' }); } catch { try { await h('PUT', '/api/interface/set_state', { state:'groups' }); } catch {} }
-    C.show = null; paint();
-  }
-
   // The switch answered "ok" to the trunk call; did the ports really end up in the trunk? If not, try the other documented way (port by port) and say what the switch reports.
   async function verifyTrunk(d, ops, h){
     if(!d.cur) return;
@@ -427,23 +422,6 @@
       d.log.push({ ok:false, line:`verify: trunk ${tid}`, err:`does not carry VLAN ${lack.join(', ')}` });
       d.err = t(`The switch's own trunk does not carry VLAN ${lack.join(', ')}. PatchLab does not make a trunk of its own: add the VLAN to the trunk on the switch. Open “Last calls” for what the switch said.`, `De eigen trunk van de switch draagt VLAN ${lack.join(', ')} niet. PatchLab maakt geen eigen trunk: voeg het VLAN toe aan de trunk op de switch. Open “Laatste aanroepen” voor wat de switch zei.`);
     }
-  }
-  // the colours flow along: every group in use keeps its place in the rainbow and the whole rainbow turns, a few seconds, then the old colours come back
-  async function rainbowFlow(d){
-    if(C.flow && C.flow.ip === d.ip){ C.flow.stop = true; return; }
-    const plan = api.rainbowPlan(d.cur); if(!plan.targets.length){ App.ui.toast(t('No groups in use to colour', 'Geen groepen in gebruik om te kleuren'), 'info'); return; }
-    const h = logged(d), run = C.flow = { ip:d.ip, stop:false }; paint(); let err = '', prev = 'groups';
-    try {
-      await load(); const n = plan.targets.length;
-      try { prev = (await h('GET', '/api/interface/info/current_state')) || 'groups'; if(prev !== 'groups') await h('PUT', '/api/interface/set_state', { state:'groups' }); } catch {}          // the port lights only show group colours in this state
-      for(let f = 0; f < 90 && !run.stop; f++){
-        const results = await Promise.allSettled(plan.targets.map((path, i) => h('PUT', path, api.hslHex(((360 * i / n) + f * 14) % 360))));
-        const bad = results.find(r => r.status === 'rejected'); if(bad){ err = String(bad.reason?.message || bad.reason); break; }
-        await sleep(160);
-      }
-    } catch(x) { err = String(x.message || x); }
-    try { await Promise.allSettled(plan.before.map(b => h('PUT', b.path, b.color))); if(prev !== 'groups') await h('PUT', '/api/interface/set_state', { state:prev }); } catch {}
-    C.flow = null; if(err) d.err = err; await readDev(d, true); paint();
   }
   async function rainbowColours(d, undo){
     d.busy = true; d.err = ''; paint();
@@ -479,12 +457,10 @@
     }).join('')}</div>`;
   }
   const lightsHtml = d => `<div class="nc-lights"><b>${t('Lights', 'Lampjes')}</b>
-    <button data-rainbow="${esc(d.ip)}" class="${C.show?.ip === d.ip ? 'primary' : ''}">${C.show?.ip === d.ip ? '■ ' + t('Stop', 'Stop') : '🌈 ' + t('Rainbow show', 'Regenboogshow')}</button>
-    <button data-rainbowf="${esc(d.ip)}" class="${C.flow?.ip === d.ip ? 'primary' : ''}">${C.flow?.ip === d.ip ? '■ ' + t('Stop', 'Stop') : '🌊 ' + t('Rainbow flow', 'Regenboogstroom')}</button>
     <button data-rainbowc="${esc(d.ip)}" ${d.busy ? 'disabled' : ''}>${t('Rainbow colours on the groups', 'Regenboogkleuren op de groepen')}</button>
     <button data-lstate="${esc(d.ip)}|groups">${t('Ports show group colours', 'Poorten tonen groepskleuren')}</button><button data-lstate="${esc(d.ip)}|dark_mode">${t('Lights off', 'Lampjes uit')}</button>
     ${d.rainbowBefore ? `<button data-rainbowu="${esc(d.ip)}">${t('Colours back', 'Kleuren terug')}</button>` : ''}
-    <span class="subtle" style="font-size:12px">${t('The show runs the front-panel colours red → magenta a few times and then goes back. The port lights follow the colour of their group, so “rainbow colours” gives every group in use its own colour, left to right, and “rainbow flow” lets those colours run along like a wave (ports in the same VLAN change together; a single port cannot get a colour of its own without moving it to another group). A group colour has no effect on traffic.', 'De show laat de kleuren van het voorpaneel een paar keer van rood → magenta lopen en gaat dan terug. De poortlampjes volgen de kleur van hun groep, dus “regenboogkleuren” geeft elke gebruikte groep een eigen kleur, van links naar rechts, en de “regenboogstroom” laat die kleuren als een golf langs lopen (poorten in dezelfde VLAN veranderen samen; een losse poort kan geen eigen kleur krijgen zonder naar een andere groep te verhuizen). Een groepskleur heeft geen invloed op het verkeer.')}</span></div>`;
+    <span class="subtle" style="font-size:12px">${t('The port lights follow the colour of their group, so “rainbow colours” gives every group in use its own colour, left to right (ports in the same VLAN share a colour; a single port cannot get a colour of its own without moving it to another group). “Colours back” restores the old colours. A group colour has no effect on traffic.', 'De poortlampjes volgen de kleur van hun groep, dus “regenboogkleuren” geeft elke gebruikte groep een eigen kleur, van links naar rechts (poorten in dezelfde VLAN delen een kleur; een losse poort kan geen eigen kleur krijgen zonder naar een andere groep te verhuizen). “Kleuren terug” zet de oude kleuren terug. Een groepskleur heeft geen invloed op het verkeer.')}</span></div>`;
   const logHtml = d => (d.log && d.log.length) ? `<details class="nc-log"><summary>${t('Last calls to this device', 'Laatste aanroepen naar dit apparaat')} (${d.log.length})</summary><button data-copylog="${esc(d.ip)}">${t('Copy', 'Kopieer')}</button><pre>${d.log.slice(-40).map(l => `${l.ok ? '✓' : '✗'} ${esc(l.line)}${l.ok ? (l.res ? '  → ' + esc(l.res) : '') : '  → ' + esc(l.err)}`).join('\n')}</pre></details>` : '';
 
   // ---------- the e-ink display of a GigaCore 20t ----------
@@ -711,7 +687,7 @@
       <label>${t('Name', 'Naam')}<input data-f="name" maxlength="64" value="${esc(v.name)}"></label>
       <label>${t('Direction', 'Richting')}<select data-f="dir"><option value="output" ${v.dir === 'output' ? 'selected' : ''}>${t('Output — network → DMX', 'Uitgang — netwerk → DMX')}</option><option value="input" ${v.dir === 'input' ? 'selected' : ''}>${t('Input — DMX → network', 'Ingang — DMX → netwerk')}</option><option value="idle" ${v.dir === 'idle' ? 'selected' : ''}>${t('Off', 'Uit')}</option></select></label>
       <label>${t('Protocol', 'Protocol')}<select data-f="klass"><option value="sacn" ${v.klass === 'sacn' ? 'selected' : ''}>sACN</option><option value="artnet" ${v.klass === 'artnet' ? 'selected' : ''}>Art-Net</option>${v.klass ? '' : '<option value="" selected>–</option>'}</select></label>
-      <label>Universe<input data-f="universe" type="number" min="0" max="63999" value="${esc(v.uni ?? '')}" style="width:90px"></label>
+      <label>Universe<input data-f="universe" type="number" min="${v.klass === 'artnet' ? 0 : 1}" max="${v.klass === 'artnet' ? 32767 - C.offset : 63999}" value="${esc(v.uni ?? '')}" style="width:90px"></label>
       ${!p.understood ? `<span class="su-warn">${t('The set-up of this port is not recognised, so it is not changed.', 'De opzet van deze poort wordt niet herkend, dus hij wordt niet gewijzigd.')}</span>` : ''}</div>`;
   }
   // the network of a LumiNode: basic (one address) or advanced (groups and ports), and what the plan wants on it
@@ -790,7 +766,7 @@
         ${real() ? '' : `<div class="hint nd-sim">${I('info', 13)} ${t('Simulated devices — one pretend device on every planned address, so you can try this out. In the desktop app the real devices answer.', 'Gesimuleerde apparaten — één nepapparaat op elk gepland adres, zodat je dit kunt uitproberen. In de desktop-app antwoorden de echte apparaten.')}</div>`}</details>
       ${C.err ? `<div class="su-warn">${esc(C.err)}</div>` : ''}
       ${C.found ? `<div class="nc-bar"><span><b>${nSw}</b> GigaCore · <b>${nNd}</b> LumiNode${nUn ? ` · <b>${nUn}</b> ${t('need a login', 'vragen een login')}` : ''}${C.info ? ` <span class="subtle">· ${esc(C.info)}</span>` : ''}</span><span style="flex:1"></span>
-        <button id="ncFillAll">${t('Fill all from the plan', 'Alles invullen uit het plan')}</button><button id="ncReadAll">${I('refresh', 13)}${t('Read all', 'Alles lezen')}</button><button class="primary" id="ncApplyAll" ${total ? '' : 'disabled'}>${t('Apply all', 'Alles toepassen')} (${total})…</button></div>
+        <button id="ncFillAll">${t('Fill all from the plan', 'Alles invullen uit het plan')}</button><button id="ncReadAll">${I('refresh', 13)}${t('Read all', 'Alles lezen')}</button><button id="ncApplyAllNoIp" ${total ? '' : 'disabled'} title="${t('Send the settings only; IP addresses are left as they are', 'Stuur alleen de instellingen; IP-adressen blijven zoals ze zijn')}">${t('Apply all without IP', 'Alles toepassen zonder IP')}</button><button class="primary" id="ncApplyAll" ${total ? '' : 'disabled'}>${t('Apply all', 'Alles toepassen')} (${total})…</button></div>
         ${devs.length ? devs.map(cardHtml).join('') : `<div class="subtle" style="margin:14px 0">${C.watching ? t('Listening… connect a LumiNode or GigaCore and it shows up here by itself. Fill in the user name and password if the devices ask for a login.', 'Luistert… sluit een LumiNode of GigaCore aan en hij verschijnt hier vanzelf. Vul gebruikersnaam en wachtwoord in als de apparaten om een login vragen.') : t('Nothing answered. Check the cable and the adapter in Settings > Network, and fill in the user name and password if the devices ask for a login.', 'Niets antwoordde. Controleer de kabel en de adapter bij Instellingen > Netwerk, en vul gebruikersnaam en wachtwoord in als de apparaten om een login vragen.')}</div>`}
         ${missing.length ? `<details class="nc-missing"><summary>${missing.length} ${t('items of the plan have no device yet', 'onderdelen uit het plan hebben nog geen apparaat')}</summary><div class="subtle">${missing.map(x => `${esc(linkLabel(x))}${x.ip ? ` · ${esc(x.ip)}` : ''}`).join('<br>')}</div></details>` : ''}`
         : `<div class="nc-empty">${I('search', 30)}<b>${t('Find your devices', 'Vind je apparaten')}</b><span>${t('Press Discover to list every LumiNode and GigaCore switch on the network at once. Each one is linked to a switch or node of your plan.', 'Druk op Ontdekken om elke LumiNode en GigaCore-switch op het netwerk in één keer te tonen. Elk apparaat wordt gekoppeld aan een switch of node uit je plan.')}</span></div>`}
@@ -816,6 +792,7 @@
     bindVal('#ncOff', e => { C.offset = Number(e.value); paint(); }); bindVal('#ncSlot', e => { C.slot = e.value.trim(); }); bindVal('#ncIp', e => { C.withIp = e.checked; }); bindVal('#ncNames', e => { C.withNames = e.checked; });
     if(q('#ncReadAll')) q('#ncReadAll').onclick = async () => { await pool([...C.dev.values()].filter(d => d.kind !== 'unknown'), 4, async d => { await readDev(d); paint(); }); };
     if(q('#ncFillAll')) q('#ncFillAll').onclick = () => { let n = 0; for(const d of C.dev.values()) if(fillFromPlan(d)) n++; paint(); App.ui.toast(`${n} ${t('devices filled from the plan — nothing is sent yet', 'apparaten ingevuld uit het plan — er is nog niets gestuurd')}`, 'info'); };
+    if(q('#ncApplyAllNoIp')) q('#ncApplyAllNoIp').onclick = () => applyDevs([...C.dev.values()].filter(d => d.cur), { noIp:true });
     if(q('#ncApplyAll')) q('#ncApplyAll').onclick = () => applyDevs([...C.dev.values()].filter(d => d.cur));
     qa('[data-toggle]').forEach(h => h.onclick = ev => { if(ev.target.closest('select,button,input')) return; const ip = h.dataset.toggle; C.open.has(ip) ? C.open.delete(ip) : C.open.add(ip); const d = D(ip); if(C.open.has(ip) && d && !d.cur && d.kind !== 'unknown' && !d.busy) readDev(d).then(paint); paint(); });
     qa('select[data-link]').forEach(s => s.onchange = () => { const d = D(s.dataset.link); d.link = s.value || null; paint(); });
@@ -827,8 +804,6 @@
     // brushes
     qa('[data-brush]').forEach(b => b.onclick = () => { const d = D(b.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const v = b.dataset.brush; if(!v) d.brush = null; else if(v === 'fibre') d.brush = { type:'fibre' }; else { const x = swBrushes(d).find(y => y.vid === Number(v.split(':')[1])); d.brush = { type:'vid', ...x }; } paint(); });
     qa('[data-trunkun]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.trunkEdit = { tid:Number(i.dataset.trunkun), vid:Number(i.value) || 0 }; paint(); });
-    qa('[data-rainbow]').forEach(b => b.onclick = () => rainbowShow(D(b.dataset.rainbow)));
-    qa('[data-rainbowf]').forEach(b => b.onclick = () => rainbowFlow(D(b.dataset.rainbowf)));
     qa('[data-rainbowc]').forEach(b => b.onclick = () => rainbowColours(D(b.dataset.rainbowc), false));
     qa('[data-rainbowu]').forEach(b => b.onclick = () => rainbowColours(D(b.dataset.rainbowu), true));
     qa('[data-lstate]').forEach(b => b.onclick = async () => { const [ip, st] = b.dataset.lstate.split('|'), d = D(ip); try { await load(); await logged(d)('PUT', '/api/interface/set_state', { state:st }); } catch(x) { d.err = String(x.message || x); } paint(); });
@@ -856,7 +831,7 @@
       box.querySelectorAll('[data-f]').forEach(i => i.onchange = () => {
         const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle), p = d.sel, f = i.dataset.f, e = d.E.get(p) || {};
         if(f === 'legend' || f === 'name') e[f] = i.value; else if(f === 'dir' || f === 'klass') e[f] = i.value; else if(f === 'poe') e.poe = i.checked; else if(f === 'speed') e.speed = i.value;
-        else if(f === 'universe'){ if(i.value === '') delete e.universe; else e.universe = Math.max(0, Math.min(63999, Math.round(Number(i.value)))); }
+        else if(f === 'universe'){ if(i.value === '') delete e.universe; else { const kl = e.klass || d.cur.ports[p]?.klass || 'sacn'; e.universe = kl === 'artnet' ? Math.max(0, Math.min(32767 - C.offset, Math.round(Number(i.value)))) : Math.max(1, Math.min(63999, Math.round(Number(i.value)))); } }
         else if(f === 'member'){ if(!i.value) delete e.member; else if(i.value === 'fibre') e.member = fibreMember(d); else { const x = swBrushes(d).find(y => y.vid === Number(i.value.split(':')[1])); e.member = { type:'vid', vid:x.vid, name:x.name, color:x.color }; } }
         if(Object.keys(e).length) d.E.set(p, e); else d.E.delete(p);
         box.dataset.dirty = '1'; tileUpdate(d, p);

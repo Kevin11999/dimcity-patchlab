@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.19.2 — 2026-10-13
+
+- Fixed: Luminex nodes (a switched-off input is found again, a change that cannot finish is no longer half sent, universes outside the allowed range are refused, group names cut on bytes). New: “Apply all without IP” and a confirmation before IP addresses are sent. Removed: confetti, the rainbow show and rainbow flow, and unused code.
+
+<details><summary>Nederlands</summary>
+
+- Opgelost: Luminex-nodes (een uitgeschakelde ingang wordt weer gevonden, een wijziging die niet kan slagen wordt niet meer half gestuurd, universes buiten het toegestane bereik worden geweigerd, groepsnamen afgekapt op bytes). Nieuw: “Alles toepassen zonder IP” en een bevestiging voordat IP-adressen worden gestuurd. Weg: confetti, de regenboogshow en regenboogstroom, en ongebruikte code.
+
+</details>
+
 ## 0.19.1 — 2026-10-12
 
 - New: “One booklet per DimCity” in Publish gives every DB its own PDF with a start sheet (the DB and its figures) and ticks under the booklet for what goes in it. Fixed: on the 12-port node stickers the bottom row of ports is no longer cut off.
@@ -568,7 +578,6 @@ All notable changes to DimCity PatchLab. The entry of a version is also the text
 - Cables in the Device Builder (opticalCON, FiberFox, 4-core, singlemode, SFP patch) and fibre links between switch SFP ports, also between DBs, with a label on both ends.
 - Signal Flow: network layer (switches, Cat cables, fibres) and a Show switch: All / DMX / Network. The PDF can print a network-only drawing too.
 - Network: several addresses per device (management, lighting, scan) and the FENT scheme (v1.1) with one-click addressing of all nodes, checks, a VLAN table and a switch port plan with access/trunk and VLAN colours, also in the PDF and as switch port stickers.
-- Confetti and "Patch perfect!" when a show goes from having issues to none (Settings > General > Fun switches it off).
 - Festival wrapped (Help menu): a shareable card with the numbers of your show; save or copy it as an image.
 - Signal Flow: "Share image" copies the drawing as a picture for a chat or e-mail.
 
@@ -580,7 +589,6 @@ All notable changes to DimCity PatchLab. The entry of a version is also the text
 - Kabels in de Device Builder (opticalCON, FiberFox, 4-core, singlemode, SFP-patch) en fiberverbindingen tussen SFP-poorten van switches, ook tussen DB's, met een label op beide uiteinden.
 - Signaalstroom: netwerklaag (switches, Cat-kabels, fibers) en een schakelaar Tonen: Alles / DMX / Netwerk. De PDF kan ook een tekening met alleen het netwerk printen.
 - Netwerk: meerdere adressen per apparaat (beheer, licht, scan) en het FENT-schema (v1.1) met één-klik adressering van alle nodes, controles, een VLAN-tabel en een switchpoortplan met access/trunk en VLAN-kleuren, ook in de PDF en als switchpoort-stickers.
-- Confetti en "Patch perfect!" zodra een show van problemen naar geen problemen gaat (Instellingen > Algemeen > Plezier zet het uit).
 - Festival wrapped (Help-menu): een deelbare kaart met de cijfers van je show; opslaan of kopiëren als afbeelding.
 - Signaalstroom: "Afbeelding delen" kopieert de tekening als plaatje voor een chat of e-mail.
 

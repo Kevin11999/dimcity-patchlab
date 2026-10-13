@@ -1,13 +1,13 @@
 {
   "name": "lk-veam-tool",
-  "version": "0.19.1",
+  "version": "0.19.2",
   "description": "DimCity PatchLab – LK/Veam patch en DimCity universe validator",
   "author": "Kevin van Setten",
   "main": "main.js",
   "type": "module",
   "scripts": {
     "start": "electron .",
-    "check": "node --check main.js && node --check preload.cjs && node --check renderer.js && node --check project-io.js && node --check csv-editor.js && node --check export-pdf.js && node --check ui/welcome.js && node --check ui/icons.js && node --check core/library.js && node --check ui/device-builder.js && node --check core/paginate.js && node --check ui/publish.js && node --check core/netwatch.js && node --check core/netadapters.js",
+    "check": "node scripts/check.mjs",
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",

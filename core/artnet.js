@@ -106,6 +106,3 @@ export function buildIpProgReply(ip, mask, dhcp = false){
   b[26] = dhcp ? 0x40 : 0;
   return b;
 }
-// universe number as shown in PatchLab (1-based) ↔ Art-Net port-address (0-based) with an offset
-export const toArtnet = (uni, offset = -1) => Math.max(0, Number(uni) + offset);
-export const fromArtnet = (addr, offset = -1) => Number(addr) - offset;

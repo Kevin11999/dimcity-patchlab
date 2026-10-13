@@ -143,7 +143,7 @@ const NL = {
 
   // rapportbouwer
   'Report Builder':'Rapportbouwer', 'Template':'Template', 'Save as template':'Opslaan als template', 'Save as Template':'Opslaan als template', 'Content':'Inhoud', 'Style':'Stijl', 'Cover':'Cover',
-  'Fit':'Passend', 'Network switches':'Netwerkswitches', 'Fibre links':'Fiberverbindingen', 'Network cables':'Netwerkkabels', 'Stickers':'Stickers', 'Print stickers on Herma label sheets':'Print stickers op Herma-etikettenvellen', 'Fun':'Plezier', 'Confetti when a show has no errors or warnings left':'Confetti als een show geen fouten of waarschuwingen meer heeft', 'A little party when the validation turns clean. Switch it off if you prefer a quiet app.':'Een klein feestje zodra de validatie schoon wordt. Zet het uit als je een rustige app wilt.', 'Sections per DimCity':'Secties per DimCity', '· drag to reorder':'· sleep om te ordenen', 'Output':'Uitvoer', 'One PDF':'Eén PDF', 'One PDF per DimCity':'Eén PDF per DimCity',
+  'Fit':'Passend', 'Network switches':'Netwerkswitches', 'Fibre links':'Fiberverbindingen', 'Network cables':'Netwerkkabels', 'Stickers':'Stickers', 'Print stickers on Herma label sheets':'Print stickers op Herma-etikettenvellen', 'Sections per DimCity':'Secties per DimCity', '· drag to reorder':'· sleep om te ordenen', 'Output':'Uitvoer', 'One PDF':'Eén PDF', 'One PDF per DimCity':'Eén PDF per DimCity',
   'Page':'Pagina', 'Paper size':'Papierformaat', 'Orientation':'Richting', 'Landscape':'Liggend', 'Portrait':'Staand', 'Margins':'Marges', 'Look':'Uiterlijk', 'Accent color':'Accentkleur',
   'Font':'Lettertype', 'Text size':'Tekstgrootte', 'Density':'Dichtheid', 'Compact':'Compact', 'Comfortable':'Ruim', 'Header & footer':'Kop- en voettekst',
   'Cover page':'Voorblad', 'Title':'Titel', 'Subtitle':'Ondertitel', 'Show on cover':'Op voorblad tonen', 'Logo':'Logo', 'No logo':'Geen logo', 'Note on cover':'Notitie op voorblad',
@@ -189,7 +189,13 @@ const NL = {
   'Loose spiders count as sockets. A panel group is one LK37 or its Veam4’s, never both, so the LK37 and Veam4 numbers of a panel are alternatives. The Veams that hang on an LK need no socket. Add devices to the rack and this list follows; “Still missing” is what no rack or spider covers yet.':'Losse spinnen tellen als aansluitingen. Een paneelgroep is één LK37 óf zijn Veam4’s, nooit allebei: de LK37- en Veam4-getallen van een paneel zijn dus alternatieven. De Veams die aan een LK hangen hebben geen aansluiting nodig. Zet apparaten in het rek en deze lijst volgt; “Nog nodig” is wat nog door geen rek of spin gedekt wordt.',
   'Couple LKs & Veams to sockets':'LK’s & Veams aan aansluitingen koppelen', 'all automatic':'alles automatisch', 'Network ports on the panels':'Netwerkpoorten op de panelen',
   'Automatic':'Automatisch', 'Loose spider':'Losse spin', 'Do not patch':'Niet patchen', 'Now on':'Nu op', 'Choose':'Kies',
-  'Custom rack…':'Eigen rek…'
+  'Custom rack…':'Eigen rek…',
+  // gaps found in the audit
+  'Step-by-step setup after an import':'Stap-voor-stap instellen na een import', 'All LK, Veam and loose DMX rows from 1 CSV file':'Alle LK-, Veam- en losse DMX-regels uit 1 CSV-bestand',
+  'Duplicate Veam links, universe conflicts, missing Veams and block-type conflicts are checked automatically.':'Dubbele Veam-koppelingen, universe-conflicten, ontbrekende Veams en blokttype-conflicten worden automatisch gecontroleerd.',
+  'Show / hide':'Tonen / verbergen', 'Device Builder':'Device Builder', 'Nodes, splitters, switches, panels and cables — and the racks you build from them.':'Nodes, splitters, switches, panelen en kabels — en de racks die je ermee bouwt.',
+  'Short name':'Korte naam', 'Give every device without a short name one (made from its name), so you can adjust them':'Geef elk apparaat zonder korte naam er een (gemaakt van de naam), zodat je ze kunt aanpassen',
+  'Open Setup':'Setup openen', 'Open Uitlijntool':'Uitlijntool openen', 'Open Netwerkconfig':'Netwerkconfig openen',
 };
 
 // "3 errors" e.d.: getal + zelfstandig naamwoord

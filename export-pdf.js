@@ -735,11 +735,6 @@
     const st = P.stats;
     return `<div class="section">${h3(n, 'Racks', `${st.lkUsed}/${st.lkSockets} LK37 · ${st.vimUsed}/${st.vimSockets} Veam4 · ${st.nodePortsUsed}/${st.nodePorts} node ports`)}${advice}${drawing}${nodeList}${looseHtml}${table}</div>`;
   }
-  function portHtml(m, nr, L, o){
-    const u = m.universe;
-    const has = u != null && u !== '';
-    return `<div class="port ${has?'':'empty'} ${m.conflict?'conflict':''}" style="--uni:${has?uniColor(u,L):'#e2e8f0'}"><div class="nr">${nr}</div><div class="uni">${has?'U'+esc(u):'—'}</div>${o.location!==false?`<div class="dest">${esc(m.dest||'')}</div>`:''}${o.source && has?`<div class="src">${esc(m.source||'')}${m.veamId?' · '+esc(m.veamId)+'/'+esc(m.veamPort):''}</div>`:''}</div>`;
-  }
   function buildPatch(M, dc, L, n, o){
     const lks = listFromMap(M.byLK).filter(x=>x.dimcity===dc).sort(byId);
     const linked = new Set(); for(const lk of lks) for(const s of [1,2,3]) if(lk.veam?.[s]) linked.add(lk.veam[s]);

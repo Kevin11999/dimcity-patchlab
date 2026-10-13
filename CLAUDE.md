@@ -5,6 +5,8 @@
 - Kevin beschrijft, jij antwoordt eerst; pas na zijn akkoord bouw je. Bij een lange lijst: eerst lezen en vragen stellen, nog niets bouwen.
 - Zuinig met tokens: niets testen, geen Playwright of regressietests, het programma niet draaien en geen screenshots maken, tenzij Kevin het vraagt. Veel tokens alleen als hij het zegt.
 - Alleen de bugs oplossen en de dingen doen die Kevin zegt. Niets extra's.
+- Code aanpassen mag pas na 2× toestemming: eerst zijn "ja" op het plan, daarna een aparte vraag "Mag ik nu beginnen?" en zijn "ja". Een release vraag ik apart, tenzij hij het expliciet zegt.
+- Vragen aan Kevin stel ik altijd in een pop-up (AskUserQuestion), zodat hij ze netjes kan beantwoorden.
 - De handleiding (core/manual.js, docs/, rondleidingen, vertalingen) met rust laten, tenzij hij erom vraagt.
 - Video's niet opnieuw opnemen, tenzij hij erom vraagt.
 

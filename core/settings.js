@@ -24,8 +24,7 @@ const DEFAULTS = {
     auto: false,                     // false = zoeken als je op Ontdekken drukt; true = apparaten vanzelf zien (welk IP ze ook hebben)
     adapters: {},                    // aangevinkte netwerkadapters per id (MAC-adres): true / false; ontbreekt = ethernet aan, de rest uit
     range: ''                        // eigen zoekbereik; leeg = de netwerken van de aangevinkte adapters
-  },
-  fun: { confetti:true }             // confetti zodra de validatie schoon is
+  }
 };
 
 let S = structuredClone(DEFAULTS);
@@ -130,8 +129,7 @@ function open(section = 'general'){
     general: () => `
       <div class="rb-group"><div class="rb-label">Appearance</div>${seg('theme', S.theme, [['dark', 'Dark'], ['light', 'Light'], ['system', 'Match system']])}</div>
       <div class="rb-group"><div class="rb-label">Language</div>${seg('language', S.language, [['en', 'English'], ['nl', 'Nederlands']])}
-        <div class="hint">Changes the app and its menus. PDF reports stay in English.</div></div>
-      <div class="rb-group"><div class="rb-label">Fun</div>${sw('fun.confetti', S.fun.confetti, 'Confetti when a show has no errors or warnings left', 'A little party when the validation turns clean. Switch it off if you prefer a quiet app.')}</div>`,
+        <div class="hint">Changes the app and its menus. PDF reports stay in English.</div></div>`,
     autosave: () => {
       const a = S.autosave;
       return `

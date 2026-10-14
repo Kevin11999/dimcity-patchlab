@@ -152,8 +152,8 @@
     const eth = ethOf(nt);
     const rows = rowsOf(inst), ports = portsOf(inst, rows, eth), groups = F().luminexGroups(), vids = uniq(rows.map(r => r.vlan));
     const groupOpts = cur => { const list = groups.slice(); if(cur != null && !list.some(g => g.id === Number(cur))) list.unshift({ id:Number(cur), name:`VLAN ${cur}` }); return list.map(g => `<option value="${g.id}" ${Number(cur) === g.id ? 'selected' : ''}>${g.group ? `${t('Group', 'Groep')} ${g.group} · ` : ''}VLAN ${g.id} · ${esc(g.name)}</option>`).join(''); };
-    // the lighting data of a data group follows the DMX ports of the node: DMX outputs are fed from the network → input, DMX inputs send to the network → output, both → input + output
-    const dpipe = window.PortPlan?.pipeOf ? window.PortPlan.pipeOf(dc, inst, idx) : 'input+output';
+    // the lighting data of a data group is input + output, unless a group was given its own choice
+    const dpipe = 'input+output';
     const pipeOf = r => r.listen !== undefined && r.listen !== null ? String(r.listen) : (r.role === 'management' ? '' : dpipe);
     const warns = F().checkAll(rows.filter(r => r.ip).map(r => ({ owner:inst.id || 'node', ip:r.ip, mask:r.mask, vlan:r.vlan, kind:'device' })), fcfg().group).filter(w => w.code !== 'DUPLICATE').map(w => t(w.en, w.nl));
     for(const v of vids) if(!ports[1].includes(v) && !ports[2].includes(v)) warns.push(t(`VLAN ${v} is on no network port of this node — tick ETH1${eth > 1 ? ' or choose it for ETH2' : ''}.`, `VLAN ${v} zit op geen netwerkpoort van deze node — vink ETH1 aan${eth > 1 ? ' of kies hem voor ETH2' : ''}.`));
@@ -164,7 +164,7 @@
         <td><select data-av="role" title="${esc(t('What the group is for: management → 10.90.x.x, lighting (sACN / Art-Net) and scan → 10.40.x.x in the FENT scheme', 'Waar de groep voor is: beheer → 10.90.x.x, licht (sACN / Art-Net) en scan → 10.40.x.x in het FENT-schema'))}">${Object.keys(ROLE_NAME).map(k => `<option value="${k}" ${r.role === k ? 'selected' : ''}>${esc(t(...ROLE_NAME[k]))}</option>`).join('')}</select></td>
         <td><input data-av="ip" class="mono ${r.ip && !F().isIp(r.ip) ? 'invalid' : ''}" value="${esc(r.ip)}" placeholder="10.40.101.11" inputmode="numeric" style="width:130px"></td>
         <td><input data-av="mask" class="mono" value="${esc(r.mask)}" placeholder="${F().MASK}" inputmode="numeric" style="width:120px"></td>
-        <td><select data-av="listen" title="${esc(t('What lighting data may use this group. By default it follows the DMX ports of the node: input = the node takes lighting data in from the network (to its DMX outputs), output = it takes DMX in and sends it out on the network', 'Welke lichtdata deze groep mag gebruiken. Standaard volgt dit de DMX-poorten van de node: input = de node neemt lichtdata uit het netwerk (naar zijn DMX-uitgangen), output = hij neemt DMX in en stuurt het het netwerk op'))}">${PIPES.map(([v, en, nl]) => `<option value="${v}" ${pipe === v ? 'selected' : ''}>${esc(t(en, nl))}</option>`).join('')}</select></td>
+        <td><select data-av="listen" title="${esc(t('What lighting data may use this group. By default input + output: input = the node takes lighting data in from the network (to its DMX outputs), output = it takes DMX in and sends it out on the network', 'Welke lichtdata deze groep mag gebruiken. Standaard input + output: input = de node neemt lichtdata uit het netwerk (naar zijn DMX-uitgangen), output = hij neemt DMX in en stuurt het het netwerk op'))}">${PIPES.map(([v, en, nl]) => `<option value="${v}" ${pipe === v ? 'selected' : ''}>${esc(t(en, nl))}</option>`).join('')}</select></td>
         <td class="av-chk"><input type="checkbox" data-avport="1" ${ports[1].includes(r.vlan) ? 'checked' : ''} title="ETH1"></td>
         <td>${r.k === 'p' ? '' : `<button class="sm ghost" data-avrm title="${esc(t('Remove this group', 'Verwijder deze groep'))}">${I('x', 13)}</button>`}</td></tr>`;
     }).join('');

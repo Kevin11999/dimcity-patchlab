@@ -175,14 +175,25 @@
     const groups = [...vset].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean).map(v => ({ vid:v.id, name:v.name, color:v.color }));
     return { name:s.dev?.id || s.label, ip:s.dev?.ip ? { address:s.dev.ip, mask:s.dev.subnet || DEF_MASK, gateway:s.dev.gateway || '' } : null, ports, fibre, groups, names:allNames(), mgmt:mgmtVid(s) };
   }
+  // what every network port (ETH) of a node carries: what its cable carries in the port plan (the switch port it is plugged in: trunk = all its VLANs, access = its VLAN);
+  // an ETH that is not on a switch port yet keeps the choice of the Advanced screen, else the VLANs of its addresses
+  function portVids(it, inst, eth, ifs){
+    let rows = []; try { rows = window.FentUI?.portPlan?.(it.dc)?.rows || []; } catch { rows = []; }
+    const key = inst.id || inst.name, out = {};
+    for(let k = 1; k <= eth; k++){
+      const r = rows.find(x => x.kind !== 'console' && x.device === key && Number(x.eth) === k && x.sw), v = r ? (r.vlans || []).map(Number).filter(Number.isFinite) : [];
+      out[k] = v.length ? v : inst.advPorts ? (inst.advPorts[k] || []) : [...new Set(ifs.filter(x => (Number(x.eth) || 1) === k && x.vlan != null && x.ip).map(x => Number(x.vlan)))];
+    }
+    return out;
+  }
   function wantNode(it){
     const inst = it.inst, u = Array.isArray(inst.universes) ? inst.universes : [];
     const nt = (App.getMODEL().networkDevices.nodeTypes || []).find(x => x.id === inst.typeId), eth = Math.min(2, Math.max(1, Number(nt?.ethernetCount) || 1));
     const PP = window.PortPlan, pp = PP ? PP.ndPorts(it.dc, inst, it.i) : [];
-    // the lighting data of the groups follows the DMX ports of the node (output by default), unless a group was given its own choice
-    const pipe = PP?.pipeOf ? PP.pipeOf(it.dc, inst, it.i) : 'input+output';
+    // the lighting data of the groups: input + output, unless a group was given its own choice
+    const pipe = 'input+output';
     const ifs = FENT().ifaces(inst, eth).map(x => ((x.listen === undefined || x.listen === null) && x.role !== 'management') ? { ...x, listen:pipe } : x);
-    return { shortName:inst.id, longName:inst.name, advanced:!!inst.advanced, net:inst.advanced ? { ...api.lumiNetWant(ifs, eth, id => FENT().vlanById(id), inst.advPorts || null), names:allNames() } : null, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || DEF_MASK, gateway:inst.gateway || '' } : null,
+    return { shortName:inst.id, longName:inst.name, advanced:!!inst.advanced, net:inst.advanced ? { ...api.lumiNetWant(ifs, eth, id => FENT().vlanById(id), portVids(it, inst, eth, ifs)), names:allNames() } : null, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || DEF_MASK, gateway:inst.gateway || '' } : null,
       ports:u.map((x, j) => { if(x == null || x === '') return null; const p = pp[j] || {}; return { universe:Number(x), name:p.name || `${inst.id || 'N'}.${j + 1}`, klass:p.klass || undefined, dir:p.dir || undefined }; }) };
   }
   const projectVlans = () => { const set = new Set(); for(const it of swList()) vlansOf(it.dc, it.s.label).forEach(v => set.add(v)); return [...set].sort((a, b) => a - b).map(id => FENT().vlanById(id)).filter(Boolean); };

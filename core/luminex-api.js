@@ -342,9 +342,10 @@ export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAd
     if(/^#[0-9a-f]{6}$/i.test(g.color || '') && String(cg.color || '').toLowerCase() !== g.color.toLowerCase()){ changes.push(`Group ${k} (VLAN ${g.vid}): colour ${cg.color || 'none'} → ${g.color}`); cg.color = g.color; }
   };
   const lgW = lumiLightGroup(want);          // a new lighting group cannot be used to configure the node (only management can)
+  const hasMgmtIp = want.groups.some(x => x.mgmt && (x.addresses.length || (next.groups[gid.get(x.vid)]?.network_settings?.addresses || []).length));
   for(const g of want.groups){
     let k = gid.get(g.vid), fresh = false;
-    if(k == null){ if(top >= 255){ notes.push(`No room for a group for VLAN ${g.vid} (a node holds 255 groups).`); continue; } k = ++top; fresh = true; next.groups[k] = { name:g.name, vid:g.vid, color:g.color, editable:true, network_settings:{ addresses:[], routes:[], pipeline_setting:'', allow_config:!(lgW && g.vid === lgW.vid && !g.mgmt) } }; gid.set(g.vid, k); }
+    if(k == null){ if(top >= 255){ notes.push(`No room for a group for VLAN ${g.vid} (a node holds 255 groups).`); continue; } k = ++top; fresh = true; next.groups[k] = { name:g.name, vid:g.vid, color:g.color, editable:true, network_settings:{ addresses:[], routes:[], pipeline_setting:'', allow_config:!(lgW && g.vid === lgW.vid && !g.mgmt && hasMgmtIp) } }; gid.set(g.vid, k); }
     if(!fresh) look(k, g);
     const ns = (next.groups[k].network_settings ||= { addresses:[], routes:[], pipeline_setting:'', allow_config:true });
     if(!fresh && !g.addresses.length) continue;       // a group the node has and the plan gives no address: leave it as it is (its ports are still set below)
@@ -358,7 +359,12 @@ export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAd
       if(!keep && old.join() !== wantIps.join()) changes.push(`Group ${k} “${next.groups[k].name}” (VLAN ${g.vid}): ${old.join(', ') || 'no address'} → ${wantIps.join(', ')}`);
       if((ns.pipeline_setting || '') !== pipe) changes.push(`Group ${k} “${next.groups[k].name}”: lighting ${ns.pipeline_setting ? `“${ns.pipeline_setting}”` : 'off'} → ${pipe ? `“${pipe}”` : 'off'}`);
     }
-    ns.addresses = addrs; ns.pipeline_setting = pipe; if(g.mgmt) ns.allow_config = true;
+    ns.addresses = addrs; ns.pipeline_setting = pipe;
+    if(g.mgmt) ns.allow_config = true;
+    else if(lgW && g.vid === lgW.vid){          // the lighting group cannot configure the node — as long as management still can
+      if(!hasMgmtIp) notes.push(`Group ${k} (the lighting VLAN) keeps allow_config as it is: the node has no management address to configure it on.`);
+      else if(!fresh && ns.allow_config !== false){ ns.allow_config = false; changes.push(`Group ${k} “${next.groups[k].name}”: configuring the node through it → off`); }
+    }
   }
   for(const g of wantNames){ const k = gid.get(g.vid); if(k != null) look(k, g); }          // the other VLANs of the overview that the node has (not used on it)
   const rj = Object.entries(next.ports).filter(([, p]) => (p.type || 'rj45') === 'rj45').map(([name]) => name);

@@ -738,6 +738,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.20.7 — 2026-10-14
+- Changed: the lighting group of an advanced LumiNode is always input + output and cannot configure the node (also when the node has it already, as long as management can); the network port (ETH) of a node follows the switch port it is plugged in in the port plan.
+
 ### Version 0.20.6 — 2026-10-14
 - Fixed: a LumiNode with its own ISL trunk (which it reports as editable) now uses it instead of getting an extra trunk; a new lighting group on a node is made with allow_config off (only management can configure the node).
 
@@ -1740,6 +1743,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.20.7 — 2026-10-14
+- Aangepast: de lichtgroep van een advanced LumiNode is altijd input + output en kan de node niet instellen (ook als de node hem al heeft, zolang management het kan); de netwerkpoort (ETH) van een node volgt de switchpoort waar hij in de poortplanning op zit.
 
 ### Versie 0.20.6 — 2026-10-14
 - Opgelost: een LumiNode met een eigen ISL-trunk (die hij als aanpasbaar meldt) gebruikt die nu in plaats van een extra trunk te krijgen; een nieuwe lichtgroep op een node wordt aangemaakt met allow_config uit (alleen management kan de node instellen).

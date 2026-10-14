@@ -1243,6 +1243,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.20.5', date:'2026-10-14',
+    en:['Fixed: an advanced LumiNode now gets its lighting VLAN as input for DMX outputs (output for DMX inputs); a node that cannot split input and output gets input+output instead of refusing the whole network config; the network inputs of the engines are put on the lighting group after the network config, in one send; an engine that is not set up yet is set to forward.'],
+    nl:['Opgelost: een advanced LumiNode krijgt de licht-VLAN nu als input voor DMX-uitgangen (output voor DMX-ingangen); een node die input en output niet kan splitsen krijgt input+output in plaats van de hele netwerkconfig te weigeren; de netwerk-ingangen van de engines komen na de netwerkconfig op de lichtgroep, in één keer sturen; een engine die nog niet is ingesteld wordt op doorsturen gezet.']
+  },
+  {
     version:'0.20.4', date:'2026-10-14',
     en:['Fixed: “Send config” now really sends the VLAN names and colours of the VLAN overview to the groups a GigaCore already has (before, only new groups got their name).'],
     nl:['Opgelost: “Config sturen” stuurt de VLAN-namen en -kleuren uit het VLAN-overzicht nu echt naar de groepen die een GigaCore al heeft (eerst kregen alleen nieuwe groepen hun naam).']

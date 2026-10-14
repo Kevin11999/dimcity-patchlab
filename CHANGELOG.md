@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.20.5 — 2026-10-14
+
+- Fixed: an advanced LumiNode now gets its lighting VLAN as input for DMX outputs (output for DMX inputs); a node that cannot split input and output gets input+output instead of refusing the whole network config; the network inputs of the engines are put on the lighting group after the network config, in one send; an engine that is not set up yet is set to forward.
+
+<details><summary>Nederlands</summary>
+
+- Opgelost: een advanced LumiNode krijgt de licht-VLAN nu als input voor DMX-uitgangen (output voor DMX-ingangen); een node die input en output niet kan splitsen krijgt input+output in plaats van de hele netwerkconfig te weigeren; de netwerk-ingangen van de engines komen na de netwerkconfig op de lichtgroep, in één keer sturen; een engine die nog niet is ingesteld wordt op doorsturen gezet.
+
+</details>
+
 ## 0.20.4 — 2026-10-14
 
 - Fixed: “Send config” now really sends the VLAN names and colours of the VLAN overview to the groups a GigaCore already has (before, only new groups got their name).

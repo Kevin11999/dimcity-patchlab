@@ -255,7 +255,7 @@ export const einkClear = async h => { await h('PUT', '/api/eink/custom/clear', {
 const NET = new Set(['artnet', 'sacn']);
 const idsIn = v => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v) : v == null ? [] : [v]).map(Number).filter(Number.isFinite);
 export async function lumiRead(h){
-  const [info, ip, ios, blocks, ver, netcfg] = await Promise.all([h('GET', '/api/deviceinfo'), h('GET', '/api/ipsettings'), h('GET', '/api/IO'), h('GET', '/api/processblock'), h('GET', '/api/software/version').catch(() => null), h('GET', '/api/network_config').catch(() => null)]);
+  const [info, ip, ios, blocks, ver, netcfg, features] = await Promise.all([h('GET', '/api/deviceinfo'), h('GET', '/api/ipsettings'), h('GET', '/api/IO'), h('GET', '/api/processblock'), h('GET', '/api/software/version').catch(() => null), h('GET', '/api/network_config').catch(() => null), h('GET', '/api/deviceinfo/features').catch(() => null)]);
   const list = Array.isArray(ios) ? ios : [];
   const dmx = list.filter(x => x.io_class === 'dmx').sort((a, b) => (a.port_number ?? a.id) - (b.port_number ?? b.id));   // IO 100000 = port 1
   const byId = new Map(list.map(x => [x.id, x]));
@@ -276,7 +276,7 @@ export async function lumiRead(h){
     if(net && !NET.has(net.io_class)) net = null;
     return { index: i, io, name: io.name ?? '', dir, via, block, freeBlock, net, input: net, universe: net?.universe ?? null, klass: net?.io_class || null, shared: net ? usedBy(net.id) > 1 : false, understood: !!block || dir === 'idle' || !!freeBlock };
   });
-  return { info, ip, ios: list, blocks: pb, ports, version: typeof ver === 'object' && ver ? ver.current : null, netcfg: netcfg && typeof netcfg === 'object' && netcfg.groups ? netcfg : null };
+  return { info, ip, ios: list, blocks: pb, ports, version: typeof ver === 'object' && ver ? ver.current : null, netcfg: netcfg && typeof netcfg === 'object' && netcfg.groups ? netcfg : null, features: features && typeof features === 'object' ? features : null };
 }
 
 // ---- LumiNode advanced network (/api/network_config) ----
@@ -344,7 +344,9 @@ export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAd
     if(!fresh && !g.addresses.length) continue;       // a group the node has and the plan gives no address: leave it as it is (its ports are still set below)
     const old = (ns.addresses || []).map(a => a.ip), wantIps = g.addresses.map(cidr), keep = keepAddresses && !fresh;
     const addrs = keep ? ns.addresses : g.addresses.map((a, i) => ({ ip:cidr(a), mode:'static', ...(g.addresses.length > 1 && i === 0 ? { preferred_output:true } : {}) }));
-    const pipe = g.pipe ?? (g.listen ? 'input+output' : '');
+    // not every node can split input and output (GET /api/deviceinfo/features): then one group takes part in both, or in none
+    let pipe = g.pipe ?? (g.listen ? 'input+output' : '');
+    if(pipe && cur.features?.['networking: Split pipeline IO'] !== true) pipe = 'input+output';
     if(fresh) changes.push(`New group ${k} “${g.name}” (VLAN ${g.vid}): ${wantIps.join(', ')}${g.listen ? ' · lighting' : ''}`);
     else {
       if(!keep && old.join() !== wantIps.join()) changes.push(`Group ${k} “${next.groups[k].name}” (VLAN ${g.vid}): ${old.join(', ') || 'no address'} → ${wantIps.join(', ')}`);
@@ -393,7 +395,8 @@ export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAd
   ops.push({ method:'POST', path:'/api/network_config/validate', body, text:`Check the new network configuration (${changes.length} change${changes.length === 1 ? '' : 's'})`, kind:'net' });
   ops.push({ method:'PUT', path:'/api/network_config', body, text:changes.join(' · '), kind:'net' });
   ops.push({ method:'POST', path:'/api/network_config/commit', body:{ configuration_identifier:id, timeout:0 }, text:`Activate it${moveTo ? ` — the node moves to ${moveTo}` : ' — the node may stop answering on its old address'}`, kind:'net' });
-  return { ops, notes, changes, moveTo, moveMask };
+  const lg = lumiLightGroup(want);
+  return { ops, notes, changes, moveTo, moveMask, lightGroup: lg ? (gid.get(lg.vid) ?? null) : null };
 }
 
 // What PatchLab shows as a universe number: sACN as it is; Art-Net as the node shows it, minus `offset` (0 = the same number, the default).
@@ -401,8 +404,10 @@ export const uniShown = (p, offset = 0) => (p.universe == null ? null : p.klass 
 
 // want = { shortName, longName, ip:{address,mask,gateway}|null, ports:[ { name?, dir?:'output'|'input'|'idle', klass?:'sacn'|'artnet', universe? } per port, null = untouched ] }
 // opt = { artnetOffset (0), protocol:'sacn'|'artnet' for inputs made without a stated protocol }
-export function lumiPlan(cur, want, { withIp = false, artnetOffset = 0, protocol = 'sacn', lightGroup = null } = {}){
-  const ops = [], notes = [];
+// lightGroup: the group (number) of the lighting VLAN when the node has it already: the network IOs of the engines get it right away.
+// lightGroupLate: the number that group will get when the network configuration has been sent: the IOs get it in `late`, to be run after that configuration.
+export function lumiPlan(cur, want, { withIp = false, artnetOffset = 0, protocol = 'sacn', lightGroup = null, lightGroupLate = null } = {}){
+  const ops = [], notes = [], late = [];
   const add = (method, path, body, text, kind = 'config', extra = {}) => ops.push({ method, path, body, text, kind, ...extra });
   const sn = clip(want.shortName, 17), ln = clip(want.longName, 63);
   if((sn && sn !== cur.info?.short_name) || (ln && ln !== cur.info?.long_name))
@@ -422,7 +427,7 @@ export function lumiPlan(cur, want, { withIp = false, artnetOffset = 0, protocol
   // ---- Engines (process blocks) belong to ONE node. DMX outputs of this node with the same protocol and universe share ONE engine: one network input feeding them all,
   //      instead of an engine per port. engines: 'klass:universe' → block id; users: block id → the DMX outputs (port index) that hang on it. ----
   const eKey = (klass, uni) => `${klass}:${uni}`;
-  const engines = new Map(), users = new Map(), claimed = new Set();
+  const engines = new Map(), users = new Map(), claimed = new Set(), modeSet = new Set();
   const userSet = id => users.get(id) || users.set(id, new Set()).get(id);
   const dropEngine = id => { for(const [k, v] of engines) if(v === id) engines.delete(k); };
   const othersOn = (b, i) => [...userSet(b)].filter(j => j !== i).length;               // the other DMX outputs on this engine
@@ -468,6 +473,8 @@ export function lumiPlan(cur, want, { withIp = false, artnetOffset = 0, protocol
     if(bad){ note(`${P}: universe ${w.universe} is not allowed for ${label(w.klass)} (${w.klass === 'sacn' ? '1–63999' : `0–${32767 - artnetOffset}`}) — not changed.`); return; }
     const del = (txt, path) => add('DELETE', path, undefined, txt);
     const outTo = (b, txt) => add('PUT', `/api/processblock/${b}/output`, { io_id: dmxId }, txt);
+    // an engine that is not set up yet (mode NONE) forwards nothing: it is set to REROUTE (one input in, the outputs out) before it gets its input
+    const ensure = b => { if(cur.blocks?.find(x => x.id === b)?.mode === 'NONE' && !modeSet.has(b)){ modeSet.add(b); add('PUT', `/api/processblock/${b}`, { mode: 'REROUTE' }, `${P}: set up engine ${b} (forward)`); } };
     const inTo = (b, txt, io) => add('PUT', `/api/processblock/${b}/input/0`, typeof io === 'function' ? c => ({ io_id: io(c) }) : { io_id: io }, txt);
     const uni = api(w.universe, w.klass), key = eKey(w.klass, uni);
     const sameDirNet = !!p.net && !dirCh && !klassCh;           // the same kind of network input / output, only the universe
@@ -505,6 +512,7 @@ export function lumiPlan(cur, want, { withIp = false, artnetOffset = 0, protocol
       if(!split && p.net && p.shared){ note(`${P}: its ${p.via === 'input' ? 'output' : 'input'} is shared with another process block — not changed.`); return; }
       if(p.via === 'input' && p.net && p.block) del(`${P}: disconnect its ${label(p.klass)} output`, `/api/processblock/${p.block.id}/output/${p.net.id}`);
       if(split || mine == null) outTo(b, `${P}: connect the DMX output to engine ${b}`);
+      ensure(b);
       add('POST', '/api/IO', { io_class: w.klass, io_type: 'input', universe: uni, name: `U${w.universe}`, ...(w.klass === 'sacn' ? { priority: 100 } : {}) }, `${P}: new ${label(w.klass)} input for universe ${w.universe}`, 'io-new', { saveAs: 'n' });
       inTo(b, `${P}: … and connect it to engine ${b}`, c => c.n);
       if(p.net && !split) del(`${P}: remove the old ${label(p.klass)} ${p.via === 'input' ? 'output' : 'input'}`, `/api/IO/${p.net.id}`);      // an input other ports of its engine use stays
@@ -524,31 +532,40 @@ export function lumiPlan(cur, want, { withIp = false, artnetOffset = 0, protocol
     if(others > 0){                                             // it leaves an engine others stay on: it needs an engine of its own
       const nb = freeBlockFor(i); if(nb == null){ note(`${P}: no free engine on this node for its own input — not changed.`); return; }
       del(`${P}: leave engine ${b}`, `/api/processblock/${b}/output/${dmxId}`); userSet(b).delete(i); claimed.add(nb);
-      add('PUT', `/api/processblock/${nb}/input/0`, { io_id: dmxId }, `${P}: connect the DMX input to engine ${nb}`);
+      ensure(nb); add('PUT', `/api/processblock/${nb}/input/0`, { io_id: dmxId }, `${P}: connect the DMX input to engine ${nb}`);
       add('POST', '/api/IO', { io_class: w.klass, io_type: 'output', universe: uni, name: `U${w.universe}`, ...(w.klass === 'sacn' ? { priority: 100 } : {}) }, `${P}: new ${label(w.klass)} output for universe ${w.universe}`, 'io-new', { saveAs: 'n' });
       add('PUT', `/api/processblock/${nb}/output`, c => ({ io_id: c.n }), `${P}: … and connect it to engine ${nb}`);
       return;
     }
     if(hung != null){ del(`${P}: disconnect the DMX output from engine ${b}`, `/api/processblock/${b}/output/${dmxId}`); userSet(b).delete(i); dropEngine(b); }
     else if(p.via === 'input' && p.net) del(`${P}: disconnect its ${label(p.klass)} output`, `/api/processblock/${b}/output/${p.net.id}`);
-    inTo(b, `${P}: connect the DMX input to engine ${b}`, dmxId);
+    ensure(b); inTo(b, `${P}: connect the DMX input to engine ${b}`, dmxId);
     add('POST', '/api/IO', { io_class: w.klass, io_type: 'output', universe: uni, name: `U${w.universe}`, ...(w.klass === 'sacn' ? { priority: 100 } : {}) }, `${P}: new ${label(w.klass)} output for universe ${w.universe}`, 'io-new', { saveAs: 'n' });
     add('PUT', `/api/processblock/${b}/output`, c => ({ io_id: c.n }), `${P}: … and connect it to engine ${b}`);
     if(p.net) del(`${P}: remove the old ${label(p.klass)} ${p.via === 'input' ? 'output' : 'input'}`, `/api/IO/${p.net.id}`);
   });
   // advanced network: the network inputs and outputs of the engines sit on the lighting group (the VLAN the lighting data comes in on and goes out on)
-  if(lightGroup != null){
+  const K = lightGroup ?? lightGroupLate, isLate = lightGroup == null && lightGroupLate != null;
+  if(K != null){
     const del = new Set(ops.filter(o => o.method === 'DELETE' && /^\/api\/IO\/\d+$/.test(o.path)).map(o => Number(o.path.split('/').pop()))), set = new Set();
-    for(const o of ops){
-      if(o.method === 'POST' && o.path === '/api/IO' && o.body && NET.has(o.body.io_class)) o.body.group = lightGroup;
+    const push = (method, path, body, text) => (isLate ? late : ops).push({ method, path, body, text, kind: 'config' });
+    let k = 0;
+    for(const o of ops.slice()){
+      if(o.method === 'POST' && o.path === '/api/IO' && o.body && NET.has(o.body.io_class)){
+        if(!isLate) o.body.group = K;
+        else { const key = `io${k++}`, post = o.body; o.saveAlso = key; push('PUT', c => `/api/IO/${c[key]}`, c => ({ ...post, id: c[key], group: K }), `${o.text} → lighting group ${K}`); }
+      }
       const m = o.method === 'PUT' && String(o.path).match(/^\/api\/IO\/(\d+)$/);
-      if(m && o.body && NET.has(o.body.io_class)){ o.body.group = lightGroup; set.add(Number(m[1])); }
+      if(m && o.body && NET.has(o.body.io_class)){
+        set.add(Number(m[1]));
+        if(!isLate) o.body.group = K; else push('PUT', o.path, { ...o.body, group: K }, `${o.text} → lighting group ${K}`);
+      }
     }
     for(const p of cur.ports){
       const n = p.net, dir = wants[p.index]?.w.dir ?? p.dir;
-      if(!n || !NET.has(n.io_class) || dir === 'idle' || del.has(n.id) || set.has(n.id) || Number(n.group ?? 0) === lightGroup) continue;
+      if(!n || !NET.has(n.io_class) || dir === 'idle' || del.has(n.id) || set.has(n.id) || Number(n.group ?? 0) === K) continue;
       set.add(n.id); const { duplicate_ios, ...rest } = n;
-      add('PUT', `/api/IO/${n.id}`, { ...rest, group: lightGroup }, `DMX ${p.index + 1}: ${label(n.io_class)} ${n.io_class === 'artnet' ? n.universe - artnetOffset : n.universe} on the lighting group ${lightGroup}`);
+      push('PUT', `/api/IO/${n.id}`, { ...rest, group: K }, `DMX ${p.index + 1}: ${label(n.io_class)} ${n.io_class === 'artnet' ? n.universe - artnetOffset : n.universe} on the lighting group ${K}`);
     }
   }
   if(withIp && want.ip?.address){
@@ -556,7 +573,7 @@ export function lumiPlan(cur, want, { withIp = false, artnetOffset = 0, protocol
     if(cip?.ipaddress !== want.ip.address || cip?.netmask !== want.ip.mask)
       add('PUT', '/api/ipsettings', { ipaddress: want.ip.address, netmask: want.ip.mask || DEFAULT_MASK, gateway: want.ip.gateway || '0.0.0.0' }, `IP address ${cip?.ipaddress ?? '?'} → ${want.ip.address}`, 'ip');
   }
-  return { ops, notes };
+  return { ops, notes, late };
 }
 
 // run the calls one after the other (stops at the first error). A call can carry its body / path as a function of what earlier calls
@@ -570,6 +587,7 @@ export async function runOps(h, ops, onStep = () => {}){
     try { r = await h(op.method, path, body); }
     catch(e) { if(op.soft){ op.failed = String(e.message || e); done.push(op); onStep(op, 'failed'); continue; } throw e; }       // a soft call (like a colour) may be refused without stopping the rest
     if(op.saveAs) ctx[op.saveAs] = r?.index ?? r?.id;
+    if(op.saveAlso) ctx[op.saveAlso] = r?.index ?? r?.id;
     done.push(op);
     if(op.after){ const a = op.after; await h(a.method, a.path, a.bodyFromResult ? a.bodyFromResult(r) : a.body); }
     onStep(op, 'done');

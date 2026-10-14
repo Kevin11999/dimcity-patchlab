@@ -355,11 +355,12 @@
     (inst.takeovers ||= []).push({ port:n, by, was });
     return t(`${inst.id || dc} port ${n} is now used by ${by}: your own settings (${wasText(was)}) are replaced`, `${inst.id || dc} poort ${n} wordt nu gebruikt door ${by}: jouw eigen instelling (${wasText(was)}) is vervangen`);
   }
-  // The lighting data the data group of an advanced node takes part in follows its DMX ports: output ports → 'output', input ports → 'input', both → 'input+output', all off → ''
+  // The lighting data the data group of an advanced node takes part in follows its DMX ports: a DMX output is fed by lighting data coming IN from the network → 'input',
+  // a DMX input sends it OUT on the network → 'output', both → 'input+output', all off → ''
   function pipeOf(dc, inst, i){
     const all = ndPorts(dc, inst, i), used = all.filter(p => p.uni != null), dirs = new Set((used.length ? used : all).map(p => p.dir));
     const inp = dirs.has('input'), out = dirs.has('output');
-    return inp && out ? 'input+output' : inp ? 'input' : out ? 'output' : '';
+    return inp && out ? 'input+output' : inp ? 'output' : out ? 'input' : '';
   }
   const protoName = k => (k === 'artnet' ? 'Art-Net' : 'sACN');
   const dirArrow = d => (d === 'input' ? '↓' : d === 'idle' ? '⏻' : '↑');

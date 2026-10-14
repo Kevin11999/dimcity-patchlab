@@ -237,13 +237,16 @@
       const n = d.cur.ports.length, per = Array(n).fill(null);
       for(const [i, e] of d.E) if(i < n) per[i] = clone(e);
       const adv = d.dev.net && d.cur.netcfg;       // an advanced network configuration is on its way: the addresses go with it, not through /api/ipsettings
-      const p = api.lumiPlan(d.cur, { lightGroup:lightGroupOf(d), shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || DEF_MASK, gateway:d.dev.gateway || '' } : null, ports:per }, { withIp:!!d.dev.ip && !adv, artnetOffset:C.offset });
+      // the network calls are made first: the group of the lighting VLAN may only be made by them, and the network IOs of the engines are put on it afterwards (p.late)
+      const np = d.dev.net ? api.lumiNetPlan(d.cur, d.dev.net, { currentIp:d.ip, keepAddresses:!!d.dev.netKeep }) : null;
+      const have = lightGroupOf(d);
+      const p = api.lumiPlan(d.cur, { shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || DEF_MASK, gateway:d.dev.gateway || '' } : null, ports:per }, { withIp:!!d.dev.ip && !adv, artnetOffset:C.offset, lightGroup:have, lightGroupLate:have == null && np ? np.lightGroup : null });
       ops.push(...p.ops); notes.push(...p.notes);
-      if(d.dev.net){
-        const np = api.lumiNetPlan(d.cur, d.dev.net, { currentIp:d.ip, keepAddresses:!!d.dev.netKeep });
+      if(np){
         // a node that is going to answer on another address moves like any other node: its network calls go with the address calls, to all devices at the same moment
-        ops.push(...(np.moveTo && d.dev.ip ? np.ops.map(o => ({ ...o, kind:'ip' })) : np.ops)); notes.push(...np.notes);
-      }
+        const mv = np.moveTo && d.dev.ip; ops.push(...(mv ? np.ops.map(o => ({ ...o, kind:'ip' })) : np.ops)); notes.push(...np.notes);
+        ops.push(...(mv ? p.late.map(o => ({ ...o, kind:'ip' })) : p.late));
+      } else ops.push(...p.late);
     }
     if(d.S.size && d.tree){ const so = SET.settingsOps(isSw(d) ? 'gigacore' : 'lumi', d.tree, [...d.S.values()]); ops.push(...so.ops); notes.push(...so.notes); }
     return { ops, notes };

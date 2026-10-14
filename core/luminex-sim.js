@@ -101,9 +101,10 @@ export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12
   return { kind: 'gigacore', state: st, h };
 }
 
-export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192.168.1.60', outputs = 4, universes = [0, 1, 2, 3], klass = 'artnet', version = 'v2.9.1', dmxIn = [] } = {}){
+export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192.168.1.60', outputs = 4, universes = [0, 1, 2, 3], klass = 'artnet', version = 'v2.9.1', dmxIn = [], split = true } = {}){
   const st = { info: { ID: 0, colors: [], short_name: short, long_name: long }, ip: { ipaddress: ip, netmask: '255.255.255.0', gateway: '0.0.0.0' }, ios: [], blocks: [], log: [],
     roots: { auth: { web_auth_enabled: false }, protocols_config: { artnet_timeout: 5, dmx_timeout: 5, kinet_timeout: 5, sacn_timeout: 3, unicast_artpoll_reply: false, unknown_arttod_port: false }, dmx_config: { break_time: 120, framerate: 40, output_time: 20, rdm_controller_ip: '0.0.0.0' }, display_settings: { auto_off_time: 60, auto_scroll: true, color_scheme: 'dark', language: 'english', lock_enabled: false }, leds: { brightness: 2 }, ethdmx_compatibility: { process_engine_switch_channels: false } } };
+  st.split = split;       // can this node split input and output on a group (GET /api/deviceinfo/features)?
   // the advanced network configuration (WebApi 2.9.1): basic = one group with the one address; a sent configuration waits for its commit
   st.net = { is_basic_config:true, allow_ipv6_only_configurability:false, stp_mode:'rstp', trunks:{}, pending:null,
     groups:{ 1:{ name:'Default', vid:1, color:'#808080', editable:true, network_settings:{ addresses:[{ ip:`${ip}/24`, mode:'static' }], routes:[], pipeline_setting:'input+output', allow_config:true } } },
@@ -119,6 +120,7 @@ export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192
       for(const x of a) if(!/^(\d{1,3}\.){3}\d{1,3}\/(\d|[12]\d|3[0-2])$/.test(x.ip || '') || x.ip.split('/')[0].split('.').some(n => Number(n) > 255)) throw err(422, `address ${x.ip}`);
       if(a.filter(x => x.preferred_output).length > 1) throw err(422, 'two preferred outputs in group ' + k);
       if(!['', 'input', 'output', 'input+output'].includes(ns.pipeline_setting ?? '')) throw err(422, 'pipeline_setting');
+      if(!st.split && (ns.pipeline_setting === 'input' || ns.pipeline_setting === 'output')) throw err(422, 'Failed to deserialize data from JSON: Split input and output not supported on this device');
     }
     for(const [k, tr] of Object.entries(c.trunks || {})){ for(const g of tr.groups || []) if(!c.groups[g]) throw err(422, `trunk ${k}: unknown group ${g}`); if(tr.untagged_group != null && !(tr.groups || []).includes(tr.untagged_group)) throw err(422, `trunk ${k}: the untagged group is not in the trunk`); }
     for(const [name, p] of Object.entries(c.ports || {})){ if(!st.net.ports[name]) throw err(422, 'unknown port ' + name); if(p.group != null && p.trunk != null) throw err(422, `port ${name}: a group or a trunk, not both`); if(p.group != null && !c.groups[p.group]) throw err(422, `port ${name}: unknown group`); if(p.trunk != null && !c.trunks?.[p.trunk]) throw err(422, `port ${name}: unknown trunk`); }
@@ -148,6 +150,7 @@ export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192
       if(path === '/api/deviceinfo/auth') return clone(st.roots.auth);
       if(/^\/api\/(protocols_config|dmx_config|display_settings|leds|ethdmx_compatibility)$/.test(path)) return clone(st.roots[path.slice(5)]);
       if(path === '/api/ipsettings') return clone(st.ip);
+      if(path === '/api/deviceinfo/features') return { 'networking: Split pipeline IO':st.split, 'networking: Maximum number of input interfaces':8, 'networking: Maximum number of output interfaces':8 };
       if(path === '/api/network_config'){ const { pending, ...rest } = st.net; return clone(rest); }
       if(path === '/api/IO') return clone(st.ios);
       if(path === '/api/processblock') return clone(st.blocks);

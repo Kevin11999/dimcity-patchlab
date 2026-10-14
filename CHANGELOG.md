@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.20.6 — 2026-10-14
+
+- Fixed: a LumiNode with its own ISL trunk (which it reports as editable) now uses it instead of getting an extra trunk; a new lighting group on a node is made with allow_config off (only management can configure the node).
+
+<details><summary>Nederlands</summary>
+
+- Opgelost: een LumiNode met een eigen ISL-trunk (die hij als aanpasbaar meldt) gebruikt die nu in plaats van een extra trunk te krijgen; een nieuwe lichtgroep op een node wordt aangemaakt met allow_config uit (alleen management kan de node instellen).
+
+</details>
+
 ## 0.20.5 — 2026-10-14
 
 - Fixed: an advanced LumiNode now gets its lighting VLAN as input for DMX outputs (output for DMX inputs); a node that cannot split input and output gets input+output instead of refusing the whole network config; the network inputs of the engines are put on the lighting group after the network config, in one send; an engine that is not set up yet is set to forward.

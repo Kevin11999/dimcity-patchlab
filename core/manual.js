@@ -1243,6 +1243,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.20.6', date:'2026-10-14',
+    en:['Fixed: a LumiNode with its own ISL trunk (which it reports as editable) now uses it instead of getting an extra trunk; a new lighting group on a node is made with allow_config off (only management can configure the node).'],
+    nl:['Opgelost: een LumiNode met een eigen ISL-trunk (die hij als aanpasbaar meldt) gebruikt die nu in plaats van een extra trunk te krijgen; een nieuwe lichtgroep op een node wordt aangemaakt met allow_config uit (alleen management kan de node instellen).']
+  },
+  {
     version:'0.20.5', date:'2026-10-14',
     en:['Fixed: an advanced LumiNode now gets its lighting VLAN as input for DMX outputs (output for DMX inputs); a node that cannot split input and output gets input+output instead of refusing the whole network config; the network inputs of the engines are put on the lighting group after the network config, in one send; an engine that is not set up yet is set to forward.'],
     nl:['Opgelost: een advanced LumiNode krijgt de licht-VLAN nu als input voor DMX-uitgangen (output voor DMX-ingangen); een node die input en output niet kan splitsen krijgt input+output in plaats van de hele netwerkconfig te weigeren; de netwerk-ingangen van de engines komen na de netwerkconfig op de lichtgroep, in één keer sturen; een engine die nog niet is ingesteld wordt op doorsturen gezet.']

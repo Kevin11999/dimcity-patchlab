@@ -313,7 +313,12 @@ export function lumiLightGroup(net){
   return gs.find(g => g.addresses.some(a => a.role === 'lighting')) || gs.find(g => g.listen && !g.mgmt) || gs.find(g => g.listen) || null;
 }
 // the node's own (predefined) trunk: the one that cannot be edited, if the node has one
-const predefTrunk = trunks => Object.entries(trunks || {}).find(([, t]) => t.editable === false)?.[0] ?? null;
+// A node that says so (editable:false), else the trunk named ISL / number 1 that carries all the groups the node had (a real LumiNode reports it as editable)
+const predefTrunk = (trunks, groups) => {
+  const e = Object.entries(trunks || {}), fixed = e.find(([, t]) => t.editable === false); if(fixed) return fixed[0];
+  const all = Object.keys(groups || {}).map(Number); if(!all.length) return null;
+  return e.find(([k, t]) => (t.name === 'ISL' || k === '1') && all.every(g => (t.groups || []).includes(g)))?.[0] ?? null;
+};
 const sameSet = (a, b) => a.length === b.length && [...a].sort((x, y) => x - y).every((x, i) => x === [...b].sort((p, q) => p - q)[i]);
 export const prefixToMask = p => { const n = Math.max(0, Math.min(32, Number(p) || 0)); return [0, 1, 2, 3].map(i => Math.max(0, Math.min(8, n - i * 8))).map(b => (256 - (1 << (8 - b))) & 255).join('.'); };
 // the calls that bring a node to the wanted network: validate, send, commit. want = lumiNetWant(...)
@@ -336,9 +341,10 @@ export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAd
     if(nm && cg.name !== nm){ changes.push(`Group ${k} (VLAN ${g.vid}): name “${cg.name}” → “${nm}”`); cg.name = nm; }
     if(/^#[0-9a-f]{6}$/i.test(g.color || '') && String(cg.color || '').toLowerCase() !== g.color.toLowerCase()){ changes.push(`Group ${k} (VLAN ${g.vid}): colour ${cg.color || 'none'} → ${g.color}`); cg.color = g.color; }
   };
+  const lgW = lumiLightGroup(want);          // a new lighting group cannot be used to configure the node (only management can)
   for(const g of want.groups){
     let k = gid.get(g.vid), fresh = false;
-    if(k == null){ if(top >= 255){ notes.push(`No room for a group for VLAN ${g.vid} (a node holds 255 groups).`); continue; } k = ++top; fresh = true; next.groups[k] = { name:g.name, vid:g.vid, color:g.color, editable:true, network_settings:{ addresses:[], routes:[], pipeline_setting:'', allow_config:true } }; gid.set(g.vid, k); }
+    if(k == null){ if(top >= 255){ notes.push(`No room for a group for VLAN ${g.vid} (a node holds 255 groups).`); continue; } k = ++top; fresh = true; next.groups[k] = { name:g.name, vid:g.vid, color:g.color, editable:true, network_settings:{ addresses:[], routes:[], pipeline_setting:'', allow_config:!(lgW && g.vid === lgW.vid && !g.mgmt) } }; gid.set(g.vid, k); }
     if(!fresh) look(k, g);
     const ns = (next.groups[k].network_settings ||= { addresses:[], routes:[], pipeline_setting:'', allow_config:true });
     if(!fresh && !g.addresses.length) continue;       // a group the node has and the plan gives no address: leave it as it is (its ports are still set below)
@@ -366,7 +372,7 @@ export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAd
     } else {
       // The node's own predefined trunk when it has one (a trunk that cannot be edited); else a trunk that already carries exactly these groups;
       // else ONE new trunk. Never one trunk per port: ports that carry the same groups share the same trunk.
-      let tid = predefTrunk(next.trunks);
+      let tid = predefTrunk(next.trunks, nc.groups);
       if(tid != null){
         const tr = next.trunks[tid], miss = ids.filter(x => !(tr.groups || []).includes(x));
         if(miss.length){

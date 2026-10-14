@@ -1243,6 +1243,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.20.9', date:'2026-10-14',
+    en:['New: a LumiNode can only be linked to a place of the plan with as many DMX ports (a LumiNode 4 never gets the place of a LumiNode 12), in the Align tool and in Network config; a wrong link is reported and nothing is sent to it.'],
+    nl:['Nieuw: een LumiNode kan alleen gekoppeld worden aan een plek uit het plan met evenveel DMX-poorten (een LumiNode 4 krijgt nooit de plek van een LumiNode 12), in de uitlijntool en in Netwerkconfig; een verkeerde koppeling wordt gemeld en er wordt niets naar gestuurd.']
+  },
+  {
     version:'0.20.8', date:'2026-10-14',
     en:['New: on the node card of the Network config you choose per network port (ETH) trunk (several VLANs, up to all 20) or access (one VLAN); an advanced node always gets the addresses of the plan (management and VLANs); only ONE group of a node takes part in the lighting data (input + output).'],
     nl:['Nieuw: op de nodekaart van Netwerkconfig kies je per netwerkpoort (ETH) trunk (meerdere VLAN\'s, tot alle 20) of access (één VLAN); een advanced node krijgt altijd de adressen van het plan (management en VLAN\'s); maar ÉÉN groep van een node doet mee met de lichtdata (input + output).']

@@ -738,6 +738,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.20.9 — 2026-10-14
+- New: a LumiNode can only be linked to a place of the plan with as many DMX ports (a LumiNode 4 never gets the place of a LumiNode 12), in the Align tool and in Network config; a wrong link is reported and nothing is sent to it.
+
 ### Version 0.20.8 — 2026-10-14
 - New: on the node card of the Network config you choose per network port (ETH) trunk (several VLANs, up to all 20) or access (one VLAN); an advanced node always gets the addresses of the plan (management and VLANs); only ONE group of a node takes part in the lighting data (input + output).
 
@@ -1746,6 +1749,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.20.9 — 2026-10-14
+- Nieuw: een LumiNode kan alleen gekoppeld worden aan een plek uit het plan met evenveel DMX-poorten (een LumiNode 4 krijgt nooit de plek van een LumiNode 12), in de uitlijntool en in Netwerkconfig; een verkeerde koppeling wordt gemeld en er wordt niets naar gestuurd.
 
 ### Versie 0.20.8 — 2026-10-14
 - Nieuw: op de nodekaart van Netwerkconfig kies je per netwerkpoort (ETH) trunk (meerdere VLAN's, tot alle 20) of access (één VLAN); een advanced node krijgt altijd de adressen van het plan (management en VLAN's); maar ÉÉN groep van een node doet mee met de lichtdata (input + output).

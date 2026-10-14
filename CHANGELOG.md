@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.20.9 — 2026-10-14
+
+- New: a LumiNode can only be linked to a place of the plan with as many DMX ports (a LumiNode 4 never gets the place of a LumiNode 12), in the Align tool and in Network config; a wrong link is reported and nothing is sent to it.
+
+<details><summary>Nederlands</summary>
+
+- Nieuw: een LumiNode kan alleen gekoppeld worden aan een plek uit het plan met evenveel DMX-poorten (een LumiNode 4 krijgt nooit de plek van een LumiNode 12), in de uitlijntool en in Netwerkconfig; een verkeerde koppeling wordt gemeld en er wordt niets naar gestuurd.
+
+</details>
+
 ## 0.20.8 — 2026-10-14
 
 - New: on the node card of the Network config you choose per network port (ETH) trunk (several VLANs, up to all 20) or access (one VLAN); an advanced node always gets the addresses of the plan (management and VLANs); only ONE group of a node takes part in the lighting data (input + output).

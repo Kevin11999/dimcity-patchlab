@@ -23,7 +23,8 @@
   const devs = () => [...NC().state.dev.values()].filter(d => d.kind !== 'unknown' && !d.far).sort((a, b) => (isSw(a) ? 0 : 1) - (isSw(b) ? 0 : 1) || ipNum(a.ip) - ipNum(b.ip));
   // the devices that still have a free place in the plan come first; devices the plan has no place for wait at the end
   const queue = () => { const q = devs().filter(d => !d.link && !A.skipped.has(d.ip)), fit = d => freeItems(d).length > 0; return [...q.filter(fit), ...q.filter(d => !fit(d))]; };
-  const freeItems = d => NC().planItems().filter(x => x.kind === (isSw(d) ? 'sw' : 'nd') && !devs().some(y => y.link === x.id));
+  // a node is only offered the places of the plan with as many DMX ports as it has (a LumiNode 4 never gets the place of a LumiNode 12)
+  const freeItems = d => NC().planItems().filter(x => x.kind === (isSw(d) ? 'sw' : 'nd') && !devs().some(y => y.link === x.id) && NC().canLink(d, x));
   const nameOf = d => d.name || d.model || (isSw(d) ? 'GigaCore' : 'LumiNode');
 
   // ---- make a device blink ----
@@ -115,7 +116,7 @@
       ${A.err ? `<div class="su-warn">${I('alert', 13)} ${esc(A.err)}</div>` : ''}
       <div class="rb-label">${isSw(d) ? t('Which switch of the plan is this?', 'Welke switch uit het plan is dit?') : t('Which node of the plan is this?', 'Welke node uit het plan is dit?')}</div>
       ${items.length ? Object.keys(byDc).map(dc => `<div class="al-dc"><i class="dot" style="background:${App.dimColor(dc)}"></i><b>${esc(dc)}</b></div><div class="al-items">${byDc[dc].map(x => `<button class="al-item ${x === guess ? 'guess' : ''}" data-alpick="${esc(x.id)}">${esc(x.label)}${x.ip ? `<span class="subtle">${esc(x.ip)}</span>` : ''}</button>`).join('')}</div>`).join('')
-        : `<div class="su-warn">${I('alert', 13)} ${t('The plan has no free place of this kind left. Add one in the Network step, or skip this device.', 'Het plan heeft geen vrije plek van dit soort meer. Voeg er een toe bij de stap Netwerk, of sla dit apparaat over.')}</div>`}
+        : `<div class="su-warn">${I('alert', 13)} ${isSw(d) || !d.cur ? t('The plan has no free place of this kind left. Add one in the Network step, or skip this device.', 'Het plan heeft geen vrije plek van dit soort meer. Voeg er een toe bij de stap Netwerk, of sla dit apparaat over.') : t(`The plan has no free node with ${d.cur.ports.length} DMX ports left. Add one in the Network step, or skip this device.`, `Het plan heeft geen vrije node met ${d.cur.ports.length} DMX-poorten meer. Voeg er een toe bij de stap Netwerk, of sla dit apparaat over.`)}</div>`}
       <div class="hint" style="margin-top:10px">${I('info', 13)} ${q.length - 1 > 0 ? `${q.length - 1} ${t('more to go', 'nog te gaan')}. ` : ''}${t('The suggestion (orange) is the first free place in the plan, or the one with the same IP address.', 'Het voorstel (oranje) is de eerste vrije plek in het plan, of die met hetzelfde IP-adres.')}</div>`;
   }
   function moveBox(){

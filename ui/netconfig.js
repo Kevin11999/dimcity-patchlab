@@ -125,6 +125,11 @@
   const ndList = () => App.sortedDims().flatMap(dc => (App.net.getDimPlan(dc).nodes || []).map((inst, i) => ({ id:`nd:${dc}#${i}`, kind:'nd', dc, inst, i, label:inst.id || `Node ${i + 1}`, ip:inst.ip })));
   const planItems = () => [...swList(), ...ndList()];
   const planOf = d => planItems().find(x => x.id === d.link) || null;
+  // a node and a place in the plan fit when the type of the place has as many DMX ports as the node has (a LumiNode 4 does not go on the place of a LumiNode 12);
+  // a node that has not been read yet, or a type without a port count, is not judged. A switch fits any switch of the plan.
+  const planPorts = it => Number((App.getMODEL().networkDevices.nodeTypes || []).find(x => x.id === it?.inst?.typeId)?.portCount) || null;
+  const canLink = (d, it) => !it || (it.kind === 'sw') === isSw(d) && (isSw(d) || !d.cur || !planPorts(it) || d.cur.ports.length === planPorts(it));
+  const misfit = d => { const it = planOf(d); return it && !canLink(d, it) ? t(`This LumiNode has ${d.cur.ports.length} DMX ports, but ${it.label} of the plan has ${planPorts(it)}: nothing is sent to it. Link it to a place with ${d.cur.ports.length} ports.`, `Deze LumiNode heeft ${d.cur.ports.length} DMX-poorten, maar ${it.label} uit het plan heeft er ${planPorts(it)}: er wordt niets naar gestuurd. Koppel hem aan een plek met ${d.cur.ports.length} poorten.`) : ''; };
   // the VLAN of the management address of a switch, in the numbering of the project (Luminex: management = 1, FENT: 1090)
   const mgmtVid = s => { try { if(!s?.dev?.ip) return null; const v = FENT().classify(s.dev.ip)?.vlan, role = v && ({ 90:'management', 40:'lighting' })[v.second]; return role ? FENT().roleVlan(role, App.getMODEL().networkDevices?.prefs?.fent?.vlanMode || 'luminex') : (v?.id ?? null); } catch { return null; } };
   // the management VLAN every RJ45 port starts on: the one of the switch's own address, else the management VLAN of the numbering of the project
@@ -246,6 +251,7 @@
   // ---------- calls ----------
   function opsOf(d){
     if(!d.cur) return { ops:[], notes:[] };
+    { const m = misfit(d); if(m) return { ops:[], notes:[m] }; }
     const ops = [], notes = [];
     if(isSw(d)){
       const edits = [...d.E.entries()].map(([port, v]) => ({ port, ...clone(v) }));
@@ -283,6 +289,7 @@
   // fill what the plan wants into the pending changes (nothing is sent)
   function fillFromPlan(d){
     const it = planOf(d); if(!it || !d.cur) return false;
+    { const m = misfit(d); if(m){ d.err = m; return false; } }
     if(isSw(d) && it.kind === 'sw'){
       const w = wantSwitch(it);
       const rowsNow = api.portRows(d.cur);
@@ -323,7 +330,7 @@
     for(const d of C.dev.values()){
       if(d.link || d.kind === 'unknown') continue;
       const want = isSw(d) ? 'sw' : 'nd', nm = `${d.name} ${d.longName}`.toLowerCase();
-      const it = items.find(x => x.kind === want && !taken.has(x.id) && x.ip === d.ip) || items.find(x => x.kind === want && !taken.has(x.id) && nm.trim() && String(x.label).length > 1 && new RegExp('(^|[^a-z0-9])' + String(x.label).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^a-z0-9]|$)').test(nm));
+      const it = items.find(x => x.kind === want && !taken.has(x.id) && canLink(d, x) && x.ip === d.ip) || items.find(x => x.kind === want && !taken.has(x.id) && canLink(d, x) && nm.trim() && String(x.label).length > 1 && new RegExp('(^|[^a-z0-9])' + String(x.label).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^a-z0-9]|$)').test(nm));
       if(it){ d.link = it.id; taken.add(it.id); }
     }
   }
@@ -759,7 +766,7 @@
     const it = planOf(d), open = C.open.has(d.ip), n = d.cur ? changeCount(d) : 0;
     const ico = d.kind === 'gigacore' ? 'switchDev' : 'network';
     const status = d.busy ? `<span class="tag">${t('working…', 'bezig…')}</span>` : d.gone ? `<span class="tag red">${t('offline', 'offline')}</span>` : d.far ? `<span class="tag yellow">${t('other IP range', 'ander IP-bereik')}</span>` : d.moved ? `<span class="tag yellow">${t('moved', 'verhuisd')}</span>` : d.err ? `<span class="tag red" title="${esc(d.err)}">${t('error', 'fout')}</span>` : d.kind === 'unknown' ? `<span class="tag yellow">${t('login needed', 'login nodig')}</span>` : !d.cur ? `<span class="tag">${t('not read', 'niet gelezen')}</span>` : n ? `<span class="tag yellow">${n} ${t('changes', 'wijzigingen')}</span>` : d.verified ? `<span class="tag green">${t('sent and checked', 'verstuurd en gecontroleerd')}</span>` : `<span class="tag green">${t('up to date', 'actueel')}</span>`;
-    const opts = planItems().filter(x => x.kind === (isSw(d) ? 'sw' : 'nd') && (x.id === d.link || ![...C.dev.values()].some(o => o.link === x.id)));
+    const opts = planItems().filter(x => x.kind === (isSw(d) ? 'sw' : 'nd') && (x.id === d.link || (canLink(d, x) && ![...C.dev.values()].some(o => o.link === x.id))));
     const head = `<div class="nc-head" data-toggle="${esc(d.ip)}"><span class="nc-chev ${open ? 'open' : ''}">${I('chevronRight', 14)}</span><span class="nc-ic ${d.kind}">${I(ico, 18)}</span>
       <span class="nc-title"><b>${esc(d.name || d.model || d.ip)}</b><small>${esc(d.ip)} · ${esc(d.kind === 'gigacore' ? (d.model || 'GigaCore') : `LumiNode${d.version ? ' ' + d.version : ''}`)}${d.cur ? ` · ${isSw(d) ? d.cur.ports.length + ' ' + t('ports', 'poorten') : d.cur.ports.length + ' DMX'}` : ''}${viaText(d) ? ' · ' + esc(viaText(d)) : ''}</small></span>
       ${d.kind === 'unknown' ? '' : `<select class="nc-link" data-link="${esc(d.ip)}" title="${t('Which switch or node of the plan this is', 'Welke switch of node uit het plan dit is')}"><option value="">${t('not linked to the plan', 'niet gekoppeld aan het plan')}</option>${opts.map(x => `<option value="${esc(x.id)}" ${x.id === d.link ? 'selected' : ''}>${esc(linkLabel(x))}</option>`).join('')}</select>`}
@@ -776,7 +783,7 @@
       const devFields = isSw(d)
         ? `<label>${t('Name', 'Naam')}<input data-df="name" value="${esc(f.name ?? d.cur.device?.name ?? '')}" maxlength="64"></label><label>IP<input data-df="ip" value="${esc(f.ip ?? d.cur.ip?.ip_address ?? '')}" style="width:130px"></label>`
         : `<label>${t('Name', 'Naam')}<input data-df="shortName" value="${esc(f.shortName ?? d.cur.info?.short_name ?? '')}" maxlength="17"></label><label>${t('Long name', 'Lange naam')}<input data-df="longName" value="${esc(f.longName ?? d.cur.info?.long_name ?? '')}" maxlength="63"></label><label>IP<input data-df="ip" value="${esc(f.ip ?? d.cur.ip?.ipaddress ?? '')}" style="width:130px"></label>`;
-      body = `<div class="nc-body">${d.err ? `<div class="su-warn">${esc(d.err)}</div>` : ''}${d.warn ? `<div class="su-warn">${esc(d.warn)}</div>` : ''}
+      body = `<div class="nc-body">${misfit(d) ? `<div class="su-warn">${I('alert', 13)} ${esc(misfit(d))}</div>` : ''}${d.err && d.err !== misfit(d) ? `<div class="su-warn">${esc(d.err)}</div>` : ''}${d.warn ? `<div class="su-warn">${esc(d.warn)}</div>` : ''}
         <div class="nc-row">${devFields}<span style="flex:1"></span>${it ? `<button data-fill="${esc(d.ip)}">${t('Fill from the plan', 'Invullen uit het plan')}</button>` : ''}<button data-read="${esc(d.ip)}">${I('refresh', 13)}${t('Read again', 'Opnieuw lezen')}</button></div>
         ${f.ip && f.ip !== (isSw(d) ? d.cur.ip?.ip_address : d.cur.ip?.ipaddress) ? `<div class="su-warn">${t('The IP address changes when you apply; the device then moves to the new address.', 'Het IP-adres verandert bij het toepassen; het apparaat verhuist dan naar het nieuwe adres.')}</div>` : ''}
         ${isSw(d) && d.cur.mode === 'advanced' ? `<div class="su-warn">${t('This switch is in “advanced” configuration mode: it is also set with its command line, so groups and trunks made here may not show correctly.', 'Deze switch staat in “advanced” configuratiemodus: hij wordt ook met zijn commandoregel ingesteld, dus groepen en trunks die hier gemaakt worden kunnen verkeerd getoond worden.')} <button data-lxmode="${esc(d.ip)}">${t('Switch to Luminex mode…', 'Naar Luminex-modus…')}</button></div>` : ''}
@@ -913,5 +920,5 @@
     if(!settingsHooked && window.Settings?.onChange){ settingsHooked = true; window.Settings.onChange(() => { refreshNets().then(() => { if(visible()) paint(); }); if(visible()) ensureWatch(); else if(!autoOn()) stopWatch(); }); }
     await refreshNets(); paint(); ensureWatch();
   }
-  window.NetConfig = { moveWarnings, addAddresses, fixMoved, fixFar, render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D, applyDevs, autoLink, real, changeCount, netPending, searchLine, ensureWatch, restartWatch, refreshNets };
+  window.NetConfig = { canLink, misfit, moveWarnings, addAddresses, fixMoved, fixFar, render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D, applyDevs, autoLink, real, changeCount, netPending, searchLine, ensureWatch, restartWatch, refreshNets };
 })();

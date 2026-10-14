@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.20.8 — 2026-10-14
+
+- New: on the node card of the Network config you choose per network port (ETH) trunk (several VLANs, up to all 20) or access (one VLAN); an advanced node always gets the addresses of the plan (management and VLANs); only ONE group of a node takes part in the lighting data (input + output).
+
+<details><summary>Nederlands</summary>
+
+- Nieuw: op de nodekaart van Netwerkconfig kies je per netwerkpoort (ETH) trunk (meerdere VLAN's, tot alle 20) of access (één VLAN); een advanced node krijgt altijd de adressen van het plan (management en VLAN's); maar ÉÉN groep van een node doet mee met de lichtdata (input + output).
+
+</details>
+
 ## 0.20.7 — 2026-10-14
 
 - Changed: the lighting group of an advanced LumiNode is always input + output and cannot configure the node (also when the node has it already, as long as management can); the network port (ETH) of a node follows the switch port it is plugged in in the port plan.

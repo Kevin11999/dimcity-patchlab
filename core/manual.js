@@ -1243,6 +1243,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.20.8', date:'2026-10-14',
+    en:['New: on the node card of the Network config you choose per network port (ETH) trunk (several VLANs, up to all 20) or access (one VLAN); an advanced node always gets the addresses of the plan (management and VLANs); only ONE group of a node takes part in the lighting data (input + output).'],
+    nl:['Nieuw: op de nodekaart van Netwerkconfig kies je per netwerkpoort (ETH) trunk (meerdere VLAN\'s, tot alle 20) of access (één VLAN); een advanced node krijgt altijd de adressen van het plan (management en VLAN\'s); maar ÉÉN groep van een node doet mee met de lichtdata (input + output).']
+  },
+  {
     version:'0.20.7', date:'2026-10-14',
     en:['Changed: the lighting group of an advanced LumiNode is always input + output and cannot configure the node (also when the node has it already, as long as management can); the network port (ETH) of a node follows the switch port it is plugged in in the port plan.'],
     nl:['Aangepast: de lichtgroep van een advanced LumiNode is altijd input + output en kan de node niet instellen (ook als de node hem al heeft, zolang management het kan); de netwerkpoort (ETH) van een node volgt de switchpoort waar hij in de poortplanning op zit.']

@@ -24,7 +24,7 @@
   const nodeType = inst => (M().networkDevices.nodeTypes || []).find(x => x.id === inst.typeId);
   const dirty = () => { const m = M(); if(m?.ui) m.ui.dirty = true; };
   const ROLE_NAME = { management:['Management', 'Beheer'], lighting:['Lighting', 'Licht'], scan:['Scan', 'Scan'], other:['Other', 'Overig'] };
-  const PIPES = [['input+output', 'input + output', 'input + output'], ['input', 'input', 'input'], ['output', 'output', 'output'], ['', 'none', 'geen']];
+  const PIPES = [['input+output', 'input + output', 'input + output'], ['', 'none', 'geen']];       // a node cannot split input and output, and only ONE group takes part in the lighting data
   // the VLAN of a group is a Luminex one: keep it when it is one (also an own VLAN), else the one of its role
   const isLumi = v => F().luminexGroups().some(g => g.id === Number(v));
   const lumiVlan = (vlan, role) => (vlan != null && vlan !== '' && isLumi(vlan)) ? Number(vlan) : F().groupVlan(role);
@@ -153,11 +153,13 @@
     const rows = rowsOf(inst), ports = portsOf(inst, rows, eth), groups = F().luminexGroups(), vids = uniq(rows.map(r => r.vlan));
     const groupOpts = cur => { const list = groups.slice(); if(cur != null && !list.some(g => g.id === Number(cur))) list.unshift({ id:Number(cur), name:`VLAN ${cur}` }); return list.map(g => `<option value="${g.id}" ${Number(cur) === g.id ? 'selected' : ''}>${g.group ? `${t('Group', 'Groep')} ${g.group} · ` : ''}VLAN ${g.id} · ${esc(g.name)}</option>`).join(''); };
     // the lighting data of a data group is input + output, unless a group was given its own choice
-    const dpipe = 'input+output';
-    const pipeOf = r => r.listen !== undefined && r.listen !== null ? String(r.listen) : (r.role === 'management' ? '' : dpipe);
+    const isOn = r => ['input', 'output', 'input+output'].includes(String(r.listen)), hasChoice = rows.some(r => r.listen !== undefined && r.listen !== null);
+    const nonMgmt = rows.filter(r => r.role !== 'management');
+    const lightKey = (hasChoice ? rows.find(isOn) : (nonMgmt.find(r => r.role === 'lighting') || nonMgmt[0]))?.k;
+    const pipeOf = r => (r.k === lightKey ? 'input+output' : '');          // exactly one group: the one chosen, else the lighting group
     const warns = F().checkAll(rows.filter(r => r.ip).map(r => ({ owner:inst.id || 'node', ip:r.ip, mask:r.mask, vlan:r.vlan, kind:'device' })), fcfg().group).filter(w => w.code !== 'DUPLICATE').map(w => t(w.en, w.nl));
     for(const v of vids) if(!ports[1].includes(v) && !ports[2].includes(v)) warns.push(t(`VLAN ${v} is on no network port of this node — tick ETH1${eth > 1 ? ' or choose it for ETH2' : ''}.`, `VLAN ${v} zit op geen netwerkpoort van deze node — vink ETH1 aan${eth > 1 ? ' of kies hem voor ETH2' : ''}.`));
-    if(!rows.some(r => pipeOf(r)) && rows.some(r => r.listen !== undefined && r.listen !== null)) warns.push(t('No group takes part in the lighting data: choose input / output on the lighting group.', 'Geen enkele groep doet mee met de lichtdata: kies input / output bij de lichtgroep.'));
+    if(!rows.some(r => pipeOf(r)) && hasChoice) warns.push(t('No group takes part in the lighting data: choose input / output on the lighting group.', 'Geen enkele groep doet mee met de lichtdata: kies input / output bij de lichtgroep.'));
     const trs = rows.map(r => {
       const pipe = pipeOf(r), col = F().vlanById(r.vlan)?.color || '#94a3b8';
       return `<tr data-avk="${r.k}"><td><span class="av-dot" style="--c:${esc(col)}"></span><select data-av="vlan" title="${esc(t('The VLAN of a group is always the Luminex one', 'Het VLAN van een groep is altijd dat van Luminex'))}">${groupOpts(r.vlan)}</select></td>
@@ -208,7 +210,7 @@
               save(inst, ports);
             }
             if(!row.ip || row.ip === was){ const ip = suggest(dc, inst, v, undefined, rowOf(k)?.vlan); if(ip){ write(inst, k, 'ip', ip); write(inst, k, 'mask', row.mask || F().MASK); } }
-          } else if(f === 'listen') write(inst, k, 'listen', v);
+          } else if(f === 'listen'){ write(inst, k, 'listen', v); if(v === 'input+output') for(const r of rowsOf(inst)) if(String(r.k) !== String(k)) write(inst, r.k, 'listen', ''); }          // only one group can be input + output
           else write(inst, k, f, v);
           done();
         });

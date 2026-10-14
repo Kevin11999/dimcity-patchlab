@@ -192,7 +192,10 @@
     const PP = window.PortPlan, pp = PP ? PP.ndPorts(it.dc, inst, it.i) : [];
     // the lighting data of the groups: input + output, unless a group was given its own choice
     const pipe = 'input+output';
-    const ifs = FENT().ifaces(inst, eth).map(x => ((x.listen === undefined || x.listen === null) && x.role !== 'management') ? { ...x, listen:pipe } : x);
+    // exactly ONE group takes part in the lighting data (a node cannot split input and output): the one chosen, else the lighting group; a node with only a management address keeps it all there
+    const ifs0 = FENT().ifaces(inst, eth), isOn = x => ['input', 'output', 'input+output'].includes(String(x.listen)), hasChoice = ifs0.some(x => x.listen !== undefined && x.listen !== null);
+    const lightIdx = hasChoice ? ifs0.findIndex(isOn) : (i => (i >= 0 ? i : ifs0.findIndex(x => x.role !== 'management')))(ifs0.findIndex(x => x.role === 'lighting'));
+    const ifs = lightIdx < 0 && !hasChoice ? ifs0 : ifs0.map((x, i) => ({ ...x, listen:i === lightIdx ? pipe : '' }));
     return { shortName:inst.id, longName:inst.name, advanced:!!inst.advanced, net:inst.advanced ? { ...api.lumiNetWant(ifs, eth, id => FENT().vlanById(id), portVids(it, inst, eth, ifs)), names:allNames() } : null, ip:inst.ip ? { address:inst.ip, mask:inst.subnet || DEF_MASK, gateway:inst.gateway || '' } : null,
       ports:u.map((x, j) => { if(x == null || x === '') return null; const p = pp[j] || {}; return { universe:Number(x), name:p.name || `${inst.id || 'N'}.${j + 1}`, klass:p.klass || undefined, dir:p.dir || undefined }; }) };
   }
@@ -233,6 +236,13 @@
     e.member = b.type === 'fibre' ? fibreMember(d) : { type:'vid', vid:b.vid, name:b.name, color:b.color };
     d.E.set(port, e); return true;
   }
+  // the plan of the network of an advanced node again (after a port was chosen on its card): what goes to the node follows
+  function refreshNodeNet(d, it){
+    const w = wantNode(it); if(!w.advanced || !w.net?.groups.length) return;
+    d.dev.net = w.net; d.dev.netKeep = false;
+    const np = api.lumiNetPlan(d.cur, w.net, { currentIp:d.ip, keepAddresses:false });
+    if(np.moveTo) Object.assign(d.dev, { ip:np.moveTo, mask:np.moveMask }); else if(d.dev.ip && d.dev.ip === d.ip) delete d.dev.ip;
+  }
   // ---------- calls ----------
   function opsOf(d){
     if(!d.cur) return { ops:[], notes:[] };
@@ -268,7 +278,7 @@
     if(isSw(d) || !d.cur?.netcfg) return false;
     const it = planOf(d); if(!it || it.kind !== 'nd' || !it.inst.advanced) return false;
     const w = wantNode(it); if(!w.net?.groups.length) return false;
-    return api.lumiNetPlan(d.cur, w.net, { currentIp:d.ip, keepAddresses:C.withIp !== true }).ops.length > 0;
+    return api.lumiNetPlan(d.cur, w.net, { currentIp:d.ip, keepAddresses:false }).ops.length > 0;
   }
   // fill what the plan wants into the pending changes (nothing is sent)
   function fillFromPlan(d){
@@ -288,8 +298,8 @@
       if(w.shortName && w.shortName !== d.cur.info?.short_name) d.dev.shortName = String(w.shortName).slice(0, 17);
       if(w.longName && w.longName !== d.cur.info?.long_name) d.dev.longName = String(w.longName).slice(0, 63);
       if(w.advanced && w.net?.groups.length){                          // the node is planned in the advanced network: send the groups and the ports
-        d.dev.net = w.net; d.dev.netKeep = C.withIp !== true;            // without "set the IP addresses" the groups the node has keep their addresses
-        const np = api.lumiNetPlan(d.cur, w.net, { currentIp:d.ip, keepAddresses:d.dev.netKeep });
+        d.dev.net = w.net; d.dev.netKeep = false;                        // the addresses of the plan always go with it ("Apply all without IP" leaves them out)
+        const np = api.lumiNetPlan(d.cur, w.net, { currentIp:d.ip, keepAddresses:false });
         if(np.moveTo) Object.assign(d.dev, { ip:np.moveTo, mask:np.moveMask });          // …and a node that moves is announced (the "devices get a new IP address" warning)
       }
       else if(C.withIp && w.ip?.address && w.ip.address !== d.cur.ip?.ipaddress) Object.assign(d.dev, { ip:w.ip.address, mask:w.ip.mask, gateway:w.ip.gateway });
@@ -725,9 +735,18 @@
     const g = nc ? Object.entries(nc.groups).map(([id, x]) => `<div class="nc-net-g"><i style="background:${esc(x.color || '#808080')}"></i><b>${t('Group', 'Groep')} ${id}</b> ${esc(x.name || '')} <span class="subtle">VLAN ${x.vid}</span> <span class="mono">${(x.network_settings?.addresses || []).map(a => esc(a.ip)).join(', ') || '—'}</span>${x.network_settings?.pipeline_setting ? ` <span class="tag green">${t('lighting', 'licht')} ${esc(x.network_settings.pipeline_setting)}</span>` : ''}</div>`).join('') : '';
     const ps = nc ? Object.entries(nc.ports).filter(([, p]) => (p.type || 'rj45') === 'rj45').map(([n, p]) => `<span class="tag">${esc(n)} → ${p.trunk != null ? `trunk ${p.trunk}` : p.group != null ? `${t('group', 'groep')} ${p.group}` : '—'}</span>`).join(' ') : '';
     const pl = planned && planned.groups.length ? `<div class="nc-net-plan"><b>${t('The plan wants', 'Het plan wil')}</b>: ${planned.groups.map(x => `VLAN ${x.vid} <span class="mono">${x.addresses.map(a => a.ip + '/' + a.prefix).join(', ')}</span>${x.listen ? ' · ' + t('lighting', 'licht') : ''}`).join(' · ')} · ${planned.ports.map(p => `ETH${p.eth}: ${p.vids.length > 1 ? 'trunk ' : ''}VLAN ${p.vids.join('+') || '—'}`).join(' · ')}</div>` : '';
+    // what every network port (ETH) of the node carries: access = one VLAN, trunk = several (up to all of them)
+    const ctl = it?.kind === 'nd' && it.inst.advanced ? (() => {
+      const nt = (App.getMODEL().networkDevices.nodeTypes || []).find(x => x.id === it.inst.typeId), eth = Math.min(2, Math.max(1, Number(nt?.ethernetCount) || 1)), groups = FENT().luminexGroups();
+      const have = {}; for(const p of wantNode(it).net?.ports || []) have[p.eth] = (p.vids || []).map(Number);
+      return `<div class="nc-nports">${Array.from({ length:eth }, (_, i) => { const e = i + 1, cur = have[e] || [], trunk = d.pm?.[e] ?? cur.length > 1;
+        return `<div class="nc-nport" data-nport="${e}"><b>ETH${e}</b> <label class="nc-chk"><input type="checkbox" data-nptrunk="${e}" ${trunk ? 'checked' : ''}> Trunk</label> ${trunk
+          ? `<span class="nc-npv">${groups.map(g => `<label class="nc-chk" title="${esc(g.name)}"><input type="checkbox" data-npv="${e}" value="${g.id}" ${cur.includes(g.id) ? 'checked' : ''}>${g.id}</label>`).join(' ')}</span> <button class="sm ghost" data-npall="${e}">${t('all', 'alle')}</button>`
+          : `<select data-npvlan="${e}"><option value="">${t('not used', 'niet gebruikt')}</option>${groups.map(g => `<option value="${g.id}" ${cur[0] === g.id ? 'selected' : ''}>VLAN ${g.id} · ${esc(g.name)}</option>`).join('')}</select>`}</div>`; }).join('')}</div>`;
+    })() : '';
     const warn = it?.kind === 'nd' ? (window.IpPlan?.check() || []).filter(i => i.dc === it.dc && i.label === (it.inst.id || it.inst.name) && (i.code === 'TRUNK' || i.code === 'PORTVLAN')).map(i => `<div class="su-warn">${I('alert', 13)} ${esc(t(i.en, i.nl))}</div>`).join('') : '';
     const note = d.dev.net ? (d.dev.ip ? `<div class="su-warn">${I('alert', 13)} ${t(`After this the node answers on ${esc(d.dev.ip)}.`, `Hierna antwoordt de node op ${esc(d.dev.ip)}.`)}</div>` : d.dev.netKeep ? `<div class="subtle" style="margin-top:3px">${t('The groups the node has keep their addresses (tick “Fill from the plan also sets the IP address” to change them).', 'De groepen die de node al heeft houden hun adres (vink “Invullen uit het plan zet ook het IP-adres” aan om ze te wijzigen).')}</div>` : '') : '';
-    return `<div class="nc-net"><div class="nc-net-h"><b>${t('Network of this node', 'Netwerk van deze node')}</b> ${nc ? (nc.is_basic_config ? `<span class="tag">${t('basic: one address', 'basis: één adres')}</span>` : `<span class="tag blue">${t('advanced', 'advanced')}</span>`) : `<span class="tag">${t('basic only', 'alleen basis')}</span>`}</div>${g}${ps ? `<div style="margin:3px 0">${ps}</div>` : ''}${pl}${note}${warn}</div>`;
+    return `<div class="nc-net"><div class="nc-net-h"><b>${t('Network of this node', 'Netwerk van deze node')}</b> ${nc ? (nc.is_basic_config ? `<span class="tag">${t('basic: one address', 'basis: één adres')}</span>` : `<span class="tag blue">${t('advanced', 'advanced')}</span>`) : `<span class="tag">${t('basic only', 'alleen basis')}</span>`}</div>${g}${ps ? `<div style="margin:3px 0">${ps}</div>` : ''}${ctl}${pl}${note}${warn}</div>`;
   }
   function brushBar(d){
     if(isSw(d)){
@@ -829,6 +848,18 @@
     qa('[data-apply]').forEach(b => b.onclick = () => applyDevs([D(b.dataset.apply)]));
     qa('[data-df]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const k = i.dataset.df, v = i.value.trim(); d.dev[k] = v; if(k === 'ip' && !ipOk(v)) delete d.dev.ip; if(k === 'ip' && d.dev.ip && !d.dev.mask) d.dev.mask = planOf(d)?.s?.dev?.subnet || planOf(d)?.inst?.subnet || DEF_MASK; paint(); });
     // brushes
+    qa('[data-nptrunk],[data-npvlan],[data-npv],[data-npall]').forEach(el => { const fn = () => {
+      const d = D(el.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle), it = planOf(d); if(!it || it.kind !== 'nd') return;
+      const net = wantNode(it).net, cur = {}; for(const p of net?.ports || []) cur[p.eth] = (p.vids || []).map(Number);
+      const all = groups => [...new Set(groups)], e = Number(el.dataset.nptrunk || el.dataset.npvlan || el.dataset.npv || el.dataset.npall); d.pm ||= {};
+      const adv = { 1:cur[1] || [], 2:cur[2] || [] };
+      if(el.dataset.nptrunk){ d.pm[e] = el.checked; adv[e] = el.checked ? (adv[e].length > 1 ? adv[e] : all((net?.groups || []).map(g => g.vid))) : adv[e].slice(0, 1); }
+      else if(el.dataset.npall){ adv[e] = FENT().luminexGroups().map(g => g.id); }
+      else if(el.dataset.npvlan !== undefined) adv[e] = el.value ? [Number(el.value)] : [];
+      else adv[e] = [...el.closest('.nc-nport').querySelectorAll('[data-npv]:checked')].map(x => Number(x.value));
+      it.inst.advPorts = { 1:all(adv[1]), 2:all(adv[2]) }; const m = App.getMODEL(); if(m?.ui) m.ui.dirty = true;
+      refreshNodeNet(d, it); paint();
+    }; if(el.tagName === 'BUTTON') el.onclick = fn; else el.onchange = fn; });
     qa('[data-brush]').forEach(b => b.onclick = () => { const d = D(b.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const v = b.dataset.brush; if(!v) d.brush = null; else if(v === 'fibre') d.brush = { type:'fibre' }; else { const x = swBrushes(d).find(y => y.vid === Number(v.split(':')[1])); d.brush = { type:'vid', ...x }; } paint(); });
     qa('[data-trunkun]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.trunkEdit = { tid:Number(i.dataset.trunkun), vid:Number(i.value) || 0 }; paint(); });
     qa('[data-rainbowc]').forEach(b => b.onclick = () => rainbowColours(D(b.dataset.rainbowc), false));

@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.20.4 — 2026-10-14
+
+- Fixed: “Send config” now really sends the VLAN names and colours of the VLAN overview to the groups a GigaCore already has (before, only new groups got their name).
+
+<details><summary>Nederlands</summary>
+
+- Opgelost: “Config sturen” stuurt de VLAN-namen en -kleuren uit het VLAN-overzicht nu echt naar de groepen die een GigaCore al heeft (eerst kregen alleen nieuwe groepen hun naam).
+
+</details>
+
 ## 0.20.3 — 2026-10-13
 
 - New: the config sends the name and colour of every VLAN of the VLAN overview (groups 2–20, VLAN 1 stays) to the groups a GigaCore or LumiNode already has, and on an advanced LumiNode the network inputs and outputs of the engines are put on the lighting group (VLAN 200).

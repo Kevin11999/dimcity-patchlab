@@ -1243,6 +1243,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.20.4', date:'2026-10-14',
+    en:['Fixed: “Send config” now really sends the VLAN names and colours of the VLAN overview to the groups a GigaCore already has (before, only new groups got their name).'],
+    nl:['Opgelost: “Config sturen” stuurt de VLAN-namen en -kleuren uit het VLAN-overzicht nu echt naar de groepen die een GigaCore al heeft (eerst kregen alleen nieuwe groepen hun naam).']
+  },
+  {
     version:'0.20.3', date:'2026-10-13',
     en:['New: the config sends the name and colour of every VLAN of the VLAN overview (groups 2–20, VLAN 1 stays) to the groups a GigaCore or LumiNode already has, and on an advanced LumiNode the network inputs and outputs of the engines are put on the lighting group (VLAN 200).'],
     nl:['Nieuw: de config stuurt de naam en kleur van elke VLAN uit het VLAN-overzicht (groep 2–20, VLAN 1 blijft) naar de groepen die een GigaCore of LumiNode al heeft, en bij een advanced LumiNode staan de netwerkingangen en -uitgangen van de engines op de lichtgroep (VLAN 200).']

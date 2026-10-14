@@ -231,6 +231,7 @@
       const p = api.gigacorePortPlan(d.cur, edits); ops.push(...p.ops); notes.push(...p.notes);
       const dp = api.gigacoreDevicePlan(d.cur, { name:d.dev.name ?? d.cur.device?.name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || DEF_MASK, gateway:d.dev.gateway || '' } : null }, { withIp:!!d.dev.ip });
       ops.push(...dp.ops); notes.push(...dp.notes);
+      ops.push(...api.gigacoreNamesPlan(d.cur, allNames()).ops);          // the names and colours of the VLAN overview go with every send
       if(d.trunkEdit){ const tp = api.gigacoreTrunkPlan(d.cur, d.trunkEdit.tid, d.trunkEdit.vid); ops.push(...tp.ops); notes.push(...tp.notes); }
     } else {
       const n = d.cur.ports.length, per = Array(n).fill(null);

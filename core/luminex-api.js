@@ -215,6 +215,12 @@ export function gigacorePortPlan(cur, edits){
   return { ops, notes };
 }
 
+// the names and colours of the VLAN overview for the groups the switch already has (the 20 built-in ones); VLAN 1 is left as it is
+export function gigacoreNamesPlan(cur, names){
+  const r = gigacorePlan(cur, { groups: [], names: names || [], ports: [] });
+  return { ops: r.ops.filter(o => String(o.path).startsWith('/api/groups/group/')), notes: [] };
+}
+
 // the device itself: name and (last) the IP address
 export function gigacoreDevicePlan(cur, { name, ip } = {}, { withIp = false } = {}){
   const r = gigacorePlan(cur, { name, ip, groups: [], ports: [] }, { withIp });

@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.21.6 — 2026-10-15
+
+- Fixed: after “Fill from the plan” the ETH tiles of a LumiNode in Network config show the VLAN the plan wants (marked as a change), not only what the node has now.
+
+<details><summary>Nederlands</summary>
+
+- Opgelost: na “Invullen uit het plan” tonen de ETH-tegels van een LumiNode in Netwerkconfig het VLAN dat het plan wil (als wijziging gemarkeerd), niet alleen wat de node nu heeft.
+
+</details>
+
 ## 0.21.5 — 2026-10-15
 
 - New: in the planner (Network > Nodes) ETH1 and ETH2 of a LumiNode are tiles you paint with “Trunk ISL” or a VLAN; it is saved in the project and “Fill from the plan” puts it on the node.

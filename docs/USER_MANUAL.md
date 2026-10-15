@@ -738,6 +738,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.21.6 — 2026-10-15
+- Fixed: after “Fill from the plan” the ETH tiles of a LumiNode in Network config show the VLAN the plan wants (marked as a change), not only what the node has now.
+
 ### Version 0.21.5 — 2026-10-15
 - New: in the planner (Network > Nodes) ETH1 and ETH2 of a LumiNode are tiles you paint with “Trunk ISL” or a VLAN; it is saved in the project and “Fill from the plan” puts it on the node.
 
@@ -1767,6 +1770,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.21.6 — 2026-10-15
+- Opgelost: na “Invullen uit het plan” tonen de ETH-tegels van een LumiNode in Netwerkconfig het VLAN dat het plan wil (als wijziging gemarkeerd), niet alleen wat de node nu heeft.
 
 ### Versie 0.21.5 — 2026-10-15
 - Nieuw: in de planner (Netwerk > Nodes) zijn ETH1 en ETH2 van een LumiNode tegels die je schildert met “Trunk ISL” of een VLAN; het wordt in het project bewaard en “Invullen uit het plan” zet het op de node.

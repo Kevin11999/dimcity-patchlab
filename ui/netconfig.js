@@ -251,13 +251,24 @@
   const ethNames = d => Object.entries(d.cur?.netcfg?.ports || {}).filter(([, p]) => (p.type || 'rj45') === 'rj45').map(([n]) => n);
   function ethView(d, eth){
     const nc = d.cur.netcfg, port = nc.ports[ethNames(d)[eth - 1]] || {}, e = d.NE.get(eth), isl = api.lumiIsl(nc);
-    let kind = 'none', vid = null, color = '#64748b', label = '';
-    const grp = k => nc.groups[k], put = k => { const g = grp(k); if(g){ kind = 'vid'; vid = g.vid; color = g.color || color; label = g.name || ''; } };
-    if(e?.isl) kind = 'isl'; else if(e?.vid != null){ kind = 'vid'; vid = e.vid; color = e.color || '#38bdf8'; label = e.name || ''; }
-    else if(port.trunk != null) kind = isl != null && Number(port.trunk) === isl ? 'isl' : 'trunk';
-    else if(port.group != null) put(port.group);
-    if(kind === 'isl' || kind === 'trunk'){ color = '#38bdf8'; label = kind === 'isl' ? 'ISL' : (nc.trunks?.[port.trunk]?.name || 'Trunk'); }
-    return { kind, vid, color, label, changed:!!e && !(nc.is_basic_config && e.vid != null), unsent:!!e && nc.is_basic_config && e.vid != null };
+    const look = vid => { const g = Object.values(nc.groups).find(x => x.vid === vid) || FENT().luminexGroups().find(x => x.id === vid); return { name:g?.name || '', color:g?.color || '#38bdf8' }; };
+    const now = (() => {                       // what the node has now
+      if(port.trunk != null) return { kind:isl != null && Number(port.trunk) === isl ? 'isl' : 'trunk', label:nc.trunks?.[port.trunk]?.name || 'Trunk' };
+      const g = port.group != null ? nc.groups[port.group] : null;
+      return g ? { kind:'vid', vid:g.vid, color:g.color || '#64748b', label:g.name || '' } : { kind:'none' };
+    })();
+    // …and what is waiting to be sent: a brush edit, else what "Fill from the plan" put in the network of the node
+    const pv = (d.dev.net?.ports?.[eth - 1]?.vids || []).map(Number);
+    let want = null;
+    if(e?.isl) want = { kind:'isl' };
+    else if(e?.vid != null) want = { kind:'vid', vid:e.vid, color:e.color || look(e.vid).color, label:e.name || look(e.vid).name };
+    else if(pv.length > 1) want = { kind:isl != null ? 'isl' : 'trunk', label:'Trunk' };
+    else if(pv.length === 1) want = { kind:'vid', vid:pv[0], ...look(pv[0]), label:look(pv[0]).name };
+    const v = want || now;
+    const color = v.kind === 'isl' || v.kind === 'trunk' ? '#38bdf8' : v.kind === 'vid' ? (v.color || '#64748b') : '#64748b';
+    const differs = !!want && (want.kind !== now.kind || want.vid !== now.vid);
+    const unsent = !!want && nc.is_basic_config && want.kind === 'vid' && !!e;
+    return { kind:v.kind, vid:v.vid ?? null, color, label:v.kind === 'isl' ? 'ISL' : (v.label || ''), changed:differs && !unsent, unsent };
   }
   // what the person set on the network ports, as the node plan takes it: a node that is still basic only takes the trunk (a VLAN there changes nothing in it)
   function portEditsOf(d){

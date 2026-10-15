@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.21.3 — 2026-10-15
+
+- New: in Network config a LumiNode shows ETH1 and ETH2 next to its DMX ports; paint them like a switch with “Trunk ISL” (the node’s own trunk) or a VLAN.
+
+<details><summary>Nederlands</summary>
+
+- Nieuw: in Netwerkconfig toont een LumiNode ETH1 en ETH2 naast zijn DMX-poorten; schilder ze zoals een switch met “Trunk ISL” (de eigen trunk van de node) of een VLAN.
+
+</details>
+
 ## 0.21.2 — 2026-10-15
 
 - New: Network config compares the plan with every linked switch and node by itself and shows “differs from the plan: N” on the card and at the top, so a port you changed in the plan is seen as something that has to be sent again.

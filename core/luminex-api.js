@@ -319,14 +319,19 @@ const predefTrunk = (trunks, groups) => {
   const all = Object.keys(groups || {}).map(Number); if(!all.length) return null;
   return e.find(([k, t]) => (t.name === 'ISL' || k === '1') && all.every(g => (t.groups || []).includes(g)))?.[0] ?? null;
 };
+export const lumiIsl = nc => { const k = predefTrunk(nc?.trunks, nc?.groups); return k == null ? null : Number(k); };
 const sameSet = (a, b) => a.length === b.length && [...a].sort((x, y) => x - y).every((x, i) => x === [...b].sort((p, q) => p - q)[i]);
 export const prefixToMask = p => { const n = Math.max(0, Math.min(32, Number(p) || 0)); return [0, 1, 2, 3].map(i => Math.max(0, Math.min(8, n - i * 8))).map(b => (256 - (1 << (8 - b))) & 255).join('.'); };
 // the calls that bring a node to the wanted network: validate, send, commit. want = lumiNetWant(...)
 //   currentIp       the address this node is reached on now: when the wanted network no longer has it, the node moves (result.moveTo / moveMask)
 //   keepAddresses   the groups the node has already keep their addresses (only the lighting data and the ports are set); new groups get theirs
-export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAddresses = false } = {}){
+//   portEdits       { 1:{ isl:true } | { vid, name?, color? } | { off:true }, 2:… } what a person set on the network ports (ETH1, ETH2) of the node itself:
+//                   its own built-in trunk (ISL) or one VLAN (that group may then configure the node). Without a plan for the groups these alone are sent.
+export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAddresses = false, portEdits = null } = {}){
   const ops = [], notes = [], changes = [], nc = cur?.netcfg;
-  if(!want?.groups?.length) return { ops, notes, changes, moveTo:null, moveMask:null };
+  const pe = portEdits && Object.keys(portEdits).length ? portEdits : null;
+  if(!want?.groups?.length && !pe) return { ops, notes, changes, moveTo:null, moveMask:null };
+  if(!want) want = { groups:[], ports:[], names:[] };
   const wantNames = (want.names || []).filter(g => g.vid !== 1 && !want.groups.some(x => x.vid === g.vid));
   if(!nc){ notes.push('This LumiNode does not offer the advanced network (no /api/network_config) — only its basic IP address can be set.'); return { ops, notes, changes, moveTo:null, moveMask:null }; }
   const next = { groups:clone(nc.groups || {}), trunks:clone(nc.trunks || {}), ports:clone(nc.ports || {}), stp_mode:nc.stp_mode || 'rstp', allow_ipv6_only_configurability:!!nc.allow_ipv6_only_configurability };
@@ -393,6 +398,32 @@ export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAd
       port.trunk = Number(tid); port.group = null;
     }
   });
+  // what a person set on ETH1 / ETH2 of the node itself
+  for(const [eth, e] of Object.entries(pe || {})){
+    const name = rj[Number(eth) - 1], port = next.ports[name]; if(!port){ notes.push(`This node has no network port ${eth}.`); continue; }
+    const was = port.trunk != null ? `trunk ${port.trunk}` : port.group != null ? `group ${port.group}` : 'no group';
+    if(e.isl){
+      const tid = predefTrunk(next.trunks, nc.groups);
+      if(tid == null){ notes.push(`Port ${name}: this node does not report its own trunk (ISL), so it was not set.`); continue; }
+      const tr = next.trunks[tid], every = Object.keys(next.groups).map(Number), miss = every.filter(x => !(tr.groups || []).includes(x));
+      if(miss.length && tr.editable !== false){ tr.groups = [...(tr.groups || []), ...miss].sort((a, b) => a - b); changes.push(`Trunk ${tid} “${tr.name}”: also carry group ${miss.join(', ')}`); }
+      if(Number(port.trunk) !== Number(tid)) changes.push(`Port ${name}: ${was} → the node's own trunk ${tid} “${tr.name}”`);
+      port.trunk = Number(tid); port.group = null;
+    } else if(e.vid != null){
+      let k = gid.get(Number(e.vid));
+      if(k == null){
+        if(top >= 255){ notes.push(`No room for a group for VLAN ${e.vid} (a node holds 255 groups).`); continue; }
+        k = ++top; next.groups[k] = { name:String(e.name || `VLAN ${e.vid}`).slice(0, MAX_GROUP_NAME), vid:Number(e.vid), color:e.color || '#38bdf8', editable:true, network_settings:{ addresses:[], routes:[], pipeline_setting:'', allow_config:true } }; gid.set(Number(e.vid), k);
+        changes.push(`New group ${k} “${next.groups[k].name}” (VLAN ${e.vid})`);
+        { const it = predefTrunk(next.trunks, nc.groups); if(it != null && next.trunks[it].editable !== false) next.trunks[it].groups = [...(next.trunks[it].groups || []), k].sort((x, y) => x - y); }
+      }
+      const ns = (next.groups[k].network_settings ||= { addresses:[], routes:[], pipeline_setting:'', allow_config:true });
+      if(ns.allow_config === false){ ns.allow_config = true; changes.push(`Group ${k} “${next.groups[k].name}”: configuring the node through it → on`); }
+      if(port.group !== k || port.trunk != null) changes.push(`Port ${name}: ${was} → group ${k} (VLAN ${e.vid})`);
+      port.group = k; port.trunk = null;
+    }
+  }
+  if(pe && !want.groups.length && !changes.length) return { ops, notes, changes, moveTo:null, moveMask:null };
   if(nc.is_basic_config) changes.unshift('Switch the node to the advanced network configuration');
   // does the node still answer on the address it is reached on now? If not it moves: to the address of its management group (else the first one)
   const reach = Object.values(next.groups).filter(g => g.network_settings?.allow_config !== false).flatMap(g => (g.network_settings?.addresses || []).map(a => a.ip));

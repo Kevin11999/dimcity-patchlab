@@ -214,7 +214,7 @@
 
   // ---------- one device ----------
   const D = ip => C.dev.get(ip);
-  function mk(f){ return { ip:f.ip, kind:f.kind, name:f.name || '', longName:f.longName || '', model:f.model || '', version:f.version || '', auth:!!f.auth, link:null, cur:null, E:new Map(), dev:{}, brush:null, sel:null, tree:null, treeBusy:false, S:new Map(), setOpen:false, setSec:null, setQ:'', busy:false, err:'', note:'', verified:false, step:1, via:f.via || [], from:'', far:null, gone:false }; }
+  function mk(f){ return { ip:f.ip, kind:f.kind, name:f.name || '', longName:f.longName || '', model:f.model || '', version:f.version || '', auth:!!f.auth, link:null, cur:null, E:new Map(), NE:new Map(), dev:{}, brush:null, sel:null, tree:null, treeBusy:false, S:new Map(), setOpen:false, setSec:null, setQ:'', busy:false, err:'', note:'', verified:false, step:1, via:f.via || [], from:'', far:null, gone:false }; }
   // how it was found, for the small line under the name
   const viaName = v => ({ sweep:t('IP scan', 'IP-scan'), mdns:'mDNS', lldp:'LLDP', artnet:'Art-Net' }[v] || v);
   const viaText = d => [(d.via || []).map(viaName).join(' + '), d.from ? `${t('port', 'poort')} ${d.fromPort ?? '?'} ${t('of', 'van')} ${d.from}` : ''].filter(Boolean).join(' · ');
@@ -247,13 +247,34 @@
     e.member = b.type === 'fibre' ? fibreMember(d) : { type:'vid', vid:b.vid, name:b.name, color:b.color };
     d.E.set(port, e); return true;
   }
-  // the plan of the network of an advanced node again (after a port was chosen on its card): what goes to the node follows
-  function refreshNodeNet(d, it){
-    const w = wantNode(it); if(!w.advanced || !w.net?.groups.length) return;
-    d.dev.net = w.net; d.dev.netKeep = false;
-    const np = api.lumiNetPlan(d.cur, w.net, { currentIp:d.ip, keepAddresses:false });
-    if(np.moveTo) Object.assign(d.dev, { ip:np.moveTo, mask:np.moveMask }); else if(d.dev.ip && d.dev.ip === d.ip) delete d.dev.ip;
+  // ETH1 / ETH2 of a node: what they carry now (the node's own trunk ISL, another trunk, one VLAN) with the pending edit on top
+  const ethNames = d => Object.entries(d.cur?.netcfg?.ports || {}).filter(([, p]) => (p.type || 'rj45') === 'rj45').map(([n]) => n);
+  function ethView(d, eth){
+    const nc = d.cur.netcfg, port = nc.ports[ethNames(d)[eth - 1]] || {}, e = d.NE.get(eth), isl = api.lumiIsl(nc);
+    let kind = 'none', vid = null, color = '#64748b', label = '';
+    const grp = k => nc.groups[k], put = k => { const g = grp(k); if(g){ kind = 'vid'; vid = g.vid; color = g.color || color; label = g.name || ''; } };
+    if(e?.isl) kind = 'isl'; else if(e?.vid != null){ kind = 'vid'; vid = e.vid; color = e.color || '#38bdf8'; label = e.name || ''; }
+    else if(port.trunk != null) kind = isl != null && Number(port.trunk) === isl ? 'isl' : 'trunk';
+    else if(port.group != null) put(port.group);
+    if(kind === 'isl' || kind === 'trunk'){ color = '#38bdf8'; label = kind === 'isl' ? 'ISL' : (nc.trunks?.[port.trunk]?.name || 'Trunk'); }
+    return { kind, vid, color, label, changed:!!e && !(nc.is_basic_config && e.vid != null), unsent:!!e && nc.is_basic_config && e.vid != null };
   }
+  // what the person set on the network ports, as the node plan takes it: a node that is still basic only takes the trunk (a VLAN there changes nothing in it)
+  function portEditsOf(d){
+    const nc = d.cur?.netcfg; if(!nc || !d.NE?.size) return null;
+    const o = {}; for(const [eth, e] of d.NE) if(e.isl || (e.vid != null && !nc.is_basic_config)) o[eth] = e;
+    return Object.keys(o).length ? o : null;
+  }
+  // a node brush: its own trunk (ISL) or a VLAN, set on ETH1 / ETH2
+  function applyEth(d, eth){
+    const b = d.brush; if(!b || isSw(d) || !d.cur?.netcfg) return false;
+    d.NE.set(eth, b.type === 'isl' ? { isl:true } : { vid:b.vid, name:b.name, color:b.color }); return true;
+  }
+  const ethBrushes = d => {
+    const have = new Map(Object.values(d.cur.netcfg.groups).filter(g => g.vid != null).map(g => [g.vid, { vid:g.vid, name:g.name, color:g.color }]));
+    for(const g of FENT().luminexGroups()) if(!have.has(g.id)) have.set(g.id, { vid:g.id, name:g.name, color:g.color, isNew:true });
+    return [...have.values()].sort((a, b) => a.vid - b.vid);
+  };
   // ---------- calls ----------
   function opsOf(d){
     if(!d.cur) return { ops:[], notes:[] };
@@ -269,9 +290,9 @@
     } else {
       const n = d.cur.ports.length, per = Array(n).fill(null);
       for(const [i, e] of d.E) if(i < n) per[i] = clone(e);
-      const adv = d.dev.net && d.cur.netcfg;       // an advanced network configuration is on its way: the addresses go with it, not through /api/ipsettings
+      const adv = (d.dev.net || portEditsOf(d)) && d.cur.netcfg;       // an advanced network configuration is on its way: the addresses go with it, not through /api/ipsettings
       // the network calls are made first: the group of the lighting VLAN may only be made by them, and the network IOs of the engines are put on it afterwards (p.late)
-      const np = d.dev.net ? api.lumiNetPlan(d.cur, d.dev.net, { currentIp:d.ip, keepAddresses:!!d.dev.netKeep }) : null;
+      const pe = portEditsOf(d), np = d.dev.net || pe ? api.lumiNetPlan(d.cur, d.dev.net || null, { currentIp:d.ip, keepAddresses:!!d.dev.netKeep, portEdits:pe }) : null;
       const have = lightGroupOf(d);
       const p = api.lumiPlan(d.cur, { shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || DEF_MASK, gateway:d.dev.gateway || '' } : null, ports:per }, { withIp:!!d.dev.ip && !adv, artnetOffset:C.offset, lightGroup:have, lightGroupLate:have == null && np ? np.lightGroup : null });
       ops.push(...p.ops); notes.push(...p.notes);
@@ -298,7 +319,7 @@
     if(!d.cur || !d.link || d.busy || d.kind === 'unknown') return 0;
     const it = planOf(d); if(!it || misfit(d)) return 0;
     try {
-      const t = { ...d, E:new Map(), dev:{}, S:new Map(), trunkEdit:null, err:'', warn:'' };
+      const t = { ...d, E:new Map(), NE:new Map(), dev:{}, S:new Map(), trunkEdit:null, err:'', warn:'' };
       if(!fillFromPlan(t)) return 0;
       return opsOf(t).ops.filter(o => !(d.refused && d.refused.has(o.text))).length;
     } catch { return 0; }
@@ -336,7 +357,7 @@
   async function readDev(d, keepEdits){
     d.busy = true; d.err = ''; d.verified = false;
     try { await load(); const h = transport(d.ip); d.cur = isSw(d) ? await api.gigacoreRead(h) : await api.lumiRead(h);
-      if(!keepEdits){ d.E = new Map(); d.dev = {}; d.S = new Map(); d.tree = null; }
+      if(!keepEdits){ d.E = new Map(); d.NE = new Map(); d.dev = {}; d.S = new Map(); d.tree = null; }
       if(isSw(d)){ d.name = d.cur.device?.name || d.name; d.model = d.cur.device?.model || d.model; } else { d.name = d.cur.info?.short_name || d.name; d.longName = d.cur.info?.long_name || ''; d.version = d.cur.version || d.version; }
     } catch(x) { d.cur = null; d.err = String(x.message || x); if(/401/.test(d.err)) d.auth = true; }
     d.busy = false;
@@ -423,14 +444,14 @@
     if(movers.some(x => x.sent) && real()) await sleep(3000);                                  // all of them are moving: give them time
     await pool(movers.filter(x => x.sent), 8, async x => {
       const { d } = x;
-      try { d.E = new Map(); d.dev = {}; d.S = new Map(); d.tree = null; d.trunkEdit = null; await readDev(d); if(!d.cur){ d.err = ''; d.moved = { from:x.sent, to:d.ip, mask:x.mask }; } x.after = true; }
+      try { d.E = new Map(); d.NE = new Map(); d.dev = {}; d.S = new Map(); d.tree = null; d.trunkEdit = null; await readDev(d); if(!d.cur){ d.err = ''; d.moved = { from:x.sent, to:d.ip, mask:x.mask }; } x.after = true; }
       catch(e) { failed++; x.dead = true; d.err = String(e.message || e); }
       d.busy = false; paint();
     });
     // 3 · read every device back and check it (the ones that moved out of reach are skipped)
     for(const x of todo.filter(y => !y.dead && !y.d.moved)){
       const { d } = x; d.busy = true; paint();
-      try { if(!x.after){ d.E = new Map(); d.dev = {}; d.trunkEdit = null; d.S = new Map(); d.tree = null; await readDev(d); } await verifyTrunk(d, x.ops, logged(d)); d.verified = !d.err && changeCount(d) === 0 && !netPending(d); }
+      try { if(!x.after){ d.E = new Map(); d.NE = new Map(); d.dev = {}; d.trunkEdit = null; d.S = new Map(); d.tree = null; await readDev(d); } await verifyTrunk(d, x.ops, logged(d)); d.verified = !d.err && changeCount(d) === 0 && !netPending(d); }
       catch(e) { failed++; d.err = String(e.message || e); }
       d.busy = false; paint();
     }
@@ -731,6 +752,13 @@
       <span class="nc-nm">${esc(v.name)}</span>
       <span class="nc-vl"><small>${v.klass === 'sacn' ? 'sACN' : v.klass === 'artnet' ? 'Art' : ''}</small> ${v.uni == null || off ? '–' : v.uni}</span></button>`;
   }
+  function ethTileHtml(d, eth){
+    const v = ethView(d, eth), nm = v.kind === 'isl' ? 'Trunk ISL' : v.kind === 'trunk' ? v.label : v.kind === 'vid' ? v.label : t('not used', 'niet gebruikt');
+    return `<button class="nc-port nd eth ${v.changed ? 'chg' : ''} ${v.kind === 'isl' || v.kind === 'trunk' ? 'trunk' : ''} ${v.kind === 'none' ? 'off' : ''}" data-eth="${eth}" style="--pc:${esc(v.color)}" title="${esc(`ETH${eth} · ${nm}${v.vid != null ? ` · VLAN ${v.vid}` : ''}${v.unsent ? ' · ' + t('not sent: the node is still on the basic network', 'niet gestuurd: de node staat nog op het basisnetwerk') : ''}`)}">
+      <span class="nc-top"><span class="nc-no">ETH${eth}</span><span class="nc-ico">${v.kind === 'isl' || v.kind === 'trunk' ? '⇄' : ''}</span></span>
+      <span class="nc-nm">${esc(nm)}</span>
+      <span class="nc-vl">${v.kind === 'isl' || v.kind === 'trunk' ? 'Trunk' : v.vid != null ? v.vid : '–'}${v.unsent ? ' *' : ''}</span></button>`;
+  }
   function detailHtml(d){
     const idx = d.sel; if(idx == null) return `<div class="subtle nc-det">${isSw(d) ? t('Pick a VLAN and click ports, or click a port to edit it.', 'Kies een VLAN en klik op poorten, of klik op een poort om hem aan te passen.') : t('Click a port to set its universe, name, protocol and direction.', 'Klik op een poort om zijn universe, naam, protocol en richting in te stellen.')}</div>`;
     if(isSw(d)){
@@ -759,25 +787,18 @@
     const g = nc ? Object.entries(nc.groups).map(([id, x]) => `<div class="nc-net-g"><i style="background:${esc(x.color || '#808080')}"></i><b>${t('Group', 'Groep')} ${id}</b> ${esc(x.name || '')} <span class="subtle">VLAN ${x.vid}</span> <span class="mono">${(x.network_settings?.addresses || []).map(a => esc(a.ip)).join(', ') || '—'}</span>${x.network_settings?.pipeline_setting ? ` <span class="tag green">${t('lighting', 'licht')} ${esc(x.network_settings.pipeline_setting)}</span>` : ''}</div>`).join('') : '';
     const ps = nc ? Object.entries(nc.ports).filter(([, p]) => (p.type || 'rj45') === 'rj45').map(([n, p]) => `<span class="tag">${esc(n)} → ${p.trunk != null ? `trunk ${p.trunk}` : p.group != null ? `${t('group', 'groep')} ${p.group}` : '—'}</span>`).join(' ') : '';
     const pl = planned && planned.groups.length ? `<div class="nc-net-plan"><b>${t('The plan wants', 'Het plan wil')}</b>: ${planned.groups.map(x => `VLAN ${x.vid} <span class="mono">${x.addresses.map(a => a.ip + '/' + a.prefix).join(', ')}</span>${x.listen ? ' · ' + t('lighting', 'licht') : ''}`).join(' · ')} · ${planned.ports.map(p => `ETH${p.eth}: ${p.vids.length > 1 ? 'trunk ' : ''}VLAN ${p.vids.join('+') || '—'}`).join(' · ')}</div>` : '';
-    // what every network port (ETH) of the node carries: access = one VLAN, trunk = several (up to all of them)
-    const ctl = it?.kind === 'nd' && it.inst.advanced ? (() => {
-      const nt = (App.getMODEL().networkDevices.nodeTypes || []).find(x => x.id === it.inst.typeId), eth = Math.min(2, Math.max(1, Number(nt?.ethernetCount) || 1)), groups = FENT().luminexGroups();
-      const have = {}; for(const p of wantNode(it).net?.ports || []) have[p.eth] = (p.vids || []).map(Number);
-      return `<div class="nc-nports">${Array.from({ length:eth }, (_, i) => { const e = i + 1, cur = have[e] || [], trunk = it.inst.advMode?.[e] ?? cur.length > 1;
-        return `<div class="nc-nport" data-nport="${e}"><b>ETH${e}</b> <label class="nc-chk"><input type="checkbox" data-nptrunk="${e}" ${trunk ? 'checked' : ''}> Trunk</label> ${trunk
-          ? `<span class="nc-npv">${groups.map(g => `<label class="nc-chk" title="${esc(g.name)}"><input type="checkbox" data-npv="${e}" value="${g.id}" ${cur.includes(g.id) ? 'checked' : ''}>${g.id}</label>`).join(' ')}</span> <button class="sm ghost" data-npall="${e}">${t('all', 'alle')}</button>`
-          : `<select data-npvlan="${e}"><option value="">${t('not used', 'niet gebruikt')}</option>${groups.map(g => `<option value="${g.id}" ${cur[0] === g.id ? 'selected' : ''}>VLAN ${g.id} · ${esc(g.name)}</option>`).join('')}</select>`}</div>`; }).join('')}</div>`;
-    })() : '';
     const warn = it?.kind === 'nd' ? (window.IpPlan?.check() || []).filter(i => i.dc === it.dc && i.label === (it.inst.id || it.inst.name) && (i.code === 'TRUNK' || i.code === 'PORTVLAN')).map(i => `<div class="su-warn">${I('alert', 13)} ${esc(t(i.en, i.nl))}</div>`).join('') : '';
     const note = d.dev.net ? (d.dev.ip ? `<div class="su-warn">${I('alert', 13)} ${t(`After this the node answers on ${esc(d.dev.ip)}.`, `Hierna antwoordt de node op ${esc(d.dev.ip)}.`)}</div>` : d.dev.netKeep ? `<div class="subtle" style="margin-top:3px">${t('The groups the node has keep their addresses (tick “Fill from the plan also sets the IP address” to change them).', 'De groepen die de node al heeft houden hun adres (vink “Invullen uit het plan zet ook het IP-adres” aan om ze te wijzigen).')}</div>` : '') : '';
-    return `<div class="nc-net"><div class="nc-net-h"><b>${t('Network of this node', 'Netwerk van deze node')}</b> ${nc ? (nc.is_basic_config ? `<span class="tag">${t('basic: one address', 'basis: één adres')}</span>` : `<span class="tag blue">${t('advanced', 'advanced')}</span>`) : `<span class="tag">${t('basic only', 'alleen basis')}</span>`}</div>${g}${ps ? `<div style="margin:3px 0">${ps}</div>` : ''}${ctl}${pl}${note}${warn}</div>`;
+    return `<div class="nc-net"><div class="nc-net-h"><b>${t('Network of this node', 'Netwerk van deze node')}</b> ${nc ? (nc.is_basic_config ? `<span class="tag">${t('basic: one address', 'basis: één adres')}</span>` : `<span class="tag blue">${t('advanced', 'advanced')}</span>`) : `<span class="tag">${t('basic only', 'alleen basis')}</span>`}</div>${g}${ps ? `<div style="margin:3px 0">${ps}</div>` : ''}${pl}${note}${warn}</div>`;
   }
   function brushBar(d){
     if(isSw(d)){
       const b = d.brush;
       return `<div class="nc-brush"><span class="subtle">${t('Pick a VLAN, then click or drag over ports', 'Kies een VLAN, klik of sleep dan over poorten')}:</span>${swBrushes(d).map(x => `<button class="nc-chip ${b?.vid === x.vid && b.type === 'vid' ? 'on' : ''}" data-brush="vid:${x.vid}" style="--pc:${esc(x.color || '#64748b')}"><i></i>${x.vid} ${esc(x.name)}${x.isNew ? ' +' : ''}</button>`).join('')}<button class="nc-chip ${b?.type === 'fibre' ? 'on' : ''}" data-brush="fibre" style="--pc:#38bdf8"><i></i>Trunk</button>${b ? `<button class="nc-chip x" data-brush="">${I('x', 11)} ${t('no brush', 'geen kwast')}</button>` : ''}</div>`;
     }
-    return '';       // a node has no brush: click a port and fill in its panel
+    if(!d.cur?.netcfg) return '';       // a node: a brush for its network ports (ETH1, ETH2); a DMX port is set in its own panel
+    const b = d.brush;
+    return `<div class="nc-brush"><span class="subtle">${t('Network ports (ETH): pick a brush, then click or drag over ETH1 / ETH2', 'Netwerkpoorten (ETH): kies een kwast, klik of sleep dan over ETH1 / ETH2')}:</span><button class="nc-chip ${b?.type === 'isl' ? 'on' : ''}" data-brush="isl" style="--pc:#38bdf8"><i></i>Trunk ISL</button>${ethBrushes(d).map(x => `<button class="nc-chip ${b?.vid === x.vid && b.type === 'vid' ? 'on' : ''}" data-brush="vid:${x.vid}" style="--pc:${esc(x.color || '#64748b')}"><i></i>${x.vid} ${esc(x.name)}${x.isNew ? ' +' : ''}</button>`).join('')}${b ? `<button class="nc-chip x" data-brush="">${I('x', 11)} ${t('no brush', 'geen kwast')}</button>` : ''}</div>`;
   }
   // the plan and the device differ, and nothing is waiting to be sent: say so, so it is sent (again)
   const driftTag = (d, n) => { if(n || d.busy) return ''; const k = planDiff(d); return k ? `<span class="tag yellow" title="${esc(t('The plan wants something else than this device has now. Press “Fill from the plan”, then apply.', 'Het plan wil iets anders dan dit apparaat nu heeft. Druk op “Invullen uit het plan” en dan op toepassen.'))}">${t('differs from the plan', 'wijkt af van het plan')}: ${k}</span>` : ''; };
@@ -798,7 +819,7 @@
       const o = opsOf(d), f = d.dev;
       const grid = isSw(d)
         ? `<div class="nc-grid">${api.portRows(d.cur).map(r => swTileHtml(d, r)).join('')}</div>`
-        : `<div class="nc-grid nd">${d.cur.ports.map(p => ndTileHtml(d, p)).join('')}</div>`;
+        : `<div class="nc-grid nd">${d.cur.ports.map(p => ndTileHtml(d, p)).join('')}${d.cur.netcfg ? ethNames(d).map((_, i) => ethTileHtml(d, i + 1)).join('') : ''}</div>`;
       const devFields = isSw(d)
         ? `<label>${t('Name', 'Naam')}<input data-df="name" value="${esc(f.name ?? d.cur.device?.name ?? '')}" maxlength="64"></label><label>IP<input data-df="ip" value="${esc(f.ip ?? d.cur.ip?.ip_address ?? '')}" style="width:130px"></label>`
         : `<label>${t('Name', 'Naam')}<input data-df="shortName" value="${esc(f.shortName ?? d.cur.info?.short_name ?? '')}" maxlength="17"></label><label>${t('Long name', 'Lange naam')}<input data-df="longName" value="${esc(f.longName ?? d.cur.info?.long_name ?? '')}" maxlength="63"></label><label>IP<input data-df="ip" value="${esc(f.ip ?? d.cur.ip?.ipaddress ?? '')}" style="width:130px"></label>`;
@@ -812,7 +833,7 @@
         ${settingsHtml(d)}
         ${o.notes.map(x => `<div class="subtle" style="font-size:12px">${I('info', 12)} ${esc(x)}</div>`).join('')}
         ${logHtml(d)}
-        <div class="nc-row"><span class="subtle">${n} ${t('changes waiting', 'wijzigingen wachten')}</span><span style="flex:1"></span><button data-undo="${esc(d.ip)}" ${d.E.size || Object.keys(f).length || d.trunkEdit || d.S.size ? '' : 'disabled'}>${t('Undo my changes', 'Mijn wijzigingen ongedaan maken')}</button><button class="primary" data-apply="${esc(d.ip)}" ${n && !d.busy ? '' : 'disabled'}>${t('Apply…', 'Toepassen…')}</button></div></div>`;
+        <div class="nc-row"><span class="subtle">${n} ${t('changes waiting', 'wijzigingen wachten')}</span><span style="flex:1"></span><button data-undo="${esc(d.ip)}" ${d.E.size || d.NE.size || Object.keys(f).length || d.trunkEdit || d.S.size ? '' : 'disabled'}>${t('Undo my changes', 'Mijn wijzigingen ongedaan maken')}</button><button class="primary" data-apply="${esc(d.ip)}" ${n && !d.busy ? '' : 'disabled'}>${t('Apply…', 'Toepassen…')}</button></div></div>`;
     }
     return `<div class="nc-card open">${head}${body}</div>`;
   }
@@ -855,6 +876,10 @@
     const html = isSw(d) ? swTileHtml(d, api.portRows(d.cur).find(r => r.port === port)) : ndTileHtml(d, d.cur.ports[port]);
     const tmp = document.createElement('div'); tmp.innerHTML = html; el.replaceWith(tmp.firstElementChild);
   }
+  function ethUpdate(d, eth){
+    const el = cardOf(d)?.querySelector(`.nc-port[data-eth="${eth}"]`); if(!el) return;
+    const tmp = document.createElement('div'); tmp.innerHTML = ethTileHtml(d, eth); el.replaceWith(tmp.firstElementChild);
+  }
   function bind(){
     const q = s => root.querySelector(s), qa = s => root.querySelectorAll(s), devOf = el => D(el.closest('[data-ip]')?.dataset.ip || el.dataset.ip);
     q('#ncDisc') ; const disc = document.querySelector('#ncDisc'); if(disc) disc.onclick = discover;
@@ -872,23 +897,11 @@
     qa('select[data-link]').forEach(s => s.onchange = () => { const d = D(s.dataset.link); d.link = s.value || null; paint(); });
     qa('[data-read]').forEach(b => b.onclick = async () => { const d = D(b.dataset.read); await readDev(d); paint(); });
     qa('[data-fill]').forEach(b => b.onclick = () => { const d = D(b.dataset.fill); fillFromPlan(d); paint(); });
-    qa('[data-undo]').forEach(b => b.onclick = () => { const d = D(b.dataset.undo); d.E = new Map(); d.dev = {}; d.trunkEdit = null; d.S = new Map(); paint(); });
+    qa('[data-undo]').forEach(b => b.onclick = () => { const d = D(b.dataset.undo); d.E = new Map(); d.NE = new Map(); d.dev = {}; d.trunkEdit = null; d.S = new Map(); paint(); });
     qa('[data-apply]').forEach(b => b.onclick = () => applyDevs([D(b.dataset.apply)]));
     qa('[data-df]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const k = i.dataset.df, v = i.value.trim(); d.dev[k] = v; if(k === 'ip' && !ipOk(v)) delete d.dev.ip; if(k === 'ip' && d.dev.ip && !d.dev.mask) d.dev.mask = planOf(d)?.s?.dev?.subnet || planOf(d)?.inst?.subnet || DEF_MASK; paint(); });
     // brushes
-    qa('[data-nptrunk],[data-npvlan],[data-npv],[data-npall]').forEach(el => { const fn = () => {
-      const d = D(el.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle), it = planOf(d); if(!it || it.kind !== 'nd') return;
-      const net = wantNode(it).net, cur = {}; for(const p of net?.ports || []) cur[p.eth] = (p.vids || []).map(Number);
-      const all = groups => [...new Set(groups)], e = Number(el.dataset.nptrunk || el.dataset.npvlan || el.dataset.npv || el.dataset.npall); it.inst.advMode ||= {};
-      const adv = { 1:cur[1] || [], 2:cur[2] || [] };
-      if(el.dataset.nptrunk){ it.inst.advMode[e] = el.checked; adv[e] = el.checked ? (adv[e].length > 1 ? adv[e] : all((net?.groups || []).map(g => g.vid))) : adv[e].slice(0, 1); }
-      else if(el.dataset.npall){ adv[e] = FENT().luminexGroups().map(g => g.id); }
-      else if(el.dataset.npvlan !== undefined) adv[e] = el.value ? [Number(el.value)] : [];
-      else adv[e] = [...el.closest('.nc-nport').querySelectorAll('[data-npv]:checked')].map(x => Number(x.value));
-      it.inst.advPorts = { 1:all(adv[1]), 2:all(adv[2]) }; const m = App.getMODEL(); if(m?.ui) m.ui.dirty = true;
-      refreshNodeNet(d, it); paint();
-    }; if(el.tagName === 'BUTTON') el.onclick = fn; else el.onchange = fn; });
-    qa('[data-brush]').forEach(b => b.onclick = () => { const d = D(b.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const v = b.dataset.brush; if(!v) d.brush = null; else if(v === 'fibre') d.brush = { type:'fibre' }; else { const x = swBrushes(d).find(y => y.vid === Number(v.split(':')[1])); d.brush = { type:'vid', ...x }; } paint(); });
+    qa('[data-brush]').forEach(b => b.onclick = () => { const d = D(b.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const v = b.dataset.brush; if(!v) d.brush = null; else if(v === 'fibre') d.brush = { type:'fibre' }; else if(v === 'isl') d.brush = { type:'isl' }; else if(!isSw(d)){ const x = ethBrushes(d).find(y => y.vid === Number(v.split(':')[1])); d.brush = { type:'vid', ...x }; } else { const x = swBrushes(d).find(y => y.vid === Number(v.split(':')[1])); d.brush = { type:'vid', ...x }; } paint(); });
     qa('[data-trunkun]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); d.trunkEdit = { tid:Number(i.dataset.trunkun), vid:Number(i.value) || 0 }; paint(); });
     qa('[data-rainbowc]').forEach(b => b.onclick = () => rainbowColours(D(b.dataset.rainbowc), false));
     qa('[data-rainbowu]').forEach(b => b.onclick = () => rainbowColours(D(b.dataset.rainbowu), true));
@@ -908,8 +921,8 @@
     // ports: click = paint with the brush (or select), drag = paint a row of ports
     qa('.nc-grid').forEach(g => {
       const dev = () => D(g.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle), noOf = el => Number(el.closest('.nc-port')?.dataset.port);
-      g.onmousedown = ev => { const el = ev.target.closest('.nc-port'); if(!el || ev.button !== 0) return; ev.preventDefault(); const d = dev(), p = noOf(el); if(d.brush && applyBrush(d, p)){ C.drag = d; d.sel = p; tileUpdate(d, p); } else { d.sel = p; paint(); } };
-      g.onmouseover = ev => { if(C.drag && !(ev.buttons & 1)){ endDrag(); return; } const el = ev.target.closest('.nc-port'); if(!el || !C.drag || C.drag !== dev()) return; const d = C.drag, p = noOf(el); if(applyBrush(d, p)) tileUpdate(d, p); };
+      g.onmousedown = ev => { const el = ev.target.closest('.nc-port'); if(!el || ev.button !== 0) return; ev.preventDefault(); const d = dev(); if(el.dataset.eth){ if(applyEth(d, Number(el.dataset.eth))){ C.drag = d; ethUpdate(d, Number(el.dataset.eth)); } return; } const p = noOf(el); if(d.brush && applyBrush(d, p)){ C.drag = d; d.sel = p; tileUpdate(d, p); } else { d.sel = p; paint(); } };
+      g.onmouseover = ev => { if(C.drag && !(ev.buttons & 1)){ endDrag(); return; } const el = ev.target.closest('.nc-port'); if(!el || !C.drag || C.drag !== dev()) return; const d = C.drag; if(el.dataset.eth){ if(applyEth(d, Number(el.dataset.eth))) ethUpdate(d, Number(el.dataset.eth)); return; } const p = noOf(el); if(applyBrush(d, p)) tileUpdate(d, p); };
     });
     // detail panel of one port: a change is saved and shown on the tile at once, and the panel stays as it is so you can go from field to field.
     // The page is rebuilt when you are done with the panel (the focus leaves it; a click on a button still lands first).

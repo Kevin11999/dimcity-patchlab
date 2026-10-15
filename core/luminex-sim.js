@@ -101,12 +101,12 @@ export function gigacoreSim({ name = 'GigaCore', ip = '192.168.1.10', ports = 12
   return { kind: 'gigacore', state: st, h };
 }
 
-export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192.168.1.60', outputs = 4, universes = [0, 1, 2, 3], klass = 'artnet', version = 'v2.9.1', dmxIn = [], split = true } = {}){
+export function lumiNodeSim({ short = 'LumiNode', long = 'LumiNode 4', ip = '192.168.1.60', outputs = 4, universes = [0, 1, 2, 3], klass = 'artnet', version = 'v2.9.1', dmxIn = [], split = true, isl = false } = {}){
   const st = { info: { ID: 0, colors: [], short_name: short, long_name: long }, ip: { ipaddress: ip, netmask: '255.255.255.0', gateway: '0.0.0.0' }, ios: [], blocks: [], log: [],
     roots: { auth: { web_auth_enabled: false }, protocols_config: { artnet_timeout: 5, dmx_timeout: 5, kinet_timeout: 5, sacn_timeout: 3, unicast_artpoll_reply: false, unknown_arttod_port: false }, dmx_config: { break_time: 120, framerate: 40, output_time: 20, rdm_controller_ip: '0.0.0.0' }, display_settings: { auto_off_time: 60, auto_scroll: true, color_scheme: 'dark', language: 'english', lock_enabled: false }, leds: { brightness: 2 }, ethdmx_compatibility: { process_engine_switch_channels: false } } };
   st.split = split;       // can this node split input and output on a group (GET /api/deviceinfo/features)?
   // the advanced network configuration (WebApi 2.9.1): basic = one group with the one address; a sent configuration waits for its commit
-  st.net = { is_basic_config:true, allow_ipv6_only_configurability:false, stp_mode:'rstp', trunks:{}, pending:null,
+  st.net = { is_basic_config:true, allow_ipv6_only_configurability:false, stp_mode:'rstp', trunks:isl ? { 1:{ name:'ISL', groups:[1], untagged_group:1, color:'#999999', editable:true } } : {}, pending:null,
     groups:{ 1:{ name:'Default', vid:1, color:'#808080', editable:true, network_settings:{ addresses:[{ ip:`${ip}/24`, mode:'static' }], routes:[], pipeline_setting:'input+output', allow_config:true } } },
     ports:{ eth1:{ group:1, trunk:null, type:'rj45', link_state:'1gbps fdx', link_halfduplex_warning:false, link_speed:{ mode:'auto', speed:['all'] } }, eth2:{ group:1, trunk:null, type:'rj45', link_state:'down', link_halfduplex_warning:false, link_speed:{ mode:'auto', speed:['all'] } } } };
   const validNet = c => {

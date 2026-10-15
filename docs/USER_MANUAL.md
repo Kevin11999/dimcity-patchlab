@@ -738,6 +738,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.21.3 — 2026-10-15
+- New: in Network config a LumiNode shows ETH1 and ETH2 next to its DMX ports; paint them like a switch with “Trunk ISL” (the node’s own trunk) or a VLAN.
+
 ### Version 0.21.2 — 2026-10-15
 - New: Network config compares the plan with every linked switch and node by itself and shows “differs from the plan: N” on the card and at the top, so a port you changed in the plan is seen as something that has to be sent again.
 
@@ -1758,6 +1761,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.21.3 — 2026-10-15
+- Nieuw: in Netwerkconfig toont een LumiNode ETH1 en ETH2 naast zijn DMX-poorten; schilder ze zoals een switch met “Trunk ISL” (de eigen trunk van de node) of een VLAN.
 
 ### Versie 0.21.2 — 2026-10-15
 - Nieuw: Netwerkconfig vergelijkt het plan zelf met elke gekoppelde switch en node en toont “wijkt af van het plan: N” op de kaart en bovenaan, zodat een poort die je in het plan wijzigde wordt gezien als iets dat nog verstuurd moet worden.

@@ -276,7 +276,31 @@
     return [...have.values()].sort((a, b) => a.vid - b.vid);
   };
   // ---------- calls ----------
-  function opsOf(d){
+  // "send again": the plan is filled in on a copy, and the device is shown as if it had none of it yet, so every call of the plan goes out, not only the differences
+  // (the DMX ports and their engines of a LumiNode are not part of it: they are only sent where they differ)
+  function resendView(d){
+    const it = planOf(d); if(!it || !d.cur || misfit(d)) return null;
+    const t = { ...d, E:new Map([...d.E].map(([k, v]) => [k, clone(v)])), NE:new Map(d.NE), dev:{ ...d.dev }, S:new Map(d.S), trunkEdit:d.trunkEdit, err:'', warn:'' };
+    if(!fillFromPlan(t)) return null;
+    const cur = clone(d.cur);
+    if(isSw(d)){
+      t.dev.name ??= d.cur.device?.name;
+      if(cur.device) cur.device.name = '';
+      for(const g of cur.groups) if(g.vid !== 1){ g.name = ''; g.color = ''; }
+      for(const [no, e] of t.E){
+        const p = cur.ports.find(x => x.port_number === no); if(!p) continue;
+        if(e.legend != null) p.legend = ''; if(e.member) p.member_of = {};
+        if(e.poe != null){ const po = cur.poe.find(x => x.port_number === no); if(po) po.enabled = !e.poe; }
+        if(e.speed != null) p.link_speed = { mode:'fixed', speed:['?'] };
+      }
+    } else {
+      t.dev.shortName ??= d.cur.info?.short_name; t.dev.longName ??= d.cur.info?.long_name;
+      cur.info = { ...cur.info, short_name:'', long_name:'' };
+    }
+    t.cur = cur; t.resend = true; return t;
+  }
+  function opsOf(d, resend = false){
+    if(resend){ const rv = resendView(d); if(!rv) return { ops:[], notes:[] }; const r = opsOf(rv); return { ...r, ops:r.ops.map(o => ({ ...o, text:`${t('Send again', 'Opnieuw sturen')} · ${o.text}` })) }; }
     if(!d.cur) return { ops:[], notes:[] };
     { const m = misfit(d); if(m) return { ops:[], notes:[m] }; }
     const ops = [], notes = [];
@@ -292,7 +316,7 @@
       for(const [i, e] of d.E) if(i < n) per[i] = clone(e);
       const adv = (d.dev.net || portEditsOf(d)) && d.cur.netcfg;       // an advanced network configuration is on its way: the addresses go with it, not through /api/ipsettings
       // the network calls are made first: the group of the lighting VLAN may only be made by them, and the network IOs of the engines are put on it afterwards (p.late)
-      const pe = portEditsOf(d), np = d.dev.net || pe ? api.lumiNetPlan(d.cur, d.dev.net || null, { currentIp:d.ip, keepAddresses:!!d.dev.netKeep, portEdits:pe }) : null;
+      const pe = portEditsOf(d), np = d.dev.net || pe ? api.lumiNetPlan(d.cur, d.dev.net || null, { currentIp:d.ip, keepAddresses:!!d.dev.netKeep, portEdits:pe, force:!!d.resend }) : null;
       const have = lightGroupOf(d);
       const p = api.lumiPlan(d.cur, { shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || DEF_MASK, gateway:d.dev.gateway || '' } : null, ports:per }, { withIp:!!d.dev.ip && !adv, artnetOffset:C.offset, lightGroup:have, lightGroupLate:have == null && np ? np.lightGroup : null });
       ops.push(...p.ops); notes.push(...p.notes);
@@ -411,9 +435,9 @@
   // The order matters when addresses change: first everything that is not an address, to every device (they are all still where
   // they were); then the addresses to all devices at the same moment, each one checked at its new address. A device this computer can no
   // longer reach is not a failure: it has its new address, and the result says what to do (add an address to this computer).
-  async function applyDevs(devs, { noIp = false } = {}){
-    const todo = devs.map(d => ({ d, ...opsOf(d) })).map(x => noIp ? { ...x, ops:x.ops.filter(o => o.kind !== 'ip') } : x).filter(x => x.ops.length);
-    if(!todo.length) return;
+  async function applyDevs(devs, { noIp = false, resend = false } = {}){
+    const todo = devs.map(d => ({ d, ...opsOf(d, resend) })).map(x => noIp ? { ...x, ops:x.ops.filter(o => o.kind !== 'ip') } : x).filter(x => x.ops.length);
+    if(!todo.length){ if(resend) App.ui.toast(t('Nothing to send again: this device is not linked to the plan.', 'Niets om opnieuw te sturen: dit apparaat is niet gekoppeld aan het plan.'), 'info'); return; }
     const moving = todo.filter(x => x.ops.some(o => o.kind === 'ip'));
     if(moving.length){          // a new address can make a device unreachable: say so first
       const ok = await App.ui.confirmDialog({ title:t('Change IP addresses?', 'IP-adressen veranderen?'), okLabel:t('Send including IP addresses', 'Versturen inclusief IP-adressen'), danger:true,
@@ -833,7 +857,7 @@
         ${settingsHtml(d)}
         ${o.notes.map(x => `<div class="subtle" style="font-size:12px">${I('info', 12)} ${esc(x)}</div>`).join('')}
         ${logHtml(d)}
-        <div class="nc-row"><span class="subtle">${n} ${t('changes waiting', 'wijzigingen wachten')}</span><span style="flex:1"></span><button data-undo="${esc(d.ip)}" ${d.E.size || d.NE.size || Object.keys(f).length || d.trunkEdit || d.S.size ? '' : 'disabled'}>${t('Undo my changes', 'Mijn wijzigingen ongedaan maken')}</button><button class="primary" data-apply="${esc(d.ip)}" ${n && !d.busy ? '' : 'disabled'}>${t('Apply…', 'Toepassen…')}</button></div></div>`;
+        <div class="nc-row"><span class="subtle">${n} ${t('changes waiting', 'wijzigingen wachten')}</span><span style="flex:1"></span><button data-undo="${esc(d.ip)}" ${d.E.size || d.NE.size || Object.keys(f).length || d.trunkEdit || d.S.size ? '' : 'disabled'}>${t('Undo my changes', 'Mijn wijzigingen ongedaan maken')}</button><button class="primary" data-apply="${esc(d.ip)}" ${d.busy ? 'disabled' : ''} title="${esc(n ? '' : t('Nothing changed: this sends the plan to the device again', 'Niets veranderd: dit stuurt het plan opnieuw naar het apparaat'))}">${t('Apply…', 'Toepassen…')}</button></div></div>`;
     }
     return `<div class="nc-card open">${head}${body}</div>`;
   }
@@ -843,6 +867,7 @@
     const sc = App.$('#mainScroll'), top = sc ? sc.scrollTop : 0, wraps = {}; root.querySelectorAll('[data-scrollkey]').forEach(w => { wraps[w.dataset.scrollkey] = [w.scrollLeft, w.scrollTop]; });
     const devs = [...C.dev.values()].sort((a, b) => (a.kind === 'gigacore' ? 0 : a.kind === 'lumi' ? 1 : 2) - (b.kind === 'gigacore' ? 0 : b.kind === 'lumi' ? 1 : 2) || ipNum(a.ip) - ipNum(b.ip));
     const total = devs.reduce((n, d) => n + (d.cur ? changeCount(d) : 0), 0);
+    const anyRead = devs.some(d => d.cur && !d.busy);
     const drifted = devs.filter(d => d.cur && !changeCount(d) && planDiff(d) > 0);
     const missing = planItems().filter(x => !devs.some(d => d.link === x.id));
     const nSw = devs.filter(d => d.kind === 'gigacore').length, nNd = devs.filter(d => d.kind === 'lumi').length, nUn = devs.filter(d => d.kind === 'unknown').length;
@@ -860,7 +885,7 @@
         ${real() ? '' : `<div class="hint nd-sim">${I('info', 13)} ${t('Simulated devices — one pretend device on every planned address, so you can try this out. In the desktop app the real devices answer.', 'Gesimuleerde apparaten — één nepapparaat op elk gepland adres, zodat je dit kunt uitproberen. In de desktop-app antwoorden de echte apparaten.')}</div>`}</details>
       ${C.err ? `<div class="su-warn">${esc(C.err)}</div>` : ''}
       ${C.found ? `<div class="nc-bar"><span><b>${nSw}</b> GigaCore · <b>${nNd}</b> LumiNode${nUn ? ` · <b>${nUn}</b> ${t('need a login', 'vragen een login')}` : ''}${C.info ? ` <span class="subtle">· ${esc(C.info)}</span>` : ''}</span><span style="flex:1"></span>
-        <button id="ncFillAll">${t('Fill all from the plan', 'Alles invullen uit het plan')}</button><button id="ncReadAll">${I('refresh', 13)}${t('Read all', 'Alles lezen')}</button><button id="ncApplyAllNoIp" ${total ? '' : 'disabled'} title="${t('Send the settings only; IP addresses are left as they are', 'Stuur alleen de instellingen; IP-adressen blijven zoals ze zijn')}">${t('Apply all without IP', 'Alles toepassen zonder IP')}</button><button class="primary" id="ncApplyAll" ${total ? '' : 'disabled'}>${t('Apply all', 'Alles toepassen')} (${total})…</button></div>
+        <button id="ncFillAll">${t('Fill all from the plan', 'Alles invullen uit het plan')}</button><button id="ncReadAll">${I('refresh', 13)}${t('Read all', 'Alles lezen')}</button><button id="ncApplyAllNoIp" ${anyRead ? '' : 'disabled'} title="${t('Send the settings only; IP addresses are left as they are', 'Stuur alleen de instellingen; IP-adressen blijven zoals ze zijn')}">${t('Apply all without IP', 'Alles toepassen zonder IP')}</button><button class="primary" id="ncApplyAll" ${anyRead ? '' : 'disabled'}>${t('Apply all', 'Alles toepassen')} (${total})…</button></div>
         ${drifted.length ? `<div class="su-warn">${I('alert', 13)} <b>${drifted.length}</b> ${t('devices differ from the plan', 'apparaten wijken af van het plan')}: ${drifted.slice(0, 8).map(d => esc(planOf(d)?.label || d.name || d.ip)).join(', ')}${drifted.length > 8 ? ' …' : ''}. ${t('The configuration has to be sent again: press “Fill all from the plan”, then “Apply all”.', 'De configuratie moet nog een keer verzonden worden: druk op “Alles invullen uit het plan” en dan op “Alles toepassen”.')}</div>` : ''}
         ${devs.length ? devs.map(cardHtml).join('') : `<div class="subtle" style="margin:14px 0">${C.watching ? t('Listening… connect a LumiNode or GigaCore and it shows up here by itself. Fill in the user name and password if the devices ask for a login.', 'Luistert… sluit een LumiNode of GigaCore aan en hij verschijnt hier vanzelf. Vul gebruikersnaam en wachtwoord in als de apparaten om een login vragen.') : t('Nothing answered. Check the cable and the adapter in Settings > Network, and fill in the user name and password if the devices ask for a login.', 'Niets antwoordde. Controleer de kabel en de adapter bij Instellingen > Netwerk, en vul gebruikersnaam en wachtwoord in als de apparaten om een login vragen.')}</div>`}
         ${missing.length ? `<details class="nc-missing"><summary>${missing.length} ${t('items of the plan have no device yet', 'onderdelen uit het plan hebben nog geen apparaat')}</summary><div class="subtle">${missing.map(x => `${esc(linkLabel(x))}${x.ip ? ` · ${esc(x.ip)}` : ''}`).join('<br>')}</div></details>` : ''}`
@@ -880,6 +905,7 @@
     const el = cardOf(d)?.querySelector(`.nc-port[data-eth="${eth}"]`); if(!el) return;
     const tmp = document.createElement('div'); tmp.innerHTML = ethTileHtml(d, eth); el.replaceWith(tmp.firstElementChild);
   }
+  const allCount = () => [...C.dev.values()].reduce((n, d) => n + (d.cur ? changeCount(d) : 0), 0);
   function bind(){
     const q = s => root.querySelector(s), qa = s => root.querySelectorAll(s), devOf = el => D(el.closest('[data-ip]')?.dataset.ip || el.dataset.ip);
     q('#ncDisc') ; const disc = document.querySelector('#ncDisc'); if(disc) disc.onclick = discover;
@@ -891,14 +917,14 @@
     bindVal('#ncOff', e => { C.offset = Number(e.value); paint(); }); bindVal('#ncSlot', e => { C.slot = e.value.trim(); }); bindVal('#ncIp', e => { C.withIp = e.checked; }); bindVal('#ncNames', e => { C.withNames = e.checked; });
     if(q('#ncReadAll')) q('#ncReadAll').onclick = async () => { await pool([...C.dev.values()].filter(d => d.kind !== 'unknown'), 4, async d => { await readDev(d); paint(); }); };
     if(q('#ncFillAll')) q('#ncFillAll').onclick = () => { let n = 0; for(const d of C.dev.values()) if(fillFromPlan(d)) n++; paint(); App.ui.toast(`${n} ${t('devices filled from the plan — nothing is sent yet', 'apparaten ingevuld uit het plan — er is nog niets gestuurd')}`, 'info'); };
-    if(q('#ncApplyAllNoIp')) q('#ncApplyAllNoIp').onclick = () => applyDevs([...C.dev.values()].filter(d => d.cur), { noIp:true });
-    if(q('#ncApplyAll')) q('#ncApplyAll').onclick = () => applyDevs([...C.dev.values()].filter(d => d.cur));
+    if(q('#ncApplyAllNoIp')) q('#ncApplyAllNoIp').onclick = () => applyDevs([...C.dev.values()].filter(d => d.cur), { noIp:true, resend:!allCount() });
+    if(q('#ncApplyAll')) q('#ncApplyAll').onclick = () => applyDevs([...C.dev.values()].filter(d => d.cur), { resend:!allCount() });
     qa('[data-toggle]').forEach(h => h.onclick = ev => { if(ev.target.closest('select,button,input')) return; const ip = h.dataset.toggle; C.open.has(ip) ? C.open.delete(ip) : C.open.add(ip); const d = D(ip); if(C.open.has(ip) && d && !d.cur && d.kind !== 'unknown' && !d.busy) readDev(d).then(paint); paint(); });
     qa('select[data-link]').forEach(s => s.onchange = () => { const d = D(s.dataset.link); d.link = s.value || null; paint(); });
     qa('[data-read]').forEach(b => b.onclick = async () => { const d = D(b.dataset.read); await readDev(d); paint(); });
     qa('[data-fill]').forEach(b => b.onclick = () => { const d = D(b.dataset.fill); fillFromPlan(d); paint(); });
     qa('[data-undo]').forEach(b => b.onclick = () => { const d = D(b.dataset.undo); d.E = new Map(); d.NE = new Map(); d.dev = {}; d.trunkEdit = null; d.S = new Map(); paint(); });
-    qa('[data-apply]').forEach(b => b.onclick = () => applyDevs([D(b.dataset.apply)]));
+    qa('[data-apply]').forEach(b => b.onclick = () => { const d = D(b.dataset.apply); applyDevs([d], { resend:!changeCount(d) }); });
     qa('[data-df]').forEach(i => i.onchange = () => { const d = D(i.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const k = i.dataset.df, v = i.value.trim(); d.dev[k] = v; if(k === 'ip' && !ipOk(v)) delete d.dev.ip; if(k === 'ip' && d.dev.ip && !d.dev.mask) d.dev.mask = planOf(d)?.s?.dev?.subnet || planOf(d)?.inst?.subnet || DEF_MASK; paint(); });
     // brushes
     qa('[data-brush]').forEach(b => b.onclick = () => { const d = D(b.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle); const v = b.dataset.brush; if(!v) d.brush = null; else if(v === 'fibre') d.brush = { type:'fibre' }; else if(v === 'isl') d.brush = { type:'isl' }; else if(!isSw(d)){ const x = ethBrushes(d).find(y => y.vid === Number(v.split(':')[1])); d.brush = { type:'vid', ...x }; } else { const x = swBrushes(d).find(y => y.vid === Number(v.split(':')[1])); d.brush = { type:'vid', ...x }; } paint(); });

@@ -738,6 +738,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.21.4 — 2026-10-15
+- New: Apply in Network config can always be clicked; with nothing changed it sends the plan to the device again.
+
 ### Version 0.21.3 — 2026-10-15
 - New: in Network config a LumiNode shows ETH1 and ETH2 next to its DMX ports; paint them like a switch with “Trunk ISL” (the node’s own trunk) or a VLAN.
 
@@ -1761,6 +1764,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.21.4 — 2026-10-15
+- Nieuw: Toepassen in Netwerkconfig kan altijd worden aangeklikt; zonder wijzigingen stuurt hij het plan opnieuw naar het apparaat.
 
 ### Versie 0.21.3 — 2026-10-15
 - Nieuw: in Netwerkconfig toont een LumiNode ETH1 en ETH2 naast zijn DMX-poorten; schilder ze zoals een switch met “Trunk ISL” (de eigen trunk van de node) of een VLAN.

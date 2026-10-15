@@ -325,9 +325,10 @@ export const prefixToMask = p => { const n = Math.max(0, Math.min(32, Number(p) 
 // the calls that bring a node to the wanted network: validate, send, commit. want = lumiNetWant(...)
 //   currentIp       the address this node is reached on now: when the wanted network no longer has it, the node moves (result.moveTo / moveMask)
 //   keepAddresses   the groups the node has already keep their addresses (only the lighting data and the ports are set); new groups get theirs
+//   force           send the whole network configuration again, also when the node already has exactly this
 //   portEdits       { 1:{ isl:true } | { vid, name?, color? } | { off:true }, 2:… } what a person set on the network ports (ETH1, ETH2) of the node itself:
 //                   its own built-in trunk (ISL) or one VLAN (that group may then configure the node). Without a plan for the groups these alone are sent.
-export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAddresses = false, portEdits = null } = {}){
+export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAddresses = false, portEdits = null, force = false } = {}){
   const ops = [], notes = [], changes = [], nc = cur?.netcfg;
   const pe = portEdits && Object.keys(portEdits).length ? portEdits : null;
   if(!want?.groups?.length && !pe) return { ops, notes, changes, moveTo:null, moveMask:null };
@@ -432,7 +433,7 @@ export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAd
     const mg = want.groups.find(g => g.mgmt && g.addresses.length), pick = mg ? cidr(mg.addresses[0]) : reach[0];
     moveTo = pick.split('/')[0]; moveMask = prefixToMask(pick.split('/')[1]);
   }
-  if(!changes.length && !nc.is_basic_config) return { ops, notes, changes, moveTo:null, moveMask:null };
+  if(!changes.length && !nc.is_basic_config){ if(!force) return { ops, notes, changes, moveTo:null, moveMask:null }; changes.push('Send the network configuration again (nothing changed)'); }
   const ports = Object.fromEntries(Object.entries(next.ports).map(([k, p]) => [k, { group:p.group ?? null, trunk:p.trunk ?? null, ...(p.link_speed ? { link_speed:p.link_speed } : {}), ...(p.type ? { type:p.type } : {}) }]));
   const body = { is_basic_config:false, allow_ipv6_only_configurability:next.allow_ipv6_only_configurability, configuration_identifier:id, groups:next.groups, trunks:next.trunks, ports, stp_mode:next.stp_mode };
   ops.push({ method:'POST', path:'/api/network_config/validate', body, text:`Check the new network configuration (${changes.length} change${changes.length === 1 ? '' : 's'})`, kind:'net' });

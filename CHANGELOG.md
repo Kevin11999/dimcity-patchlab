@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.21.4 — 2026-10-15
+
+- New: Apply in Network config can always be clicked; with nothing changed it sends the plan to the device again.
+
+<details><summary>Nederlands</summary>
+
+- Nieuw: Toepassen in Netwerkconfig kan altijd worden aangeklikt; zonder wijzigingen stuurt hij het plan opnieuw naar het apparaat.
+
+</details>
+
 ## 0.21.3 — 2026-10-15
 
 - New: in Network config a LumiNode shows ETH1 and ETH2 next to its DMX ports; paint them like a switch with “Trunk ISL” (the node’s own trunk) or a VLAN.

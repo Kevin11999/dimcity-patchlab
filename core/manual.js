@@ -1243,6 +1243,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.21.4', date:'2026-10-15',
+    en:['New: Apply in Network config can always be clicked; with nothing changed it sends the plan to the device again.'],
+    nl:['Nieuw: Toepassen in Netwerkconfig kan altijd worden aangeklikt; zonder wijzigingen stuurt hij het plan opnieuw naar het apparaat.']
+  },
+  {
     version:'0.21.3', date:'2026-10-15',
     en:['New: in Network config a LumiNode shows ETH1 and ETH2 next to its DMX ports; paint them like a switch with “Trunk ISL” (the node’s own trunk) or a VLAN.'],
     nl:['Nieuw: in Netwerkconfig toont een LumiNode ETH1 en ETH2 naast zijn DMX-poorten; schilder ze zoals een switch met “Trunk ISL” (de eigen trunk van de node) of een VLAN.']

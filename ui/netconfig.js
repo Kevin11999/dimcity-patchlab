@@ -292,6 +292,17 @@
     const w = wantNode(it); if(!w.net?.groups.length) return false;
     return api.lumiNetPlan(d.cur, w.net, { currentIp:d.ip, keepAddresses:false }).ops.length > 0;
   }
+  // What the plan would send to a linked device that is not pending yet: the same calls as "Fill from the plan", worked out on a copy, so nothing the person
+  // filled in by hand is touched. What a device refused when it was last sent (a built-in group name, for example) does not count: it would never go away.
+  function planDiff(d){
+    if(!d.cur || !d.link || d.busy || d.kind === 'unknown') return 0;
+    const it = planOf(d); if(!it || misfit(d)) return 0;
+    try {
+      const t = { ...d, E:new Map(), dev:{}, S:new Map(), trunkEdit:null, err:'', warn:'' };
+      if(!fillFromPlan(t)) return 0;
+      return opsOf(t).ops.filter(o => !(d.refused && d.refused.has(o.text))).length;
+    } catch { return 0; }
+  }
   // fill what the plan wants into the pending changes (nothing is sent)
   function fillFromPlan(d){
     const it = planOf(d); if(!it || !d.cur) return false;
@@ -393,7 +404,7 @@
     // 1 · everything but the address, to every device
     for(const x of todo){
       const { d } = x; d.busy = true; paint();
-      try { const h = logged(d); if(x.cfg.length){ const done = await api.runOps(h, x.cfg), refused = done.filter(o => o.failed); if(refused.length) d.warn = t(`The device did not accept ${refused.length} setting(s): ${refused.map(o => o.text).join('; ')}. Open “Last calls” for what it said.`, `Het apparaat nam ${refused.length} instelling(en) niet aan: ${refused.map(o => o.text).join('; ')}. Open “Laatste aanroepen” voor wat het zei.`); } if(isSw(d) && Number(C.slot) >= 1 && Number(C.slot) <= 20 && x.cfg.length) await h('PUT', `/api/config/profiles/${Number(C.slot)}/save`); }
+      try { const h = logged(d); if(x.cfg.length){ const done = await api.runOps(h, x.cfg), refused = done.filter(o => o.failed); d.refused = new Set(refused.map(o => o.text)); if(refused.length) d.warn = t(`The device did not accept ${refused.length} setting(s): ${refused.map(o => o.text).join('; ')}. Open “Last calls” for what it said.`, `Het apparaat nam ${refused.length} instelling(en) niet aan: ${refused.map(o => o.text).join('; ')}. Open “Laatste aanroepen” voor wat het zei.`); } if(isSw(d) && Number(C.slot) >= 1 && Number(C.slot) <= 20 && x.cfg.length) await h('PUT', `/api/config/profiles/${Number(C.slot)}/save`); }
       catch(e) { failed++; x.dead = true; d.err = t(`Stopped after an error: ${e.message || e}. Read the device again to see what was applied.`, `Gestopt door een fout: ${e.message || e}. Lees het apparaat opnieuw uit om te zien wat is toegepast.`); }
       d.busy = false; paint();
     }
@@ -768,6 +779,8 @@
     }
     return '';       // a node has no brush: click a port and fill in its panel
   }
+  // the plan and the device differ, and nothing is waiting to be sent: say so, so it is sent (again)
+  const driftTag = (d, n) => { if(n || d.busy) return ''; const k = planDiff(d); return k ? `<span class="tag yellow" title="${esc(t('The plan wants something else than this device has now. Press “Fill from the plan”, then apply.', 'Het plan wil iets anders dan dit apparaat nu heeft. Druk op “Invullen uit het plan” en dan op toepassen.'))}">${t('differs from the plan', 'wijkt af van het plan')}: ${k}</span>` : ''; };
   function cardHtml(d){
     const it = planOf(d), open = C.open.has(d.ip), n = d.cur ? changeCount(d) : 0;
     const ico = d.kind === 'gigacore' ? 'switchDev' : 'network';
@@ -776,7 +789,7 @@
     const head = `<div class="nc-head" data-toggle="${esc(d.ip)}"><span class="nc-chev ${open ? 'open' : ''}">${I('chevronRight', 14)}</span><span class="nc-ic ${d.kind}">${I(ico, 18)}</span>
       <span class="nc-title"><b>${esc(d.name || d.model || d.ip)}</b><small>${esc(d.ip)} · ${esc(d.kind === 'gigacore' ? (d.model || 'GigaCore') : `LumiNode${d.version ? ' ' + d.version : ''}`)}${d.cur ? ` · ${isSw(d) ? d.cur.ports.length + ' ' + t('ports', 'poorten') : d.cur.ports.length + ' DMX'}` : ''}${viaText(d) ? ' · ' + esc(viaText(d)) : ''}</small></span>
       ${d.kind === 'unknown' ? '' : `<select class="nc-link" data-link="${esc(d.ip)}" title="${t('Which switch or node of the plan this is', 'Welke switch of node uit het plan dit is')}"><option value="">${t('not linked to the plan', 'niet gekoppeld aan het plan')}</option>${opts.map(x => `<option value="${esc(x.id)}" ${x.id === d.link ? 'selected' : ''}>${esc(linkLabel(x))}</option>`).join('')}</select>`}
-      ${status}</div>`;
+      ${status}${driftTag(d, n)}</div>`;
     if(!open) return `<div class="nc-card">${head}</div>`;
     let body = '';
     if(d.kind === 'unknown') body = `<div class="nc-body"><div class="subtle">${t('This device asks for a login. Fill in the user name and password above and discover again.', 'Dit apparaat vraagt om een login. Vul gebruikersnaam en wachtwoord hierboven in en ontdek opnieuw.')}</div></div>`;
@@ -809,6 +822,7 @@
     const sc = App.$('#mainScroll'), top = sc ? sc.scrollTop : 0, wraps = {}; root.querySelectorAll('[data-scrollkey]').forEach(w => { wraps[w.dataset.scrollkey] = [w.scrollLeft, w.scrollTop]; });
     const devs = [...C.dev.values()].sort((a, b) => (a.kind === 'gigacore' ? 0 : a.kind === 'lumi' ? 1 : 2) - (b.kind === 'gigacore' ? 0 : b.kind === 'lumi' ? 1 : 2) || ipNum(a.ip) - ipNum(b.ip));
     const total = devs.reduce((n, d) => n + (d.cur ? changeCount(d) : 0), 0);
+    const drifted = devs.filter(d => d.cur && !changeCount(d) && planDiff(d) > 0);
     const missing = planItems().filter(x => !devs.some(d => d.link === x.id));
     const nSw = devs.filter(d => d.kind === 'gigacore').length, nNd = devs.filter(d => d.kind === 'lumi').length, nUn = devs.filter(d => d.kind === 'unknown').length;
     App.pageHead?.({ eyebrow:t('Network', 'Netwerk'), title:t('Network config', 'Netwerkconfig'), sub:t('All your LumiNodes and GigaCore switches on one page: discover them, paint the VLANs and universes, apply.', 'Al je LumiNodes en GigaCore-switches op één pagina: ontdek ze, schilder de VLAN’s en universes, pas toe.'),
@@ -826,6 +840,7 @@
       ${C.err ? `<div class="su-warn">${esc(C.err)}</div>` : ''}
       ${C.found ? `<div class="nc-bar"><span><b>${nSw}</b> GigaCore · <b>${nNd}</b> LumiNode${nUn ? ` · <b>${nUn}</b> ${t('need a login', 'vragen een login')}` : ''}${C.info ? ` <span class="subtle">· ${esc(C.info)}</span>` : ''}</span><span style="flex:1"></span>
         <button id="ncFillAll">${t('Fill all from the plan', 'Alles invullen uit het plan')}</button><button id="ncReadAll">${I('refresh', 13)}${t('Read all', 'Alles lezen')}</button><button id="ncApplyAllNoIp" ${total ? '' : 'disabled'} title="${t('Send the settings only; IP addresses are left as they are', 'Stuur alleen de instellingen; IP-adressen blijven zoals ze zijn')}">${t('Apply all without IP', 'Alles toepassen zonder IP')}</button><button class="primary" id="ncApplyAll" ${total ? '' : 'disabled'}>${t('Apply all', 'Alles toepassen')} (${total})…</button></div>
+        ${drifted.length ? `<div class="su-warn">${I('alert', 13)} <b>${drifted.length}</b> ${t('devices differ from the plan', 'apparaten wijken af van het plan')}: ${drifted.slice(0, 8).map(d => esc(planOf(d)?.label || d.name || d.ip)).join(', ')}${drifted.length > 8 ? ' …' : ''}. ${t('The configuration has to be sent again: press “Fill all from the plan”, then “Apply all”.', 'De configuratie moet nog een keer verzonden worden: druk op “Alles invullen uit het plan” en dan op “Alles toepassen”.')}</div>` : ''}
         ${devs.length ? devs.map(cardHtml).join('') : `<div class="subtle" style="margin:14px 0">${C.watching ? t('Listening… connect a LumiNode or GigaCore and it shows up here by itself. Fill in the user name and password if the devices ask for a login.', 'Luistert… sluit een LumiNode of GigaCore aan en hij verschijnt hier vanzelf. Vul gebruikersnaam en wachtwoord in als de apparaten om een login vragen.') : t('Nothing answered. Check the cable and the adapter in Settings > Network, and fill in the user name and password if the devices ask for a login.', 'Niets antwoordde. Controleer de kabel en de adapter bij Instellingen > Netwerk, en vul gebruikersnaam en wachtwoord in als de apparaten om een login vragen.')}</div>`}
         ${missing.length ? `<details class="nc-missing"><summary>${missing.length} ${t('items of the plan have no device yet', 'onderdelen uit het plan hebben nog geen apparaat')}</summary><div class="subtle">${missing.map(x => `${esc(linkLabel(x))}${x.ip ? ` · ${esc(x.ip)}` : ''}`).join('<br>')}</div></details>` : ''}`
         : `<div class="nc-empty">${I('search', 30)}<b>${t('Find your devices', 'Vind je apparaten')}</b><span>${t('Press Discover to list every LumiNode and GigaCore switch on the network at once. Each one is linked to a switch or node of your plan.', 'Druk op Ontdekken om elke LumiNode en GigaCore-switch op het netwerk in één keer te tonen. Elk apparaat wordt gekoppeld aan een switch of node uit je plan.')}</span></div>`}
@@ -926,5 +941,5 @@
     if(!settingsHooked && window.Settings?.onChange){ settingsHooked = true; window.Settings.onChange(() => { refreshNets().then(() => { if(visible()) paint(); }); if(visible()) ensureWatch(); else if(!autoOn()) stopWatch(); }); }
     await refreshNets(); paint(); ensureWatch();
   }
-  window.NetConfig = { canLink, misfit, moveWarnings, addAddresses, fixMoved, fixFar, render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D, applyDevs, autoLink, real, changeCount, netPending, searchLine, ensureWatch, restartWatch, refreshNets };
+  window.NetConfig = { planDiff, canLink, misfit, moveWarnings, addAddresses, fixMoved, fixFar, render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D, applyDevs, autoLink, real, changeCount, netPending, searchLine, ensureWatch, restartWatch, refreshNets };
 })();

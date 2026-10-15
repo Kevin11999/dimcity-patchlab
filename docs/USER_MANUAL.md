@@ -738,6 +738,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.21.2 — 2026-10-15
+- New: Network config compares the plan with every linked switch and node by itself and shows “differs from the plan: N” on the card and at the top, so a port you changed in the plan is seen as something that has to be sent again.
+
 ### Version 0.21.1 — 2026-10-15
 - Fixed: the copper links between two switches are now sent as trunk ports (with the VLANs of the other switch), like the fibre links; before only the port plan showed them as trunk.
 
@@ -1755,6 +1758,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.21.2 — 2026-10-15
+- Nieuw: Netwerkconfig vergelijkt het plan zelf met elke gekoppelde switch en node en toont “wijkt af van het plan: N” op de kaart en bovenaan, zodat een poort die je in het plan wijzigde wordt gezien als iets dat nog verstuurd moet worden.
 
 ### Versie 0.21.1 — 2026-10-15
 - Opgelost: de kopersverbindingen tussen twee switches worden nu als trunkpoort gestuurd (met de VLAN’s van de andere switch), net als de glasvezelverbindingen; eerst toonde alleen de poortplanning ze als trunk.

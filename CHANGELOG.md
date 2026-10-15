@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.21.2 — 2026-10-15
+
+- New: Network config compares the plan with every linked switch and node by itself and shows “differs from the plan: N” on the card and at the top, so a port you changed in the plan is seen as something that has to be sent again.
+
+<details><summary>Nederlands</summary>
+
+- Nieuw: Netwerkconfig vergelijkt het plan zelf met elke gekoppelde switch en node en toont “wijkt af van het plan: N” op de kaart en bovenaan, zodat een poort die je in het plan wijzigde wordt gezien als iets dat nog verstuurd moet worden.
+
+</details>
+
 ## 0.21.1 — 2026-10-15
 
 - Fixed: the copper links between two switches are now sent as trunk ports (with the VLANs of the other switch), like the fibre links; before only the port plan showed them as trunk.

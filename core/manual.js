@@ -1243,6 +1243,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.21.2', date:'2026-10-15',
+    en:['New: Network config compares the plan with every linked switch and node by itself and shows “differs from the plan: N” on the card and at the top, so a port you changed in the plan is seen as something that has to be sent again.'],
+    nl:['Nieuw: Netwerkconfig vergelijkt het plan zelf met elke gekoppelde switch en node en toont “wijkt af van het plan: N” op de kaart en bovenaan, zodat een poort die je in het plan wijzigde wordt gezien als iets dat nog verstuurd moet worden.']
+  },
+  {
     version:'0.21.1', date:'2026-10-15',
     en:['Fixed: the copper links between two switches are now sent as trunk ports (with the VLANs of the other switch), like the fibre links; before only the port plan showed them as trunk.'],
     nl:['Opgelost: de kopersverbindingen tussen twee switches worden nu als trunkpoort gestuurd (met de VLAN’s van de andere switch), net als de glasvezelverbindingen; eerst toonde alleen de poortplanning ze als trunk.']

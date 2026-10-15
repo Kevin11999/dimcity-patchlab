@@ -454,7 +454,7 @@ function replaceNode(dc, goneIdx, withIdx){
   const plan = App.net.getDimPlan(dc), old = plan.nodes[goneIdx], nu = plan.nodes[withIdx];
   if(!old || !nu || old === nu) return false;
   window.PatchHistory?.label?.(`${dc}: ${old.id} replaced`);
-  for(const k of ['id', 'name', 'ip', 'subnet', 'ifaces', 'ipRole', 'ipVlan', 'ipListen', 'advanced', 'advPorts', 'csvRef', 'deviceNo']) if(old[k] !== undefined) nu[k] = old[k]; else delete nu[k];
+  for(const k of ['id', 'name', 'ip', 'subnet', 'ifaces', 'ipRole', 'ipVlan', 'ipListen', 'advanced', 'advPorts', 'advIsl', 'csvRef', 'deviceNo']) if(old[k] !== undefined) nu[k] = old[k]; else delete nu[k];
   if(nu.csvRef) window.NodeLink?.refill?.(nu);
   plan.nodes.splice(goneIdx, 1);
   // the new node takes the place of the old one in the list as well

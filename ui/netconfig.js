@@ -367,6 +367,7 @@
       if(w.shortName && w.shortName !== d.cur.info?.short_name) d.dev.shortName = String(w.shortName).slice(0, 17);
       if(w.longName && w.longName !== d.cur.info?.long_name) d.dev.longName = String(w.longName).slice(0, 63);
       if(w.advanced && w.net?.groups.length){                          // the node is planned in the advanced network: send the groups and the ports
+        for(const e of [1, 2]) if(window.AdvNet?.isIsl(it.inst, e) && e <= ethNames(d).length) d.NE.set(e, { isl:true });          // a port painted Trunk ISL in the plan goes onto the node's own trunk
         d.dev.net = w.net; d.dev.netKeep = false;                        // the addresses of the plan always go with it ("Apply all without IP" leaves them out)
         const np = api.lumiNetPlan(d.cur, w.net, { currentIp:d.ip, keepAddresses:false });
         if(np.moveTo) Object.assign(d.dev, { ip:np.moveTo, mask:np.moveMask });          // …and a node that moves is announced (the "devices get a new IP address" warning)

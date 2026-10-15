@@ -1243,6 +1243,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.21.5', date:'2026-10-15',
+    en:['New: in the planner (Network > Nodes) ETH1 and ETH2 of a LumiNode are tiles you paint with “Trunk ISL” or a VLAN; it is saved in the project and “Fill from the plan” puts it on the node.'],
+    nl:['Nieuw: in de planner (Netwerk > Nodes) zijn ETH1 en ETH2 van een LumiNode tegels die je schildert met “Trunk ISL” of een VLAN; het wordt in het project bewaard en “Invullen uit het plan” zet het op de node.']
+  },
+  {
     version:'0.21.4', date:'2026-10-15',
     en:['New: Apply in Network config can always be clicked; with nothing changed it sends the plan to the device again.'],
     nl:['Nieuw: Toepassen in Netwerkconfig kan altijd worden aangeklikt; zonder wijzigingen stuurt hij het plan opnieuw naar het apparaat.']

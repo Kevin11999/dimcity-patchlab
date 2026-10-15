@@ -738,6 +738,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.21.5 — 2026-10-15
+- New: in the planner (Network > Nodes) ETH1 and ETH2 of a LumiNode are tiles you paint with “Trunk ISL” or a VLAN; it is saved in the project and “Fill from the plan” puts it on the node.
+
 ### Version 0.21.4 — 2026-10-15
 - New: Apply in Network config can always be clicked; with nothing changed it sends the plan to the device again.
 
@@ -1764,6 +1767,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.21.5 — 2026-10-15
+- Nieuw: in de planner (Netwerk > Nodes) zijn ETH1 en ETH2 van een LumiNode tegels die je schildert met “Trunk ISL” of een VLAN; het wordt in het project bewaard en “Invullen uit het plan” zet het op de node.
 
 ### Versie 0.21.4 — 2026-10-15
 - Nieuw: Toepassen in Netwerkconfig kan altijd worden aangeklikt; zonder wijzigingen stuurt hij het plan opnieuw naar het apparaat.

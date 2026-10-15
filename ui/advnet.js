@@ -47,7 +47,19 @@
     for(let e = 1; e <= Math.min(2, eth); e++) out[e] = uniq(inst.advPorts ? (inst.advPorts[e] || []) : rows.filter(r => Math.min(eth, r.eth || 1) === e).map(r => r.vlan));      // a port may carry any Luminex group, also one the node has no address in
     return out;
   }
-  const save = (inst, ports) => { inst.advPorts = { 1:uniq(ports[1] || []), 2:uniq(ports[2] || []) }; };
+  // a port is the node's own trunk (ISL) when it was painted so; an older project with several groups on one port counts as ISL too
+  const isIsl = (inst, e) => (inst.advIsl && inst.advIsl[e] !== undefined ? !!inst.advIsl[e] : (inst.advPorts?.[e] || []).length > 1);
+  const allIds = () => F().luminexGroups().map(g => g.id);
+  const save = (inst, ports) => { inst.advPorts = { 1:uniq(ports[1] || []), 2:uniq(ports[2] || []) }; if(inst.advIsl) for(const e of [1, 2]) if(inst.advIsl[e]) inst.advPorts[e] = uniq(allIds()); };
+  // paint ETH e: 'isl' = the trunk the node has itself (all groups), 'vid' = one VLAN, 'off' = not used
+  function setEth(inst, e, b){
+    const ports = { 1:[...(inst.advPorts?.[1] || [])], 2:[...(inst.advPorts?.[2] || [])] };
+    inst.advIsl = { ...(inst.advIsl || {}) }; delete inst.advMode;
+    if(b.kind === 'isl'){ inst.advIsl[e] = true; ports[e] = allIds(); }
+    else { inst.advIsl[e] = false; ports[e] = b.kind === 'vid' ? [Number(b.vid)] : []; }
+    save(inst, ports);
+  }
+  let brush = null;          // the brush for the ETH tiles: { kind:'isl' } | { kind:'vid', vid } | { kind:'off' }
 
   // ---- the addresses of a group, made with the FENT scheme ----
   // The scheme is used for the groups of an advanced node whether the project switched the FENT scheme on or not: the node needs its addresses.
@@ -83,14 +95,14 @@
     if(!inst.ip){ const ip = suggest(dc, inst, 'management', host, inst.ipVlan); if(ip){ inst.ip = ip; inst.subnet = F().MASK; } }
     for(const x of inst.ifaces) if(!x.ip){ const ip = suggest(dc, inst, x.role, host, x.vlan); if(ip){ x.ip = ip; x.mask = x.mask || F().MASK; } }
     // one cable: every group on the port that goes to the switch (ETH2 when the node has two; two groups on one cable is a trunk); the other port is not used until a VLAN is given to it
-    { const all = uniq(rowsOf(inst).map(r => r.vlan)), c = carrier(ethOf(nodeType(inst))); save(inst, { 1:c === 1 ? all : [], 2:c === 2 ? all : [] }); delete inst.advMode; }
+    { const all = uniq(rowsOf(inst).map(r => r.vlan)), c = carrier(ethOf(nodeType(inst))); delete inst.advIsl; save(inst, { 1:c === 1 ? all : [], 2:c === 2 ? all : [] }); delete inst.advMode; }
   }
   // advanced → basic: ONE address, the lighting one, on ETH1
   function toBasic(dc, inst){
     const rows = rowsOf(inst), mode = fcfg().vlanMode;
     const one = rows.find(r => r.role === 'lighting' && r.ip) || rows.find(r => r.role !== 'management' && r.ip) || rows.find(r => r.ip);
     const scan = (inst.ifaces || []).filter(x => x && x.role === 'scan' && x.ip).map(x => ({ ...x, vlan:F().roleVlan('scan', mode), eth:carrier(ethOf(nodeType(inst))) }));
-    delete inst.advanced; delete inst.advPorts; delete inst.advMode; delete inst.ipListen;
+    delete inst.advanced; delete inst.advPorts; delete inst.advMode; delete inst.advIsl; delete inst.ipListen;
     inst.ifaces = scan;
     const role = one ? one.role : 'lighting';
     inst.ipRole = role; inst.ipVlan = F().roleVlan(role, mode);
@@ -171,13 +183,14 @@
         <td><select data-av="listen" title="${esc(t('What lighting data may use this group. By default input + output: input = the node takes lighting data in from the network (to its DMX outputs), output = it takes DMX in and sends it out on the network', 'Welke lichtdata deze groep mag gebruiken. Standaard input + output: input = de node neemt lichtdata uit het netwerk (naar zijn DMX-uitgangen), output = hij neemt DMX in en stuurt het het netwerk op'))}">${PIPES.map(([v, en, nl]) => `<option value="${v}" ${pipe === v ? 'selected' : ''}>${esc(t(en, nl))}</option>`).join('')}</select></td>
         <td>${r.k === 'p' ? '' : `<button class="sm ghost" data-avrm title="${esc(t('Remove this group', 'Verwijder deze groep'))}">${I('x', 13)}</button>`}</td></tr>`;
     }).join('');
-    const portLine = e => { const v = ports[e]; return `<span class="av-port ${v.length > 1 ? 'trunk' : v.length ? 'access' : 'off'}"><b>ETH${e}</b> ${v.length > 1 ? `<span class="tag blue">trunk</span>` : v.length ? `<span class="tag">access</span>` : `<span class="tag">${t('not used', 'niet gebruikt')}</span>`} ${v.length ? `VLAN ${v.join(' + ')}` : ''}</span>`; };
-    // every network port: trunk (several VLANs, up to all of them) or access (one VLAN, or none = not used)
-    const gl = F().luminexGroups(), trunkOf = e => (inst.advMode && inst.advMode[e] !== undefined ? !!inst.advMode[e] : ports[e].length > 1);
-    const eth2 = `<div class="av-eths">${Array.from({ length:eth }, (_, i) => { const e = i + 1, v = ports[e], tr = trunkOf(e);
-      return `<div class="av-eth" data-aveth="${e}"><b>ETH${e}</b>${e === carrier(eth) && eth > 1 ? ` <span class="subtle">${t('to the switch', 'naar de switch')}</span>` : ''} <label class="nc-chk"><input type="checkbox" data-avtrunk="${e}" ${tr ? 'checked' : ''}> Trunk</label> ${tr
-        ? `<span class="av-npv">${gl.map(g => `<label class="nc-chk" title="${esc(g.name)}"><input type="checkbox" data-avpv="${e}" value="${g.id}" ${v.includes(g.id) ? 'checked' : ''}>${g.id}</label>`).join(' ')}</span> <button class="sm ghost" data-avall="${e}">${t('all', 'alle')}</button>`
-        : `<select data-avvlan="${e}"><option value="">${t('not used', 'niet gebruikt')}</option>${groupOpts(v[0]).replace(/<option value="(\d+)"/g, '<option value="v$1"')}</select>`}</div>`; }).join('')}</div>`;
+    const portLine = e => { const v = ports[e], isl = isIsl(inst, e); return `<span class="av-port ${isl ? 'trunk' : v.length ? 'access' : 'off'}"><b>ETH${e}</b> ${isl ? `<span class="tag blue">trunk ISL</span>` : v.length ? `<span class="tag">access</span>` : `<span class="tag">${t('not used', 'niet gebruikt')}</span>`} ${v.length && !isIsl(inst, e) ? `VLAN ${v.join(' + ')}` : ''}</span>`; };
+    // the network ports of the node (ETH1, ETH2), painted like the ports of a switch: Trunk ISL (the node's own trunk) or one VLAN
+    const gl = F().luminexGroups(), chip = (attr, c, on, txt) => `<button class="nc-chip ${on ? 'on' : ''}" ${attr} style="--pc:${esc(c)}"><i></i>${txt}</button>`;
+    const tile = e => { const v = ports[e], isl = isIsl(inst, e), vid = isl ? null : v[0], g = vid != null ? gl.find(x => x.id === vid) : null, col = isl ? '#38bdf8' : (g?.color || F().vlanById(vid)?.color || '#64748b');
+      return `<button class="nc-port nd eth ${isl ? 'trunk' : ''} ${!isl && vid == null ? 'off' : ''}" data-aveth="${e}" style="--pc:${esc(col)}" title="ETH${e}${e === carrier(eth) && eth > 1 ? ' · ' + t('to the switch', 'naar de switch') : ''}">
+        <span class="nc-top"><span class="nc-no">ETH${e}</span><span class="nc-ico">${isl ? '⇄' : ''}</span></span><span class="nc-nm">${esc(isl ? 'Trunk ISL' : g ? g.name : vid != null ? 'VLAN ' + vid : t('not used', 'niet gebruikt'))}</span><span class="nc-vl">${isl ? 'Trunk' : vid != null ? vid : '–'}</span></button>`; };
+    const eth2 = `<div class="av-eths"><div class="nc-brush"><span class="subtle">${t('Network ports (ETH): pick a brush, then click ETH1 / ETH2', 'Netwerkpoorten (ETH): kies een kwast, klik dan op ETH1 / ETH2')}:</span>${chip('data-avbrush="isl"', '#38bdf8', brush?.kind === 'isl', 'Trunk ISL')}${gl.map(g => chip(`data-avbrush="vid:${g.id}"`, g.color || '#64748b', brush?.kind === 'vid' && brush.vid === g.id, `${g.id} ${esc(g.name)}`)).join('')}${chip('data-avbrush="off"', '#64748b', brush?.kind === 'off', t('not used', 'niet gebruikt'))}</div>
+      <div class="nc-grid nd av-tiles">${Array.from({ length:eth }, (_, i) => tile(i + 1)).join('')}</div></div>`;
     return `<div class="nn-adv on" data-advnode="${idx}">
       <div class="av-wrap"><table class="data-table nn-adv-t av-t"><thead><tr><th>${t('Group (Luminex VLAN)', 'Groep (Luminex-VLAN)')}</th><th>${t('Used for', 'Gebruikt voor')}</th><th>${t('Address', 'Adres')}</th><th>${t('Mask', 'Mask')}</th><th>${t('Lighting data', 'Lichtdata')}</th><th></th></tr></thead><tbody>${trs}</tbody></table></div>
       <div class="av-bar"><button class="sm" data-avadd>${I('plus', 13)} ${t('Add group', 'Groep toevoegen')}</button><button class="sm" data-avfent title="${esc(t('Make the address of every group again with the FENT scheme (10.90.x.x management, 10.40.x.x lighting)', 'Maak het adres van elke groep opnieuw met het FENT-schema (10.90.x.x beheer, 10.40.x.x licht)'))}">${I('refresh', 13)} ${t('Addresses from the FENT scheme', 'Adressen volgens het FENT-schema')}</button>${eth2}
@@ -234,18 +247,15 @@
         (inst.ifaces ||= []).push({ role, vlan:vid, ip:suggest(dc, inst, role, undefined, vid), mask:F().MASK, eth:1 });
         { const c = carrier(eth); ports[c] = uniq([...(ports[c] || []), vid]); } save(inst, ports); done();
       };
-      box.querySelectorAll('[data-avtrunk],[data-avpv],[data-avvlan],[data-avall]').forEach(el => { const fn = () => {
-        const rows = rowsOf(inst), ports = portsOf(inst, rows, eth), e = Number(el.dataset.avtrunk || el.dataset.avpv || el.dataset.avvlan || el.dataset.avall); label(`ETH${e}`);
-        inst.advMode ||= {};
-        if(el.dataset.avtrunk){ inst.advMode[e] = el.checked; if(el.checked && ports[e].length < 2) ports[e] = uniq(rows.map(r => r.vlan)); else if(!el.checked) ports[e] = ports[e].slice(0, 1); }
-        else if(el.dataset.avall !== undefined) ports[e] = F().luminexGroups().map(g => g.id);
-        else if(el.dataset.avvlan !== undefined) ports[e] = el.value === '' ? [] : [Number(el.value.slice(1))];
-        else ports[e] = [...el.closest('[data-aveth]').querySelectorAll('[data-avpv]:checked')].map(x => Number(x.value));
-        save(inst, ports); done(); }; if(el.tagName === 'BUTTON') el.onclick = fn; else el.onchange = fn; });
+      box.querySelectorAll('[data-avbrush]').forEach(bt => bt.onclick = () => { const v = bt.dataset.avbrush; brush = v === 'isl' ? { kind:'isl' } : v === 'off' ? { kind:'off' } : { kind:'vid', vid:Number(v.split(':')[1]) }; rerender(); });
+      box.querySelectorAll('[data-aveth]').forEach(bt => bt.onclick = () => {
+        if(!brush){ App.ui.toast(t('Pick a brush first: Trunk ISL or a VLAN.', 'Kies eerst een kwast: Trunk ISL of een VLAN.'), 'info'); return; }
+        label(`ETH${bt.dataset.aveth}`); setEth(inst, Number(bt.dataset.aveth), brush); done();
+      });
       const fe = box.querySelector('[data-avfent]'); if(fe) fe.onclick = () => {
         label('addresses from the FENT scheme'); fentAll(dc, inst); done();
       };
     });
   }
-  window.AdvNet = { html, bind, toggle, isOn, setAll, sync, adopt, globalHtml, bindGlobal, rowsOf, portsOf, moved, prune, placeNew, fentAll };
+  window.AdvNet = { isIsl, html, bind, toggle, isOn, setAll, sync, adopt, globalHtml, bindGlobal, rowsOf, portsOf, moved, prune, placeNew, fentAll };
 })();

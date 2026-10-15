@@ -302,7 +302,7 @@ export function lumiNetWant(ifs, ethCount = 1, vlanOf = () => null, portVids = n
   }
   // only management addresses (and nothing chosen): that group carries the lighting too
   if(groups.size && !(ifs || []).some(x => x.listen !== undefined && x.listen !== null) && ![...groups.values()].some(g => g.pipe)) for(const g of groups.values()) g.pipe = 'input+output';
-  const ports = Array.from({ length:Math.max(1, ethCount) }, (_, i) => ({ eth:i + 1, vids:portVids ? [...new Set((portVids[i + 1] || []).map(Number).filter(Number.isFinite))] : [...new Set((ifs || []).filter(x => (Number(x.eth) || 1) === i + 1 && x.vlan != null && x.ip).map(x => Number(x.vlan)))] }));
+  const ports = Array.from({ length:Math.max(1, ethCount) }, (_, i) => ({ eth:i + 1, ...(portVids?.isl?.[i + 1] ? { isl:true } : {}), vids:portVids ? [...new Set((portVids[i + 1] || []).map(Number).filter(Number.isFinite))] : [...new Set((ifs || []).filter(x => (Number(x.eth) || 1) === i + 1 && x.vlan != null && x.ip).map(x => Number(x.vlan)))] }));
   for(const p of ports) for(const v of p.vids) if(!groups.has(v)) groups.set(v, mk(v));           // a port can carry a VLAN that has no address of its own
   for(const g of groups.values()) g.listen = !!g.pipe;
   return { groups:[...groups.values()].sort((a, b) => a.vid - b.vid), ports, names:[] };
@@ -374,8 +374,19 @@ export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAd
   }
   for(const g of wantNames){ const k = gid.get(g.vid); if(k != null) look(k, g); }          // the other VLANs of the overview that the node has (not used on it)
   const rj = Object.entries(next.ports).filter(([, p]) => (p.type || 'rj45') === 'rj45').map(([name]) => name);
+  // a port on the node's own trunk (ISL): it carries every group of the node, groups made later too. No trunk of our own is made.
+  const islPort = name => {
+    const port = next.ports[name], was = port.trunk != null ? `trunk ${port.trunk}` : port.group != null ? `group ${port.group}` : 'no group';
+    const tid = predefTrunk(next.trunks, nc.groups);
+    if(tid == null){ notes.push(`Port ${name}: this node does not report its own trunk (ISL), so it was not set.`); return; }
+    const tr = next.trunks[tid], every = Object.keys(next.groups).map(Number), miss = every.filter(x => !(tr.groups || []).includes(x));
+    if(miss.length && tr.editable !== false){ tr.groups = [...(tr.groups || []), ...miss].sort((a, b) => a - b); changes.push(`Trunk ${tid} “${tr.name}”: also carry group ${miss.join(', ')}`); }
+    if(Number(port.trunk) !== Number(tid)) changes.push(`Port ${name}: ${was} → the node's own trunk ${tid} “${tr.name}”`);
+    port.trunk = Number(tid); port.group = null;
+  };
   (want.ports || []).forEach((wp, i) => {
     const name = rj[i]; if(!name){ if(wp.vids.length) notes.push(`This node has no network port ${i + 1}.`); return; }
+    if(wp.isl){ islPort(name); return; }
     const ids = wp.vids.map(v => gid.get(v)).filter(x => x != null); if(!ids.length) return;
     const port = next.ports[name];
     if(ids.length === 1){
@@ -403,14 +414,8 @@ export function lumiNetPlan(cur, want, { id = Date.now(), currentIp = '', keepAd
   for(const [eth, e] of Object.entries(pe || {})){
     const name = rj[Number(eth) - 1], port = next.ports[name]; if(!port){ notes.push(`This node has no network port ${eth}.`); continue; }
     const was = port.trunk != null ? `trunk ${port.trunk}` : port.group != null ? `group ${port.group}` : 'no group';
-    if(e.isl){
-      const tid = predefTrunk(next.trunks, nc.groups);
-      if(tid == null){ notes.push(`Port ${name}: this node does not report its own trunk (ISL), so it was not set.`); continue; }
-      const tr = next.trunks[tid], every = Object.keys(next.groups).map(Number), miss = every.filter(x => !(tr.groups || []).includes(x));
-      if(miss.length && tr.editable !== false){ tr.groups = [...(tr.groups || []), ...miss].sort((a, b) => a - b); changes.push(`Trunk ${tid} “${tr.name}”: also carry group ${miss.join(', ')}`); }
-      if(Number(port.trunk) !== Number(tid)) changes.push(`Port ${name}: ${was} → the node's own trunk ${tid} “${tr.name}”`);
-      port.trunk = Number(tid); port.group = null;
-    } else if(e.vid != null){
+    if(e.isl){ islPort(name); continue; }
+    else if(e.vid != null){
       let k = gid.get(Number(e.vid));
       if(k == null){
         if(top >= 255){ notes.push(`No room for a group for VLAN ${e.vid} (a node holds 255 groups).`); continue; }

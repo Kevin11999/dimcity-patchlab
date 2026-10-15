@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.21.7 — 2026-10-15
+
+- Fixed: a port painted Trunk ISL no longer adds all 20 groups to a LumiNode; the node only gets the groups it has an address in, and the port goes on its own trunk.
+
+<details><summary>Nederlands</summary>
+
+- Opgelost: een poort die op Trunk ISL staat voegt niet meer alle 20 groepen toe aan een LumiNode; de node krijgt alleen de groepen waar hij een adres in heeft en de poort komt op zijn eigen trunk.
+
+</details>
+
 ## 0.21.6 — 2026-10-15
 
 - Fixed: after “Fill from the plan” the ETH tiles of a LumiNode in Network config show the VLAN the plan wants (marked as a change), not only what the node has now.

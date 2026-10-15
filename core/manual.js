@@ -1243,6 +1243,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.21.7', date:'2026-10-15',
+    en:['Fixed: a port painted Trunk ISL no longer adds all 20 groups to a LumiNode; the node only gets the groups it has an address in, and the port goes on its own trunk.'],
+    nl:['Opgelost: een poort die op Trunk ISL staat voegt niet meer alle 20 groepen toe aan een LumiNode; de node krijgt alleen de groepen waar hij een adres in heeft en de poort komt op zijn eigen trunk.']
+  },
+  {
     version:'0.21.6', date:'2026-10-15',
     en:['Fixed: after “Fill from the plan” the ETH tiles of a LumiNode in Network config show the VLAN the plan wants (marked as a change), not only what the node has now.'],
     nl:['Opgelost: na “Invullen uit het plan” tonen de ETH-tegels van een LumiNode in Netwerkconfig het VLAN dat het plan wil (als wijziging gemarkeerd), niet alleen wat de node nu heeft.']

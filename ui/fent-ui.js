@@ -95,7 +95,7 @@
     if(kind === 'node'){
       dev.ip = F().suggestRole('lighting', c.group, no, host); dev.subnet = F().MASK; dev.ipRole = 'lighting'; dev.ipVlan = F().roleVlan('lighting', c.vlanMode);
       dev.ifaces = [];
-      if(c.scan && host + 100 <= 250) dev.ifaces.push({ role:'scan', vlan:F().roleVlan('scan', c.vlanMode), ip:F().suggestRole('scan', c.group, no, host + 100), mask:F().MASK, eth:1 });
+      if(c.scan && host + 100 <= 250) dev.ifaces.push({ role:'scan', vlan:F().roleVlan('scan', c.vlanMode), ip:F().suggestRole('scan', c.group, no, host + 100), mask:F().MASK });
       return;
     }
     const vm = F().roleVlan('management', c.vlanMode), vl = F().roleVlan('lighting', c.vlanMode), vs = F().roleVlan('scan', c.vlanMode);

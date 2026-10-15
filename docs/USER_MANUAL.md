@@ -738,6 +738,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.21.0 — 2026-10-15
+- Changed: on a node with two network ports the cable to the switch is ETH2 (a trunk on an advanced node, access VLAN 200 on a basic one); in the Advanced screen every network port is set to trunk (several VLANs) or access (one VLAN), and ETH1 is only used when you give it a VLAN. Nodes that already have their own choice keep it.
+
 ### Version 0.20.9 — 2026-10-14
 - New: a LumiNode can only be linked to a place of the plan with as many DMX ports (a LumiNode 4 never gets the place of a LumiNode 12), in the Align tool and in Network config; a wrong link is reported and nothing is sent to it.
 
@@ -1749,6 +1752,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.21.0 — 2026-10-15
+- Aangepast: bij een node met twee netwerkpoorten is de kabel naar de switch ETH2 (een trunk bij een advanced node, access VLAN 200 bij een basis-node); in het Advanced-scherm stel je elke netwerkpoort in als trunk (meerdere VLAN’s) of access (één VLAN), en ETH1 wordt alleen gebruikt als je hem een VLAN geeft. Nodes met een eigen keuze houden die.
 
 ### Versie 0.20.9 — 2026-10-14
 - Nieuw: een LumiNode kan alleen gekoppeld worden aan een plek uit het plan met evenveel DMX-poorten (een LumiNode 4 krijgt nooit de plek van een LumiNode 12), in de uitlijntool en in Netwerkconfig; een verkeerde koppeling wordt gemeld en er wordt niets naar gestuurd.

@@ -22,6 +22,7 @@
   const dimNo = dc => (App.dimSlot ? App.dimSlot(dc) : (/(\d+)/.exec(String(dc)) || [0, 1])[1] * 1);
   const ethOf = nt => Math.min(2, Math.max(1, Number(nt?.ethernetCount) || 1));
   const nodeType = inst => (M().networkDevices.nodeTypes || []).find(x => x.id === inst.typeId);
+  const carrier = eth => (eth >= 2 ? 2 : 1);          // the network port that goes to the switch: ETH2 when the node has two, else ETH1
   const dirty = () => { const m = M(); if(m?.ui) m.ui.dirty = true; };
   const ROLE_NAME = { management:['Management', 'Beheer'], lighting:['Lighting', 'Licht'], scan:['Scan', 'Scan'], other:['Other', 'Overig'] };
   const PIPES = [['input+output', 'input + output', 'input + output'], ['', 'none', 'geen']];       // a node cannot split input and output, and only ONE group takes part in the lighting data
@@ -43,7 +44,7 @@
   // the groups on each RJ45: what was chosen; not chosen yet = what the addresses said (the same as Fent.portsOf does without a choice)
   function portsOf(inst, rows, eth){
     const vids = uniq(rows.map(r => r.vlan)), out = { 1:[], 2:[] };
-    for(let e = 1; e <= Math.min(2, eth); e++) out[e] = uniq(inst.advPorts ? (inst.advPorts[e] || []) : rows.filter(r => Math.min(eth, r.eth || 1) === e).map(r => r.vlan)).filter(v => e === 2 || vids.includes(v));      // ETH2 may carry any Luminex group, also one the node has no address in
+    for(let e = 1; e <= Math.min(2, eth); e++) out[e] = uniq(inst.advPorts ? (inst.advPorts[e] || []) : rows.filter(r => Math.min(eth, r.eth || 1) === e).map(r => r.vlan));      // a port may carry any Luminex group, also one the node has no address in
     return out;
   }
   const save = (inst, ports) => { inst.advPorts = { 1:uniq(ports[1] || []), 2:uniq(ports[2] || []) }; };
@@ -81,15 +82,15 @@
     const host = hostFor(dc, inst);
     if(!inst.ip){ const ip = suggest(dc, inst, 'management', host, inst.ipVlan); if(ip){ inst.ip = ip; inst.subnet = F().MASK; } }
     for(const x of inst.ifaces) if(!x.ip){ const ip = suggest(dc, inst, x.role, host, x.vlan); if(ip){ x.ip = ip; x.mask = x.mask || F().MASK; } }
-    // one cable: every group on ETH1 (two groups on one cable is a trunk); ETH2 is free to choose
-    save(inst, { 1:uniq(rowsOf(inst).map(r => r.vlan)), 2:[] });
+    // one cable: every group on the port that goes to the switch (ETH2 when the node has two; two groups on one cable is a trunk); the other port is not used until a VLAN is given to it
+    { const all = uniq(rowsOf(inst).map(r => r.vlan)), c = carrier(ethOf(nodeType(inst))); save(inst, { 1:c === 1 ? all : [], 2:c === 2 ? all : [] }); delete inst.advMode; }
   }
   // advanced → basic: ONE address, the lighting one, on ETH1
   function toBasic(dc, inst){
     const rows = rowsOf(inst), mode = fcfg().vlanMode;
     const one = rows.find(r => r.role === 'lighting' && r.ip) || rows.find(r => r.role !== 'management' && r.ip) || rows.find(r => r.ip);
-    const scan = (inst.ifaces || []).filter(x => x && x.role === 'scan' && x.ip).map(x => ({ ...x, vlan:F().roleVlan('scan', mode), eth:1 }));
-    delete inst.advanced; delete inst.advPorts; delete inst.ipListen;
+    const scan = (inst.ifaces || []).filter(x => x && x.role === 'scan' && x.ip).map(x => ({ ...x, vlan:F().roleVlan('scan', mode), eth:carrier(ethOf(nodeType(inst))) }));
+    delete inst.advanced; delete inst.advPorts; delete inst.advMode; delete inst.ipListen;
     inst.ifaces = scan;
     const role = one ? one.role : 'lighting';
     inst.ipRole = role; inst.ipVlan = F().roleVlan(role, mode);
@@ -111,7 +112,7 @@
   function globalHtml(){
     const on = isOn();
     const body = `<div class="nn-adv-global"><label class="nn-adv-sw" title="${esc(t('One switch for every node and LumiCore of the show', 'Eén schakelaar voor elke node en LumiCore van de show'))}"><input type="checkbox" data-advglobal ${on ? 'checked' : ''}> <b>${t('Advanced network', 'Advanced netwerk')}</b> <span class="subtle">${t('for all nodes and LumiCores', 'voor alle nodes en LumiCores')}</span></label>
-      <div class="subtle av-note">${on ? t('On: every node has ONE cable that is a trunk (ETH1) with two addresses: management (VLAN 1) and data (VLAN 200, set as output by its DMX ports). More groups can be added per node. ETH2 can carry one VLAN of that trunk, for instance to daisy-chain the data.', 'Aan: elke node heeft ÉÉN kabel die een trunk is (ETH1) met twee adressen: beheer (VLAN 1) en data (VLAN 200, als output ingesteld door zijn DMX-poorten). Per node kunnen groepen worden toegevoegd. ETH2 kan één VLAN van die trunk dragen, bijvoorbeeld om de data door te lussen.')
+      <div class="subtle av-note">${on ? t('On: every node has ONE cable that is a trunk with two addresses: management (VLAN 1) and data (VLAN 200, input + output). On a node with two network ports it is ETH2. More groups can be added per node. Every network port can be set to trunk (several VLANs) or access (one VLAN).', 'Aan: elke node heeft ÉÉN kabel die een trunk is met twee adressen: beheer (VLAN 1) en data (VLAN 200, input + output). Bij een node met twee netwerkpoorten is dat ETH2. Per node kunnen groepen worden toegevoegd. Elke netwerkpoort is in te stellen als trunk (meerdere VLAN’s) of access (één VLAN).')
         : t('Off (basic): every node has ONE cable and ONE address, on the lighting VLAN (sACN / Art-Net, 10.40.x.x) as an access port. Switch it on for a trunk with a management and a data address.', 'Uit (basic): elke node heeft ÉÉN kabel en ÉÉN adres, op het licht-VLAN (sACN / Art-Net, 10.40.x.x) als access-poort. Zet hem aan voor een trunk met een beheer- en een dataadres.')}</div></div>`;
     return App.ui.card({ key:'net-advglobal', title:t('Network of the nodes', 'Netwerk van de nodes'), icon:'network', meta:on ? 'advanced' : 'basic', collapsible:false, body });
   }
@@ -138,12 +139,13 @@
   function prune(inst){
     if(!inst?.advPorts) return;
     const vids = uniq(rowsOf(inst).map(r => r.vlan));
-    inst.advPorts[1] = uniq((inst.advPorts[1] || []).filter(v => vids.includes(Number(v))));      // ETH2 keeps its own choice
+    const c = carrier(ethOf(nodeType(inst)));
+    inst.advPorts[c] = uniq((inst.advPorts[c] || []).filter(v => vids.includes(Number(v))));      // the other port keeps its own choice
   }
-  // a new group: on ETH1
+  // a new group: on the port that goes to the switch
   function placeNew(inst, vlan){
     if(!inst?.advPorts || vlan == null) return;
-    if(![1, 2].some(e => (inst.advPorts[e] || []).map(Number).includes(Number(vlan)))) inst.advPorts[1] = uniq([...(inst.advPorts[1] || []), vlan]);
+    if(![1, 2].some(e => (inst.advPorts[e] || []).map(Number).includes(Number(vlan)))) { const c = carrier(ethOf(nodeType(inst))); inst.advPorts[c] = uniq([...(inst.advPorts[c] || []), vlan]); }
   }
 
   // ---- the HTML ----
@@ -167,15 +169,17 @@
         <td><input data-av="ip" class="mono ${r.ip && !F().isIp(r.ip) ? 'invalid' : ''}" value="${esc(r.ip)}" placeholder="10.40.101.11" inputmode="numeric" style="width:130px"></td>
         <td><input data-av="mask" class="mono" value="${esc(r.mask)}" placeholder="${F().MASK}" inputmode="numeric" style="width:120px"></td>
         <td><select data-av="listen" title="${esc(t('What lighting data may use this group. By default input + output: input = the node takes lighting data in from the network (to its DMX outputs), output = it takes DMX in and sends it out on the network', 'Welke lichtdata deze groep mag gebruiken. Standaard input + output: input = de node neemt lichtdata uit het netwerk (naar zijn DMX-uitgangen), output = hij neemt DMX in en stuurt het het netwerk op'))}">${PIPES.map(([v, en, nl]) => `<option value="${v}" ${pipe === v ? 'selected' : ''}>${esc(t(en, nl))}</option>`).join('')}</select></td>
-        <td class="av-chk"><input type="checkbox" data-avport="1" ${ports[1].includes(r.vlan) ? 'checked' : ''} title="ETH1"></td>
         <td>${r.k === 'p' ? '' : `<button class="sm ghost" data-avrm title="${esc(t('Remove this group', 'Verwijder deze groep'))}">${I('x', 13)}</button>`}</td></tr>`;
     }).join('');
     const portLine = e => { const v = ports[e]; return `<span class="av-port ${v.length > 1 ? 'trunk' : v.length ? 'access' : 'off'}"><b>ETH${e}</b> ${v.length > 1 ? `<span class="tag blue">trunk</span>` : v.length ? `<span class="tag">access</span>` : `<span class="tag">${t('not used', 'niet gebruikt')}</span>`} ${v.length ? `VLAN ${v.join(' + ')}` : ''}</span>`; };
-    // ETH2: nothing, any Luminex group (one VLAN), or the same trunk as ETH1 (the node's own predefined trunk)
-    const cur2 = ports[2].length === 1 ? ports[2][0] : null, trunk2 = ports[2].length > 1, canTrunk = ports[1].length > 1;
-    const eth2 = eth > 1 ? `<label class="av-eth2" title="${esc(t('Choose what the other network port carries: one VLAN (any Luminex group) or the trunk with all the groups of ETH1', 'Kies wat de andere netwerkpoort draagt: één VLAN (elke Luminex-groep) of de trunk met alle groepen van ETH1'))}"><b>ETH2</b> <select data-aveth2><option value="">${t('not used', 'niet gebruikt')}</option>${canTrunk || trunk2 ? `<option value="trunk" ${trunk2 ? 'selected' : ''}>${t('Trunk · all groups of ETH1', 'Trunk · alle groepen van ETH1')}</option>` : ''}${groupOpts(cur2).replace(/<option value="(\d+)"/g, '<option value="v$1"')}</select></label>` : '';
+    // every network port: trunk (several VLANs, up to all of them) or access (one VLAN, or none = not used)
+    const gl = F().luminexGroups(), trunkOf = e => (inst.advMode && inst.advMode[e] !== undefined ? !!inst.advMode[e] : ports[e].length > 1);
+    const eth2 = `<div class="av-eths">${Array.from({ length:eth }, (_, i) => { const e = i + 1, v = ports[e], tr = trunkOf(e);
+      return `<div class="av-eth" data-aveth="${e}"><b>ETH${e}</b>${e === carrier(eth) && eth > 1 ? ` <span class="subtle">${t('to the switch', 'naar de switch')}</span>` : ''} <label class="nc-chk"><input type="checkbox" data-avtrunk="${e}" ${tr ? 'checked' : ''}> Trunk</label> ${tr
+        ? `<span class="av-npv">${gl.map(g => `<label class="nc-chk" title="${esc(g.name)}"><input type="checkbox" data-avpv="${e}" value="${g.id}" ${v.includes(g.id) ? 'checked' : ''}>${g.id}</label>`).join(' ')}</span> <button class="sm ghost" data-avall="${e}">${t('all', 'alle')}</button>`
+        : `<select data-avvlan="${e}"><option value="">${t('not used', 'niet gebruikt')}</option>${groupOpts(v[0]).replace(/<option value="(\d+)"/g, '<option value="v$1"')}</select>`}</div>`; }).join('')}</div>`;
     return `<div class="nn-adv on" data-advnode="${idx}">
-      <div class="av-wrap"><table class="data-table nn-adv-t av-t"><thead><tr><th>${t('Group (Luminex VLAN)', 'Groep (Luminex-VLAN)')}</th><th>${t('Used for', 'Gebruikt voor')}</th><th>${t('Address', 'Adres')}</th><th>${t('Mask', 'Mask')}</th><th>${t('Lighting data', 'Lichtdata')}</th><th class="av-chk">ETH1</th><th></th></tr></thead><tbody>${trs}</tbody></table></div>
+      <div class="av-wrap"><table class="data-table nn-adv-t av-t"><thead><tr><th>${t('Group (Luminex VLAN)', 'Groep (Luminex-VLAN)')}</th><th>${t('Used for', 'Gebruikt voor')}</th><th>${t('Address', 'Adres')}</th><th>${t('Mask', 'Mask')}</th><th>${t('Lighting data', 'Lichtdata')}</th><th></th></tr></thead><tbody>${trs}</tbody></table></div>
       <div class="av-bar"><button class="sm" data-avadd>${I('plus', 13)} ${t('Add group', 'Groep toevoegen')}</button><button class="sm" data-avfent title="${esc(t('Make the address of every group again with the FENT scheme (10.90.x.x management, 10.40.x.x lighting)', 'Maak het adres van elke groep opnieuw met het FENT-schema (10.90.x.x beheer, 10.40.x.x licht)'))}">${I('refresh', 13)} ${t('Addresses from the FENT scheme', 'Adressen volgens het FENT-schema')}</button>${eth2}
         <span class="av-ports">${Array.from({ length:eth }, (_, i) => portLine(i + 1)).join('')}</span></div>
       <div class="subtle av-note">${t('The VLAN of a group stays the Luminex one (group 1 = VLAN 1, group 2 = VLAN 200 …) whatever VLAN numbering the show uses. A port with two or more groups is a trunk; the switch port it is plugged into is made a trunk too.', 'Het VLAN van een groep blijft dat van Luminex (groep 1 = VLAN 1, groep 2 = VLAN 200 …), welke VLAN-nummering de show ook gebruikt. Een poort met twee of meer groepen is een trunk; de switchpoort waar hij in zit wordt ook een trunk.')}</div>
@@ -214,12 +218,6 @@
           else write(inst, k, f, v);
           done();
         });
-        tr.querySelectorAll('[data-avport]').forEach(cb => cb.onchange = () => {
-          const rows = rowsOf(inst), row = rowOf(k), ports = portsOf(inst, rows, eth), e = Number(cb.dataset.avport), vid = Number(row.vlan);
-          label(`ETH${e}`);
-          ports[e] = cb.checked ? uniq([...(ports[e] || []), vid]) : (ports[e] || []).filter(x => x !== vid);
-          save(inst, ports); done();
-        });
         const rm = tr.querySelector('[data-avrm]'); if(rm) rm.onclick = () => {
           const ports = portsOf(inst, rowsOf(inst), eth);
           label('group removed'); inst.ifaces.splice(Number(k), 1);
@@ -234,12 +232,16 @@
         if(!pick){ App.ui.toast(t('All groups are in use', 'Alle groepen zijn in gebruik'), 'info'); return; }
         label('group added'); const [vid, role] = pick, ports = portsOf(inst, rows, eth);
         (inst.ifaces ||= []).push({ role, vlan:vid, ip:suggest(dc, inst, role, undefined, vid), mask:F().MASK, eth:1 });
-        ports[1] = uniq([...(ports[1] || []), vid]); save(inst, ports); done();
+        { const c = carrier(eth); ports[c] = uniq([...(ports[c] || []), vid]); } save(inst, ports); done();
       };
-      const e2 = box.querySelector('[data-aveth2]'); if(e2) e2.onchange = () => {
-        const ports = portsOf(inst, rowsOf(inst), eth); label('ETH2');
-        ports[2] = e2.value === '' ? [] : e2.value === 'trunk' ? ports[1].slice() : [Number(e2.value.slice(1))]; save(inst, ports); done();
-      };
+      box.querySelectorAll('[data-avtrunk],[data-avpv],[data-avvlan],[data-avall]').forEach(el => { const fn = () => {
+        const rows = rowsOf(inst), ports = portsOf(inst, rows, eth), e = Number(el.dataset.avtrunk || el.dataset.avpv || el.dataset.avvlan || el.dataset.avall); label(`ETH${e}`);
+        inst.advMode ||= {};
+        if(el.dataset.avtrunk){ inst.advMode[e] = el.checked; if(el.checked && ports[e].length < 2) ports[e] = uniq(rows.map(r => r.vlan)); else if(!el.checked) ports[e] = ports[e].slice(0, 1); }
+        else if(el.dataset.avall !== undefined) ports[e] = F().luminexGroups().map(g => g.id);
+        else if(el.dataset.avvlan !== undefined) ports[e] = el.value === '' ? [] : [Number(el.value.slice(1))];
+        else ports[e] = [...el.closest('[data-aveth]').querySelectorAll('[data-avpv]:checked')].map(x => Number(x.value));
+        save(inst, ports); done(); }; if(el.tagName === 'BUTTON') el.onclick = fn; else el.onchange = fn; });
       const fe = box.querySelector('[data-avfent]'); if(fe) fe.onclick = () => {
         label('addresses from the FENT scheme'); fentAll(dc, inst); done();
       };

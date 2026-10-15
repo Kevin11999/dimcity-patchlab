@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.21.0 — 2026-10-15
+
+- Changed: on a node with two network ports the cable to the switch is ETH2 (a trunk on an advanced node, access VLAN 200 on a basic one); in the Advanced screen every network port is set to trunk (several VLANs) or access (one VLAN), and ETH1 is only used when you give it a VLAN. Nodes that already have their own choice keep it.
+
+<details><summary>Nederlands</summary>
+
+- Aangepast: bij een node met twee netwerkpoorten is de kabel naar de switch ETH2 (een trunk bij een advanced node, access VLAN 200 bij een basis-node); in het Advanced-scherm stel je elke netwerkpoort in als trunk (meerdere VLAN’s) of access (één VLAN), en ETH1 wordt alleen gebruikt als je hem een VLAN geeft. Nodes met een eigen keuze houden die.
+
+</details>
+
 ## 0.20.9 — 2026-10-14
 
 - New: a LumiNode can only be linked to a place of the plan with as many DMX ports (a LumiNode 4 never gets the place of a LumiNode 12), in the Align tool and in Network config; a wrong link is reported and nothing is sent to it.

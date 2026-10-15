@@ -1622,3 +1622,5 @@ tr.bad>td{background:var(--red-soft)}
 
 .pb-file.st-empty{opacity:.45}
 .pb-file.st-empty b{text-decoration:line-through}
+
+.av-eths{display:flex;flex-direction:column;gap:6px;margin-top:8px}.av-eth{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:12.5px}.av-eth select{min-width:170px}.av-npv{display:inline-flex;flex-wrap:wrap;gap:4px 8px}

@@ -125,10 +125,11 @@
   }
   // ---- addresses of one device: the primary address (dev.ip / dev.subnet) and more (dev.ifaces) ----
   // { role, vlan, ip, mask, eth }  eth = which RJ45 of the device (1 or 2) carries it
+  // the cable of a node with two network ports goes to ETH2 (unless an address was given its own port)
   function ifaces(dev, ethCount = 1){
-    const list = [];
-    if(dev?.ip) list.push({ primary:true, role:dev.ipRole || 'management', vlan:dev.ipVlan ?? classify(dev.ip)?.vlan?.id ?? null, ip:dev.ip, mask:dev.subnet || '', eth:1, listen:dev.ipListen });
-    (dev?.ifaces || []).forEach((x, i) => { if(x && (x.ip || x.vlan)) list.push({ primary:false, i, role:x.role || 'lighting', vlan:x.vlan ?? ROLES[x.role || 'lighting']?.luminex ?? null, ip:x.ip || '', mask:x.mask || '', eth:Math.min(Math.max(1, ethCount), Number(x.eth) || 1), listen:x.listen }); });
+    const list = [], dflt = Math.max(1, ethCount) >= 2 ? 2 : 1;
+    if(dev?.ip) list.push({ primary:true, role:dev.ipRole || 'management', vlan:dev.ipVlan ?? classify(dev.ip)?.vlan?.id ?? null, ip:dev.ip, mask:dev.subnet || '', eth:Math.min(Math.max(1, ethCount), Number(dev.ipEth) || dflt), listen:dev.ipListen });
+    (dev?.ifaces || []).forEach((x, i) => { if(x && (x.ip || x.vlan)) list.push({ primary:false, i, role:x.role || 'lighting', vlan:x.vlan ?? ROLES[x.role || 'lighting']?.luminex ?? null, ip:x.ip || '', mask:x.mask || '', eth:Math.min(Math.max(1, ethCount), Number(x.eth) || dflt), listen:x.listen }); });
     return list;
   }
   // The RJ45 ports of a device and what they carry. One VLAN on a port = access port; two or more = trunk
@@ -141,13 +142,13 @@
         const vlans = [...new Set((dev.advPorts[e] || []).map(Number).filter(Number.isFinite))];
         out.push({ eth:e, ifs:list.filter(x => vlans.includes(Number(x.vlan))), vlans, mode:vlans.length > 1 ? 'trunk' : 'access' });
       }
-      return all ? out : out.filter(p => p.vlans.length || p.eth === 1);
+      return all ? out : out.filter(p => p.vlans.length || (p.eth === 1 && !out.some(q => q.vlans.length)));
     }
     for(let e = 1; e <= Math.max(1, ethCount); e++){
       const on = list.filter(x => x.eth === e), vlans = [...new Set(on.map(x => x.vlan).filter(v => v != null))];
       out.push({ eth:e, ifs:on, vlans, mode:vlans.length > 1 ? 'trunk' : 'access' });
     }
-    return all ? out : out.filter(p => p.ifs.length || p.eth === 1);      // all: every network port gets a row (a console with two ports)
+    return all ? out : out.filter(p => p.ifs.length || (p.eth === 1 && !out.some(q => q.ifs.length)));      // all: every network port gets a row (a console with two ports)
   }
   // Switch port plan: every RJ45 of every device gets the next switch port. devices: [{ label, ethCount, dev }]
   function switchPlan(devices, first = 1){

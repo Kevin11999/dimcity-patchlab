@@ -746,7 +746,7 @@
     const ctl = it?.kind === 'nd' && it.inst.advanced ? (() => {
       const nt = (App.getMODEL().networkDevices.nodeTypes || []).find(x => x.id === it.inst.typeId), eth = Math.min(2, Math.max(1, Number(nt?.ethernetCount) || 1)), groups = FENT().luminexGroups();
       const have = {}; for(const p of wantNode(it).net?.ports || []) have[p.eth] = (p.vids || []).map(Number);
-      return `<div class="nc-nports">${Array.from({ length:eth }, (_, i) => { const e = i + 1, cur = have[e] || [], trunk = d.pm?.[e] ?? cur.length > 1;
+      return `<div class="nc-nports">${Array.from({ length:eth }, (_, i) => { const e = i + 1, cur = have[e] || [], trunk = it.inst.advMode?.[e] ?? cur.length > 1;
         return `<div class="nc-nport" data-nport="${e}"><b>ETH${e}</b> <label class="nc-chk"><input type="checkbox" data-nptrunk="${e}" ${trunk ? 'checked' : ''}> Trunk</label> ${trunk
           ? `<span class="nc-npv">${groups.map(g => `<label class="nc-chk" title="${esc(g.name)}"><input type="checkbox" data-npv="${e}" value="${g.id}" ${cur.includes(g.id) ? 'checked' : ''}>${g.id}</label>`).join(' ')}</span> <button class="sm ghost" data-npall="${e}">${t('all', 'alle')}</button>`
           : `<select data-npvlan="${e}"><option value="">${t('not used', 'niet gebruikt')}</option>${groups.map(g => `<option value="${g.id}" ${cur[0] === g.id ? 'selected' : ''}>VLAN ${g.id} · ${esc(g.name)}</option>`).join('')}</select>`}</div>`; }).join('')}</div>`;
@@ -858,9 +858,9 @@
     qa('[data-nptrunk],[data-npvlan],[data-npv],[data-npall]').forEach(el => { const fn = () => {
       const d = D(el.closest('.nc-card').querySelector('[data-toggle]').dataset.toggle), it = planOf(d); if(!it || it.kind !== 'nd') return;
       const net = wantNode(it).net, cur = {}; for(const p of net?.ports || []) cur[p.eth] = (p.vids || []).map(Number);
-      const all = groups => [...new Set(groups)], e = Number(el.dataset.nptrunk || el.dataset.npvlan || el.dataset.npv || el.dataset.npall); d.pm ||= {};
+      const all = groups => [...new Set(groups)], e = Number(el.dataset.nptrunk || el.dataset.npvlan || el.dataset.npv || el.dataset.npall); it.inst.advMode ||= {};
       const adv = { 1:cur[1] || [], 2:cur[2] || [] };
-      if(el.dataset.nptrunk){ d.pm[e] = el.checked; adv[e] = el.checked ? (adv[e].length > 1 ? adv[e] : all((net?.groups || []).map(g => g.vid))) : adv[e].slice(0, 1); }
+      if(el.dataset.nptrunk){ it.inst.advMode[e] = el.checked; adv[e] = el.checked ? (adv[e].length > 1 ? adv[e] : all((net?.groups || []).map(g => g.vid))) : adv[e].slice(0, 1); }
       else if(el.dataset.npall){ adv[e] = FENT().luminexGroups().map(g => g.id); }
       else if(el.dataset.npvlan !== undefined) adv[e] = el.value ? [Number(el.value)] : [];
       else adv[e] = [...el.closest('.nc-nport').querySelectorAll('[data-npv]:checked')].map(x => Number(x.value));

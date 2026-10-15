@@ -1243,6 +1243,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.22.1', date:'2026-10-15',
+    en:['Fixed: the Fill step of the Align tool also clears the ETH brush choices of the node cards, so only what the plan wants is sent.'],
+    nl:['Opgelost: de invulstap van de uitlijntool wist ook de ETH-kwastkeuzes van de nodekaarten, zodat alleen gaat wat het plan wil.']
+  },
+  {
     version:'0.22.0', date:'2026-10-15',
     en:['New: devices are found with the Luminex mDNS name (_luminex._tcp.local), with serial number and firmware, and a device in another IP range is reached through its IPv6 link-local address, without adding an address to this computer.'],
     nl:['Nieuw: apparaten worden gevonden met de Luminex mDNS-naam (_luminex._tcp.local), met serienummer en firmware, en een apparaat in een ander IP-bereik wordt bereikt via zijn IPv6 link-local adres, zonder een adres aan deze computer toe te voegen.']

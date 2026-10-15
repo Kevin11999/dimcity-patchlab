@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.22.1 — 2026-10-15
+
+- Fixed: the Fill step of the Align tool also clears the ETH brush choices of the node cards, so only what the plan wants is sent.
+
+<details><summary>Nederlands</summary>
+
+- Opgelost: de invulstap van de uitlijntool wist ook de ETH-kwastkeuzes van de nodekaarten, zodat alleen gaat wat het plan wil.
+
+</details>
+
 ## 0.22.0 — 2026-10-15
 
 - New: devices are found with the Luminex mDNS name (_luminex._tcp.local), with serial number and firmware, and a device in another IP range is reached through its IPv6 link-local address, without adding an address to this computer.

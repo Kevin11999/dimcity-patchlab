@@ -73,7 +73,7 @@
   async function fillAll(){
     A.busy = true; paint();
     NC().state.withIp = !!A.withIp; NC().state.withNames = A.withNames !== false;
-    for(const d of devs()) if(d.link){ if(!d.cur) await NC().readDev(d); d.E = new Map(); d.dev = {}; NC().fillFromPlan(d); }
+    for(const d of devs()) if(d.link){ if(!d.cur) await NC().readDev(d); d.E = new Map(); d.NE = new Map(); d.dev = {}; NC().fillFromPlan(d); }
     A.filled = true; A.moves = await NC().moveWarnings(devs().filter(d => d.link && d.cur)); A.busy = false; paint();
   }
   async function prepare(){

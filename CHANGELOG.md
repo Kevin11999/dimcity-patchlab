@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.21.1 — 2026-10-15
+
+- Fixed: the copper links between two switches are now sent as trunk ports (with the VLANs of the other switch), like the fibre links; before only the port plan showed them as trunk.
+
+<details><summary>Nederlands</summary>
+
+- Opgelost: de kopersverbindingen tussen twee switches worden nu als trunkpoort gestuurd (met de VLAN’s van de andere switch), net als de glasvezelverbindingen; eerst toonde alleen de poortplanning ze als trunk.
+
+</details>
+
 ## 0.21.0 — 2026-10-15
 
 - Changed: on a node with two network ports the cable to the switch is ETH2 (a trunk on an advanced node, access VLAN 200 on a basic one); in the Advanced screen every network port is set to trunk (several VLANs) or access (one VLAN), and ETH1 is only used when you give it a VLAN. Nodes that already have their own choice keep it.

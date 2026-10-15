@@ -1243,6 +1243,11 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.`
 // same text is used as the GitHub release body. Keep entries short: one line per change.
 export const CHANGES = [
   {
+    version:'0.21.1', date:'2026-10-15',
+    en:['Fixed: the copper links between two switches are now sent as trunk ports (with the VLANs of the other switch), like the fibre links; before only the port plan showed them as trunk.'],
+    nl:['Opgelost: de kopersverbindingen tussen twee switches worden nu als trunkpoort gestuurd (met de VLAN’s van de andere switch), net als de glasvezelverbindingen; eerst toonde alleen de poortplanning ze als trunk.']
+  },
+  {
     version:'0.21.0', date:'2026-10-15',
     en:['Changed: on a node with two network ports the cable to the switch is ETH2 (a trunk on an advanced node, access VLAN 200 on a basic one); in the Advanced screen every network port is set to trunk (several VLANs) or access (one VLAN), and ETH1 is only used when you give it a VLAN. Nodes that already have their own choice keep it.'],
     nl:['Aangepast: bij een node met twee netwerkpoorten is de kabel naar de switch ETH2 (een trunk bij een advanced node, access VLAN 200 bij een basis-node); in het Advanced-scherm stel je elke netwerkpoort in als trunk (meerdere VLAN’s) of access (één VLAN), en ETH1 wordt alleen gebruikt als je hem een VLAN geeft. Nodes met een eigen keuze houden die.']

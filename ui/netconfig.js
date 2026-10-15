@@ -173,6 +173,12 @@
       fibre.push(window.SwPorts?.no(s.type, Number(me.sfp)) ?? (s.rj + Number(me.sfp)));
       if(other && !other.free && other.sw) vlansOf(other.dc, other.sw).forEach(v => vset.add(v));
     }
+    // a copper link between two switches: both ends are trunk ports, carrying the VLANs of the switch at the other end (a fibre link does the same)
+    for(const l of (window.NetSwitches?.linksOf(dc) || [])){
+      if(l.sw !== s.label) continue;
+      if(!fibre.includes(l.port)) fibre.push(l.port);
+      if(l.to && l.to.sw) vlansOf(l.to.dc, l.to.sw).forEach(v => vset.add(v));
+    }
     // every SFP port is a trunk
     for(let i = 1; i <= s.sfp; i++){ const no = window.SwPorts?.no(s.type, i) ?? (s.rj + i); if(!fibre.includes(no)) fibre.push(no); }
     for(let k = fibre.length - 1; k >= 0; k--) if(vidPorts.has(fibre[k])) fibre.splice(k, 1);

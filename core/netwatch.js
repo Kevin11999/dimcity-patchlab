@@ -8,8 +8,9 @@
 // A device this computer cannot ask (another IP range) is reported with reach:false, so the window can offer to add an address to this computer.
 // A device that stops answering is reported as gone, and as seen again when it comes back.
 import dgram from 'node:dgram';
+import os from 'node:os';
 import net from 'node:net';
-import { luminexHttp, luminexIdentify, expandRanges } from './luminex-http.js';
+import { luminexHttp, luminexIdentify, expandRanges, V6_LINK_LOCAL } from './luminex-http.js';
 import { rangesOf } from './netadapters.js';
 import { ARTNET_PORT, buildPoll, parsePollReply, opOf, OP } from './artnet.js';
 
@@ -59,6 +60,7 @@ export function dnsParse(buf){
       const type = buf.readUInt16BE(o), len = buf.readUInt16BE(o + 8), d = o + 10; o = d + len;
       let data = null;
       if(type === 1 && len === 4) data = `${buf[d]}.${buf[d + 1]}.${buf[d + 2]}.${buf[d + 3]}`;
+      else if(type === 28 && len === 16) data = Array.from({ length:8 }, (_, i) => buf.readUInt16BE(d + i * 2).toString(16)).join(':');
       else if(type === 12) data = name(d)[0];
       else if(type === 33) data = { port: buf.readUInt16BE(d + 4), target: name(d + 6)[0] };
       else if(type === 16){ data = []; for(let q = d; q < d + len; q += 1 + buf[q]) data.push(buf.toString('utf8', q + 1, q + 1 + buf[q])); }
@@ -66,6 +68,27 @@ export function dnsParse(buf){
     }
     return rr;
   } catch { return null; }
+}
+
+// What a Luminex device says about itself when it is asked for _luminex._tcp.local (mDNS: PTR + SRV + TXT + A + AAAA in one answer), or null when the answer is not from one.
+//   { name, product, serial, mac, firmware, ipv4, v6 }  v6 = its IPv6 link-local address (fe80::…), without a zone
+export function luminexAnswer(rr){
+  if(!Array.isArray(rr) || !rr.some(r => (r.type === 12 && /_luminex\._tcp\.local$/i.test(String(r.data || ''))) || /_luminex\._tcp\.local$/i.test(String(r.name || '')))) return null;
+  const t = {}; for(const r of rr) if(r.type === 16) for(const kv of r.data || []){ const i = String(kv).indexOf('='); if(i > 0) t[String(kv).slice(0, i).toLowerCase()] = String(kv).slice(i + 1); }
+  const a = rr.find(r => r.type === 1)?.data, g = rr.find(r => r.type === 28 && /^fe80:/i.test(String(r.data || '')))?.data;
+  const ipv4 = String(t.ip_address || '').split('/')[0].trim() || a || '';
+  if(!/^\d{1,3}(\.\d{1,3}){3}$/.test(ipv4)) return null;
+  return { name: t.device_name || '', product: t.product_type || '', serial: t.serial || '', mac: t.mac || '', firmware: t.firmware_version || '', ipv4, v6: g || '' };
+}
+// the link-local zones of the ticked adapters: the number on Windows, the name elsewhere (a fe80:: address only means something together with the adapter it is reached on)
+export function linkLocalZones(adapterNames, ifaces = os.networkInterfaces(), platform = process.platform){
+  const out = [];
+  for(const [name, list] of Object.entries(ifaces || {})){
+    if(adapterNames && !adapterNames.includes(name)) continue;
+    const l = (list || []).find(x => (x.family === 'IPv6' || x.family === 6) && /^fe80:/i.test(x.address || '') && !x.internal);
+    if(l) out.push(platform === 'win32' ? String(l.scopeid) : name);
+  }
+  return [...new Set(out)].filter(z => V6_LINK_LOCAL.test(`fe80::1%${z}`));
 }
 
 // ---- LLDP: what GET /api/lldp/neighbor says (GigaCore: per port the system name, description, management address, MAC; the LumiNode answers the same path) ----
@@ -87,7 +110,7 @@ export function parseNeighbors(data){
 //                   { ip, kind: lumi | gigacore | unknown, name, longName, model, version, auth, via: [sweep|mdns|lldp], reach, gone, from?, port? }
 //   onGone(ip)      a device stopped answering
 //   onState(state)  { running, adapters, mdns, sweep: { round, done, total }, found, errors }
-export function createWatcher({ getAdapters = async () => [], range = '', user, pass, https: useTls = false, seed = [], onSeen = () => {}, onGone = () => {}, onState = () => {} } = {}){
+export function createWatcher({ getAdapters = async () => [], range = '', user, pass, https: useTls = false, seed = [], identify = luminexIdentify, zonesOf = linkLocalZones, onSeen = () => {}, onGone = () => {}, onState = () => {} } = {}){
   const port = useTls ? 443 : 80, creds = { user, pass, https: useTls };
   let nets = [], stopped = true, mdnsSock = null, artSock = null, mdnsListen = false, lldpTimer = null;
   const known = new Map(), ignored = new Map(), busy = new Set(), timers = new Set(), joined = new Set();
@@ -115,6 +138,9 @@ export function createWatcher({ getAdapters = async () => [], range = '', user, 
     emitState();
   }
 
+  // what the mDNS answer added: serial number, MAC, firmware and the product name
+  const withInfo = (dev, info) => (info ? { ...dev, ...(info.serial ? { serial: info.serial } : {}), ...(info.mac ? { mac: dev.mac || info.mac } : {}), ...(info.firmware ? { firmware: info.firmware } : {}), ...(info.product && !dev.model ? { product: info.product } : {}) } : dev);
+
   // something was seen at this address (by a sweep, by mdns, in an LLDP table): is it one of ours?
   //   opts.portOpen: the caller already knows that the web port answers (the sweep)
   async function check(ip, via, hint = {}, { portOpen = false } = {}){
@@ -127,12 +153,19 @@ export function createWatcher({ getAdapters = async () => [], range = '', user, 
       if(local(ip)){
         if(!portOpen && !(await probePort(ip, port, 700))){ if(!k) ignored.set(ip, Date.now() + 15000); return; }
         const dev = await luminexIdentify({ ip, ...creds, timeoutMs: 1500 }).catch(() => null);
-        if(dev) remember(dev, via, seenBy);
+        if(dev) remember(withInfo(dev, hint.info), via, seenBy);
         else if(!k) ignored.set(ip, Date.now() + 180000);                  // something else with a web page: not asked again for a while
       } else {
-        // another IP range: this computer cannot ask the device, so only what the sighting says can tell what it is
+        // another IP range: first through its IPv6 link-local address (it works on the same cable whatever the IPv4 range is), else only what the sighting says
+        if(hint.info?.v6){
+          for(const zone of zonesOf([...new Set(nets.map(n => n.adapter))])){
+            const v6 = `${hint.info.v6}%${zone}`;
+            const dev = await identify({ ip, v6, ...creds, timeoutMs: 1500 }).catch(() => null);
+            if(dev){ remember(withInfo(dev, hint.info), via, seenBy); return; }
+          }
+        }
         const said = `${hint.name || ''} ${hint.desc || ''}`;
-        if(LUMI.test(said)) remember({ ip, kind: /gigacore/i.test(said) ? 'gigacore' : /lumi/i.test(said) ? 'lumi' : 'unknown', name: hint.name || '', longName: hint.desc || '', model: '', version: '', auth: false }, via, { reach: false, ...seenBy });
+        if(LUMI.test(said)) remember(withInfo({ ip, kind: /gigacore/i.test(said) ? 'gigacore' : /lumi/i.test(said) ? 'lumi' : 'unknown', name: hint.name || '', longName: hint.info ? '' : hint.desc || '', model: hint.info && /gigacore/i.test(hint.info.product) ? hint.info.product : '', version: '', auth: false }, hint.info), via, { reach: false, ...seenBy });
         else if(!k) ignored.set(ip, Date.now() + 180000);
       }
     } finally { busy.delete(ip); }
@@ -143,7 +176,7 @@ export function createWatcher({ getAdapters = async () => [], range = '', user, 
     await pool([...known.entries()], 8, async ([ip, rec]) => {
       if(stopped) return;
       if(rec.reach === false){ if(!rec.gone && Date.now() - rec.last > 90000){ rec.gone = true; onGone(ip); } return; }
-      if(await probePort(ip, port, 800)){ rec.last = Date.now(); rec.misses = 0; if(rec.gone){ rec.gone = false; onSeen(out(rec)); kickLldp(); } }
+      if(await probePort(rec.dev.v6 || ip, port, 800)){ rec.last = Date.now(); rec.misses = 0; if(rec.gone){ rec.gone = false; onSeen(out(rec)); kickLldp(); } }
       else if(++rec.misses >= 2 && !rec.gone){ rec.gone = true; onGone(ip); }
     });
   }
@@ -155,7 +188,7 @@ export function createWatcher({ getAdapters = async () => [], range = '', user, 
     await pool(list, 4, async ([ip, rec]) => {
       if(stopped) return;
       let data;
-      try { data = await luminexHttp({ ip, path: '/api/lldp/neighbor', ...creds, timeoutMs: 2500 }); }
+      try { data = await luminexHttp({ ip, ...(rec.dev.v6 ? { v6: rec.dev.v6 } : {}), path: '/api/lldp/neighbor', ...creds, timeoutMs: 2500 }); }
       catch(e){ if(e.status === 404 || e.status === 405) rec.noLldp = true; return; }
       for(const n of parseNeighbors(data)) for(const nip of n.ips.slice(0, 1)) if(nip !== ip) await check(nip, 'lldp', { name: n.name, desc: n.desc, from: rec.dev.name || ip, port: n.port, observer: rec.dev.kind });
     });
@@ -166,6 +199,8 @@ export function createWatcher({ getAdapters = async () => [], range = '', user, 
     const rr = dnsParse(msg); if(!rr) return;
     const host = new Map(); for(const r of rr) if(r.type === 1) host.set(r.data, r.name.replace(/\.local$/i, ''));
     const about = rr.filter(r => r.type === 12 || r.type === 33).map(r => `${r.name} ${typeof r.data === 'string' ? r.data : r.data?.target || ''}`).concat(rr.filter(r => r.type === 16).flatMap(r => r.data)).join(' ');
+    const la = luminexAnswer(rr);
+    if(la){ check(la.ipv4, 'mdns', { name: la.name || la.product, desc: `${la.product} ${about}`, info: la }).catch(() => {}); return; }
     for(const ip of new Set([rinfo.address, ...host.keys()])) check(ip, 'mdns', { name: host.get(ip) || '', desc: about }).catch(() => {});
   }
   async function startMdns(){
@@ -183,7 +218,7 @@ export function createWatcher({ getAdapters = async () => [], range = '', user, 
     st.mdns = mdnsListen ? 'listening' : 'asking'; emitState();
     const ask = () => {
       if(mdnsListen) for(const n of nets) if(!joined.has(n.address)){ joined.add(n.address); try { mdnsSock.addMembership('224.0.0.251', n.address); } catch {} }
-      for(const n of nets){ try { mdnsSock.setMulticastInterface(n.address); for(const q of ['_services._dns-sd._udp.local', '_workstation._tcp.local', '_http._tcp.local']) mdnsSock.send(dnsQuery(q), 5353, '224.0.0.251'); } catch(e){ err('mDNS', e); } }
+      for(const n of nets){ try { mdnsSock.setMulticastInterface(n.address); for(const q of ['_luminex._tcp.local', '_services._dns-sd._udp.local', '_workstation._tcp.local', '_http._tcp.local']) mdnsSock.send(dnsQuery(q), 5353, '224.0.0.251'); } catch(e){ err('mDNS', e); } }
     };
     ask(); timers.add(setInterval(ask, 20000));
   }

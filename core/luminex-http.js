@@ -1,8 +1,11 @@
 // core/luminex-http.js — one HTTP call to a Luminex device (GigaCore gen 2 WebApi / LumiNode WebApi), run in the main process.
 // Only /api/ paths on a plain IPv4 address, GET/PUT/POST, Basic auth when a user name is given, short time-out.
+// an IPv6 link-local address with its zone (the network adapter it is reached through): fe80::d269:9eff:fe11:1f0c%17 (Windows: the number, else the name)
+export const V6_LINK_LOCAL = /^fe80(?::[0-9a-f]{0,4}){2,7}%[A-Za-z0-9_.\-]{1,40}$/i;
 export async function luminexHttp(req = {}){
-  const { ip, method = 'GET', path: apiPath = '', body, bodyBase64, contentType, asBase64, user, pass, https: useTls, timeoutMs = 6000 } = req;
+  const { ip, v6, method = 'GET', path: apiPath = '', body, bodyBase64, contentType, asBase64, user, pass, https: useTls, timeoutMs = 6000 } = req;
   if(!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip || '')) throw new Error('Bad IP');
+  if(v6 != null && !V6_LINK_LOCAL.test(v6)) throw new Error('Bad IPv6 address');
   if(!/^\/api\/(?:[A-Za-z0-9_\-\/{}.]|%[0-9A-Fa-f]{2})*(\?[A-Za-z0-9_=&%]*)?$/.test(apiPath) || apiPath.includes('..')) throw new Error('Bad path');
   if(!['GET', 'PUT', 'POST', 'DELETE'].includes(method)) throw new Error('Bad method');
   const mod = await import(useTls ? 'node:https' : 'node:http');
@@ -13,7 +16,7 @@ export async function luminexHttp(req = {}){
   if(payload != null){ headers['Content-Type'] = bodyBase64 != null ? 'application/octet-stream' : 'application/json'; headers['Content-Length'] = Buffer.byteLength(payload); }
   if(user) headers.Authorization = 'Basic ' + Buffer.from(`${user}:${pass || ''}`).toString('base64');
   return await new Promise((resolve, reject) => {
-    const r = mod.request({ host: ip, port: useTls ? 443 : 80, path: apiPath, method, headers, timeout: Math.min(10000, Math.max(300, Number(timeoutMs) || 6000)), rejectUnauthorized: false }, res => {
+    const r = mod.request({ host: v6 || ip, port: useTls ? 443 : 80, path: apiPath, method, headers, timeout: Math.min(10000, Math.max(300, Number(timeoutMs) || 6000)), rejectUnauthorized: false }, res => {
       const chunks = []; let size = 0; res.on('data', c => { size += c.length; if(size < 6e6) chunks.push(c); });
       res.on('end', () => {
         const buf = Buffer.concat(chunks), data = buf.toString('utf8');
@@ -51,21 +54,21 @@ export function expandRanges(text, max = 1024){
 
 // What is at this address? GET /api/software/version with a "current" field is a LumiNode / LumiCore, GET /api/device with a model is a GigaCore.
 // A device that asks for a login answers 401: "unknown", login needed. Anything else (a router, a printer, nothing) gives null.
-export async function luminexIdentify({ ip, user, pass, https: useTls, timeoutMs = 1500 } = {}){
-  const base = { ip, user, pass, https: useTls, timeoutMs };
+export async function luminexIdentify({ ip, v6, user, pass, https: useTls, timeoutMs = 1500 } = {}){
+  const base = { ip, ...(v6 ? { v6 } : {}), user, pass, https: useTls, timeoutMs };
   let auth = false;
   try {
     const v = await luminexHttp({ ...base, path: '/api/software/version' });
     if(v && typeof v === 'object' && v.current != null){
       let info = {}; try { info = (await luminexHttp({ ...base, path: '/api/deviceinfo' })) || {}; } catch {}
-      return { ip, kind: 'lumi', name: info.short_name || '', longName: info.long_name || '', model: '', version: String(v.current), auth: false };
+      return { ip, ...(v6 ? { v6 } : {}), kind: 'lumi', name: info.short_name || '', longName: info.long_name || '', model: '', version: String(v.current), auth: false };
     }
   } catch(e) { if(e.status === 401) auth = true; }
   try {
     const d = await luminexHttp({ ...base, path: '/api/device' });
-    if(d && typeof d === 'object' && (d.model != null || d.name != null)) return { ip, kind: 'gigacore', name: d.name || '', longName: d.description || '', model: d.model || '', mac: d.mac_address || '', version: '', auth: false };
+    if(d && typeof d === 'object' && (d.model != null || d.name != null)) return { ip, ...(v6 ? { v6 } : {}), kind: 'gigacore', name: d.name || '', longName: d.description || '', model: d.model || '', mac: d.mac_address || '', version: '', auth: false };
   } catch(e) { if(e.status === 401) auth = true; }
-  return auth ? { ip, kind: 'unknown', name: '', longName: '', model: '', version: '', auth: true } : null;
+  return auth ? { ip, ...(v6 ? { v6 } : {}), kind: 'unknown', name: '', longName: '', model: '', version: '', auth: true } : null;
 }
 
 // Find LumiNodes / LumiCores and GigaCores. Step 1: which addresses have port 80 open (fast, many at once). Step 2: ask those (luminexIdentify).

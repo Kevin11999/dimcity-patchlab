@@ -54,7 +54,7 @@
     C.simNets = [...(C.simNets || []), ...adds.map(a => ({ address:a.ip, netmask:a.mask }))]; return { ok:true, adds };
   }
   function transport(ip){
-    if(real()) return (method, path, body, opts = {}) => window.app.luminexHttp({ ip, method, path, body, user:C.user, pass:C.pass, https:C.https, ...opts });
+    if(real()) return (method, path, body, opts = {}) => window.app.luminexHttp({ ip, ...(C.dev.get(ip)?.v6 ? { v6:C.dev.get(ip).v6 } : {}), method, path, body, user:C.user, pass:C.pass, https:C.https, ...opts });
     return async (method, path, body, opts = {}) => { const d = simNet().find(x => simIp(x) === ip); await new Promise(r => setTimeout(r, 20)); if(!d || !reaches(ip, C.simNets)) throw new Error('Timeout — no answer from ' + ip); return d.dev.h(method, path, body, opts); };
   }
 
@@ -74,7 +74,7 @@
   }
   // Automatic: while this page (or the Align tool) is open, the main process keeps looking and tells what it sees (core/netwatch.js)
   const visible = () => App.getMODEL?.()?.ui?.view === 'NETCONFIG' || !!document.getElementById('alRoot');
-  const seedOf = () => [...C.dev.values()].map(d => ({ ip:d.ip, kind:d.kind, name:d.name, longName:d.longName, model:d.model, version:d.version, auth:d.auth, via:d.via || [], reach:!d.far }));
+  const seedOf = () => [...C.dev.values()].map(d => ({ ip:d.ip, v6:d.v6 || undefined, serial:d.serial || undefined, kind:d.kind, name:d.name, longName:d.longName, model:d.model, version:d.version, auth:d.auth, via:d.via || [], reach:!d.far }));
   const devsChanged = () => { try { window.dispatchEvent(new Event('nc-devices')); } catch {} };
   function liveHtml(){
     const s = C.watchState; if(!C.watching) return '';
@@ -216,10 +216,10 @@
 
   // ---------- one device ----------
   const D = ip => C.dev.get(ip);
-  function mk(f){ return { ip:f.ip, kind:f.kind, name:f.name || '', longName:f.longName || '', model:f.model || '', version:f.version || '', auth:!!f.auth, link:null, cur:null, E:new Map(), NE:new Map(), dev:{}, brush:null, sel:null, tree:null, treeBusy:false, S:new Map(), setOpen:false, setSec:null, setQ:'', busy:false, err:'', note:'', verified:false, step:1, via:f.via || [], from:'', far:null, gone:false }; }
+  function mk(f){ return { ip:f.ip, v6:f.v6 || '', serial:f.serial || '', mac:f.mac || '', firmware:f.firmware || '', kind:f.kind, name:f.name || '', longName:f.longName || '', model:f.model || '', version:f.version || '', auth:!!f.auth, link:null, cur:null, E:new Map(), NE:new Map(), dev:{}, brush:null, sel:null, tree:null, treeBusy:false, S:new Map(), setOpen:false, setSec:null, setQ:'', busy:false, err:'', note:'', verified:false, step:1, via:f.via || [], from:'', far:null, gone:false }; }
   // how it was found, for the small line under the name
   const viaName = v => ({ sweep:t('IP scan', 'IP-scan'), mdns:'mDNS', lldp:'LLDP', artnet:'Art-Net' }[v] || v);
-  const viaText = d => [(d.via || []).map(viaName).join(' + '), d.from ? `${t('port', 'poort')} ${d.fromPort ?? '?'} ${t('of', 'van')} ${d.from}` : ''].filter(Boolean).join(' · ');
+  const viaText = d => [(d.via || []).map(viaName).join(' + '), d.v6 ? t('reached via IPv6', 'bereikt via IPv6') : '', d.serial || '', d.from ? `${t('port', 'poort')} ${d.fromPort ?? '?'} ${t('of', 'van')} ${d.from}` : ''].filter(Boolean).join(' · ');
   const isSw = d => d.kind === 'gigacore';
   const ports = d => (isSw(d) ? api.portRows(d.cur) : d.cur.ports);
   // what the ports look like with the pending changes on top
@@ -420,6 +420,7 @@
     const prev = old?.get(f.ip) || C.dev.get(f.ip);
     const d = prev && prev.kind === f.kind ? Object.assign(prev, { name:prev.name || f.name, auth:!!f.auth }) : mk(f);
     const isNew = !C.dev.has(f.ip); C.dev.set(f.ip, d); C.found = [...C.dev.keys()];
+    if(f.v6) d.v6 = f.v6; if(f.serial) d.serial = f.serial; if(f.mac) d.mac = d.mac || f.mac; if(f.firmware) d.firmware = f.firmware;
     if(f.via?.length) d.via = [...new Set([...(d.via || []), ...f.via])]; if(f.from){ d.from = f.from; d.fromPort = f.port; }
     d.far = f.reach === false ? (d.far || { mask:DEF_MASK }) : null; d.gone = !!f.gone;          // far: in another IP range, this computer cannot ask it yet
     autoLink(); paint(); devsChanged(); if((isNew || !d.cur) && !d.far) queueRead(d);

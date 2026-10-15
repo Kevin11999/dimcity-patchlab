@@ -738,6 +738,9 @@ Every request becomes a GitHub issue, so you can follow what happens with it.
 <a id="whats-new"></a>
 ## What's new
 
+### Version 0.22.0 — 2026-10-15
+- New: devices are found with the Luminex mDNS name (_luminex._tcp.local), with serial number and firmware, and a device in another IP range is reached through its IPv6 link-local address, without adding an address to this computer.
+
 ### Version 0.21.7 — 2026-10-15
 - Fixed: a port painted Trunk ISL no longer adds all 20 groups to a LumiNode; the node only gets the groups it has an address in, and the port goes on its own trunk.
 
@@ -1773,6 +1776,9 @@ Elk verzoek wordt een GitHub-issue, zodat je kunt volgen wat ermee gebeurt.
 
 <a id="whats-new-nl"></a>
 ## Wat is er nieuw
+
+### Versie 0.22.0 — 2026-10-15
+- Nieuw: apparaten worden gevonden met de Luminex mDNS-naam (_luminex._tcp.local), met serienummer en firmware, en een apparaat in een ander IP-bereik wordt bereikt via zijn IPv6 link-local adres, zonder een adres aan deze computer toe te voegen.
 
 ### Versie 0.21.7 — 2026-10-15
 - Opgelost: een poort die op Trunk ISL staat voegt niet meer alle 20 groepen toe aan een LumiNode; de node krijgt alleen de groepen waar hij een adres in heeft en de poort komt op zijn eigen trunk.

@@ -627,6 +627,13 @@ export function lumiPlan(cur, want, { withIp = false, artnetOffset = 0, protocol
 
 // run the calls one after the other (stops at the first error). A call can carry its body / path as a function of what earlier calls
 // returned (ctx), and save the id a POST gives back with saveAs; `after` is the older single follow-up.
+// what a device said, without the technical wrapper: "Error invoking remote method 'luminexHttp': Error: 404 {"description":"…"}" -> "404 …"
+export function plainError(e){
+  let m = String(e?.message ?? e ?? '').replace(/^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/, '');
+  const j = /^(\d{3})\s+(\{[\s\S]*\})\s*$/.exec(m);
+  if(j){ try { const o = JSON.parse(j[2]); m = `${j[1]} ${o.description || o.message || o.name || ''}`.trim(); } catch {} }
+  return m;
+}
 export async function runOps(h, ops, onStep = () => {}){
   const done = [], ctx = {};
   for(const op of ops){
@@ -634,7 +641,7 @@ export async function runOps(h, ops, onStep = () => {}){
     const path = typeof op.path === 'function' ? op.path(ctx) : op.path, body = typeof op.body === 'function' ? op.body(ctx) : op.body;
     let r;
     try { r = await h(op.method, path, body); }
-    catch(e) { if(op.soft){ op.failed = String(e.message || e); done.push(op); onStep(op, 'failed'); continue; } throw e; }       // a soft call (like a colour) may be refused without stopping the rest
+    catch(e) { if(op.soft){ op.failed = String(e.message || e); done.push(op); onStep(op, 'failed'); continue; } throw Object.assign(new Error(`${op.method} ${path}: ${plainError(e)}${op.text ? ` (${op.text})` : ''}`), { status: e.status, cause: e }); }       // a soft call (like a colour) may be refused without stopping the rest; the others say which call it was
     if(op.saveAs) ctx[op.saveAs] = r?.index ?? r?.id;
     if(op.saveAlso) ctx[op.saveAlso] = r?.index ?? r?.id;
     done.push(op);

@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.22.2 — 2026-10-16
+
+- New: offline devices can be removed from the Network config list (one by one or all), a device that comes back with a new IP address is recognised by its MAC / serial number and keeps its link, and a failed call names the call and what the device said.
+
+<details><summary>Nederlands</summary>
+
+- Nieuw: offline apparaten kunnen uit de lijst van Netwerkconfig gehaald worden (los of allemaal), een apparaat dat met een nieuw IP-adres terugkomt wordt herkend aan zijn MAC / serienummer en houdt zijn koppeling, en een mislukte aanroep noemt de aanroep en wat het apparaat zei.
+
+</details>
+
 ## 0.22.1 — 2026-10-15
 
 - Fixed: the Fill step of the Align tool also clears the ETH brush choices of the node cards, so only what the plan wants is sent.

@@ -108,7 +108,24 @@
     const d = C.dev.get(f.ip);
     if(d && wasGone && !f.gone && d.cur && !d.busy) readDev(d, true).then(paint);          // it was away: read what it says now (what you changed here stays)
   }
-  function markGone(ip){ const d = C.dev.get(ip); if(d){ d.gone = true; paint(); devsChanged(); } }
+  // the same device (same MAC address or serial number) at two addresses, the old one offline: it came back with a new IP address, so it is one entry again and keeps its place in the plan
+  const idKeys = d => [d.mac && !/^(00:){5}00$/.test(String(d.mac)) ? 'm:' + String(d.mac).toLowerCase() : '', d.serial ? 's:' + String(d.serial).toUpperCase() : ''].filter(Boolean);
+  function mergeTwins(){
+    const list = [...C.dev.values()]; let changed = false;
+    for(const g of list.filter(x => x.gone && !x.busy)){
+      const ks = idKeys(g); if(!ks.length) continue;
+      const l = list.find(x => x !== g && !x.gone && C.dev.get(x.ip) === x && idKeys(x).some(k => ks.includes(k)));
+      if(!l) continue;
+      if(g.link) l.link = g.link;
+      if(!l.E.size && g.E.size) l.E = g.E; if(!l.NE.size && g.NE.size) l.NE = g.NE;
+      C.dev.delete(g.ip); C.open.delete(g.ip); changed = true;
+    }
+    if(changed) C.found = [...C.dev.keys()];
+    return changed;
+  }
+  function removeDev(ip){ const d = C.dev.get(ip); if(!d || d.busy) return; C.dev.delete(ip); C.open.delete(ip); C.found = [...C.dev.keys()]; paint(); devsChanged(); }
+  function removeGone(){ const n = [...C.dev.values()].filter(d => d.gone && !d.busy); for(const d of n){ C.dev.delete(d.ip); C.open.delete(d.ip); } C.found = [...C.dev.keys()]; paint(); devsChanged(); App.ui.toast(`${n.length} ${t('offline devices removed from the list', 'offline apparaten uit de lijst gehaald')}`, 'info'); }
+  function markGone(ip){ const d = C.dev.get(ip); if(d){ d.gone = true; mergeTwins(); paint(); devsChanged(); } }
   // a device in another IP range: give this computer an address in that range (the system asks permission), then read it
   async function fixFar(d){
     if(!d?.far) return;
@@ -423,7 +440,7 @@
     if(f.v6) d.v6 = f.v6; if(f.serial) d.serial = f.serial; if(f.mac) d.mac = d.mac || f.mac; if(f.firmware) d.firmware = f.firmware;
     if(f.via?.length) d.via = [...new Set([...(d.via || []), ...f.via])]; if(f.from){ d.from = f.from; d.fromPort = f.port; }
     d.far = f.reach === false ? (d.far || { mask:DEF_MASK }) : null; d.gone = !!f.gone;          // far: in another IP range, this computer cannot ask it yet
-    autoLink(); paint(); devsChanged(); if((isNew || !d.cur) && !d.far) queueRead(d);
+    mergeTwins(); autoLink(); paint(); devsChanged(); if((isNew || !d.cur) && !d.far && C.dev.get(d.ip) === d) queueRead(d);
   }
   async function discover(){
     // while the page listens by itself the devices stay (they are tracked live); a scan then only adds to them
@@ -848,7 +865,7 @@
     const head = `<div class="nc-head" data-toggle="${esc(d.ip)}"><span class="nc-chev ${open ? 'open' : ''}">${I('chevronRight', 14)}</span><span class="nc-ic ${d.kind}">${I(ico, 18)}</span>
       <span class="nc-title"><b>${esc(d.name || d.model || d.ip)}</b><small>${esc(d.ip)} · ${esc(d.kind === 'gigacore' ? (d.model || 'GigaCore') : `LumiNode${d.version ? ' ' + d.version : ''}`)}${d.cur ? ` · ${isSw(d) ? d.cur.ports.length + ' ' + t('ports', 'poorten') : d.cur.ports.length + ' DMX'}` : ''}${viaText(d) ? ' · ' + esc(viaText(d)) : ''}</small></span>
       ${d.kind === 'unknown' ? '' : `<select class="nc-link" data-link="${esc(d.ip)}" title="${t('Which switch or node of the plan this is', 'Welke switch of node uit het plan dit is')}"><option value="">${t('not linked to the plan', 'niet gekoppeld aan het plan')}</option>${opts.map(x => `<option value="${esc(x.id)}" ${x.id === d.link ? 'selected' : ''}>${esc(linkLabel(x))}</option>`).join('')}</select>`}
-      ${status}${driftTag(d, n)}</div>`;
+      ${status}${driftTag(d, n)}${d.gone && !d.busy ? `<button class="sm ghost" data-rmdev="${esc(d.ip)}" title="${esc(t('Remove this offline device from the list', 'Haal dit offline apparaat uit de lijst'))}">${I('x', 13)}</button>` : ''}</div>`;
     if(!open) return `<div class="nc-card">${head}</div>`;
     let body = '';
     if(d.kind === 'unknown') body = `<div class="nc-body"><div class="subtle">${t('This device asks for a login. Fill in the user name and password above and discover again.', 'Dit apparaat vraagt om een login. Vul gebruikersnaam en wachtwoord hierboven in en ontdek opnieuw.')}</div></div>`;
@@ -899,7 +916,7 @@
         ${real() ? '' : `<div class="hint nd-sim">${I('info', 13)} ${t('Simulated devices — one pretend device on every planned address, so you can try this out. In the desktop app the real devices answer.', 'Gesimuleerde apparaten — één nepapparaat op elk gepland adres, zodat je dit kunt uitproberen. In de desktop-app antwoorden de echte apparaten.')}</div>`}</details>
       ${C.err ? `<div class="su-warn">${esc(C.err)}</div>` : ''}
       ${C.found ? `<div class="nc-bar"><span><b>${nSw}</b> GigaCore · <b>${nNd}</b> LumiNode${nUn ? ` · <b>${nUn}</b> ${t('need a login', 'vragen een login')}` : ''}${C.info ? ` <span class="subtle">· ${esc(C.info)}</span>` : ''}</span><span style="flex:1"></span>
-        <button id="ncFillAll">${t('Fill all from the plan', 'Alles invullen uit het plan')}</button><button id="ncReadAll">${I('refresh', 13)}${t('Read all', 'Alles lezen')}</button><button id="ncApplyAllNoIp" ${anyRead ? '' : 'disabled'} title="${t('Send the settings only; IP addresses are left as they are', 'Stuur alleen de instellingen; IP-adressen blijven zoals ze zijn')}">${t('Apply all without IP', 'Alles toepassen zonder IP')}</button><button class="primary" id="ncApplyAll" ${anyRead ? '' : 'disabled'}>${t('Apply all', 'Alles toepassen')} (${total})…</button></div>
+        ${devs.some(d => d.gone && !d.busy) ? `<button id="ncRmGone" title="${esc(t('Remove the devices that are offline from the list (they come back when they are found again)', 'Haal de apparaten die offline zijn uit de lijst (ze komen terug als ze weer gevonden worden)'))}">${I('x', 13)}${t('Remove offline devices', 'Verwijder offline apparaten')} (${devs.filter(d => d.gone && !d.busy).length})</button>` : ''}<button id="ncFillAll">${t('Fill all from the plan', 'Alles invullen uit het plan')}</button><button id="ncReadAll">${I('refresh', 13)}${t('Read all', 'Alles lezen')}</button><button id="ncApplyAllNoIp" ${anyRead ? '' : 'disabled'} title="${t('Send the settings only; IP addresses are left as they are', 'Stuur alleen de instellingen; IP-adressen blijven zoals ze zijn')}">${t('Apply all without IP', 'Alles toepassen zonder IP')}</button><button class="primary" id="ncApplyAll" ${anyRead ? '' : 'disabled'}>${t('Apply all', 'Alles toepassen')} (${total})…</button></div>
         ${drifted.length ? `<div class="su-warn">${I('alert', 13)} <b>${drifted.length}</b> ${t('devices differ from the plan', 'apparaten wijken af van het plan')}: ${drifted.slice(0, 8).map(d => esc(planOf(d)?.label || d.name || d.ip)).join(', ')}${drifted.length > 8 ? ' …' : ''}. ${t('The configuration has to be sent again: press “Fill all from the plan”, then “Apply all”.', 'De configuratie moet nog een keer verzonden worden: druk op “Alles invullen uit het plan” en dan op “Alles toepassen”.')}</div>` : ''}
         ${devs.length ? devs.map(cardHtml).join('') : `<div class="subtle" style="margin:14px 0">${C.watching ? t('Listening… connect a LumiNode or GigaCore and it shows up here by itself. Fill in the user name and password if the devices ask for a login.', 'Luistert… sluit een LumiNode of GigaCore aan en hij verschijnt hier vanzelf. Vul gebruikersnaam en wachtwoord in als de apparaten om een login vragen.') : t('Nothing answered. Check the cable and the adapter in Settings > Network, and fill in the user name and password if the devices ask for a login.', 'Niets antwoordde. Controleer de kabel en de adapter bij Instellingen > Netwerk, en vul gebruikersnaam en wachtwoord in als de apparaten om een login vragen.')}</div>`}
         ${missing.length ? `<details class="nc-missing"><summary>${missing.length} ${t('items of the plan have no device yet', 'onderdelen uit het plan hebben nog geen apparaat')}</summary><div class="subtle">${missing.map(x => `${esc(linkLabel(x))}${x.ip ? ` · ${esc(x.ip)}` : ''}`).join('<br>')}</div></details>` : ''}`
@@ -929,6 +946,8 @@
     qa('[data-opennet]').forEach(b => b.onclick = () => window.Settings?.open?.('network'));
     qa('[data-fixfar]').forEach(b => b.onclick = async () => { b.disabled = true; await fixFar(D(b.dataset.fixfar)); });
     bindVal('#ncOff', e => { C.offset = Number(e.value); paint(); }); bindVal('#ncSlot', e => { C.slot = e.value.trim(); }); bindVal('#ncIp', e => { C.withIp = e.checked; }); bindVal('#ncNames', e => { C.withNames = e.checked; });
+    qa('[data-rmdev]').forEach(b => b.onclick = () => removeDev(b.dataset.rmdev));
+    if(q('#ncRmGone')) q('#ncRmGone').onclick = removeGone;
     if(q('#ncReadAll')) q('#ncReadAll').onclick = async () => { await pool([...C.dev.values()].filter(d => d.kind !== 'unknown'), 4, async d => { await readDev(d); paint(); }); };
     if(q('#ncFillAll')) q('#ncFillAll').onclick = () => { let n = 0; for(const d of C.dev.values()) if(fillFromPlan(d)) n++; paint(); App.ui.toast(`${n} ${t('devices filled from the plan — nothing is sent yet', 'apparaten ingevuld uit het plan — er is nog niets gestuurd')}`, 'info'); };
     if(q('#ncApplyAllNoIp')) q('#ncApplyAllNoIp').onclick = () => applyDevs([...C.dev.values()].filter(d => d.cur), { noIp:true, resend:!allCount() });
@@ -994,5 +1013,5 @@
     if(!settingsHooked && window.Settings?.onChange){ settingsHooked = true; window.Settings.onChange(() => { refreshNets().then(() => { if(visible()) paint(); }); if(visible()) ensureWatch(); else if(!autoOn()) stopWatch(); }); }
     await refreshNets(); paint(); ensureWatch();
   }
-  window.NetConfig = { planDiff, canLink, misfit, moveWarnings, addAddresses, fixMoved, fixFar, render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D, applyDevs, autoLink, real, changeCount, netPending, searchLine, ensureWatch, restartWatch, refreshNets };
+  window.NetConfig = { addSeen, markGone, removeDev, removeGone, mergeTwins, planDiff, canLink, misfit, moveWarnings, addAddresses, fixMoved, fixFar, render, state:C, discover, readDev, opsOf, fillFromPlan, applyBrush, planItems, wantSwitch, wantNode, transport, dev:D, applyDevs, autoLink, real, changeCount, netPending, searchLine, ensureWatch, restartWatch, refreshNets };
 })();

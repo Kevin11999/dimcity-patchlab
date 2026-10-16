@@ -61,7 +61,7 @@ export async function luminexIdentify({ ip, v6, user, pass, https: useTls, timeo
     const v = await luminexHttp({ ...base, path: '/api/software/version' });
     if(v && typeof v === 'object' && v.current != null){
       let info = {}; try { info = (await luminexHttp({ ...base, path: '/api/deviceinfo' })) || {}; } catch {}
-      return { ip, ...(v6 ? { v6 } : {}), kind: 'lumi', name: info.short_name || '', longName: info.long_name || '', model: '', version: String(v.current), auth: false };
+      return { ip, ...(v6 ? { v6 } : {}), kind: 'lumi', name: info.short_name || '', longName: info.long_name || '', mac: info.mac_address || '', model: '', version: String(v.current), auth: false };
     }
   } catch(e) { if(e.status === 401) auth = true; }
   try {

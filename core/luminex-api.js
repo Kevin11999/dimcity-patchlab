@@ -211,6 +211,8 @@ export function gigacorePortPlan(cur, edits){
     const all = [...new Set([...keep, ...list])].sort((a, b) => a - b);
     const nv = edits.find(e => e.member?.type === 'trunk' && e.member.id === tid)?.member?.needVids;
     add('PUT', '/api/trunks/assign_ports', { id: tid, ports: all }, `Trunk “${tr?.name || 'trunk'}”: ports ${all.join(', ')}`, undefined, { needVids: nv || [] });
+    // some switches answer "ok" to assign_ports and do nothing: every new port is also put in the trunk by itself (the same call that works port by port)
+    ops.push(...trunkFallbackOps(tid, list));
   }
   return { ops, notes };
 }

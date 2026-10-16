@@ -4,6 +4,16 @@
 
 All notable changes to DimCity PatchLab. The entry of a version is also the text of its GitHub release.
 
+## 0.22.3 — 2026-10-16
+
+- Fixed: every device is read back and checked before its IP address changes, and what did not arrive is sent again (a switch that says ok to the trunk call and does nothing now gets its trunk ports port by port).
+
+<details><summary>Nederlands</summary>
+
+- Opgelost: elk apparaat wordt teruggelezen en gecontroleerd voordat zijn IP-adres verandert, en wat niet aankwam wordt opnieuw gestuurd (een switch die ok zegt op de trunkaanroep en niets doet krijgt zijn trunkpoorten nu per poort).
+
+</details>
+
 ## 0.22.2 — 2026-10-16
 
 - New: offline devices can be removed from the Network config list (one by one or all), a device that comes back with a new IP address is recognised by its MAC / serial number and keeps its link, and a failed call names the call and what the device said.

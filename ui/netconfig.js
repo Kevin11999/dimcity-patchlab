@@ -416,6 +416,7 @@
     } catch(x) { d.cur = null; d.err = String(x.message || x); if(/401/.test(d.err)) d.auth = true; }
     d.busy = false;
   }
+  const plainErr = e => (api?.plainError ? api.plainError(e) : String(e?.message || e));
   async function pool(list, n, fn){ let i = 0; await Promise.all(Array.from({ length:Math.min(n, list.length) }, async () => { while(i < list.length){ const x = list[i++]; try { await fn(x); } catch {} } })); }
   function autoLink(){
     const items = planItems(), taken = new Set([...C.dev.values()].map(d => d.link).filter(Boolean));
@@ -484,6 +485,21 @@
       catch(e) { failed++; x.dead = true; d.err = t(`Stopped after an error: ${e.message || e}. Read the device again to see what was applied.`, `Gestopt door een fout: ${e.message || e}. Lees het apparaat opnieuw uit om te zien wat is toegepast.`); }
       d.busy = false; paint();
     }
+    // 1b · BEFORE any address changes, every device is read back: what did not arrive is sent once more, and the trunk is checked.
+    //      (A device that moves to a new address cannot be read back afterwards, so this is the only moment to check it.)
+    for(const x of todo.filter(y => !y.dead && y.cfg.length)){
+      const { d } = x, keep = d.cur; d.busy = true; paint();
+      try {
+        const h = logged(d); await readDev(d, true);
+        if(!d.cur){ d.cur = keep; d.err = ''; }
+        else {
+          const left = opsOf(d).ops.filter(o => o.kind !== 'ip' && !(d.refused && d.refused.has(o.text)));
+          if(left.length){ x.repaired = left.length; const done = await api.runOps(h, left), refused = done.filter(o => o.failed); if(refused.length) d.warn = [d.warn, t(`The device did not accept ${refused.length} setting(s) the second time either: ${refused.map(o => o.text).join('; ')}.`, `Het apparaat nam ${refused.length} instelling(en) ook de tweede keer niet aan: ${refused.map(o => o.text).join('; ')}.`)].filter(Boolean).join(' '); }
+          await verifyTrunk(d, x.cfg, h);
+        }
+      } catch(e) { d.warn = [d.warn, t(`Checking before the address change failed: ${plainErr(e)}`, `Controleren vóór de adreswijziging mislukte: ${plainErr(e)}`)].filter(Boolean).join(' '); }
+      d.busy = false; paint();
+    }
     // 2 · the addresses: to ALL devices at the same moment (so the network never ends up half moved)
     const movers = todo.filter(y => y.ipOps.length && !y.dead);
     movers.forEach(x => { x.d.busy = true; }); paint();
@@ -524,8 +540,8 @@
   // what was changed, shown after sending (nothing to confirm beforehand; the list is the record)
   function resultDialog(todo, failed){
     const n = todo.reduce((k, x) => k + x.ops.length, 0);
-    const body = `<div style="max-height:420px;overflow:auto">${todo.map(({ d, ops }) => `<h4 style="margin:12px 0 4px">${d.err ? I('alert', 14) : I('check', 14)} ${esc(d.name || d.model)} <span class="subtle">${esc(d.ip)}</span> <span class="subtle">${d.err ? t('failed', 'mislukt') : d.moved ? t('sent · moved, out of reach', 'gestuurd · verhuisd, buiten bereik') : d.verified ? t('sent and checked', 'gestuurd en gecontroleerd') : t('sent', 'gestuurd')}</span></h4>
-        ${d.err ? `<p class="su-warn">${esc(d.err)}</p>` : ''}${d.warn ? `<p class="su-warn">${I('alert', 13)} ${esc(d.warn)}</p>` : ''}${d.moved ? `<p class="su-warn">${I('alert', 13)} ${t(`Now at ${d.moved.to} (was ${d.moved.from}). This computer has no address in that range, so it cannot read the device back. Add an address to this computer (the system asks permission), or give your network adapter an address in that range yourself.`, `Nu op ${d.moved.to} (was ${d.moved.from}). Deze computer heeft geen adres in dat bereik en kan het apparaat dus niet terugcontroleren. Voeg een adres toe aan deze computer (het systeem vraagt toestemming), of geef je netwerkadapter zelf een adres in dat bereik.`)} <button class="sm" data-fix="${esc(d.ip)}">${t('Add address to this computer', 'Adres toevoegen aan deze computer')}</button></p>` : ''}<ol>${ops.map(o => `<li>${esc(o.text)}</li>`).join('')}</ol>${ops.some(o => o.kind === 'ip') ? `<p class="subtle">${t('The IP address changed; the device now answers on the new address.', 'Het IP-adres is veranderd; het apparaat antwoordt nu op het nieuwe adres.')}</p>` : ''}`).join('')}</div>`;
+    const body = `<div style="max-height:420px;overflow:auto">${todo.map(({ d, ops, repaired }) => `<h4 style="margin:12px 0 4px">${d.err ? I('alert', 14) : I('check', 14)} ${esc(d.name || d.model)} <span class="subtle">${esc(d.ip)}</span> <span class="subtle">${d.err ? t('failed', 'mislukt') : d.moved ? t('sent · moved, out of reach', 'gestuurd · verhuisd, buiten bereik') : d.verified ? t('sent and checked', 'gestuurd en gecontroleerd') : t('sent', 'gestuurd')}</span></h4>
+        ${repaired ? `<p class="subtle">${I('info', 13)} ${repaired} ${t('setting(s) had not arrived and were sent again before the address change.', 'instelling(en) waren niet aangekomen en zijn opnieuw gestuurd vóór de adreswijziging.')}</p>` : ''}${d.err ? `<p class="su-warn">${esc(d.err)}</p>` : ''}${d.warn ? `<p class="su-warn">${I('alert', 13)} ${esc(d.warn)}</p>` : ''}${d.moved ? `<p class="su-warn">${I('alert', 13)} ${t(`Now at ${d.moved.to} (was ${d.moved.from}). This computer has no address in that range, so it cannot read the device back. Add an address to this computer (the system asks permission), or give your network adapter an address in that range yourself.`, `Nu op ${d.moved.to} (was ${d.moved.from}). Deze computer heeft geen adres in dat bereik en kan het apparaat dus niet terugcontroleren. Voeg een adres toe aan deze computer (het systeem vraagt toestemming), of geef je netwerkadapter zelf een adres in dat bereik.`)} <button class="sm" data-fix="${esc(d.ip)}">${t('Add address to this computer', 'Adres toevoegen aan deze computer')}</button></p>` : ''}<ol>${ops.map(o => `<li>${esc(o.text)}</li>`).join('')}</ol>${ops.some(o => o.kind === 'ip') ? `<p class="subtle">${t('The IP address changed; the device now answers on the new address.', 'Het IP-adres is veranderd; het apparaat antwoordt nu op het nieuwe adres.')}</p>` : ''}`).join('')}</div>`;
     const dlg = App.ui.openDialog({ title:failed ? `${failed} ${t('of', 'van')} ${todo.length} ${t('devices failed', 'apparaten mislukt')}` : `${n} ${t('changes sent to', 'wijzigingen gestuurd naar')} ${todo.length} ${t('devices', 'apparaten')}`, subtitle:real() ? '' : t('Simulated devices — nothing real was changed.', 'Gesimuleerde apparaten — er is niets echts veranderd.'), width:'620px', body, footer:`<button class="primary" data-a="ok">OK</button>` });
     dlg.footer.querySelector('[data-a=ok]').onclick = () => dlg.close();
     dlg.body.querySelectorAll('[data-fix]').forEach(b => b.onclick = async () => { const d = C.dev.get(b.dataset.fix); if(d){ b.disabled = true; await fixMoved(d); if(!d.moved) b.closest('p').innerHTML = I('check', 13) + ' ' + t('Reached again.', 'Weer bereikbaar.'); else b.disabled = false; } });

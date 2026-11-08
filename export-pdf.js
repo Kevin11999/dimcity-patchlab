@@ -381,6 +381,7 @@
       .port{border:var(--bw) solid var(--ln2);border-top:1mm solid var(--uni,#cbd5e1);border-radius:1mm;padding:${compact?.7:1}mm ${compact?.9:1.2}mm;min-height:${compact?9:12}mm;overflow:hidden;background:#fff}
       .port .nr{font-size:${fs*.75}px;color:#94a3b8;font-weight:700}
       .port .uni{font-size:${fs*1.08}px;font-weight:800;color:#0f172a}
+      .port .mode{font-size:${fs*.66}px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .port .dest,.port .src{font-size:${fs*.74}px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .port .src{color:#94a3b8}
       .port.empty{border-top-color:var(--ln);border-color:var(--ln);background:#f8fafc}.port.empty .uni{color:#cbd5e1;font-weight:600}
@@ -600,15 +601,22 @@
   const ipTag = ip => { const v = window.Fent?.classify?.(ip)?.vlan; return `<b>${esc(ip)}</b>${v ? ` <span class="small">${esc(v.name)}</span>` : ''}`; };
   function buildNetwork(M, dc, L, n, o){
     const p = plan(M, dc), nodes = p.nodes || [], switches = p.switches || [];
-    const nodeHtml = nodes.length ? '<div class="grid cols2">' + nodes.map(nd=>{
-      const ports = (Array.isArray(nd.universes) ? nd.universes : []).map((u,i)=>`<div class="port ${u?'':'empty'}" style="--uni:${u?uniColor(u,L):'#cbd5e1'}"><div class="nr">${i+1}</div><div class="uni">${u?'U'+esc(u):'—'}</div></div>`).join('');
+    const nodeHtml = nodes.length ? '<div class="grid cols2">' + nodes.map((nd, ndIdx)=>{
+      // how every DMX port is set up (direction + protocol, name) and what every network port (ETH) carries: the same as is sent to the node
+      const np = window.PortPlan?.ndPorts ? (() => { try { return window.PortPlan.ndPorts(dc, nd, ndIdx); } catch { return []; } })() : [];
+      const modeOf = q => (q ? `${q.dir === 'output' ? 'out' : q.dir === 'input' ? 'in' : 'off'} ${q.klass === 'artnet' ? 'Art-Net' : 'sACN'}` : '');
+      const ports = (Array.isArray(nd.universes) ? nd.universes : []).map((u,i)=>`<div class="port ${u?'':'empty'}" style="--uni:${u?uniColor(u,L):'#cbd5e1'}"><div class="nr">${i+1}</div><div class="uni">${u?'U'+esc(u):'—'}</div>${np[i] ? `<div class="mode">${esc(modeOf(np[i]))}</div>` : ''}</div>`).join('');
       const nt = (M.networkDevices?.nodeTypes || []).find(t => t.id === nd.typeId) || {};
       const eth = Math.min(2, Math.max(1, Number(nt.ethernetCount) || 1));
       const F = window.Fent, more = o.addresses !== false && F && (nd.ifaces || []).length ? F.ifaces(nd, eth).filter(x => !x.primary && x.ip) : [];
       const vname = v => { const x = F?.vlanById(v); return x ? ` ${x.name} ${x.id}` : ''; };
       const first = F && nd.ip && o.addresses !== false ? F.classify(nd.ip)?.vlan : null;
       const addr = more.length ? `<div class="small" style="margin-bottom:1.2mm">${first ? `<b>${esc(nd.ip)}</b>${esc(' ' + first.name + ' ' + first.id)}` : esc(nd.ip || '')}${more.map(x => ` · <b>${esc(x.ip)}</b>${esc(vname(x.vlan))}${eth > 1 ? ' ETH' + x.eth : ''}`).join('')}</div>` : '';
-      return `<div class="card node"><div class="card-h"><span>${esc(nd.id || 'Node')}</span><small>${esc(nd.ip || '')}${nd.subnet?' / '+esc(nd.subnet):''}${eth > 1 ? ' · 2× RJ45' : ''}</small></div><div class="card-b"><div class="small" style="margin-bottom:1.2mm">${esc(nd.name || '')}</div>${addr}<div class="ports p8">${ports || '<span class="small">No ports</span>'}</div></div></div>`;
+      const ethPorts = F && window.Fent?.portsOf ? F.portsOf(nd, eth, true) : [];
+      const ethText = e => { const q = ethPorts.find(x => x.eth === e), vs = q ? q.vlans : []; if(nd.advanced && window.AdvNet?.isIsl?.(nd, e)) return 'Trunk ISL'; if(!vs.length) return 'not used'; return (vs.length > 1 ? 'Trunk ' : 'VLAN ') + vs.join(' + '); };
+      const ethLine = ethPorts.length ? `<div class="small" style="margin-bottom:1.2mm">${Array.from({ length:eth }, (_, i) => `<b>${eth > 1 ? 'ETH' + (i + 1) : 'ETH'}</b> ${esc(ethText(i + 1))}`).join(' · ')}</div>` : '';
+      const nameLine = o.addresses !== false && np.some(q => q.name) ? `<div class="small" style="margin-top:1.2mm;color:#475569">${np.map((q, i) => q.name ? `${i + 1} ${esc(q.name)}` : '').filter(Boolean).join(' · ')}</div>` : '';
+      return `<div class="card node"><div class="card-h"><span>${esc(nd.id || 'Node')}</span><small>${esc(nd.ip || '')}${nd.subnet?' / '+esc(nd.subnet):''}${eth > 1 ? ' · 2× RJ45' : ''}</small></div><div class="card-b"><div class="small" style="margin-bottom:1.2mm">${esc(nd.name || '')}</div>${addr}${ethLine}<div class="ports p8">${ports || '<span class="small">No ports</span>'}</div>${nameLine}</div></div>`;
     }).join('') + '</div>' : '<div class="placeholder">No nodes planned for this DimCity.</div>';
     const consoles = (p.consoles || []).map(c => { const F = window.Fent, eth = c.ethCount === 2 ? 2 : 1, ifs = F ? F.ifaces(c, eth).filter(x => x.ip) : [];
       return `<div class="card"><div class="card-h"><span>${esc(c.name || c.id || 'Console')}</span><small>${esc(c.id || '')}${eth > 1 ? ' · 2× RJ45' : ''}</small></div>${ifs.length ? `<div class="card-b small">${ifs.map(x => `<b>${esc(x.ip)}</b>${F?.vlanById(x.vlan) ? esc(' ' + F.vlanById(x.vlan).name + ' ' + x.vlan) : ''}`).join(' · ')}</div>` : ''}</div>`; }).join('');

@@ -341,6 +341,7 @@
       ops.push(...dp.ops); notes.push(...dp.notes);
       ops.push(...api.gigacoreNamesPlan(d.cur, allNames()).ops);          // the names and colours of the VLAN overview go with every send
       if(d.trunkEdit){ const tp = api.gigacoreTrunkPlan(d.cur, d.trunkEdit.tid, d.trunkEdit.vid); ops.push(...tp.ops); notes.push(...tp.notes); }
+      ops.splice(0, ops.length, ...api.orderGigacoreOps(ops));          // port settings → names → trunk (ISL) → (the addresses go last, in their own phase)
     } else {
       const n = d.cur.ports.length, per = Array(n).fill(null);
       for(const [i, e] of d.E) if(i < n) per[i] = clone(e);
@@ -349,7 +350,7 @@
       const pe = portEditsOf(d), np = d.dev.net || pe ? api.lumiNetPlan(d.cur, d.dev.net || null, { currentIp:d.ip, keepAddresses:!!d.dev.netKeep, portEdits:pe, force:!!d.resend }) : null;
       const have = lightGroupOf(d);
       const p = api.lumiPlan(d.cur, { shortName:d.dev.shortName ?? d.cur.info?.short_name, longName:d.dev.longName ?? d.cur.info?.long_name, ip:d.dev.ip ? { address:d.dev.ip, mask:d.dev.mask || DEF_MASK, gateway:d.dev.gateway || '' } : null, ports:per }, { withIp:!!d.dev.ip && !adv, artnetOffset:C.offset, lightGroup:have, lightGroupLate:have == null && np ? np.lightGroup : null });
-      ops.push(...p.ops); notes.push(...p.notes);
+      { const nm = p.ops.filter(o => o.method === 'PUT' && o.path === '/api/deviceinfo'); ops.push(...p.ops.filter(o => !nm.includes(o)), ...nm); notes.push(...p.notes); }          // DMX ports and engines → the names → the network (ISL, groups) → the addresses
       if(np){
         // a node that is going to answer on another address moves like any other node: its network calls go with the address calls, to all devices at the same moment
         const mv = np.moveTo && d.dev.ip; ops.push(...(mv ? np.ops.map(o => ({ ...o, kind:'ip' })) : np.ops)); notes.push(...np.notes);

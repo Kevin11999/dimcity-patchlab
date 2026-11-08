@@ -636,6 +636,21 @@ export function plainError(e){
   if(j){ try { const o = JSON.parse(j[2]); m = `${j[1]} ${o.description || o.message || o.name || ''}`.trim(); } catch {} }
   return m;
 }
+// The calls to a GigaCore in the order that is safe: 0 new groups · 1 port settings (VLAN, PoE, speed) · 2 names (port names, switch name, group names and colours)
+// · 3 the trunk (ISL): its groups, the ports in it · 4 the rest (settings). The address calls (kind 'ip') are sent last, in a phase of their own. Inside a step the order stays as it was.
+export function orderGigacoreOps(ops){
+  const rank = o => {
+    const p = String(o.path), type = o.body && o.body.type;
+    if(o.kind === 'ip') return 9;
+    if(o.method === 'POST' && p === '/api/groups/group') return 0;
+    if(/\/api\/ports\/port\/\d+\/member_of$/.test(p)) return type === 'trunk' ? 3 : 1;
+    if(/\/api\/poe\//.test(p) || /\/link_speed\//.test(p)) return 1;
+    if(/\/legend$/.test(p) || p === '/api/device/name' || /\/api\/groups\/group\/\d+\/(name|color)$/.test(p)) return 2;
+    if(/\/api\/trunks\//.test(p)) return 3;
+    return 4;
+  };
+  return ops.map((o, i) => ({ o, i, r: rank(o) })).sort((a, b) => a.r - b.r || a.i - b.i).map(x => x.o);
+}
 export async function runOps(h, ops, onStep = () => {}){
   const done = [], ctx = {};
   for(const op of ops){

@@ -130,6 +130,10 @@
     const list = [], dflt = Math.max(1, ethCount) >= 2 ? 2 : 1;
     if(dev?.ip) list.push({ primary:true, role:dev.ipRole || 'management', vlan:dev.ipVlan ?? classify(dev.ip)?.vlan?.id ?? null, ip:dev.ip, mask:dev.subnet || '', eth:Math.min(Math.max(1, ethCount), Number(dev.ipEth) || dflt), listen:dev.ipListen });
     (dev?.ifaces || []).forEach((x, i) => { if(x && (x.ip || x.vlan)) list.push({ primary:false, i, role:x.role || 'lighting', vlan:x.vlan ?? ROLES[x.role || 'lighting']?.luminex ?? null, ip:x.ip || '', mask:x.mask || '', eth:Math.min(Math.max(1, ethCount), Number(x.eth) || dflt), listen:x.listen }); });
+    // a LumiNode in its advanced network: an address sits on the port(s) that carry its VLAN (what is chosen per port), not on a number stored with the address
+    if(dev?.advanced && dev.advPorts){
+      for(const x of list){ const on = [2, 1].filter(e => e <= Math.max(1, ethCount) && (dev.advPorts[e] || []).map(Number).includes(Number(x.vlan))); if(on.length) x.eth = on[0]; }
+    }
     return list;
   }
   // The RJ45 ports of a device and what they carry. One VLAN on a port = access port; two or more = trunk

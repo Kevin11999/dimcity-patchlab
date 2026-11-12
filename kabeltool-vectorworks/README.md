@@ -9,16 +9,36 @@ Python-deel is geschreven zonder Vectorworks. Reken op fouten bij de eerste keer
 
 | Map | Wat |
 |---|---|
-| `palette/` | De palette (HTML/JS). Open `palette/index.html` in Chrome of Edge. |
-| `vectorworks/kabeltool.py` | Python-module voor Vectorworks 2026. |
+| `palette/` | De palette (HTML/JS). Draait in de web palette, en los in Chrome/Edge met de knop Demo. |
+| `vectorworks/` | Python: `kabeltool.py` (tekenwerk) en `kabeltool_brug.py` (ingang voor de web palette). |
+| `plugin/` | C++ plug-in voor Vectorworks 2026 (Windows) die de palette als echte web palette toont. |
 
-Het is (nog) geen echte web palette ín Vectorworks: dat kan alleen met een C++ SDK-plug-in.
-De palette draait in de browser naast Vectorworks en wisselt uit via twee bestanden naast de tekening:
+De plug-in is gebaseerd op het officiële `WebPaletteExample` (VectorworksDeveloper/SDKExamples).
+GitHub bouwt hem: workflow **Kabeltool plug-in (Vectorworks, Windows)**. De bouw slaagt; of hij in
+Vectorworks werkt is niet geprobeerd.
 
-- `<tekening>.kt-tekening.json` – geschreven door Vectorworks (dim cities, routes, truss-lijnen, drops, lampen)
-- `<tekening>.kt-project.json` – geschreven door de palette (instellingen, kopie van de bibliotheek, nummers, labels, stempels)
+## Web palette installeren (Windows)
 
-De bibliotheek zelf staat als `kabelbibliotheek.json` in een map die je kiest (bijv. OneDrive).
+1. GitHub > Actions > *Kabeltool plug-in (Vectorworks, Windows)* > laatste geslaagde run >
+   download het artifact **KabeltoolPalette-Windows** en pak het uit.
+2. Zet `KabeltoolPalette.vlb` en `KabeltoolPalette.vwr` samen in je gebruikersmap van Vectorworks 2026,
+   submap `Plug-Ins` (te vinden via *Tools > Options > Vectorworks Preferences > User Folders*).
+3. Start Vectorworks opnieuw. Vectorworks 2026 kan melden dat de ontwikkelaar onbekend is en de plug-in
+   uitzetten; zet hem dan aan. (Een credentials-bestand vraag je aan via devsupport@vectorworks.net.)
+4. *Tools > Workspaces > Edit Current Workspace*: sleep het commando **Kabeltool tonen...**
+   (categorie Kabeltool) in een menu. Kies het daarna om de palette te openen.
+
+De palette praat met Vectorworks via één functie (`vwAPI.py`) die `kabeltool_brug.py` uitvoert.
+De gegevens staan in twee bestanden naast de tekening:
+
+- `<tekening>.kt-tekening.json` – geometrie uit Vectorworks
+- `<tekening>.kt-project.json` – instellingen, kopie van de bibliotheek, nummers, labels, stempels
+
+In de web palette staan de acties als knoppen bovenaan (Dim city plaatsen, Vloerroute van selectie,
+Truss-lijn van selectie, Drop toevoegen, Lampen koppelen, Tekening bijwerken, Stempelen). De palette
+ververst zelf als de selectie in Vectorworks verandert; klikken op een dim city of drop in de palette
+selecteert hem in Vectorworks. Voor *Dim city plaatsen* en *Drop toevoegen*: klik de plek aan, of
+selecteer eerst een 2D-locus op die plek.
 
 ## Palette proberen zonder Vectorworks
 
@@ -26,7 +46,7 @@ De bibliotheek zelf staat als `kabelbibliotheek.json` in een map die je kiest (b
 2. Klik **Demo**. Je ziet twee dim cities, twee trussen en drie drops.
 3. Tabbladen: Kabelbibliotheek (met symboolvoorbeeld), Blokken, Dim cities & drops, 3D, Instellingen.
 
-## Installeren in Vectorworks
+## Zonder plug-in: losse scripts (uitwijk)
 
 1. Zet de map `vectorworks/` ergens neer en voeg hem toe bij
    *Tools > Plug-ins > Script Options… > Environment Paths*.
@@ -61,8 +81,6 @@ De bibliotheek zelf staat als `kabelbibliotheek.json` in een map die je kiest (b
 
 ## Wat anders is dan het plan
 
-- **Geen web palette in Vectorworks**, maar een browserpagina + scripts. Daardoor: geen live
-  selectie. Selectie gaat via *Exporteren/Verversen* en *Selecteer uit palette*.
 - **Koppelpunten** worden uitgerekend (standaardlengtes vanaf de drop terug naar de dim city);
   je kunt ze niet zelf op de route zetten.
 - **Lengtehulp**: de streepjes worden getekend bij *Tekening bijwerken*; je snapt er met de gewone
@@ -77,7 +95,11 @@ De bibliotheek zelf staat als `kabelbibliotheek.json` in een map die je kiest (b
 - **Nummer overschrijven** en **Opnieuw nummeren** vragen bevestiging met de lampen van die drop;
   er is geen apart overzicht per fixture van oud → nieuw.
 
-## Onzeker in het Python-deel (eerst nakijken als iets misgaat)
+## Onzeker (eerst nakijken als iets misgaat)
+
+- Of Python dat de plug-in start (`IPythonScriptEngine::ExecuteScript`) hetzelfde mag als een gewoon script,
+  met name `vs.GetPt(callback)` (klik in de tekening) en ongedaan maken.
+- Of de melding bij selectiewijziging (`kNotifySelChange`) de palette bereikt.
 
 - `vs.GetPrefReal(152)` als "eenheden per inch" voor het omrekenen naar meters.
 - `vs.GetFPathName()` voor het pad van de tekening.

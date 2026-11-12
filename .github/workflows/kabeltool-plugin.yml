@@ -20,7 +20,7 @@ jobs:
         run: |
           git clone --depth 1 --filter=blob:none --sparse https://github.com/VectorworksDeveloper/SDKExamples sdk
           cd sdk
-          git sparse-checkout set VectorworksSDK/SDK2026/SDKLib/Include VectorworksSDK/SDK2026/SDKLib/LibWin VectorworksSDK/SDK2026/SDKLib/ToolsWin/BuildVWR
+          git sparse-checkout set VectorworksSDK/SDK2026/SDKLib/Include VectorworksSDK/SDK2026/SDKLib/Source VectorworksSDK/SDK2026/SDKLib/LibWin VectorworksSDK/SDK2026/SDKLib/ToolsWin/BuildVWR
 
       - name: Palette en Python in de resources zetten
         shell: bash

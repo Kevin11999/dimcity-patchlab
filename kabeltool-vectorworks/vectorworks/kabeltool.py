@@ -30,12 +30,32 @@ STANDAARD = {
 }
 
 
+BRUG = False        # True als de web palette ons aanroept: meldingen gaan dan naar de palette
+MELDINGEN = []
+
+
 # ---------------------------------------------------------------- hulpjes
+
+def _meld(tekst):
+    if BRUG:
+        MELDINGEN.append(str(tekst))
+    else:
+        vs.AlrtDialog(tekst)
+
+
+def _klik_of_locus(klaar):
+    """Is er een 2D-locus geselecteerd, dan wordt die plek gebruikt; anders vraagt Vectorworks om een klik."""
+    for h in _objecten('(SEL=TRUE)'):
+        if vs.GetTypeN(h) == 17:
+            klaar(vs.GetLocPt(h))
+            return
+    vs.GetPt(klaar)
+
 
 def _basis():
     pad = vs.GetFPathName()
     if not pad or not os.path.isabs(pad):
-        vs.AlrtDialog('Sla de tekening eerst op; de kabeltool zet zijn bestanden ernaast.')
+        _meld('Sla de tekening eerst op; de kabeltool zet zijn bestanden ernaast.')
         return None
     return os.path.splitext(pad)[0]
 
@@ -169,7 +189,7 @@ def plaats_dimcity():
         vs.Layer(oud)
         exporteer(stil=True)
 
-    vs.GetPt(klaar)
+    _klik_of_locus(klaar)
 
 
 # ---------------------------------------------------------------- stap 3: routes en drops
@@ -186,7 +206,7 @@ def vloerroute_van_selectie():
             _merk(h, 'vloer', 'V%d' % _volgende('vloer', 'V'))
             n += 1
     if not n:
-        vs.AlrtDialog('Selecteer eerst een lijn of polylijn.')
+        _meld('Selecteer eerst een lijn of polylijn.')
     exporteer(stil=True)
 
 
@@ -218,7 +238,7 @@ def trusslijn_van_selectie():
         _merk(h, 'truss', 'T%d' % _volgende('truss', 'T'), naam, '', z)
         n += 1
     if not n:
-        vs.AlrtDialog('Selecteer eerst een lijn, polylijn of 3D-polygoon.')
+        _meld('Selecteer eerst een lijn, polylijn of 3D-polygoon.')
     exporteer(stil=True)
 
 
@@ -272,7 +292,7 @@ def drop_toevoegen():
             if best is None or d < best[0]:
                 best = (d, q, t)
         if best is None:
-            vs.AlrtDialog('Er is nog geen truss-lijn. Maak die eerst.')
+            _meld('Er is nog geen truss-lijn. Maak die eerst.')
             return
         d, q, t = best
         klasse = inst['prefix'] + t['naam']
@@ -287,7 +307,7 @@ def drop_toevoegen():
         vs.Layer(oud)
         exporteer(stil=True)
 
-    vs.GetPt(klaar)
+    _klik_of_locus(klaar)
 
 
 def lampen_koppelen():
@@ -298,13 +318,13 @@ def lampen_koppelen():
         if vs.GetRField(h, REC, 'soort') == 'drop':
             drop = vs.GetRField(h, REC, 'id')
     if not drop:
-        vs.AlrtDialog('Selecteer ook het rondje van de drop.')
+        _meld('Selecteer ook het rondje van de drop.')
         return
     lampen = _objecten("(SEL=TRUE) & (PON='%s')" % LD)
     for h in lampen:
         vs.SetRecord(h, LINK)
         vs.SetRField(h, LINK, 'drop', drop)
-    vs.AlrtDialog('%d lampen gekoppeld aan %s.' % (len(lampen), drop))
+    _meld('%d lampen gekoppeld aan %s.' % (len(lampen), drop))
     exporteer(stil=True)
 
 
@@ -349,14 +369,13 @@ def exporteer(stil=False):
     with open(b + '.kt-tekening.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=1)
     if not stil:
-        vs.AlrtDialog('Geëxporteerd: %d dim cities, %d vloerroutes, %d truss-lijnen, %d drops, %d lampen.' % (
+        _meld('Geëxporteerd: %d dim cities, %d vloerroutes, %d truss-lijnen, %d drops, %d lampen.' % (
             len(data['dimcities']), len(data['vloerroutes']), len(data['trusslijnen']), len(data['drops']), len(data['lampen'])))
+    return data
 
 
-def selecteer_uit_palette():
-    """Selecteert in Vectorworks wat in de palette het laatst is aangeklikt."""
-    p = _lees('.kt-project.json')
-    doel = (p or {}).get('selecteer')
+def selecteer_id(doel):
+    """Selecteert de dim city / drop (en de lampen van die drop) met dit id."""
     if not doel:
         return
     vs.DSelectAll()
@@ -366,6 +385,12 @@ def selecteer_uit_palette():
     for h in _objecten("(R IN ['%s'])" % LINK):
         if vs.GetRField(h, LINK, 'drop') == doel:
             vs.SetSelect(h)
+
+
+def selecteer_uit_palette():
+    """Selecteert in Vectorworks wat in de palette het laatst is aangeklikt (alleen nodig zonder web palette)."""
+    p = _lees('.kt-project.json')
+    selecteer_id((p or {}).get('selecteer'))
 
 
 # ---------------------------------------------------------------- tekenen van labels
@@ -467,7 +492,7 @@ def tekening_bijwerken():
     p = _lees('.kt-project.json')
     inst = _inst()
     if not p or inst is None:
-        vs.AlrtDialog('Geen projectbestand gevonden. Open de tekening eerst in de palette.')
+        _meld('Geen projectbestand gevonden. Open de tekening eerst in de palette.')
         return
     _zorg_records()
     for h in _objecten("(R IN ['%s'])" % GEN):
@@ -492,7 +517,7 @@ def stempelen():
     """Zet multinummer, circuit, LK/VEAM-naam en poort in de Spotlight-velden van de gekoppelde lampen."""
     p = _lees('.kt-project.json')
     if not p:
-        vs.AlrtDialog('Geen projectbestand gevonden.')
+        _meld('Geen projectbestand gevonden.')
         return
     n = mis = 0
     for s in p.get('stempels') or []:
@@ -506,4 +531,4 @@ def stempelen():
         vs.SetRField(h, LD, 'User Field 3', s.get('uf3', ''))
         vs.ResetObject(h)
         n += 1
-    vs.AlrtDialog('%d lampen gestempeld%s.' % (n, (', %d niet gevonden' % mis) if mis else ''))
+    _meld('%d lampen gestempeld%s.' % (n, (', %d niet gevonden' % mis) if mis else ''))

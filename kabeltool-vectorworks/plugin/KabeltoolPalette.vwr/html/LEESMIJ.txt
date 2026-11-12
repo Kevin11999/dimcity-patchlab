@@ -1,0 +1,1 @@
+placeholder: wordt bij het bouwen gevuld met palette/ en vectorworks/*.py

@@ -1,0 +1,50 @@
+name: Kabeltool plug-in (Vectorworks, Windows)
+
+# Bouwt alleen de losse Kabeltool web palette. Staat los van de PatchLab-release.
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/**']
+    paths:
+      - 'kabeltool-vectorworks/**'
+      - '.github/workflows/kabeltool-plugin.yml'
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vectorworks SDK 2026 ophalen
+        shell: bash
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/VectorworksDeveloper/SDKExamples sdk
+          cd sdk
+          git sparse-checkout set VectorworksSDK/SDK2026/SDKLib/Include VectorworksSDK/SDK2026/SDKLib/LibWin VectorworksSDK/SDK2026/SDKLib/ToolsWin/BuildVWR
+
+      - name: Palette en Python in de resources zetten
+        shell: bash
+        run: |
+          html=kabeltool-vectorworks/plugin/KabeltoolPalette.vwr/html
+          rm -f "$html/LEESMIJ.txt"
+          cp -r kabeltool-vectorworks/palette/. "$html/"
+          cp kabeltool-vectorworks/vectorworks/*.py "$html/"
+          ls -R "$html"
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Bouwen
+        shell: cmd
+        run: msbuild kabeltool-vectorworks\plugin\KabeltoolPalette.vcxproj /p:Configuration=Release /p:Platform=x64 /p:VWSDKROOT=%GITHUB_WORKSPACE%\sdk /m /v:minimal
+
+      - name: Resultaat tonen
+        shell: bash
+        run: ls -la kabeltool-vectorworks/plugin/_Output
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KabeltoolPalette-Windows
+          path: |
+            kabeltool-vectorworks/plugin/_Output/KabeltoolPalette.vlb
+            kabeltool-vectorworks/plugin/_Output/KabeltoolPalette.vwr
+          if-no-files-found: error

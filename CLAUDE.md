@@ -15,3 +15,7 @@
 - Commitberichten eindigen met de attributieregels die de sessie opgeeft.
 - Geen pull request tenzij hij erom vraagt. Alleen de repo kevin11999/dimcity-patchlab gebruiken.
 - Nooit processen killen die je via ps | grep vindt.
+
+## Testen
+- De simulatortests staan in `tests/` (draaien: `node tests/run.mjs`, ongeveer 4 minuten; `--only 08` voor één test). Hoe de app in elkaar zit en wat elke test doet: `docs/TESTING.md`; lees dat eerst, bouw geen nieuwe testomgeving.
+- Nieuwe of aangepaste functies krijgen een test in `tests/cases/`; een test hoort te falen op de oude code (zie `docs/TESTING.md`). Alles blijft simulator: zeg dat erbij.

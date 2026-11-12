@@ -1,0 +1,38 @@
+* { box-sizing: border-box; }
+body { margin: 0; font: 13px/1.4 system-ui, sans-serif; background: #1e1f22; color: #e6e6e6; }
+header, nav { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 10px; background: #2a2c30; }
+nav { background: #232528; border-bottom: 1px solid #3a3d42; }
+#status { color: #9aa; margin-left: auto; }
+button, .knop { background: #3a3d42; color: #eee; border: 1px solid #555; border-radius: 4px; padding: 4px 9px; cursor: pointer; font: inherit; display: inline-block; }
+button:hover, .knop:hover { background: #4a4e55; }
+button:disabled { opacity: .45; cursor: default; }
+nav button.actief { background: #2e7dff; border-color: #2e7dff; }
+button.gevaar { border-color: #a44; color: #f99; margin-left: 8px; }
+main { padding: 10px; }
+.twee { display: flex; gap: 14px; align-items: flex-start; }
+.links { width: 230px; flex: none; max-height: calc(100vh - 110px); overflow: auto; }
+.rechts { flex: 1; min-width: 0; }
+summary { cursor: pointer; font-weight: 600; padding: 3px 0; }
+summary button { padding: 0 6px; float: right; }
+.item { padding: 3px 8px; border-radius: 3px; cursor: pointer; }
+.item:hover { background: #33363b; }
+.item.actief { background: #2e7dff; color: #fff; }
+.velden { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+label { display: flex; flex-direction: column; gap: 2px; color: #aab; }
+label.slot { flex-direction: row; align-items: center; gap: 4px; }
+input, select { background: #15161a; color: #eee; border: 1px solid #555; border-radius: 3px; padding: 3px 5px; font: inherit; }
+input[type=checkbox] { width: auto; }
+input.nr { width: 80px; }
+table { border-collapse: collapse; margin: 6px 0; }
+th, td { text-align: left; padding: 3px 8px 3px 0; vertical-align: middle; }
+th { color: #99a; font-weight: 500; }
+h3 { margin: 14px 0 4px; font-size: 13px; color: #fff; }
+.stil { color: #889; }
+.voorbeeld { background: #fff; color: #000; padding: 10px; border-radius: 4px; display: flex; flex-wrap: wrap; gap: 10px; }
+.ksym { vertical-align: middle; }
+td .ksym { background: #fff; }
+.waarsch { background: #4a3a12; border: 1px solid #a8862a; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; }
+.waarsch ul { margin: 4px 0 0; padding-left: 18px; }
+#drie { display: none; position: relative; }
+#canvas { width: 100%; height: calc(100vh - 140px); background: #111; border-radius: 4px; display: block; }
+#tip { display: none; position: absolute; background: #000c; border: 1px solid #666; padding: 3px 7px; border-radius: 3px; pointer-events: none; }

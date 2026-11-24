@@ -8,6 +8,7 @@
 #include <fstream>
 #include <functional>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -137,10 +138,10 @@ namespace
 		return j.is_discarded() ? json::object() : j;
 	}
 
-	void SchrijfJson(const std::string& pad, const json& j)
+	void SchrijfJson(const std::string& pad, const json& j, int inspringen = 1)
 	{
 		std::ofstream f( Wide( pad ), std::ios::binary | std::ios::trunc );
-		f << j.dump( 1 );
+		f << j.dump( inspringen );
 	}
 
 	// Pad van de tekening zonder .vwx; leeg als de tekening nog niet is opgeslagen.
@@ -745,9 +746,103 @@ namespace
 		return a;
 	}
 
+	// ---------------- echte 3D-vorm (voor de trussen in de palette)
+	// Vectorworks deelt het object op in driehoekjes (zoals bij de 3DS-export). Punten worden op hele millimeters
+	// afgerond en dubbele punten samengevoegd, zodat het bestand klein blijft.
+	const size_t MAX_DRIEHOEKEN_PER_OBJECT	= 150000;
+	const size_t MAX_DRIEHOEKEN_TOTAAL		= 400000;
+
+	struct Gaas
+	{
+		std::vector<long long>					v;		// x,y,z in mm
+		std::vector<int>						f;		// 3 punten per driehoek
+		std::unordered_map<std::string, int>	index;
+		bool									vol = false;
+	};
+
+	int GaasPunt(Gaas& g, const WorldPt3& p)
+	{
+		long long x = std::llround( p.x ), y = std::llround( p.y ), z = std::llround( p.z );
+		std::string k = std::to_string( x ) + "," + std::to_string( y ) + "," + std::to_string( z );
+		auto it = g.index.find( k );
+		if ( it != g.index.end() ) return it->second;
+		int i = (int) ( g.v.size() / 3 );
+		g.v.push_back( x ); g.v.push_back( y ); g.v.push_back( z );
+		g.index[k] = i;
+		return i;
+	}
+
+	void GaasDriehoek(ETessProcReason reden, STessTraingle t, CallBackPtr, void* env)
+	{
+		if ( reden != kTessProcAddTriangle || ! env ) return;
+		Gaas& g = *static_cast<Gaas*>( env );
+		if ( g.f.size() / 3 >= MAX_DRIEHOEKEN_PER_OBJECT ) { g.vol = true; return; }
+		int a = GaasPunt( g, t.A.pt ), b = GaasPunt( g, t.B.pt ), c = GaasPunt( g, t.C.pt );
+		if ( a == b || b == c || a == c ) return;
+		g.f.push_back( a ); g.f.push_back( b ); g.f.push_back( c );
+	}
+
+	// Geeft {v:[...], f:[...]} in mm (wereldcoördinaten), of null als het niet lukt.
+	json EchteVorm(MCObjectHandle h, size_t& totaal)
+	{
+		if ( totaal >= MAX_DRIEHOEKEN_TOTAAL ) return json();
+		Gaas g;
+		try
+		{
+			TTesselator tess = gSDK->CreateTessellator( -1 );
+			if ( ! tess ) return json();
+			gSDK->TesselateObject( tess, h, GaasDriehoek, &g );
+			gSDK->DeleteTessellator( tess );
+		}
+		catch ( ... ) { return json(); }
+		if ( g.f.empty() ) return json();
+
+		// Zijn de punten van het object zelf (niet van de tekening)? Dan alsnog naar de plek in de tekening zetten.
+		WorldCube c;
+		gSDK->GetObjectCube( h, c );
+		auto Midden = [&](const std::vector<long long>& v, double m[3]) {
+			double mn[3] = { 1e300, 1e300, 1e300 }, mx[3] = { -1e300, -1e300, -1e300 };
+			for ( size_t i = 0; i + 2 < v.size(); i += 3 )
+				for ( int k = 0; k < 3; k++ ) { mn[k] = std::min( mn[k], (double) v[i + k] ); mx[k] = std::max( mx[k], (double) v[i + k] ); }
+			for ( int k = 0; k < 3; k++ ) m[k] = ( mn[k] + mx[k] ) / 2;
+		};
+		double cm[3] = { ( c.MinX() + c.MaxX() ) / 2, ( c.MinY() + c.MaxY() ) / 2, ( c.MinZ() + c.MaxZ() ) / 2 };
+		double gm[3];
+		Midden( g.v, gm );
+		double afwijking = std::hypot( std::hypot( gm[0] - cm[0], gm[1] - cm[1] ), gm[2] - cm[2] );
+		double maat = std::max( 1.0, std::hypot( std::hypot( c.MaxX() - c.MinX(), c.MaxY() - c.MinY() ), c.MaxZ() - c.MinZ() ) );
+		if ( afwijking > maat * 0.25 )
+		{
+			TransformMatrix m;
+			gSDK->GetEntityMatrix( h, m );
+			VWTransformMatrix vm( m );
+			std::vector<long long> w( g.v.size() );
+			for ( size_t i = 0; i + 2 < g.v.size(); i += 3 )
+			{
+				VWPoint3D q = vm.PointTransform( VWPoint3D( (double) g.v[i], (double) g.v[i + 1], (double) g.v[i + 2] ) );
+				w[i] = std::llround( q.x ); w[i + 1] = std::llround( q.y ); w[i + 2] = std::llround( q.z );
+			}
+			double wm[3];
+			Midden( w, wm );
+			if ( std::hypot( std::hypot( wm[0] - cm[0], wm[1] - cm[1] ), wm[2] - cm[2] ) < afwijking ) g.v.swap( w );
+		}
+
+		totaal += g.f.size() / 3;
+		if ( g.vol ) Log( "Truss heeft meer dan " + std::to_string( MAX_DRIEHOEKEN_PER_OBJECT ) + " driehoeken; rest overgeslagen." );
+		return { { "v", g.v }, { "f", g.f } };
+	}
+
+	bool IsTruss(MCObjectHandle h, const std::string& soort)
+	{
+		if ( Klein( soort ).find( "truss" ) != std::string::npos ) return true;
+		if ( Klein( KlasseVan( h ) ).find( "truss" ) != std::string::npos ) return true;
+		return VWRecordObj::GetRecordObject( h, "TrussRecord" ) != nullptr;
+	}
+
 	void TrussenEnLampen(json& data)
 	{
 		json trussen = json::array(), lampen = json::array();
+		size_t driehoeken = 0;
 		for ( MCObjectHandle h : Objecten( "(ALL)" ) )
 		{
 			short t = gSDK->GetObjectTypeN( h );
@@ -762,13 +857,34 @@ namespace
 				while ( ! naam.empty() && naam.back() == ' ' ) naam.pop_back();
 				while ( ! naam.empty() && naam.front() == ' ' ) naam.erase( 0, 1 );
 				lampen.push_back( { { "uuid", Uuid( h ) }, { "naam", naam }, { "type", Veld( h, LD, "Inst Type" ) }, { "laag", LaagVan( h ) }, { "drop", Veld( h, LINK, "drop" ) },
-									{ "x", ( mn[0] + mx[0] ) / 2 }, { "y", ( mn[1] + mx[1] ) / 2 }, { "z", ( mn[2] + mx[2] ) / 2 } } );
+									{ "x", ( mn[0] + mx[0] ) / 2 }, { "y", ( mn[1] + mx[1] ) / 2 }, { "z", ( mn[2] + mx[2] ) / 2 },
+									{ "maat", json::array( { mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2] } ) } } );
 			}
-			else if ( Klein( soort ).find( "truss" ) != std::string::npos )
+			else if ( IsTruss( h, soort ) )
 			{
 				if ( ! Kubus( h, mn, mx ) ) continue;
-				trussen.push_back( { { "naam", soort }, { "klasse", KlasseVan( h ) }, { "laag", LaagVan( h ) },
-									 { "min", json::array( { mn[0], mn[1], mn[2] } ) }, { "max", json::array( { mx[0], mx[1], mx[2] } ) } } );
+				json tr = { { "naam", soort }, { "klasse", KlasseVan( h ) }, { "laag", LaagVan( h ) },
+							{ "min", json::array( { mn[0], mn[1], mn[2] } ) }, { "max", json::array( { mx[0], mx[1], mx[2] } ) } };
+				// opnieuw opdelen alleen als de truss veranderd is (verplaatst, andere maat)
+				static std::unordered_map<std::string, std::pair<std::string, json>> bewaard;
+				char sleutel[160];
+				std::snprintf( sleutel, sizeof(sleutel), "%.3f %.3f %.3f %.3f %.3f %.3f", mn[0], mn[1], mn[2], mx[0], mx[1], mx[2] );
+				std::string id = Uuid( h );
+				json vorm;
+				auto oud = bewaard.find( id );
+				if ( oud != bewaard.end() && oud->second.first == sleutel )
+				{
+					vorm = oud->second.second;
+					if ( vorm.is_object() && vorm.contains( "f" ) ) driehoeken += vorm["f"].size() / 3;
+				}
+				else
+				{
+					vorm = EchteVorm( h, driehoeken );
+					if ( bewaard.size() > 500 ) bewaard.clear();
+					bewaard[id] = { sleutel, vorm };
+				}
+				if ( vorm.is_object() ) tr["vorm"] = vorm;
+				trussen.push_back( tr );
 			}
 		}
 		data["trussen"] = trussen;
@@ -841,7 +957,7 @@ namespace
 		}
 
 		TrussenEnLampen( data );
-		SchrijfJson( b + ".kt-tekening.json", data );
+		SchrijfJson( b + ".kt-tekening.json", data, -1 );		// compact: de trussvormen zijn groot
 		return data;
 	}
 

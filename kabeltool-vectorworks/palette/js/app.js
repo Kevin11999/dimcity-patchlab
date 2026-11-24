@@ -198,7 +198,7 @@
   // ---------- Instellingen ----------
   function rInst() {
     const s = KT.project.instellingen;
-    const v = (lbl, k, soort) => `<label>${lbl}<input ${soort === 'n' ? 'type="number" step="0.1"' : ''} value="${esc(Array.isArray(s[k]) ? s[k].join(', ') : s[k])}" onchange="KT.ui.zetInst('${k}',this.value,'${soort || ''}')"></label>`;
+    const v = (lbl, k, soort) => `<label>${lbl}<input ${soort === 'n' ? 'type="number" step="any"' : ''} value="${esc(Array.isArray(s[k]) ? s[k].join(', ') : s[k])}" onchange="KT.ui.zetInst('${k}',this.value,'${soort || ''}')"></label>`;
     return `<div class="velden">
       ${v('Klasseprefix', 'prefix')}${v('Slack bij dim city (m)', 'slackDimCity', 'n')}${v('Tolerantie aansluiten (m)', 'tolerantie', 'n')}
       ${v('Symbool breedte (mm op papier)', 'symboolBreedte', 'n')}${v('Symbool hoogte (mm op papier)', 'symboolHoogte', 'n')}${v('Dim city vierkant (m)', 'dimcityMaat', 'n')}
@@ -212,7 +212,7 @@
       <div class="velden">
       <label>Kabels als 3D-buis tekenen<input type="checkbox" ${s.kabels3D !== false ? 'checked' : ''} onchange="KT.ui.zetInst('kabels3D',this.checked,'b')"></label>
       <label>Ook lijn in bovenaanzicht<input type="checkbox" ${s.kabels2D !== false ? 'checked' : ''} onchange="KT.ui.zetInst('kabels2D',this.checked,'b')"></label>
-      ${v('Laag voor de 3D-kabels', 'laagKabels')}${v('Ruimte tussen kabels (m)', 'kabelAfstand', 'n')}
+      ${v('Laag voor de 3D-kabels', 'laagKabels')}${v('Speling tussen kabels in de bundel (m)', 'kabelAfstand', 'n')}
       <label>Kleur van de 3D-kabels<select onchange="KT.ui.zetInst('kleurKabels',this.value)">
         <option value="type" ${s.kleurKabels !== 'lengte' ? 'selected' : ''}>per kabeltype</option>
         <option value="lengte" ${s.kleurKabels === 'lengte' ? 'selected' : ''}>per lengte (magazijnkleur)</option></select></label>

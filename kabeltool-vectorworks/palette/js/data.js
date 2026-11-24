@@ -111,10 +111,10 @@ window.KT = window.KT || {};
     laagKabels: 'Cabling',         // laag voor de 3D-kabels
     kabels3D: true,                // Tekening bijwerken maakt elke kabel als 3D-buis
     kabels2D: true,                // en als dunne lijn in bovenaanzicht
-    kabelAfstand: 0.03,            // m tussen kabels naast elkaar
+    kabelAfstand: 0.002,           // m speling tussen de kabels in de bundel
     kleurKabels: 'type',           // 3D-kabels: 'type' (kleur van het kabeltype) of 'lengte' (magazijnkleur)
-    kabelDikte3D: 2,               // kabels in de palette-3D zoveel keer dikker tekenen (beter te zien)
-    migratie: 2,                   // versie van de instellingen (voor het omzetten van oude projecten)
+    kabelDikte3D: 3,               // kabels in de palette-3D zoveel keer dikker tekenen (beter te zien)
+    migratie: 3,                   // versie van de instellingen (voor het omzetten van oude projecten)
     dimcityKast: 2,                // m, hoogte van de dim city-kast in 3D
     dropSymbool: 0.3,              // m, doorsnede dropsymbool
     dropLengtes: [25, 35],         // looms die als drop mogen

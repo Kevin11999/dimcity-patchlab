@@ -45,94 +45,223 @@
     return '';
   };
 
-  // Elke kabel een eigen pad: van de dim city over de vloer, de grote drop omhoog, over de truss en de drop af.
-  // Kabels die over hetzelfde stuk lopen liggen naast/boven elkaar (doorsnede als raster).
-  // Daarna opgeknipt in de stukken (25 m, 10 m …) zodat elk stuk zijn eigen kleur en lengte heeft.
-  KT.kabelPaden = function (kabels, trussen, tk, inst) {
-    const afst = +inst.kabelAfstand > 0 ? +inst.kabelAfstand : 0.03;
-    const sleutelPt = p => p.map(v => (+v).toFixed(2)).join(',');
-    const sleutel = (a, b) => [sleutelPt(a), sleutelPt(b)].sort().join('|');
+  // ---------- kabels als strakke bundel ----------
+  // Alle kabels van één truss lopen als één ronde bundel: van de dim city over de vloer, de grote drop omhoog en
+  // onder de truss langs. Elke kabel houdt de hele weg dezelfde plek in de bundel. Wie het eerst de bundel verlaat
+  // (dichtstbijzijnde drop) ligt onderin, zodat niemand een andere kabel kruist. Bochten zijn rond.
+  // schaal: alleen voor de palette (dikkere kabels zodat je ze ziet); Vectorworks krijgt schaal 1 (echte maat).
+  const V = {
+    add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
+    sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+    mul: (a, f) => [a[0] * f, a[1] * f, a[2] * f],
+    dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+    cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+    len: a => Math.hypot(a[0], a[1], a[2]),
+    norm: a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; },
+    lerp: (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f],
+  };
+  // vector v om as k (eenheid) draaien over hoek h (Rodrigues)
+  const draai = (v, k, h) => {
+    const c = Math.cos(h), sn = Math.sin(h);
+    return V.add(V.add(V.mul(v, c), V.mul(V.cross(k, v), sn)), V.mul(k, V.dot(k, v) * (1 - c)));
+  };
 
-    // 1. basispad per kabel: lijst segmenten {a, b, t0, t1, key}
-    const basis = kabels.map(k => {
-      const T = trussen[k.truss];
-      const segs = [];
-      if (!T) return segs;
+  // Ronde bochten: elke hoek wordt een boog (kwadratische bezier). pts = [{p, t}], t = afstand langs het oorspronkelijke pad.
+  function rondeBochten(pts, straal, stappen) {
+    if (pts.length < 3) return pts.slice();
+    const uit = [pts[0]];
+    for (let i = 1; i < pts.length - 1; i++) {
+      const A = pts[i - 1], B = pts[i], C = pts[i + 1];
+      const d1 = V.sub(B.p, A.p), d2 = V.sub(C.p, B.p), L1 = V.len(d1), L2 = V.len(d2);
+      if (L1 < 1e-6 || L2 < 1e-6) { uit.push(B); continue; }
+      const u1 = V.mul(d1, 1 / L1), u2 = V.mul(d2, 1 / L2);
+      const hoek = Math.acos(Math.max(-1, Math.min(1, V.dot(u1, u2))));
+      if (hoek < 0.03) { uit.push(B); continue; }
+      const a = Math.min(straal * Math.tan(hoek / 2), L1 * 0.5, L2 * 0.5);
+      const P1 = V.sub(B.p, V.mul(u1, a)), P2 = V.add(B.p, V.mul(u2, a));
+      const t1 = B.t - (B.t - A.t) * a / L1, t2 = B.t + (C.t - B.t) * a / L2;
+      const n = Math.max(3, Math.round(stappen * hoek / (Math.PI / 2)));
+      for (let k = 0; k <= n; k++) {
+        const f = k / n, g = 1 - f;
+        const p = V.add(V.add(V.mul(P1, g * g), V.mul(B.p, 2 * g * f)), V.mul(P2, f * f));
+        uit.push({ p, t: t1 + (t2 - t1) * f });
+      }
+    }
+    uit.push(pts[pts.length - 1]);
+    // t moet oplopen (nodig voor het knippen in stukken)
+    for (let i = 1; i < uit.length; i++) if (uit[i].t <= uit[i - 1].t) uit[i].t = uit[i - 1].t + 1e-6;
+    return uit;
+  }
+
+  // Assenkruis langs de lijn: U = opzij, W = 'omhoog' in de doorsnede. Op liggende stukken wijst W echt omhoog
+  // (zo ligt 'onderin de bundel' ook echt onderin); op staande stukken draait het kruis geleidelijk mee.
+  function assen(pts) {
+    const n = pts.length, T = [];
+    for (let i = 0; i < n; i++) {
+      const a = pts[Math.max(0, i - 1)].p, b = pts[Math.min(n - 1, i + 1)].p;
+      T.push(V.norm(V.sub(b, a)));
+    }
+    const rechtop = t => {
+      const u = Math.abs(t[2]) > 0.999 ? [1, 0, 0] : V.norm(V.cross([0, 0, 1], t));
+      return u;
+    };
+    // meedraaiend kruis (zonder te tollen)
+    const U = [rechtop(T[0])];
+    for (let i = 1; i < n; i++) {
+      const as = V.cross(T[i - 1], T[i]), sn = V.len(as);
+      let u = U[i - 1];
+      if (sn > 1e-8) u = draai(u, V.mul(as, 1 / sn), Math.atan2(sn, V.dot(T[i - 1], T[i])));
+      u = V.norm(V.sub(u, V.mul(T[i], V.dot(u, T[i]))));
+      U.push(u);
+    }
+    // gewenste draaiing: liggend -> W omhoog; staand -> geleidelijk tussen de liggende stukken
+    const hoekVan = i => {
+      const doel = rechtop(T[i]);
+      return Math.atan2(V.dot(V.cross(U[i], doel), T[i]), V.dot(U[i], doel));
+    };
+    const ligt = T.map(t => Math.abs(t[2]) < 0.7);
+    const phi = new Array(n).fill(null);
+    for (let i = 0; i < n; i++) if (ligt[i]) phi[i] = hoekVan(i);
+    for (let i = 1; i < n; i++) if (phi[i] != null && phi[i - 1] != null) {      // geen sprong van 2π
+      while (phi[i] - phi[i - 1] > Math.PI) phi[i] -= 2 * Math.PI;
+      while (phi[i] - phi[i - 1] < -Math.PI) phi[i] += 2 * Math.PI;
+    }
+    const s = [0];
+    for (let i = 1; i < n; i++) s.push(s[i - 1] + V.len(V.sub(pts[i].p, pts[i - 1].p)));
+    for (let i = 0; i < n; i++) if (phi[i] == null) {
+      let a = i - 1; while (a >= 0 && phi[a] == null) a--;
+      let b = i + 1; while (b < n && phi[b] == null) b++;
+      if (a < 0 && b >= n) phi[i] = 0;
+      else if (a < 0) phi[i] = phi[b];
+      else if (b >= n) phi[i] = phi[a];
+      else {
+        let pb = phi[b];
+        while (pb - phi[a] > Math.PI) pb -= 2 * Math.PI;
+        while (pb - phi[a] < -Math.PI) pb += 2 * Math.PI;
+        phi[i] = phi[a] + (pb - phi[a]) * (s[i] - s[a]) / ((s[b] - s[a]) || 1);
+      }
+    }
+    return pts.map((q, i) => {
+      const u = draai(U[i], T[i], phi[i]);
+      return { u, w: V.cross(T[i], u) };
+    });
+  }
+
+  // Plekken in een ronde bundel (zeshoekig gestapeld), van onder naar boven
+  function bundelPlekken(n, d) {
+    const kand = [], K = Math.ceil(Math.sqrt(n)) + 2, h = d * Math.sqrt(3) / 2;
+    for (let j = -K; j <= K; j++) for (let i = -K; i <= K; i++) {
+      const x = (i + (Math.abs(j) % 2) * 0.5) * d, y = j * h;
+      kand.push([x, y]);
+    }
+    kand.sort((a, b) => (Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1])) || (Math.atan2(a[1], a[0]) - Math.atan2(b[1], b[0])));
+    const plek = kand.slice(0, n);
+    const mx = plek.reduce((s, p) => s + p[0], 0) / (n || 1), my = plek.reduce((s, p) => s + p[1], 0) / (n || 1);
+    plek.forEach(p => { p[0] -= mx; p[1] -= my; });
+    plek.sort((a, b) => (a[1] - b[1]) || (a[0] - b[0]));
+    const R = plek.reduce((m, p) => Math.max(m, Math.hypot(p[0], p[1])), 0) + d / 2;
+    return { plek, R };
+  }
+
+  KT.kabelPaden = function (kabels, trussen, tk, inst, schaal) {
+    schaal = +schaal > 0 ? +schaal : 1;
+    const tussen = Math.max(0, Math.min(0.05, +inst.kabelAfstand || 0)) * schaal;
+    const kleurVan = (k, st) => inst.kleurKabels === 'lengte' ? KT.kleurVoor(st.m) : KT.typeKleur3D(k.type);
+
+    // kabels per truss (= per bundel)
+    const perTruss = {};
+    kabels.forEach((k, i) => { if (trussen[k.truss]) (perTruss[k.truss] = perTruss[k.truss] || []).push(i); });
+    // bundels van dezelfde dim city liggen op de vloer naast elkaar
+    const perDc = {};
+    Object.keys(perTruss).forEach(id => { const dc = trussen[id].dc; (perDc[dc] = perDc[dc] || []).push(id); });
+
+    const uit = [], bundels = {};
+    Object.keys(perTruss).forEach(id => {
+      const T = trussen[id], lijst = perTruss[id];
+      const d = Math.max(...lijst.map(i => KT.diameter(kabels[i].type))) / 1000 * schaal + tussen;
+      const volgorde = lijst.slice().sort((x, y) => (kabels[x].sDrop - kabels[y].sDrop)
+        || String(kabels[x].nr).localeCompare(String(kabels[y].nr), 'nl', { numeric: true }));
+      const { plek, R } = bundelPlekken(volgorde.length, d);
+      bundels[id] = R;
+      const buren = perDc[T.dc], nr = buren.indexOf(id);
+      const opzij = (nr - (buren.length - 1) / 2) * (2 * R + 0.03 * schaal);
+
+      // hartlijn van de bundel: op de vloer erop, onder de truss eronder
+      const nTruss = T.pts.length, start = T.pad.length - nTruss;
       let t = 0;
-      for (let i = 0; i < T.pad.length - 1 && t < k.sDrop - 1e-6; i++) {
-        const a = T.pad[i], b = T.pad[i + 1], L = d3(a, b);
-        if (L < 1e-6) continue;
-        const key = sleutel(a, b);
-        if (t + L <= k.sDrop + 1e-6) segs.push({ a, b, t0: t, t1: t + L, key });
-        else {
-          const r = (k.sDrop - t) / L;
-          segs.push({ a, b: [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r, a[2] + (b[2] - a[2]) * r], t0: t, t1: k.sDrop, key });
+      const hart = T.pad.map((p, i) => {
+        if (i) t += d3(T.pad[i - 1], p);
+        const z = i >= start ? p[2] - R : (p[2] < 0.01 ? R : p[2]);
+        return { p: [p[0], p[1], z], t };
+      });
+      const rond = rondeBochten(hart, Math.max(0.3, R * 5), 10);
+      const kruis = assen(rond);
+
+      // punt van een kabel op afstand tt langs de bundel
+      const op = (pl, tt) => {
+        let i = 0;
+        while (i < rond.length - 2 && rond[i + 1].t < tt) i++;
+        const A = rond[i], B = rond[i + 1], f = Math.max(0, Math.min(1, (tt - A.t) / ((B.t - A.t) || 1)));
+        const pa = V.add(A.p, V.add(V.mul(kruis[i].u, pl[0] + opzij), V.mul(kruis[i].w, pl[1])));
+        const pb = V.add(B.p, V.add(V.mul(kruis[i + 1].u, pl[0] + opzij), V.mul(kruis[i + 1].w, pl[1])));
+        return V.lerp(pa, pb, f);
+      };
+
+      // kabels die bij dezelfde drop uitstappen: de onderste eerst, een kabeldikte uit elkaar
+      const perDrop = {};
+      volgorde.forEach((i, r) => { const k = kabels[i]; (perDrop[k.drop] = perDrop[k.drop] || []).push(r); });
+
+      volgorde.forEach((i, r) => {
+        const k = kabels[i], pl = plek[r];
+        const groep = perDrop[k.drop], j = groep.indexOf(r);
+        const tUit = Math.max(0, k.sDrop + (j - (groep.length - 1) / 2) * d);
+        const lijst2 = [];
+        rond.forEach((q, n) => {
+          if (q.t >= tUit - 1e-6) return;
+          lijst2.push({ t: q.t, p: V.add(q.p, V.add(V.mul(kruis[n].u, pl[0] + opzij), V.mul(kruis[n].w, pl[1]))) });
+        });
+        const boven = op(pl, tUit);
+        lijst2.push({ t: tUit, p: boven });
+        const tEind = k.sDrop + k.val;
+        if (k.val > 0.01) {
+          const onder = [boven[0], boven[1], (k.dropPunt ? k.dropPunt[2] : boven[2]) - k.val];
+          const staart = rondeBochten([lijst2[lijst2.length - 2] || lijst2[0], lijst2[lijst2.length - 1], { t: tEind, p: onder }],
+            Math.max(0.15, d * 6), 8);
+          lijst2.pop(); if (lijst2.length) lijst2.pop();
+          staart.forEach(q => lijst2.push(q));
         }
-        t += L;
-      }
-      const p = k.dropPunt;
-      if (p && k.val > 0.01) segs.push({ a: p, b: [p[0], p[1], p[2] - k.val], t0: k.sDrop, t1: k.sDrop + k.val, key: 'drop:' + k.drop });
-      return segs;
-    });
+        for (let n = 1; n < lijst2.length; n++) if (lijst2[n].t <= lijst2[n - 1].t) lijst2[n].t = lijst2[n - 1].t + 1e-6;
+        if (lijst2.length < 2) return;
 
-    // 2. per segment: welke kabels lopen er (gesorteerd op nummer)
-    const perSeg = {};
-    kabels.forEach((k, i) => basis[i].forEach(s => { (perSeg[s.key] = perSeg[s.key] || []).push(i); }));
-    Object.values(perSeg).forEach(l => l.sort((x, y) => String(kabels[x].nr).localeCompare(String(kabels[y].nr), 'nl', { numeric: true })));
-
-    const offset = (s, i) => {
-      const lijst = perSeg[s.key], n = lijst.length, idx = lijst.indexOf(i);
-      const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
-      const col = idx % cols, row = Math.floor(idx / cols);
-      const dx = s.b[0] - s.a[0], dy = s.b[1] - s.a[1], h = Math.hypot(dx, dy);
-      let u, v;
-      if (h < 1e-6) { u = [1, 0, 0]; v = [0, 1, 0]; }          // verticaal
-      else { u = [-dy / h, dx / h, 0]; v = [0, 0, 1]; }
-      const opVloer = Math.abs(s.a[2]) < 0.01 && Math.abs(s.b[2]) < 0.01 && h >= 1e-6;
-      const cu = (col - (cols - 1) / 2) * afst;
-      const cv = opVloer ? (row + 0.5) * afst : (row - (rows - 1) / 2) * afst;   // op de vloer: erop, niet erin
-      return [u[0] * cu + v[0] * cv, u[1] * cu + v[1] * cv, u[2] * cu + v[2] * cv];
-    };
-
-    // 3. per kabel een lijst {t, p} met verschuiving, daarna knippen per stuk
-    const knip = (lijst, t0, t1) => {
-      const uit = [];
-      const zet = p => { const q = uit[uit.length - 1]; if (!q || Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]) > 1e-4) uit.push(p); };
-      for (let i = 0; i < lijst.length - 1; i++) {
-        const A = lijst[i], B = lijst[i + 1];
-        if (B.t > A.t + 1e-9) {
-          const lo = Math.max(t0, A.t), hi = Math.min(t1, B.t);
-          if (hi < lo) continue;
-          const f = tt => { const r = (tt - A.t) / (B.t - A.t); return [A.p[0] + (B.p[0] - A.p[0]) * r, A.p[1] + (B.p[1] - A.p[1]) * r, A.p[2] + (B.p[2] - A.p[2]) * r]; };
-          zet(f(lo)); zet(f(hi));
-        } else if (A.t >= t0 - 1e-9 && A.t <= t1 + 1e-9) { zet(A.p); zet(B.p); }
-      }
-      return uit;
-    };
-
-    const uit = [];
-    kabels.forEach((k, i) => {
-      const lijst = [];
-      basis[i].forEach(s => {
-        const o = offset(s, i);
-        lijst.push({ t: s.t0, p: [s.a[0] + o[0], s.a[1] + o[1], s.a[2] + o[2]] });
-        lijst.push({ t: s.t1, p: [s.b[0] + o[0], s.b[1] + o[1], s.b[2] + o[2]] });
-      });
-      if (lijst.length < 2) return;
-      const tEind = k.sDrop + k.val, T = trussen[k.truss];
-      k.stukken.forEach((st, j) => {
-        const t0 = Math.max(0, st.s1), t1 = j === 0 ? tEind : st.s0;
-        if (t1 - t0 < 0.01) return;
-        const punten = knip(lijst, t0, t1);
-        if (punten.length < 2) return;
-        const kleur = inst.kleurKabels === 'lengte' ? KT.kleurVoor(st.m) : KT.typeKleur3D(k.type);
-        uit.push({ nummer: k.nr, type: k.type.naam, kort: k.type.kort, lengte: KT.lengteTekst(st.m), totaal: k.totaal,
-          diameter: KT.diameter(k.type), kleur, klasse: (T && (T.t.klasse || T.t.naam)) || '', dc: k.dc, drop: k.drop,
-          punten: punten.map(p => p.map(v => Math.round(v * 1000) / 1000)) });
+        // opknippen in de stukken (25 m, 10 m …), elk in zijn eigen kleur
+        k.stukken.forEach((st, jj) => {
+          const t0 = Math.max(0, st.s1), t1 = jj === 0 ? lijst2[lijst2.length - 1].t : st.s0;
+          if (t1 - t0 < 0.01) return;
+          const punten = knip(lijst2, t0, t1);
+          if (punten.length < 2) return;
+          uit.push({ nummer: k.nr, type: k.type.naam, kort: k.type.kort, lengte: KT.lengteTekst(st.m), totaal: k.totaal,
+            diameter: KT.diameter(k.type), kleur: kleurVan(k, st), klasse: (T.t.klasse || T.t.naam) || '', dc: k.dc, drop: k.drop,
+            punten: punten.map(p => p.map(v => Math.round(v * 1000) / 1000)) });
+        });
       });
     });
+    uit.bundels = bundels;          // straal van elke bundel (voor de dropklem in de 3D)
     return uit;
   };
+
+  // stuk van een pad tussen t0 en t1 (lijst = [{t, p}] met oplopende t)
+  function knip(lijst, t0, t1) {
+    const uit = [];
+    const zet = p => { const q = uit[uit.length - 1]; if (!q || Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]) > 1e-4) uit.push(p); };
+    for (let i = 0; i < lijst.length - 1; i++) {
+      const A = lijst[i], B = lijst[i + 1];
+      const lo = Math.max(t0, A.t), hi = Math.min(t1, B.t);
+      if (hi < lo) continue;
+      const f = tt => V.lerp(A.p, B.p, (tt - A.t) / ((B.t - A.t) || 1));
+      zet(f(lo)); zet(f(hi));
+    }
+    return uit;
+  }
 
   KT.bereken = function () {
     const tk = KT.tekening, pr = KT.project, inst = pr.instellingen, w = [];
@@ -343,12 +472,14 @@
 
     // --- elke kabel als eigen 3D-pad naast de andere, opgeknipt per stuk (voor de 3D en Vectorworks) ---
     const kabelpaden = KT.kabelPaden(kabels, trussen, tk, inst);
+    const dikte = Math.max(1, Math.min(10, +inst.kabelDikte3D || 1));
+    const kabelpaden3D = dikte === 1 ? kabelpaden : KT.kabelPaden(kabels, trussen, tk, inst, dikte);
 
     const dubbel = {};
     kabels.forEach(k => { dubbel[k.nr] = (dubbel[k.nr] || 0) + 1; });
     Object.keys(dubbel).filter(n => dubbel[n] > 1 && n !== '?').forEach(n => w.push(`Nummer ${n} komt ${dubbel[n]}× voor.`));
 
-    KT.res = { knopen, stukken, kabels, labels, stempels, waarschuwingen: w, trussen, kabelpaden };
+    KT.res = { knopen, stukken, kabels, labels, stempels, waarschuwingen: w, trussen, kabelpaden, kabelpaden3D };
     return KT.res;
   };
 })();

@@ -35,6 +35,11 @@ ${nr}</svg>`;
       if (s.kleurKabels === 'lengte') s.kleurKabels = 'type';
       s.migratie = 2;
     }
+    if (+s.migratie < 3) {                       // eenmalig: kabels liggen nu als strakke bundel
+      if (+s.kabelAfstand === 0.03) s.kabelAfstand = 0.002;
+      if (+s.kabelDikte3D === 2) s.kabelDikte3D = 3;
+      s.migratie = 3;
+    }
     return s;
   };
 })();

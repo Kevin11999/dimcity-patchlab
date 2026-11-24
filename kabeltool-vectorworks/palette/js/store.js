@@ -25,7 +25,7 @@
   };
 
   function vulAan() {
-    KT.lib = KT.lib || KT.standaardBibliotheek();
+    KT.lib = KT.werkBibBij(KT.lib || KT.standaardBibliotheek());
     KT.project = KT.project || KT.nieuwProject();
     KT.tekening = KT.tekening || KT.legeTekening();
     KT.project.instellingen = KT.werkInstellingenBij(Object.assign(KT.standaardInstellingen(), KT.project.instellingen || {}));
@@ -73,7 +73,7 @@
 
   function neemProject(p) {
     const kopie = Object.assign({}, p);
-    if (!KT.mappen.bib && p.bibliotheek) KT.lib = p.bibliotheek;   // kopie uit de tekening
+    if (!KT.mappen.bib && p.bibliotheek) KT.lib = KT.werkBibBij(p.bibliotheek);   // kopie uit de tekening
     delete kopie.bibliotheek; delete kopie.tekenlijst; delete kopie.stempels; delete kopie.kabelpaden;
     KT.project = kopie;
   }
@@ -108,7 +108,7 @@
     const map = await window.showDirectoryPicker({ mode: 'readwrite' });
     KT.mappen.bib = map;
     const b = await lees(map, 'kabelbibliotheek.json');
-    if (b && b.families) { KT.lib = b; KT.status('Bibliotheek geladen uit de map.'); } else KT.status('Nieuwe kabelbibliotheek.json wordt in deze map gezet.');
+    if (b && b.families) { KT.lib = KT.werkBibBij(b); KT.status('Bibliotheek geladen uit de map.'); } else KT.status('Nieuwe kabelbibliotheek.json wordt in deze map gezet.');
   };
 
   // Uitwijk zonder mappen: bestand inlezen / downloaden.

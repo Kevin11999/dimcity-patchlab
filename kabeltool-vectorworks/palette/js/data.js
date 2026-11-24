@@ -10,8 +10,34 @@ window.KT = window.KT || {};
   // rand/3D-kleur en vet per familie: multi blauw, VEAM/LK oranje en vet (zoals de tekeningen van Kevin)
   const RAND = { socapex: '#29b6f6', harting: '#29b6f6', lk: '#ff7043', veam: '#ff7043' };
   const VET = { lk: true, veam: true };
+  // kleur van de kabel in 3D (palette en Vectorworks): per type duidelijk anders, zoals in FixturePilot
+  const KLEUR3D = {
+    socapex: '#2196f3', harting: '#00bcd4', lk: '#ff9800', veam: '#ffc107', dmx3: '#ab47bc', dmx5: '#ab47bc',
+    cat5e: '#43a047', cat6a: '#43a047', cat7: '#2e7d32', catloom: '#66bb6a', cathaspel: '#43a047',
+    opticalcon: '#ec407a', fiberfox: '#ec407a', sfp: '#f48fb1', schuko: '#9e9e9e', cee16: '#1e88e5', cee32: '#e53935',
+    cee63r: '#c62828', cee63b: '#1565c0', cee125: '#b71c1c', powerlock: '#6d4c41', camlock: '#795548',
+    powercon: '#42a5f5', true1: '#607d8b', speakon: '#78909c', sceptron: '#26a69a', atomic: '#26c6da',
+  };
+  KT.typeKleur3D = type => (type && (type.kleur3D || KLEUR3D[type.id] || (type.kleur && type.kleur !== '#000000' ? type.kleur : ''))) || '#9e9e9e';
   const t = (id, naam, kort, voorvoegsel, connector, lengtes, stempel) =>
-    ({ id, naam, kort, voorvoegsel, connector, lengtes, stempel: stempel || '', diameter: KT.standaardDiameter(id), kleur: RAND[id] || '#000000', vet: !!VET[id] });
+    ({ id, naam, kort, voorvoegsel, connector, lengtes, stempel: stempel || '', diameter: KT.standaardDiameter(id), kleur: RAND[id] || '#000000', vet: !!VET[id], kleur3D: KLEUR3D[id] || '' });
+
+  // Oude bibliotheek (SOCA, LK, V, LK-blok …) omzetten naar de huidige namen en kleuren. Eigen types blijven staan.
+  KT.werkBibBij = function (lib) {
+    if (!lib || !lib.families) return lib;
+    const oud = { socapex: ['SOCA'], lk: ['LK'], veam: ['V', 'VEAM'] }, nieuw = { socapex: 'SOC', lk: 'V12', veam: 'V4' };
+    lib.families.forEach(f => (f.types || []).forEach(ty => {
+      if (oud[ty.id] && oud[ty.id].includes(ty.kort)) ty.kort = nieuw[ty.id];
+      if (RAND[ty.id] && (!ty.kleur || ty.kleur === '#000000')) ty.kleur = RAND[ty.id];
+      if (ty.vet == null && VET[ty.id]) ty.vet = true;
+      if (!ty.kleur3D && KLEUR3D[ty.id]) ty.kleur3D = KLEUR3D[ty.id];
+    }));
+    (lib.blokken || []).forEach(b => {
+      if (b.id === 'lkblok' && /^LK[- ]?blok$/i.test(b.naam || '')) b.naam = 'VEAM12';
+      if (b.id === 'veamsplitter' && /splitter/i.test(b.naam || '')) b.naam = 'VEAM4';
+    });
+    return lib;
+  };
 
   const STD = [2.5, 5, 10, 15, 25];
 
@@ -86,7 +112,9 @@ window.KT = window.KT || {};
     kabels3D: true,                // Tekening bijwerken maakt elke kabel als 3D-buis
     kabels2D: true,                // en als dunne lijn in bovenaanzicht
     kabelAfstand: 0.03,            // m tussen kabels naast elkaar
-    kleurKabels: 'lengte',         // 'lengte' (magazijnkleur) of 'type' (kleur van het kabeltype)
+    kleurKabels: 'type',           // 3D-kabels: 'type' (kleur van het kabeltype) of 'lengte' (magazijnkleur)
+    kabelDikte3D: 2,               // kabels in de palette-3D zoveel keer dikker tekenen (beter te zien)
+    migratie: 2,                   // versie van de instellingen (voor het omzetten van oude projecten)
     dimcityKast: 2,                // m, hoogte van de dim city-kast in 3D
     dropSymbool: 0.3,              // m, doorsnede dropsymbool
     dropLengtes: [25, 35],         // looms die als drop mogen

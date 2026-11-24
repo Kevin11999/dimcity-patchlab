@@ -157,6 +157,7 @@
     stempelen: '<svg viewBox="0 0 18 18" fill="#c9ced6"><path d="M7 2h4v5l3 2v2H4V9l3-2z"/><rect x="3" y="13" width="12" height="2" rx="1"/></svg>',
     verversen: '<svg viewBox="0 0 18 18" fill="none" stroke="#c9ced6" stroke-width="1.6"><path d="M15 9a6 6 0 1 1-2-4.5M15 3v4h-4"/></svg>',
     demo: '<svg viewBox="0 0 18 18"><path d="M5 3l10 6-10 6z" fill="#ff9500"/></svg>',
+    opruimen: '<svg viewBox="0 0 18 18" fill="none" stroke="#c9ced6" stroke-width="1.4"><path d="M2 6l7-3 7 3-7 3z"/><path d="M2 9.5l7 3 7-3M2 13l7 3 7-3"/></svg>',
     map: '<svg viewBox="0 0 18 18" fill="none" stroke="#c9ced6" stroke-width="1.5"><path d="M2 5h5l2 2h7v8H2z"/></svg>',
   };
   const tool = (icoon, tekst, actie, extra) => `<button class="tool ${extra || ''}" onclick="${actie}">${ICOON[icoon]}${tekst}</button>`;
@@ -170,7 +171,7 @@
       <div class="groep-titel">Tekening</div><div class="toolraster">
         ${tool('bijwerken', 'Tekening bijwerken', "KT.vw.actie('bijwerken')", 'breed hoofd')}
         ${tool('stempelen', 'Stempelen', "KT.vw.actie('stempelen')")}${tool('verversen', 'Verversen', 'KT.vw.ververs()')}
-        ${tool('demo', 'Demo-show maken', "KT.vw.actie('demo')", 'breed')}</div>`;
+        ${tool('demo', 'Demo-show', "KT.vw.actie('demo')")}${tool('opruimen', 'Lagen opruimen', 'KT.vw.opruimen()')}</div>`;
     return `<div class="groep-titel">Zonder Vectorworks</div><div class="toolraster">
         ${tool('demo', 'Demo', 'KT.ui.demo()', 'breed hoofd')}
         ${tool('map', 'Map van tekening', 'KT.ui.kiesMap()')}${tool('verversen', 'Verversen', 'KT.ui.ververs()')}
@@ -212,9 +213,10 @@
       <label>Kabels als 3D-buis tekenen<input type="checkbox" ${s.kabels3D !== false ? 'checked' : ''} onchange="KT.ui.zetInst('kabels3D',this.checked,'b')"></label>
       <label>Ook lijn in bovenaanzicht<input type="checkbox" ${s.kabels2D !== false ? 'checked' : ''} onchange="KT.ui.zetInst('kabels2D',this.checked,'b')"></label>
       ${v('Laag voor de 3D-kabels', 'laagKabels')}${v('Ruimte tussen kabels (m)', 'kabelAfstand', 'n')}
-      <label>Kleur van de kabels<select onchange="KT.ui.zetInst('kleurKabels',this.value)">
-        <option value="lengte" ${s.kleurKabels !== 'type' ? 'selected' : ''}>per lengte (magazijnkleur)</option>
-        <option value="type" ${s.kleurKabels === 'type' ? 'selected' : ''}>per kabeltype</option></select></label>
+      <label>Kleur van de 3D-kabels<select onchange="KT.ui.zetInst('kleurKabels',this.value)">
+        <option value="type" ${s.kleurKabels !== 'lengte' ? 'selected' : ''}>per kabeltype</option>
+        <option value="lengte" ${s.kleurKabels === 'lengte' ? 'selected' : ''}>per lengte (magazijnkleur)</option></select></label>
+      ${v('Dikte kabels in de 3D van de palette (×)', 'kabelDikte3D', 'n')}
       </div>
       <h3>Kleur per lengte (placeholder voor de magazijnkleurcode)</h3>
       <table><tr><th>m</th><th>kleur</th><th></th></tr>

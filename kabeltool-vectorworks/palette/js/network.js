@@ -125,7 +125,7 @@
         if (t1 - t0 < 0.01) return;
         const punten = knip(lijst, t0, t1);
         if (punten.length < 2) return;
-        const kleur = inst.kleurKabels === 'type' && k.type.kleur ? k.type.kleur : KT.kleurVoor(st.m);
+        const kleur = inst.kleurKabels === 'lengte' ? KT.kleurVoor(st.m) : KT.typeKleur3D(k.type);
         uit.push({ nummer: k.nr, type: k.type.naam, kort: k.type.kort, lengte: KT.lengteTekst(st.m), totaal: k.totaal,
           diameter: KT.diameter(k.type), kleur, klasse: (T && (T.t.klasse || T.t.naam)) || '', dc: k.dc, drop: k.drop,
           punten: punten.map(p => p.map(v => Math.round(v * 1000) / 1000)) });
@@ -294,7 +294,7 @@
         const b = KT.blok(k.blok), n = Math.max(1, +b.poorten || 1);
         const breakout = k.type.stempel === 'multi';
         const poorten = [];
-        for (let j = 1; j <= n; j++) poorten.push({ kort: j + ': ' + ((opPoort[k.nr] || {})[j] || []).join(', ') });
+        for (let j = 1; j <= n; j++) poorten.push({ kort: ((opPoort[k.nr] || {})[j] || []).join(', ') });
         labels.push({ soort: 'blok', laag: 'infra', x: p[0], y: p[1], z: p[2], rijNr: i, titel: breakout ? b.naam + ' ' + k.nr : b.naam + '-' + k.nr,
           blokSoort: breakout ? 'breakout' : 'splitter', poorten: n, letter: k.voorv, kader: breakout ? '#e53935' : kleurRoute,
           klasse: T.t.klasse || T.t.naam || '', rijen: breakout ? [] : poorten });

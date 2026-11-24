@@ -58,6 +58,7 @@ namespace Kabeltool
 						CLabel_EventSink(IVWUnknown* parent);
 		virtual			~CLabel_EventSink();
 		virtual EObjectEvent	Recalculate() override;
+		virtual EObjectEvent	OnInitXProperties(CodeRefID objectID) override;
 	};
 
 	class CKabel_EventSink : public VWParametric_EventSink

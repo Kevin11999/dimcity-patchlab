@@ -106,22 +106,54 @@
       return s;
     }
     // buis langs een pad: cilinders per stuk + bolletjes in de bochten, samengevoegd tot één geometrie
-    function buis(punten, r) {
+    function buis(punten, r, zijden) {
+      const z = zijden || 8;
       const delen = [], Y = new THREE.Vector3(0, 1, 0);
       for (let i = 0; i < punten.length - 1; i++) {
         const a = v3(punten[i]), b = v3(punten[i + 1]), d = b.clone().sub(a), len = d.length();
         if (len < 1e-4) continue;
-        const g = new THREE.CylinderGeometry(r, r, len, 8, 1, true);
+        const g = new THREE.CylinderGeometry(r, r, len, z, 1, true);
         g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(Y, d.normalize()));
         g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
         delen.push(g);
-        if (i > 0) { const s = new THREE.SphereGeometry(r, 8, 6); s.translate(a.x, a.y, a.z); delen.push(s); }
+        if (i > 0) { const s = new THREE.SphereGeometry(r, z, 6); s.translate(a.x, a.y, a.z); delen.push(s); }
       }
       if (!delen.length) return null;
       const g = THREE.mergeGeometries(delen.map(x => x.index ? x.toNonIndexed() : x), false);
       delen.forEach(x => x.dispose());
       return g;
     }
+
+    // vakwerk (zoals een echte truss): 4 regels in de lengte, ringen en diagonalen op elk vlak.
+    // o = hoek, u = lengterichting (eenheid), v en w = dwarsrichtingen (eenheid) met maat bv en bw
+    function vakwerk(o, u, len, v, bv, w, bw) {
+      const hoek = [[0, 0], [1, 0], [1, 1], [0, 1]], P = [];
+      const pt = (t, h) => o.clone().addScaledVector(u, t).addScaledVector(v, hoek[h][0] * bv).addScaledVector(w, hoek[h][1] * bw);
+      const n = Math.max(1, Math.round(len / Math.max(0.25, Math.max(bv, bw) * 1.7)));
+      const stap = len / n;
+      for (let h = 0; h < 4; h++) P.push(pt(0, h), pt(len, h));
+      for (let i = 0; i <= n; i++) for (let h = 0; h < 4; h++) P.push(pt(i * stap, h), pt(i * stap, (h + 1) % 4));
+      for (let i = 0; i < n; i++) for (let h = 0; h < 4; h++) {
+        const om = (i + h) % 2;
+        P.push(pt(i * stap, om ? h : (h + 1) % 4), pt((i + 1) * stap, om ? (h + 1) % 4 : h));
+      }
+      const groep = new THREE.Group();
+      groep.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(P), new THREE.LineBasicMaterial({ color: 0xb4bcc6 })));
+      // onzichtbaar blok om op te kunnen wijzen (info bij hover)
+      const blok = new THREE.Mesh(new THREE.BoxGeometry(len, bv, bw), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
+      blok.position.copy(o.clone().addScaledVector(u, len / 2).addScaledVector(v, bv / 2).addScaledVector(w, bw / 2));
+      blok.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, v, w));
+      blok.userData.pick = true;
+      groep.add(blok);
+      return { groep, blok };
+    }
+    // vaste kleur per lamptype (uit Inst Type), zodat je de soorten lampen uit elkaar houdt
+    const LAMPKLEUREN = ['#ffd54f', '#4fc3f7', '#f06292', '#aed581', '#ba68c8', '#ff8a65', '#4db6ac', '#e0e0e0'];
+    const lampKleur = type => {
+      let h = 0;
+      for (const c of String(type || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+      return LAMPKLEUREN[h % LAMPKLEUREN.length];
+    };
 
     // ---------- opbouwen ----------
     function bouw() {
@@ -168,17 +200,17 @@
       });
       (tk.trusslijnen || []).forEach(r => {
         const pts = r.punten || [];
+        const T = 0.29;
         for (let i = 0; i < pts.length - 1; i++) {
           const a = v3(pts[i]), b = v3(pts[i + 1]), d = b.clone().sub(a), len = d.length();
           if (len < 1e-3) continue;
-          const g = new THREE.BoxGeometry(len, 0.29, 0.29);
-          const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.5, roughness: 0.45, transparent: true, opacity: 0.25, depthWrite: false }));
-          mesh.position.copy(a.clone().add(b).multiplyScalar(0.5)).add(new THREE.Vector3(0, 0, 0.145));
-          mesh.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), d.normalize());
-          const rand = new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({ color: 0xb8c0ca }));
-          mesh.add(rand);
-          mesh.userData = { laag: r.laag, info: 'Truss-lijn ' + (r.naam || r.id) };
-          groepen.routes.add(mesh); pickbaar.push(mesh);
+          const u = d.normalize();
+          const v = Math.abs(u.z) > 0.99 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1).cross(u).normalize();
+          const w = u.clone().cross(v).normalize();
+          const { groep, blok } = vakwerk(a.clone().addScaledVector(v, -T / 2), u, len, v, T, w, T);
+          groep.userData = { laag: r.laag };
+          blok.userData = { pick: true, laag: r.laag, info: 'Truss-lijn ' + (r.naam || r.id) };
+          groepen.routes.add(groep); pickbaar.push(blok);
         }
         if (r.naam && pts[0]) {
           const s = naambord(r.naam, '#c9ced6'); s.position.copy(v3(pts[0])).add(new THREE.Vector3(0, 0, 0.6)); s.userData.laag = r.laag; s.userData.maat = 0.45;
@@ -190,21 +222,22 @@
       (tk.trussen || []).forEach(t => {
         const a = v3(t.min), b = v3(t.max), d = b.clone().sub(a);
         if (d.x <= 0 || d.y <= 0 || d.z <= 0) return;
-        const g = new THREE.BoxGeometry(d.x, d.y, d.z);
-        const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x8a919b, metalness: 0.6, roughness: 0.4, transparent: true, opacity: 0.3, depthWrite: false }));
-        mesh.position.copy(a.clone().add(b).multiplyScalar(0.5));
-        mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({ color: 0xaab2bc })));
-        mesh.userData = { laag: t.laag, info: 'Truss: ' + (t.naam || '') + (t.klasse ? ' · ' + t.klasse : '') };
-        groepen.trussen.add(mesh); pickbaar.push(mesh);
+        const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
+        const as = d.x >= d.y && d.x >= d.z ? [X, d.x, Y, d.y, Z, d.z] : d.y >= d.z ? [Y, d.y, X, d.x, Z, d.z] : [Z, d.z, X, d.x, Y, d.y];
+        const { groep, blok } = vakwerk(a, as[0], as[1], as[2], as[3], as[4], as[5]);
+        groep.userData = { laag: t.laag };
+        blok.userData = { pick: true, laag: t.laag, info: 'Truss: ' + (t.naam || '') + (t.klasse ? ' · ' + t.klasse : '') };
+        groepen.trussen.add(groep); pickbaar.push(blok);
       });
 
       // lampen
       const lampGeo = new THREE.CylinderGeometry(0.11, 0.17, 0.34, 14);
       lampGeo.rotateX(Math.PI / 2);
       (tk.alleLampen || []).forEach(l => {
-        const mesh = new THREE.Mesh(lampGeo, new THREE.MeshStandardMaterial({ color: l.drop ? 0xffd54f : 0xb8973a, emissive: 0x332200, roughness: 0.5 }));
+        const c = kleur(lampKleur(l.type || l.naam));
+        const mesh = new THREE.Mesh(lampGeo, new THREE.MeshStandardMaterial({ color: c, emissive: c.clone().multiplyScalar(0.15), roughness: 0.5 }));
         mesh.position.set(+l.x || 0, +l.y || 0, +l.z || 0);
-        mesh.userData = { laag: l.laag, info: 'Lamp: ' + (l.naam || l.uuid) + (l.drop ? ' · ' + l.drop : ''), deelt: true };
+        mesh.userData = { laag: l.laag, info: 'Lamp: ' + (l.naam || l.uuid) + (l.drop ? ' · ' + l.drop : ' · niet gekoppeld'), deelt: true };
         groepen.lampen.add(mesh); pickbaar.push(mesh);
       });
 
@@ -225,9 +258,10 @@
 
       // kabels: elk stuk een buis in zijn eigen kleur
       const laagKabels = inst.laagKabels || inst.laagCabling;
+      const dikte = Math.max(1, Math.min(10, +inst.kabelDikte3D || 2));
       (res.kabelpaden || []).forEach(k => {
-        const r = Math.max(0.005, (+k.diameter || 15) / 2000);
-        const g = buis(k.punten, r);
+        const r = Math.max(0.008, (+k.diameter || 15) / 2000 * dikte);
+        const g = buis(k.punten, r, 10);
         if (!g) return;
         const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: kleur(k.kleur), roughness: 0.55, metalness: 0.05, transparent: true, opacity: 1 }));
         mesh.userData = { laag: laagKabels, info: `${k.nummer} · ${k.type} ${k.lengte} m (totaal ${k.totaal} m)`, nummer: k.nummer, dc: k.dc, drop: k.drop };
@@ -301,8 +335,9 @@
       const r = renderer.domElement.getBoundingClientRect();
       muis.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       ray.setFromCamera(muis, camera);
-      const hits = ray.intersectObjects(pickbaar.filter(o => o.visible && o.parent && o.parent.visible), false)
-        .filter(h => !h.object.material || h.object.material.opacity > 0.5);
+      const zichtbaar = o => { for (let x = o; x && x !== scene; x = x.parent) if (!x.visible) return false; return true; };
+      const hits = ray.intersectObjects(pickbaar.filter(zichtbaar), false)
+        .filter(h => h.object.userData.pick || !h.object.material || h.object.material.opacity > 0.5);
       return hits.length ? hits[0].object : null;
     }
     let neer = null, wacht = 0;

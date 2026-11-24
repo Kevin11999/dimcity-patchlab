@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <fstream>
 #include <functional>
+#include <map>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -367,16 +368,34 @@ namespace
 		return Std( naam );
 	}
 
+	std::string LaagNaam(MCObjectHandle h)
+	{
+		try { return Std( VWLayerObj( h ).GetName() ); }
+		catch ( ... ) { return ""; }
+	}
+
+	// Ontwerplaag op naam zoeken (hoofdletters maken niet uit). GetNamedObject vindt geen lagen.
+	MCObjectHandle ZoekLaag(const std::string& naam)
+	{
+		MCObjectHandle gevonden = nullptr;
+		std::string doel = Klein( naam );
+		gSDK->ForEachLayerN( [&](MCObjectHandle h) {
+			if ( gevonden || ! h ) return;
+			if ( Klein( LaagNaam( h ) ) == doel ) gevonden = h;
+		} );
+		return gevonden;
+	}
+
+	// Bestaande laag gebruiken; alleen als die er echt niet is een nieuwe maken (de actieve laag blijft actief)
 	MCObjectHandle Laag(const std::string& naam)
 	{
-		MCObjectHandle h = gSDK->GetNamedObject( Tx( naam ) );
-		if ( h && gSDK->GetObjectTypeN( h ) == kLayerNode )
-			return h;
-		if ( h )
-			throw Stop{ "De naam '" + naam + "' is al in gebruik voor iets anders dan een laag." };
+		MCObjectHandle h = ZoekLaag( naam );
+		if ( h ) return h;
+		MCObjectHandle actief = gSDK->GetActiveLayer();
 		h = gSDK->CreateLayer( Tx( naam ), kLayerDesign );
 		if ( ! h )
 			throw Stop{ "Laag '" + naam + "' kon niet gemaakt worden." };
+		if ( actief && actief != h ) gSDK->SetCurrentLayer( actief );
 		return h;
 	}
 
@@ -391,12 +410,58 @@ namespace
 		try
 		{
 			MCObjectHandle l = VWObject( h ).GetParentLayer();
-			if ( ! l ) return "";
-			TXString naam;
-			gSDK->GetObjectName( l, naam );
-			return Std( naam );
+			return l ? LaagNaam( l ) : "";
 		}
 		catch ( ... ) { return ""; }
+	}
+
+	// Lagen opruimen: door de oude fout zijn er lagen als "Cabling-2", "Infraplot-5" en "Lightplot-3" gemaakt.
+	// Alles wat daarop staat gaat terug naar de echte laag; de lege extra laag verdwijnt.
+	void LagenOpruimen(const std::vector<std::string>& basissen)
+	{
+		struct Extra { MCObjectHandle h; std::string basis; };
+		std::vector<Extra> extra;
+		gSDK->ForEachLayerN( [&](MCObjectHandle h) {
+			if ( ! h ) return;
+			try { if ( VWLayerObj( h ).GetLayerType() != kLayerDesign ) return; } catch ( ... ) { return; }
+			std::string naam = LaagNaam( h );
+			for ( const std::string& b : basissen )
+			{
+				if ( b.empty() || naam.size() < b.size() + 2 ) continue;
+				if ( Klein( naam.substr( 0, b.size() ) ) != Klein( b ) || naam[b.size()] != '-' ) continue;
+				std::string rest = naam.substr( b.size() + 1 );
+				if ( rest.empty() || ! std::all_of( rest.begin(), rest.end(), [](char c) { return c >= '0' && c <= '9'; } ) ) continue;
+				extra.push_back( { h, b } );
+				break;
+			}
+		} );
+		if ( extra.empty() )
+		{
+			Meld( "Er zijn geen extra lagen om op te ruimen." );
+			return;
+		}
+
+		int verplaatst = 0, weg = 0, bleef = 0;
+		MCObjectHandle actief = gSDK->GetActiveLayer();
+		for ( const Extra& e : extra )
+		{
+			MCObjectHandle doel = Laag( e.basis );
+			std::vector<MCObjectHandle> inhoud;
+			for ( MCObjectHandle o = gSDK->FirstMemberObj( e.h ); o; o = gSDK->NextObject( o ) )
+				inhoud.push_back( o );
+			for ( MCObjectHandle o : inhoud )
+			{
+				gSDK->AddObjectToContainer( o, doel );
+				verplaatst++;
+			}
+			if ( actief == e.h ) { gSDK->SetCurrentLayer( doel ); actief = doel; }
+			if ( gSDK->FirstMemberObj( e.h ) ) { bleef++; continue; }
+			gSDK->DeleteObject( e.h, false );
+			weg++;
+		}
+		gSDK->ClearUndoTableDueToUnsupportedAction();
+		Meld( std::to_string( verplaatst ) + " objecten teruggezet, " + std::to_string( weg ) + " extra lagen verwijderd"
+			  + ( bleef ? ", " + std::to_string( bleef ) + " lagen niet leeg (blijven staan)." : "." ) );
 	}
 
 	std::string ZonderPrefix(const std::string& klasse, const std::string& prefix)
@@ -696,7 +761,7 @@ namespace
 				std::string naam = Veld( h, LD, "Inst Type" ) + " " + Veld( h, LD, "Unit Number" );
 				while ( ! naam.empty() && naam.back() == ' ' ) naam.pop_back();
 				while ( ! naam.empty() && naam.front() == ' ' ) naam.erase( 0, 1 );
-				lampen.push_back( { { "uuid", Uuid( h ) }, { "naam", naam }, { "laag", LaagVan( h ) }, { "drop", Veld( h, LINK, "drop" ) },
+				lampen.push_back( { { "uuid", Uuid( h ) }, { "naam", naam }, { "type", Veld( h, LD, "Inst Type" ) }, { "laag", LaagVan( h ) }, { "drop", Veld( h, LINK, "drop" ) },
 									{ "x", ( mn[0] + mx[0] ) / 2 }, { "y", ( mn[1] + mx[1] ) / 2 }, { "z", ( mn[2] + mx[2] ) / 2 } } );
 			}
 			else if ( Klein( soort ).find( "truss" ) != std::string::npos )
@@ -937,6 +1002,22 @@ namespace
 			return;
 		}
 		Undo undo( "Kabeltool: tekening bijwerken" );
+
+		// kaders die met de hand verschoven zijn, onthouden: het nieuwe label krijgt dezelfde plek
+		auto Sleutel = [](const std::string& soort, const std::string& titel, double x, double y, double rij, const std::string& blok) {
+			char buf[64];
+			std::snprintf( buf, sizeof(buf), "|%.0f|%.0f|%.0f|", x * 100.0, y * 100.0, rij );
+			return soort + "|" + titel + buf + blok;
+		};
+		std::map<std::string, std::pair<double, double>> verschoven;
+		for ( MCObjectHandle h : Objecten( Pon( KT_LABEL ) ) )
+		{
+			if ( Par( h, "verschoven" ) != "1" ) continue;
+			P3 p = Positie( h );
+			verschoven[ Sleutel( Par( h, "soort" ), Par( h, "titel" ), p[0], p[1], ParReal( h, "rijNr", 0 ), Par( h, "blokSoort" ) ) ] =
+				{ ParReal( h, "kaderX", 0 ), ParReal( h, "kaderY", 0 ) };
+		}
+
 		for ( const char* pon : { KT_LABEL, KT_KABEL } )
 			for ( MCObjectHandle h : Objecten( Pon( pon ) ) )
 				undo.Weg( h );
@@ -970,6 +1051,16 @@ namespace
 			ZetPar( h, "rijen2", vakken[1] );
 			ZetPar( h, "rijen3", vakken[2] );
 			ZetPar( h, "rijen4", vakken[3] );
+			auto oud = verschoven.find( Sleutel( Tekst( lb, "soort" ), Tekst( lb, "titel" ), Num( lb, "x", 0 ), Num( lb, "y", 0 ),
+												 Num( lb, "rijNr", 0 ), Tekst( lb, "blokSoort" ) ) );
+			if ( oud != verschoven.end() )
+			{
+				ZetParReal( h, "kaderX", oud->second.first );
+				ZetParReal( h, "kaderY", oud->second.second );
+				ZetPar( h, "verschoven", "1" );
+			}
+			// alleen in bovenaanzicht (schermvlak), niet plat op de vloer in 3D
+			gSDK->SetPlanarRefID( h, kPlanarRefID_ScreenPlane );
 			std::string k = Tekst( lb, "klasse" );
 			Afmaken( h, inst.prefix + ( k.empty() ? "Kabels" : k ), laag, undo );
 			nl++;
@@ -1172,6 +1263,11 @@ json Kabeltool::Voer(const std::string& functie, const json& args)
 		else if ( functie == "bijwerken" )	TekeningBijwerken();
 		else if ( functie == "stempelen" )	Stempelen();
 		else if ( functie == "demo" )		DemoShow();
+		else if ( functie == "opruimen" )
+		{
+			Inst inst = LeesInst();
+			LagenOpruimen( { inst.laagCabling, inst.laagInfra, inst.laagKabels, LAAG_LAMPEN } );
+		}
 		else throw Stop{ "Onbekende functie: " + functie };
 
 		// na een actie die de tekening verandert: geometriebestand bijwerken

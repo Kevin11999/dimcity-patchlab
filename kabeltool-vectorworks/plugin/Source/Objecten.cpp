@@ -73,7 +73,9 @@ namespace
 		t.SetTextSizeByPoint( std::max( 2.0, punten ) );
 		t.SetTextJustification( uitlijning == 1 ? kTextHorzAlign_Left : uitlijning == 3 ? kTextHorzAlign_Right : kTextHorzAlign_Center );
 		t.SetTextVerticalAlignment( kTextVertAlign_CenterBox );
-		return t.GetThisObject();
+		MCObjectHandle h = t.GetThisObject();
+		if ( h ) VWObjectAttr( h ).SetFillNone();		// geen wit vlak achter de tekst
+		return h;
 	}
 
 	MCObjectHandle Lijn(double x1, double y1, double x2, double y2)
@@ -165,11 +167,22 @@ namespace
 		Vul( b, kb );
 		Pen( b, CRGBColor( 0, 0, 0 ) );						// ook een witte balk blijft zo zichtbaar
 		double my = top - balk - ( H - balk ) / 2.0;
-		double pt = hoogtePapier * 0.62 / 0.3528;
+		double pt = hoogtePapier * 0.72 / 0.3528;
 		TekstKleur( r.kort, x + H * 0.25, my, pt, 1, CRGBColor( 0, 0, 0 ), r.vet == "1" );
 		TekstKleur( r.lengte, x + B - H * 0.25, my, pt, 3, CRGBColor( 0, 0, 0 ), false );
 		if ( ! r.nummer.empty() )
 			TekstKleur( r.nummer, x + B + H * 0.25, my, pt, 1, CRGBColor( 119, 119, 119 ), false );
+	}
+
+	// Maat van een kader met kabelsymbolen (zonder titel)
+	void KaderMaat(const std::vector<LabelRij>& rijen, double B, double H, double& breedte, double& hoogte)
+	{
+		double pad = H * 0.3, gat = H * 0.25;
+		size_t langste = 1;
+		for ( const LabelRij& r : rijen ) langste = std::max( langste, r.nummer.size() );
+		double nrB = langste * H * 0.72 * 0.6 + H * 0.4;
+		breedte = pad + B + nrB + pad;
+		hoogte = pad * 2 + rijen.size() * ( H + gat ) - ( rijen.empty() ? 0 : gat );
 	}
 
 	// Kader met titel en kabelsymbolen; links-onder op (x, y). Geeft breedte en hoogte terug.
@@ -177,11 +190,7 @@ namespace
 			   double hoogtePapier, const CRGBColor& kleur, bool metRand, double& breedte, double& hoogte)
 	{
 		double pad = H * 0.3, gat = H * 0.25;
-		size_t langste = 1;
-		for ( const LabelRij& r : rijen ) langste = std::max( langste, r.nummer.size() );
-		double nrB = langste * H * 0.62 * 0.62 + H * 0.4;
-		breedte = pad + B + nrB + pad;
-		hoogte = pad * 2 + rijen.size() * ( H + gat ) - ( rijen.empty() ? 0 : gat );
+		KaderMaat( rijen, B, H, breedte, hoogte );
 		if ( metRand )
 		{
 			MCObjectHandle k = Rechthoek( x, y + hoogte, x + breedte, y );
@@ -190,18 +199,66 @@ namespace
 			VWObjectAttr( k ).SetLineWeightInMils( 14 );
 		}
 		if ( ! titel.empty() )
-			TekstKleur( titel, x, y + hoogte + H * 0.55, hoogtePapier * 0.8 / 0.3528, 1, kleur, false );
+			TekstKleur( titel, x, y + hoogte + H * 0.6, hoogtePapier * 0.85 / 0.3528, 1, kleur, true );
 		for ( size_t i = 0; i < rijen.size(); i++ )
 			Kabelsymbool( x + pad, y + hoogte - pad - i * ( H + gat ), B, H, hoogtePapier, rijen[i] );
 	}
 
-	void TekenBlok(const VWParametricObj& o, double H, double hoogtePapier, const std::vector<LabelRij>& rijen)
+	// Sleeppunt van het kader. Zolang het niet met de hand verschoven is, volgt het de standaardplek
+	// (die verandert als de maat of de schaal verandert). Is het verschoven, dan blijft het waar het is.
+	void KaderPlek(VWParametricObj& o, double standX, double standY, double& x, double& y)
+	{
+		std::string st = Str( o, "verschoven" );
+		x = Real( o, "kaderX", standX );
+		y = Real( o, "kaderY", standY );
+		if ( st == "1" ) return;
+		double oudX = Real( o, "standX", 0 ), oudY = Real( o, "standY", 0 );
+		if ( st == "0" && ( std::abs( x - oudX ) > 1.0 || std::abs( y - oudY ) > 1.0 ) )
+		{
+			try { o.SetParamString( "verschoven", "1" ); } catch ( ... ) {}
+			return;
+		}
+		x = standX; y = standY;
+		try
+		{
+			o.SetParamReal( "kaderX", x );
+			o.SetParamReal( "kaderY", y );
+			o.SetParamReal( "standX", x );
+			o.SetParamReal( "standY", y );
+			o.SetParamString( "verschoven", "0" );
+		}
+		catch ( ... ) {}
+	}
+
+	// Punt op de rand van een rechthoek (links-boven lx,ty; rechts-onder rx,by) het dichtst bij (px,py)
+	void Dichtst(double lx, double ty, double rx, double by, double px, double py, double& qx, double& qy)
+	{
+		qx = std::max( lx, std::min( rx, px ) );
+		qy = std::max( by, std::min( ty, py ) );
+	}
+
+	std::string ZonderPoortNr(const std::string& t)
+	{
+		size_t i = 0;
+		while ( i < t.size() && t[i] >= '0' && t[i] <= '9' ) i++;
+		if ( i > 0 && i < t.size() && t[i] == ':' )
+		{
+			i++;
+			while ( i < t.size() && t[i] == ' ' ) i++;
+			return t.substr( i );
+		}
+		return t;
+	}
+
+	void TekenBlok(VWParametricObj& o, double H, double hoogtePapier, const std::vector<LabelRij>& rijen)
 	{
 		std::string soort = Str( o, "blokSoort" ), titel = Str( o, "titel" ), letter = Str( o, "letter" );
 		CRGBColor rood = Kleur( Str( o, "kader" ), 229, 57, 53 );
+		CRGBColor zwart( 0, 0, 0 ), grijs( 119, 119, 119 );
 		int n = std::max( 1, (int) Real( o, "poorten", 6 ) );
-		double top = -H * 1.5 - Real( o, "rijNr", 0 ) * H * 4.0;
 		double lip = H * 0.3;
+		double bx, by;
+		KaderPlek( o, 0.0, -H * 1.5 - Real( o, "rijNr", 0 ) * H * 4.0, bx, by );
 
 		auto Lippen = [&](double l, double t, double r, double b) {
 			double mid = ( t + b ) / 2.0, half = std::min( H * 0.35, ( t - b ) * 0.3 );
@@ -212,35 +269,42 @@ namespace
 		if ( soort == "breakout" )
 		{
 			double r = H * 0.42, w = n * r * 2.3 + H * 0.4, h = H * 1.3;
-			MCObjectHandle k = Rechthoek( 0, top, w, top - h );
+			MCObjectHandle k = Rechthoek( bx, by, bx + w, by - h );
 			Vul( k, CRGBColor( 255, 255, 255 ) );
 			Pen( k, rood );
-			Lippen( 0, top, w, top - h );
+			Lippen( bx, by, bx + w, by - h );
 			for ( int i = 0; i < n; i++ )
-				Cirkel( H * 0.2 + r * 1.15 + i * r * 2.3, top - h / 2.0, r, 20 );
-			TekstKleur( letter.empty() ? "M" : letter.substr( 0, 2 ), w + lip + H * 0.3, top - h / 2.0, hoogtePapier * 1.6 / 0.3528, 1, CRGBColor( 0, 0, 0 ), false );
+				GeenVulling( Cirkel( bx + H * 0.2 + r * 1.15 + i * r * 2.3, by - h / 2.0, r, 20 ) );
+			TekstKleur( letter.empty() ? "M" : letter.substr( 0, 2 ), bx + w + lip + H * 0.3, by - h / 2.0, hoogtePapier * 1.6 / 0.3528, 1, zwart, true );
 			if ( ! titel.empty() )
-				TekstKleur( titel, 0, top - h - H * 0.5, hoogtePapier * 0.6 / 0.3528, 1, CRGBColor( 0, 0, 0 ), false );
+				TekstKleur( titel, bx, by - h - H * 0.55, hoogtePapier * 0.7 / 0.3528, 1, zwart, false );
 			return;
 		}
 
-		// splitter: rood blok met naam, de poorten met wat erop zit, en lipjes
-		double regel = H * 0.6, w = H * 7.0, h = regel * ( n + 1.6 );
-		MCObjectHandle k = Rechthoek( 0, top, w, top - h );
+		// splitter: compact blok, naam bovenin, poorten in één of twee kolommen (nummer grijs, wat erop zit zwart)
+		int kol = n > 6 ? 2 : 1, perKol = ( n + kol - 1 ) / kol;
+		double regel = H * 0.62, kolB = H * 3.6, kop = H * 0.95;
+		double w = kol * kolB + H * 0.3, h = kop + perKol * regel + H * 0.25;
+		MCObjectHandle k = Rechthoek( bx, by, bx + w, by - h );
 		Vul( k, CRGBColor( 255, 255, 255 ) );
 		Pen( k, rood );
-		Lippen( 0, top, w, top - h );
-		TekstKleur( titel, w / 2.0, top - regel * 0.7, hoogtePapier * 0.55 / 0.3528, 2, CRGBColor( 0, 0, 0 ), false );
+		VWObjectAttr( k ).SetLineWeightInMils( 14 );
+		Lippen( bx, by, bx + w, by - h );
+		Pen( Lijn( bx, by - kop, bx + w, by - kop ), rood );
+		TekstKleur( titel, bx + w / 2.0, by - kop / 2.0, hoogtePapier * 0.6 / 0.3528, 2, zwart, true );
+		double pt = hoogtePapier * 0.5 / 0.3528;
 		for ( int i = 0; i < n; i++ )
 		{
-			std::string t = i < (int) rijen.size() ? rijen[i].kort : std::to_string( i + 1 ) + ":";
-			TekstKleur( t, H * 0.3, top - regel * ( 1.6 + i ), hoogtePapier * 0.4 / 0.3528, 1, rood, false );
+			double x = bx + H * 0.25 + ( i / perKol ) * kolB, y = by - kop - regel * ( ( i % perKol ) + 0.6 );
+			TekstKleur( std::to_string( i + 1 ), x, y, pt, 1, grijs, false );
+			std::string wat = i < (int) rijen.size() ? ZonderPoortNr( rijen[i].kort ) : "";
+			if ( ! wat.empty() ) TekstKleur( wat, x + H * 0.6, y, pt, 1, zwart, false );
 		}
 		if ( ! letter.empty() )
-			TekstKleur( letter, w + lip + H * 0.3, top - h / 2.0, hoogtePapier * 1.6 / 0.3528, 1, rood, false );
+			TekstKleur( letter, bx + w + lip + H * 0.3, by - h / 2.0, hoogtePapier * 1.6 / 0.3528, 1, rood, true );
 	}
 
-	void TekenLabel(const VWParametricObj& o)
+	void TekenLabel(VWParametricObj& o)
 	{
 		std::string soort = Str( o, "soort" ), titel = Str( o, "titel" );
 		std::vector<LabelRij> rijen = LeesRijen( Str( o, "rijen1" ) + ";" + Str( o, "rijen2" ) + ";" + Str( o, "rijen3" ) + ";" + Str( o, "rijen4" ) );
@@ -250,7 +314,8 @@ namespace
 		if ( mm <= 0 ) mm = 1;
 		double B = breedte * mm, H = hoogte * mm;
 		CRGBColor kleur = Kleur( Str( o, "kader" ), 0, 0, 0 );
-		double kb = 0, kh = 0;
+		double kb = 0, kh = 0, kw = 0, kt = 0;
+		KaderMaat( rijen, B, H, kw, kt );
 
 		if ( soort == "streepje" )							// lengtehulp
 		{
@@ -264,35 +329,46 @@ namespace
 			TekenBlok( o, H, hoogte, rijen );
 			return;
 		}
-		if ( soort == "vlag" || soort == "bol" )			// drop: groen rondje, golflijn, groen kader
+		if ( soort == "vlag" || soort == "bol" )			// drop: groen rondje, golflijn, groen kader (boven de lijn)
 		{
 			double r = H * 0.65;
 			MCObjectHandle bol = Cirkel( 0, 0, r, 24 );
 			Vul( bol, kleur );
 			Pen( bol, kleur );
-			double kx = H * 4.0, ky = H * 1.2;
-			Pen( Golflijn( r * 0.8, r * 0.6, kx, ky ), kleur );
-			Kader( rijen, titel, kx, ky, B, H, hoogte, kleur, true, kb, kh );
+			double lx, ty;										// links-boven van het kader
+			KaderPlek( o, H * 4.0, H * 1.4 + kt, lx, ty );
+			double qx, qy;
+			Dichtst( lx, ty, lx + kw, ty - kt, 0, 0, qx, qy );
+			double d = std::max( 1e-6, std::hypot( qx, qy ) );
+			if ( d > r * 1.2 ) Pen( Golflijn( qx / d * r * 0.9, qy / d * r * 0.9, qx, qy ), kleur );
+			Kader( rijen, titel, lx, ty - kt, B, H, hoogte, kleur, true, kb, kh );
 			return;
 		}
-		if ( soort == "koppel" )							// route/koppelpunt: rood rondje, lijn, rood kader
+		if ( soort == "koppel" )							// route/koppelpunt: rood rondje, lijn, rood kader (onder de lijn)
 		{
 			double r = H * 0.55;
 			MCObjectHandle bol = Cirkel( 0, 0, r, 24 );
 			Vul( bol, kleur );
 			Pen( bol, kleur );
-			double kx = H * 3.0, ky = -H * 1.0;
-			Kader( rijen, titel, kx, ky, B, H, hoogte, kleur, true, kb, kh );
-			Pen( Lijn( r, 0, kx, ky + kh / 2.0 ), kleur );
+			double lx, ty;
+			KaderPlek( o, H * 3.0, -H * 2.2, lx, ty );
+			double qx, qy;
+			Dichtst( lx, ty, lx + kw, ty - kt, 0, 0, qx, qy );
+			double d = std::max( 1e-6, std::hypot( qx, qy ) );
+			if ( d > r * 1.2 ) Pen( Lijn( qx / d * r, qy / d * r, qx, qy ), kleur );
+			Kader( rijen, titel, lx, ty - kt, B, H, hoogte, kleur, true, kb, kh );
 			return;
 		}
-		if ( soort == "dimcity" )							// DB: titel en kabels naast het vlak
+		if ( soort == "dimcity" )							// DB: kabels naast het vlak, zonder kader
 		{
-			double ox = Real( o, "dcMaat", 1 ) * MM * 0.6 + H;
-			Kader( rijen, "", ox, -H * 0.5, B, H, hoogte, kleur, false, kb, kh );
+			double lx, ty;
+			KaderPlek( o, Real( o, "dcMaat", 1 ) * MM * 0.6 + H, -H * 0.5 + kt, lx, ty );
+			Kader( rijen, "", lx, ty - kt, B, H, hoogte, kleur, false, kb, kh );
 			return;
 		}
-		Kader( rijen, titel, H * 2.0, H * 1.0, B, H, hoogte, kleur, true, kb, kh );
+		double lx, ty;
+		KaderPlek( o, H * 2.0, H * 1.0 + kt, lx, ty );
+		Kader( rijen, titel, lx, ty - kt, B, H, hoogte, kleur, true, kb, kh );
 	}
 
 	// ---------------------------------------------------------------------------------------------------- definities
@@ -361,6 +437,11 @@ namespace
 		{ "blokSoort",	{ "KTKabellabel", "p_blokSoort" },	kFieldText },
 		{ "poorten",	{ "KTKabellabel", "p_poorten" },	kFieldReal },
 		{ "letter",		{ "KTKabellabel", "p_letter" },		kFieldText },
+		{ "kaderX",		{ "KTKabellabel", "p_kaderX" },		kFieldCoordLocX },
+		{ "kaderY",		{ "KTKabellabel", "p_kaderY" },		kFieldCoordLocY },
+		{ "standX",		{ "KTKabellabel", "p_standX" },		kFieldReal },
+		{ "standY",		{ "KTKabellabel", "p_standY" },		kFieldReal },
+		{ "verschoven",	{ "KTKabellabel", "p_verschoven" },	kFieldText },
 		{ }
 	};
 
@@ -564,6 +645,23 @@ EObjectEvent CLabel_EventSink::Recalculate()
 		TekenLabel( o );
 	}
 	catch ( ... ) { Log( "Kabellabel tekenen mislukt" ); }
+	return kObjectEventNoErr;
+}
+
+// Object Info: alleen titel, kaderkleur en symboolmaat. De rest (kabelrijen, plek, schaal) beheert de Kabeltool zelf.
+// Het kader verschuif je met het sleeppunt in de tekening.
+EObjectEvent CLabel_EventSink::OnInitXProperties(CodeRefID objectID)
+{
+	try
+	{
+		gSDK->SetObjectProperty( objectID, kObjXPropHasUIOverride, true );
+		// 1-based volgorde van gParLabel: titel 2, breedte 3, hoogte 4, kader 14
+		gSDK->AppendParameterWidget( objectID, 2, "Titel", 0 );
+		gSDK->AppendParameterWidget( objectID, 14, "Kaderkleur (#rrggbb)", 0 );
+		gSDK->AppendParameterWidget( objectID, 3, "Symboolbreedte (mm op papier)", 0 );
+		gSDK->AppendParameterWidget( objectID, 4, "Symboolhoogte (mm op papier)", 0 );
+	}
+	catch ( ... ) { Log( "Object Info van het kabellabel mislukt" ); }
 	return kObjectEventNoErr;
 }
 

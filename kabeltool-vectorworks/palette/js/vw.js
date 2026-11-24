@@ -17,7 +17,7 @@
 
     function neemProject(p) {
       const kopie = Object.assign({}, p);
-      if (p.bibliotheek && p.bibliotheek.families) KT.lib = p.bibliotheek;
+      if (p.bibliotheek && p.bibliotheek.families) KT.lib = KT.werkBibBij(p.bibliotheek);
       delete kopie.bibliotheek; delete kopie.tekenlijst; delete kopie.stempels;
       KT.project = kopie;
       KT.project.instellingen = KT.werkInstellingenBij(Object.assign(KT.standaardInstellingen(), KT.project.instellingen || {}));
@@ -116,6 +116,12 @@
         } catch (e) { KT.status(e.message || String(e)); }
       },
       trussVanSelectie() { return KT.vw.actie('truss', { hoogte: KT.project.instellingen.trussHoogte }); },
+      // Extra lagen (Cabling-2, Infraplot-3 …) van de oude fout terugzetten naar de echte lagen
+      async opruimen() {
+        const i = KT.project.instellingen;
+        if (!await KT.vraag(`Lagen opruimen?\nAlles op lagen als "${i.laagCabling}-2", "${i.laagInfra}-3" of "Lightplot-2" gaat terug naar "${i.laagCabling}", "${i.laagInfra}" of "Lightplot". De lege extra lagen worden verwijderd.\nDit kun je niet ongedaan maken; bewaar je tekening eerst.`)) return;
+        return KT.vw.actie('opruimen');
+      },
     };
 
     // De tekening wordt pas geladen met Verversen (niet meteen bij het openen van de palette).

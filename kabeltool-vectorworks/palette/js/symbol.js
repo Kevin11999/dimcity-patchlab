@@ -30,6 +30,11 @@ ${nr}</svg>`;
   KT.werkInstellingenBij = function (s) {
     const k = s.lengteKleuren || {};
     if (k['10'] === '#2e7dff' && k['25'] === '#e53935') s.lengteKleuren = KT.standaardInstellingen().lengteKleuren;
+    if (!(+s.migratie >= 2)) {                   // eenmalig: oude maat en 3D-kleur per type
+      if (+s.symboolBreedte === 20) s.symboolBreedte = 13;
+      if (s.kleurKabels === 'lengte') s.kleurKabels = 'type';
+      s.migratie = 2;
+    }
     return s;
   };
 })();

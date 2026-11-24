@@ -101,6 +101,36 @@
 				"imperial": "",
 				"metric": ""
 			}
+		},
+		"kaderX": {
+			"default": {
+				"imperial": "0",
+				"metric": "0"
+			}
+		},
+		"kaderY": {
+			"default": {
+				"imperial": "0",
+				"metric": "0"
+			}
+		},
+		"standX": {
+			"default": {
+				"imperial": "0",
+				"metric": "0"
+			}
+		},
+		"standY": {
+			"default": {
+				"imperial": "0",
+				"metric": "0"
+			}
+		},
+		"verschoven": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
 		}
 	}
 }

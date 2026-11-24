@@ -154,24 +154,32 @@ namespace
 		return p.GetThisObject();
 	}
 
-	// Kabelsymbool: wit blokje met rand in typekleur, dunne balk bovenop in lengtekleur,
-	// korte naam links (vet bij VEAM), lengte rechts, nummer grijs ernaast.
+	// Kabelsymbool 1-op-1 naar het voorbeeld van Kevin ("SOC 15"): wit blokje met dunne rand in de typekleur,
+	// dunne balk bovenop (9 % van de hoogte) in de lengtekleur met een zwarte lijn erom, korte naam gecentreerd
+	// op 26 % van de breedte (vet bij VEAM), lengte gecentreerd op 78 %, geen scheidingslijn, nummer grijs ernaast.
+	// Hoofdletters zijn 58 % van de hoogte (lettergrootte 0,8 × de hoogte); te lange tekst wordt kleiner.
 	void Kabelsymbool(double x, double top, double B, double H, double hoogtePapier, const LabelRij& r)
 	{
-		double balk = H * 0.16;
+		double balk = H * 0.087;
 		MCObjectHandle blok = Rechthoek( x, top, x + B, top - H );
 		Vul( blok, CRGBColor( 255, 255, 255 ) );
 		Pen( blok, Kleur( r.rand, 0, 0, 0 ) );
 		MCObjectHandle b = Rechthoek( x, top, x + B, top - balk );
-		CRGBColor kb = Kleur( r.kleur, 255, 255, 255 );
-		Vul( b, kb );
+		Vul( b, Kleur( r.kleur, 255, 255, 255 ) );
 		Pen( b, CRGBColor( 0, 0, 0 ) );						// ook een witte balk blijft zo zichtbaar
-		double my = top - balk - ( H - balk ) / 2.0;
-		double pt = hoogtePapier * 0.72 / 0.3528;
-		TekstKleur( r.kort, x + H * 0.25, my, pt, 1, CRGBColor( 0, 0, 0 ), r.vet == "1" );
-		TekstKleur( r.lengte, x + B - H * 0.25, my, pt, 3, CRGBColor( 0, 0, 0 ), false );
+		double my = top - H * 0.495;
+		auto Past = [&](const std::string& t, bool vet) {
+			double em = hoogtePapier * 0.80;
+			double schat = std::max<size_t>( 1, t.size() ) * 0.66 * em * ( vet ? 1.08 : 1.0 );
+			double ruimte = ( B / H ) * hoogtePapier * 0.47;
+			if ( schat > ruimte ) em *= ruimte / schat;
+			return em / 0.3528;
+		};
+		bool vet = r.vet == "1";
+		TekstKleur( r.kort, x + B * 0.26, my, Past( r.kort, vet ), 2, CRGBColor( 0, 0, 0 ), vet );
+		TekstKleur( r.lengte, x + B * 0.785, my, Past( r.lengte, false ), 2, CRGBColor( 0, 0, 0 ), false );
 		if ( ! r.nummer.empty() )
-			TekstKleur( r.nummer, x + B + H * 0.25, my, pt, 1, CRGBColor( 119, 119, 119 ), false );
+			TekstKleur( r.nummer, x + B + H * 0.25, my, hoogtePapier * 0.72 / 0.3528, 1, CRGBColor( 119, 119, 119 ), false );
 	}
 
 	// Maat van een kader met kabelsymbolen (zonder titel)
@@ -329,6 +337,16 @@ namespace
 			TekenBlok( o, H, hoogte, rijen );
 			return;
 		}
+		if ( soort == "waarschuwing" )						// rood rondje met uitroepteken en korte tekst
+		{
+			double r = H * 0.6;
+			MCObjectHandle bol = Cirkel( 0, 0, r, 24 );
+			Vul( bol, kleur );
+			Pen( bol, kleur );
+			TekstKleur( "!", 0, 0, hoogte * 0.9 / 0.3528, 2, CRGBColor( 255, 255, 255 ), true );
+			if ( ! titel.empty() ) TekstKleur( titel, r * 1.6, 0, hoogte * 0.7 / 0.3528, 1, kleur, true );
+			return;
+		}
 		if ( soort == "vlag" || soort == "bol" )			// drop: groen rondje, golflijn, groen kader (boven de lijn)
 		{
 			double r = H * 0.65;
@@ -377,8 +395,18 @@ namespace
 	SParametricDef gDefRoute	= { { "KTKabelroute", "localized_name" },	kParametricSubType_2DPath,	true, true, false, false, false, false };
 	SParametricDef gDefLabel	= { { "KTKabellabel", "localized_name" },	kParametricSubType_Point,	true, true, false, false, false, false };
 	SParametricDef gDefKabel	= { { "KTKabel", "localized_name" },		kParametricSubType_3DPath,	true, true, false, false, false, false };
+	SParametricDef gDefDoel		= { { "KTDropdoel", "localized_name" },		kParametricSubType_Point,	true, true, false, false, false, false };
 
 	SParametricParamChc gGeenKeuzes[] = {
+		{ 0, "", { 0, 0 } }
+	};
+
+	SParametricParamChc gDropKeuzes[] = {
+		{ 131, "Boog",			{ "KTDrop", "keuze_boog" } },
+		{ 131, "Recht",			{ "KTDrop", "keuze_recht" } },
+		{ 131, "Realistisch",	{ "KTDrop", "keuze_realistisch" } },
+		{ 132, "L",				{ "KTDrop", "keuze_links" } },
+		{ 132, "R",				{ "KTDrop", "keuze_rechts" } },
 		{ 0, "", { 0, 0 } }
 	};
 
@@ -407,6 +435,21 @@ namespace
 		{ "kleur",		{ "KTDrop", "p_kleur" },			kFieldText },
 		{ "ktId",		{ "KTDrop", "p_ktId" },				kFieldText },
 		{ "truss",		{ "KTDrop", "p_truss" },			kFieldText },
+		{ "kant",		{ "KTDrop", "p_kant" },				kFieldPopUp, 132 },
+		{ "richting",	{ "KTDrop", "p_richting" },			kFieldReal },
+		{ "vorm",		{ "KTDrop", "p_vorm" },				kFieldPopUp, 131 },
+		{ "droplengte",	{ "KTDrop", "p_droplengte" },		kFieldReal },
+		{ "doelKlasse",	{ "KTDrop", "p_doelKlasse" },		kFieldText },
+		{ }
+	};
+
+	SParametricParam2Def gParDoel[] = {
+		{ "drop",		{ "KTDropdoel", "p_drop" },			kFieldText },
+		{ "hoogte",		{ "KTDropdoel", "p_hoogte" },		kFieldReal },
+		{ "kleur",		{ "KTDropdoel", "p_kleur" },		kFieldText },
+		{ "dropX",		{ "KTDropdoel", "p_dropX" },		kFieldReal },
+		{ "dropY",		{ "KTDropdoel", "p_dropY" },		kFieldReal },
+		{ "symboolMaat",{ "KTDropdoel", "p_symboolMaat" },	kFieldReal },
 		{ }
 	};
 
@@ -502,10 +545,13 @@ IMPLEMENT_VWParametricExtension( CExtLabel, CLabel_EventSink, KT_LABEL, 1,
 // {03E5653C-0FAF-47BE-B804-9D00EBC706B4}
 IMPLEMENT_VWParametricExtension( CExtKabel, CKabel_EventSink, KT_KABEL, 1,
 	0x03e5653c, 0x0faf, 0x47be, 0xb8, 0x04, 0x9d, 0x00, 0xeb, 0xc7, 0x06, 0xb4 );
+// {6C0B3B7E-2E61-4F0B-9B7A-5D2C1E8A4F31}
+IMPLEMENT_VWParametricExtension( CExtDoel, CDoel_EventSink, KT_DOEL, 1,
+	0x6c0b3b7e, 0x2e61, 0x4f0b, 0x9b, 0x7a, 0x5d, 0x2c, 0x1e, 0x8a, 0x4f, 0x31 );
 
 CExtDimCity::CExtDimCity(CallBackPtr cbp)	: VWExtensionParametric( cbp, gDefDimCity, gParDimCity, gGeenKeuzes ) {}
 CExtDimCity::~CExtDimCity() {}
-CExtDrop::CExtDrop(CallBackPtr cbp)			: VWExtensionParametric( cbp, gDefDrop, gParDrop, gGeenKeuzes ) {}
+CExtDrop::CExtDrop(CallBackPtr cbp)			: VWExtensionParametric( cbp, gDefDrop, gParDrop, gDropKeuzes ) {}
 CExtDrop::~CExtDrop() {}
 CExtRoute::CExtRoute(CallBackPtr cbp)		: VWExtensionParametric( cbp, gDefRoute, gParRoute, gRouteKeuzes ) {}
 CExtRoute::~CExtRoute() {}
@@ -513,6 +559,8 @@ CExtLabel::CExtLabel(CallBackPtr cbp)		: VWExtensionParametric( cbp, gDefLabel, 
 CExtLabel::~CExtLabel() {}
 CExtKabel::CExtKabel(CallBackPtr cbp)		: VWExtensionParametric( cbp, gDefKabel, gParKabel, gGeenKeuzes ) {}
 CExtKabel::~CExtKabel() {}
+CExtDoel::CExtDoel(CallBackPtr cbp)			: VWExtensionParametric( cbp, gDefDoel, gParDoel, gGeenKeuzes ) {}
+CExtDoel::~CExtDoel() {}
 
 CDimCity_EventSink::CDimCity_EventSink(IVWUnknown* parent)	: VWParametric_EventSink( parent ) {}
 CDimCity_EventSink::~CDimCity_EventSink() {}
@@ -524,6 +572,8 @@ CLabel_EventSink::CLabel_EventSink(IVWUnknown* parent)		: VWParametric_EventSink
 CLabel_EventSink::~CLabel_EventSink() {}
 CKabel_EventSink::CKabel_EventSink(IVWUnknown* parent)		: VWParametric_EventSink( parent ) {}
 CKabel_EventSink::~CKabel_EventSink() {}
+CDoel_EventSink::CDoel_EventSink(IVWUnknown* parent)		: VWParametric_EventSink( parent ) {}
+CDoel_EventSink::~CDoel_EventSink() {}
 
 // ------------------------------------------------------------------------------------------------------------
 // Dim city: vierkant met naam (2D), kast (3D)
@@ -562,7 +612,8 @@ EObjectEvent CDimCity_EventSink::Recalculate()
 	return kObjectEventNoErr;
 }
 
-// Drop: gevuld rondje (2D; het kader met de kabels komt van het label), drop naar beneden (3D)
+// Drop: gevuld rondje met een pijl naar de dropkant (2D; het kader met de kabels komt van het label), bolletje op de truss (3D).
+// De kabels zelf (met de dropvorm) zijn aparte Kabeltool Kabel-objecten.
 EObjectEvent CDrop_EventSink::Recalculate()
 {
 	try
@@ -570,27 +621,87 @@ EObjectEvent CDrop_EventSink::Recalculate()
 		VWParametricObj o( fhObject );
 		double r		= std::max( 0.05, Real( o, "symboolMaat", 0.3 ) ) * MM / 2.0;
 		double z		= Real( o, "z", 8 ) * MM;
-		double val		= Real( o, "valhoogte", 0 ) * MM;
-		if ( val <= 0 || val > z ) val = z;
 		CRGBColor kleur = Kleur( Str( o, "kleur" ), 51, 204, 0 );
 
 		MCObjectHandle c = Cirkel( 0, 0, r, 24 );
 		Vul( c, kleur );
 		Pen( c, kleur );
 
+		// pijl naar de kant waar de kabels zakken (loodrecht op de truss-lijn)
+		std::string kant = Str( o, "kant" );
+		if ( kant == "L" || kant == "R" )
+		{
+			// de richting staat in wereldcoördinaten; het object kan zelf gedraaid zijn
+			double hoek = Real( o, "richting", 0 ) * 3.14159265358979 / 180.0;
+			TransformMatrix m;
+			gSDK->GetEntityMatrix( fhObject, m );
+			VWTransformMatrix vm( m );
+			VWPoint3D asx = vm.GetUVector(), asy = vm.GetVVector();
+			double wx = std::cos( hoek ), wy = std::sin( hoek );
+			double lx = wx * asx.x + wy * asx.y, ly = wx * asy.x + wy * asy.y;		// naar objectcoördinaten
+			double nx = -ly, ny = lx;
+			if ( kant == "R" ) { nx = -nx; ny = -ny; }
+			double l = std::hypot( nx, ny );
+			if ( l > 1e-9 ) { nx /= l; ny /= l; }
+			double a0 = r * 1.15, a1 = r * 2.9, kop = r * 0.95;
+			MCObjectHandle steel = Lijn( nx * a0, ny * a0, nx * ( a1 - kop * 0.6 ), ny * ( a1 - kop * 0.6 ) );
+			Pen( steel, kleur );
+			VWObjectAttr( steel ).SetLineWeightInMils( 20 );
+			VWPolygon2DObj punt;
+			punt.AddCornerVertex( nx * a1, ny * a1 );
+			punt.AddCornerVertex( nx * ( a1 - kop ) - ny * kop * 0.55, ny * ( a1 - kop ) + nx * kop * 0.55 );
+			punt.AddCornerVertex( nx * ( a1 - kop ) + ny * kop * 0.55, ny * ( a1 - kop ) - nx * kop * 0.55 );
+			punt.SetClosed( true );
+			Vul( punt.GetThisObject(), kleur );
+			Pen( punt.GetThisObject(), kleur );
+		}
+
 		if ( z > 1 )
 		{
-			VWPolygon3DObj lijn;
-			lijn.AddVertex( 0, 0, z );
-			lijn.AddVertex( 0, 0, z - val );
-			lijn.SetClosed( false );
-			GeenVulling( lijn.GetThisObject() );
-			Pen( lijn.GetThisObject(), kleur );
 			MCObjectHandle bol = gSDK->CreateSphere( WorldPt3( 0, 0, z ), r * 0.5 );
 			Vul( bol, kleur );
 		}
 	}
 	catch ( ... ) { Log( "Drop tekenen mislukt" ); }
+	return kObjectEventNoErr;
+}
+
+// Drop-eindpunt: doelteken (rondje met kruis) met een stippellijn naar de drop en het dropnummer (alleen 2D)
+EObjectEvent CDoel_EventSink::Recalculate()
+{
+	try
+	{
+		VWParametricObj o( fhObject );
+		double r		= std::max( 0.05, Real( o, "symboolMaat", 0.3 ) ) * MM / 2.0;
+		CRGBColor kleur = Kleur( Str( o, "kleur" ), 51, 204, 0 );
+		MCObjectHandle c = Cirkel( 0, 0, r, 24 );
+		GeenVulling( c );
+		Pen( c, kleur );
+		VWObjectAttr( c ).SetLineWeightInMils( 14 );
+		Pen( Lijn( -r * 1.4, 0, r * 1.4, 0 ), kleur );
+		Pen( Lijn( 0, -r * 1.4, 0, r * 1.4 ), kleur );
+
+		// stippellijn naar de drop (in objectcoördinaten)
+		double dx = Real( o, "dropX", 0 ) * MM, dy = Real( o, "dropY", 0 ) * MM;
+		TransformMatrix m;
+		gSDK->GetEntityMatrix( fhObject, m );
+		VWTransformMatrix vm( m );
+		VWPoint3D asx = vm.GetUVector(), asy = vm.GetVVector();
+		double lx = dx * asx.x + dy * asx.y, ly = dx * asy.x + dy * asy.y;
+		double L = std::hypot( lx, ly );
+		if ( L > r * 3 )
+		{
+			double ux = lx / L, uy = ly / L, stap = r * 0.9;
+			for ( double t = r * 1.5; t < L - r * 1.5; t += stap * 2 )
+			{
+				double t2 = std::min( t + stap, L - r * 1.5 );
+				Pen( Lijn( ux * t, uy * t, ux * t2, uy * t2 ), kleur );
+			}
+		}
+		std::string drop = Str( o, "drop" );
+		if ( ! drop.empty() ) TekstKleur( drop, r * 1.6, -r * 1.6, 9, 1, kleur, true );
+	}
+	catch ( ... ) { Log( "Drop-eindpunt tekenen mislukt" ); }
 	return kObjectEventNoErr;
 }
 

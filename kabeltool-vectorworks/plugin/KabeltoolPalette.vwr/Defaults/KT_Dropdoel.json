@@ -1,0 +1,40 @@
+{
+	"params": {
+		"drop": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"hoogte": {
+			"default": {
+				"imperial": "0",
+				"metric": "0"
+			}
+		},
+		"kleur": {
+			"default": {
+				"imperial": "#33cc00",
+				"metric": "#33cc00"
+			}
+		},
+		"dropX": {
+			"default": {
+				"imperial": "0",
+				"metric": "0"
+			}
+		},
+		"dropY": {
+			"default": {
+				"imperial": "0",
+				"metric": "0"
+			}
+		},
+		"symboolMaat": {
+			"default": {
+				"imperial": "0.3",
+				"metric": "0.3"
+			}
+		}
+	}
+}

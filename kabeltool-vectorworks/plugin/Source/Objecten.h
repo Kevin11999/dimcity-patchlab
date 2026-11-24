@@ -8,12 +8,14 @@
 //   KT Kabelroute – 2D-padobject: vloerroute of truss-lijn, met hoogte
 //   KT Kabellabel – puntobject: kabelsymbolen (SOCA 25 m M301 …), vlaggetje, koppelpunt, lengtehulp
 //   KT Kabel      – 3D-padobject: één kabelstuk als buis in 3D (en dunne lijn in 2D)
+//   KT Dropdoel   – puntobject: eindpunt van een drop bij het object (in de class van het object)
 
 #define KT_DIMCITY		"KT_DimCity"
 #define KT_DROP			"KT_Drop"
 #define KT_ROUTE		"KT_Kabelroute"
 #define KT_LABEL		"KT_Kabellabel"
 #define KT_KABEL		"KT_Kabel"
+#define KT_DOEL			"KT_Dropdoel"
 
 namespace Kabeltool
 {
@@ -69,6 +71,14 @@ namespace Kabeltool
 		virtual EObjectEvent	Recalculate() override;
 	};
 
+	class CDoel_EventSink : public VWParametric_EventSink
+	{
+	public:
+						CDoel_EventSink(IVWUnknown* parent);
+		virtual			~CDoel_EventSink();
+		virtual EObjectEvent	Recalculate() override;
+	};
+
 	// ------------------------------------------------------------------------------------------------------
 	class CExtDimCity : public VWExtensionParametric
 	{
@@ -108,5 +118,13 @@ namespace Kabeltool
 	public:
 		CExtKabel(CallBackPtr cbp);
 		virtual ~CExtKabel();
+	};
+
+	class CExtDoel : public VWExtensionParametric
+	{
+		DEFINE_VWParametricExtension;
+	public:
+		CExtDoel(CallBackPtr cbp);
+		virtual ~CExtDoel();
 	};
 }

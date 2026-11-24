@@ -47,6 +47,36 @@
 				"imperial": "#33cc00",
 				"metric": "#33cc00"
 			}
+		},
+		"kant": {
+			"default": {
+				"imperial": "L",
+				"metric": "L"
+			}
+		},
+		"richting": {
+			"default": {
+				"imperial": "0",
+				"metric": "0"
+			}
+		},
+		"vorm": {
+			"default": {
+				"imperial": "Boog",
+				"metric": "Boog"
+			}
+		},
+		"droplengte": {
+			"default": {
+				"imperial": "0",
+				"metric": "0"
+			}
+		},
+		"doelKlasse": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
 		}
 	}
 }

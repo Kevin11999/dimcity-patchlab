@@ -29,10 +29,35 @@ namespace Kabeltool
 		CToolDimcity_EventSink(IVWUnknown* parent) : CToolKlik_EventSink( parent, "dimcity" ) {}
 	};
 
-	class CToolDrop_EventSink : public CToolKlik_EventSink
+	// ------------------------------------------------------------------------------------------------------
+	// Drop in twee klikken. Klik 1 snapt op de truss-lijn van de kabeltruss (zoals een lamp op een truss);
+	// de kant van de muis bepaalt aan welke kant de kabels zakken. Klik 2 = eindpunt bij het object.
+	// Modusbalk: Object (class, zoekbaar) en Dropvorm. Tijdens het bewegen een voorbeeld en een hulptekst.
+	class CToolDrop_EventSink : public VWTool_EventSink
 	{
 	public:
-		CToolDrop_EventSink(IVWUnknown* parent) : CToolKlik_EventSink( parent, "drop" ) {}
+							CToolDrop_EventSink(IVWUnknown* parent);
+		virtual				~CToolDrop_EventSink();
+
+	public:
+		virtual bool		DoSetUp(bool bRestore, const IToolModeBarInitProvider* pModeBarInitProvider) override;
+		virtual void		DoSetDown(bool bRestore, const IToolModeBarInitProvider* pModeBarInitProvider) override;
+		virtual TToolStatus	GetStatus(const IToolStatusProvider* pStatusProvider) override;
+		virtual void		PointAdded() override;
+		virtual void		PointRemoved(bool bClearAllPts) override;
+		virtual void		MouseMove() override;
+		virtual void		HandleComplete() override;
+
+	private:
+		void				Voorbeeld();
+		void				Wis();
+		void				Hulp(const std::string& tekst);
+		std::string			Klasse();
+		std::string			Vorm();
+
+		bool				fHeeftSnap = false;
+		double				fSnapX = 0, fSnapY = 0, fRx = 1, fRy = 0;	// mm / richting
+		std::string			fKant, fTruss;
 	};
 
 	// ------------------------------------------------------------------------------------------------------

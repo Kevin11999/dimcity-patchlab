@@ -1,0 +1,34 @@
+{
+	"params": {
+		"naam": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"maat": {
+			"default": {
+				"imperial": "1",
+				"metric": "1"
+			}
+		},
+		"kastHoogte": {
+			"default": {
+				"imperial": "2",
+				"metric": "2"
+			}
+		},
+		"toonNaam": {
+			"default": {
+				"imperial": "True",
+				"metric": "True"
+			}
+		},
+		"ktId": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		}
+	}
+}

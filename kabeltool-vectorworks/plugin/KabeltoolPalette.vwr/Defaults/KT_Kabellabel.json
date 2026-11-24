@@ -1,0 +1,82 @@
+{
+	"params": {
+		"soort": {
+			"default": {
+				"imperial": "vlag",
+				"metric": "vlag"
+			}
+		},
+		"titel": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"breedte": {
+			"default": {
+				"imperial": "20",
+				"metric": "20"
+			}
+		},
+		"hoogte": {
+			"default": {
+				"imperial": "4",
+				"metric": "4"
+			}
+		},
+		"schaal": {
+			"default": {
+				"imperial": "1",
+				"metric": "1"
+			}
+		},
+		"rijen1": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"rijen2": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"rijen3": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"rijen4": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"nx": {
+			"default": {
+				"imperial": "0",
+				"metric": "0"
+			}
+		},
+		"ny": {
+			"default": {
+				"imperial": "1",
+				"metric": "1"
+			}
+		},
+		"rijNr": {
+			"default": {
+				"imperial": "0",
+				"metric": "0"
+			}
+		},
+		"dcMaat": {
+			"default": {
+				"imperial": "1",
+				"metric": "1"
+			}
+		}
+	}
+}

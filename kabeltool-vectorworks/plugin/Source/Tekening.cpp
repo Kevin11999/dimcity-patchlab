@@ -2,31 +2,32 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
 #include <functional>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #include "Kabeltool.h"
+#include "Objecten.h"
 #include "Tekening.h"
 
-// Kabeltool – Vectorworks-kant in C++. Zelfde werking als het oude kabeltool.py, maar zonder Python:
-// Python starten vanuit de plug-in liet Vectorworks crashen.
+// Kabeltool – Vectorworks-kant in C++ (geen Python). Werkt met de eigen objecten uit Objecten.cpp:
+// KT_DimCity, KT_Drop, KT_Kabelroute, KT_Kabellabel, KT_Kabel.
 //
 // Bestanden naast de tekening (zelfde naam als de .vwx):
 //   <naam>.kt-tekening.json   geometrie (ook rechtstreeks naar de palette via "laad")
-//   <naam>.kt-project.json    geschreven door de palette (instellingen, nummers, labels, stempels)
+//   <naam>.kt-project.json    geschreven door de palette (instellingen, nummers, labels, kabelpaden, stempels)
 
 using namespace Kabeltool;
 using json = nlohmann::json;
 
 namespace
 {
-	const char* REC		= "KT_Obj";				// op dim city, vloerroute, truss-lijn en drop
-	const char* GEN		= "KT_Gen";				// op alles wat de tool zelf tekent (wordt bij bijwerken vervangen)
 	const char* LINK	= "KT_Link";			// op lampen: bij welke drop ze horen
 	const char* LD		= "Lighting Device";
 	const char* LAAG_LAMPEN = "Lightplot";		// laag voor de lampen van de demo-show
@@ -37,21 +38,11 @@ namespace
 	typedef std::vector<P3>			Punten;
 
 	// --------------------------------------------------------------------------------------------------------
-	// Meldingen van de lopende actie (naar de palette of als venster na een tool)
 	std::vector<std::string> gMeldingen;
+	void Meld(const std::string& tekst) { gMeldingen.push_back( tekst ); }
 
-	void Meld(const std::string& tekst)
-	{
-		gMeldingen.push_back( tekst );
-	}
+	struct Stop { std::string tekst; };			// fout die de actie netjes afbreekt
 
-	// Fout die de actie afbreekt (wordt netjes teruggemeld, geen crash)
-	struct Stop
-	{
-		std::string tekst;
-	};
-
-	// --------------------------------------------------------------------------------------------------------
 	// Ongedaan maken: één stap per actie
 	class Undo
 	{
@@ -62,13 +53,10 @@ namespace
 			gSDK->SetUndoMethod( kUndoSwapObjects );
 			gSDK->NameUndoEvent( TXString( naam ) );
 		}
-		~Undo()
-		{
-			gSDK->EndUndoEvent();
-		}
-		void Nieuw(MCObjectHandle h)		{ if ( h ) gSDK->AddAfterSwapObject( h ); }
-		void VoorWijziging(MCObjectHandle h){ if ( h ) gSDK->AddBeforeSwapObject( h ); }
-		void NaWijziging(MCObjectHandle h)	{ if ( h ) gSDK->AddAfterSwapObject( h ); }
+		~Undo()										{ gSDK->EndUndoEvent(); }
+		void Nieuw(MCObjectHandle h)				{ if ( h ) gSDK->AddAfterSwapObject( h ); }
+		void VoorWijziging(MCObjectHandle h)		{ if ( h ) gSDK->AddBeforeSwapObject( h ); }
+		void NaWijziging(MCObjectHandle h)			{ if ( h ) gSDK->AddAfterSwapObject( h ); }
 		void Weg(MCObjectHandle h)
 		{
 			if ( ! h ) return;
@@ -79,7 +67,7 @@ namespace
 
 	// --------------------------------------------------------------------------------------------------------
 	// Tekst en getallen
-	std::string Std(const TXString& s)	{ return s.GetStdString(); }
+	std::string Std(const TXString& s)		{ return s.GetStdString(); }
 	TXString	Tx(const std::string& s)	{ return TXString( s ); }
 
 	std::string Getal(double v)
@@ -112,11 +100,6 @@ namespace
 		return standaard;
 	}
 
-	double NaarGetal(const std::string& s, double standaard)
-	{
-		return NaarGetal( json( s ), standaard );
-	}
-
 	std::string Tekst(const json& o, const char* sleutel, const std::string& standaard = "")
 	{
 		if ( o.is_object() && o.contains( sleutel ) )
@@ -126,6 +109,17 @@ namespace
 			if ( v.is_number() ) return Getal( v.get<double>() );
 		}
 		return standaard;
+	}
+
+	double Num(const json& o, const char* sleutel, double standaard)
+	{
+		return ( o.is_object() && o.contains( sleutel ) ) ? NaarGetal( o[sleutel], standaard ) : standaard;
+	}
+
+	std::string Klein(std::string s)
+	{
+		for ( char& c : s ) c = (char) std::tolower( (unsigned char) c );
+		return s;
 	}
 
 	// --------------------------------------------------------------------------------------------------------
@@ -182,10 +176,7 @@ namespace
 		return slash == std::string::npos ? pad : pad.substr( slash + 1 );
 	}
 
-	json LeesProject()
-	{
-		return LeesJson( BasisVerplicht() + ".kt-project.json" );
-	}
+	json LeesProject() { return LeesJson( BasisVerplicht() + ".kt-project.json" ); }
 
 	// Instellingen: standaard + wat de palette in het projectbestand heeft gezet
 	struct Inst
@@ -194,8 +185,13 @@ namespace
 		double symboolBreedte	= 20;
 		double symboolHoogte	= 4;
 		double dimcityMaat		= 1;
+		double dimcityKast		= 2;
+		double dropSymbool		= 0.3;
 		std::string laagCabling	= "Cabling";
 		std::string laagInfra	= "Infraplot";
+		std::string laagKabels	= "Cabling";
+		bool kabels3D			= true;
+		bool kabels2D			= true;
 	};
 
 	Inst LeesInst()
@@ -208,43 +204,45 @@ namespace
 			inst.prefix			= Tekst( s, "prefix", inst.prefix );
 			inst.laagCabling	= Tekst( s, "laagCabling", inst.laagCabling );
 			inst.laagInfra		= Tekst( s, "laagInfra", inst.laagInfra );
-			if ( s.contains( "symboolBreedte" ) )	inst.symboolBreedte	= NaarGetal( s["symboolBreedte"], inst.symboolBreedte );
-			if ( s.contains( "symboolHoogte" ) )	inst.symboolHoogte	= NaarGetal( s["symboolHoogte"], inst.symboolHoogte );
-			if ( s.contains( "dimcityMaat" ) )		inst.dimcityMaat	= NaarGetal( s["dimcityMaat"], inst.dimcityMaat );
+			inst.laagKabels		= Tekst( s, "laagKabels", inst.laagCabling );
+			inst.symboolBreedte	= Num( s, "symboolBreedte", inst.symboolBreedte );
+			inst.symboolHoogte	= Num( s, "symboolHoogte", inst.symboolHoogte );
+			inst.dimcityMaat	= Num( s, "dimcityMaat", inst.dimcityMaat );
+			inst.dimcityKast	= Num( s, "dimcityKast", inst.dimcityKast );
+			inst.dropSymbool	= Num( s, "dropSymbool", inst.dropSymbool );
+			if ( s.contains( "kabels3D" ) && s["kabels3D"].is_boolean() ) inst.kabels3D = s["kabels3D"].get<bool>();
+			if ( s.contains( "kabels2D" ) && s["kabels2D"].is_boolean() ) inst.kabels2D = s["kabels2D"].get<bool>();
 		}
 		if ( inst.laagCabling.empty() )	inst.laagCabling = "Cabling";
 		if ( inst.laagInfra.empty() )	inst.laagInfra = "Infraplot";
+		if ( inst.laagKabels.empty() )	inst.laagKabels = inst.laagCabling;
 		if ( inst.symboolBreedte <= 0 )	inst.symboolBreedte = 20;
 		if ( inst.symboolHoogte <= 0 )	inst.symboolHoogte = 4;
 		if ( inst.dimcityMaat <= 0 )	inst.dimcityMaat = 1;
+		if ( inst.dimcityKast < 0 )		inst.dimcityKast = 0;
+		if ( inst.dropSymbool <= 0 )	inst.dropSymbool = 0.3;
 		return inst;
 	}
 
 	// --------------------------------------------------------------------------------------------------------
-	// Records
+	// Records (alleen nog voor de koppeling lamp ↔ drop en de Spotlight-velden)
 	void ZorgRecord(const char* naam, const std::vector<const char*>& velden)
 	{
 		MCObjectHandle h = gSDK->GetNamedObject( naam );
 		if ( ! h )
 		{
-			TFormatHandler maak( Tx( naam ) );			// maakt het recordformaat aan
+			TFormatHandler maak( Tx( naam ) );
 			h = gSDK->GetNamedObject( naam );
 		}
 		if ( ! h || ! VWRecordFormatObj::IsRecordFormatObject( h ) )
 			throw Stop{ std::string( "Recordformaat " ) + naam + " kon niet gemaakt worden (bestaat de naam al voor iets anders?)." };
-
 		VWRecordFormatObj fmt( h );
 		for ( const char* veld : velden )
 			if ( fmt.GetParamIndex( veld ) == size_t(-1) )
 				fmt.AddParamString( veld, "" );
 	}
 
-	void ZorgRecords()
-	{
-		ZorgRecord( REC,	{ "soort", "id", "naam", "ouder", "z" } );
-		ZorgRecord( GEN,	{ "soort" } );
-		ZorgRecord( LINK,	{ "drop" } );
-	}
+	void ZorgRecords() { ZorgRecord( LINK, { "drop" } ); }
 
 	std::string Veld(MCObjectHandle h, const char* rec, const char* veld)
 	{
@@ -275,18 +273,36 @@ namespace
 		r.SetParamValue( veld, Tx( waarde ) );
 	}
 
-	void Merk(MCObjectHandle h, const std::string& soort, const std::string& id,
-			  const std::string& naam = "", const std::string& ouder = "", const std::string& z = "")
+	// --------------------------------------------------------------------------------------------------------
+	// Parameters van de eigen objecten
+	std::string Par(MCObjectHandle h, const char* naam)
 	{
-		ZetVeld( h, REC, "soort", soort );
-		ZetVeld( h, REC, "id", id );
-		ZetVeld( h, REC, "naam", naam );
-		ZetVeld( h, REC, "ouder", ouder );
-		ZetVeld( h, REC, "z", z );
+		try { return Std( VWParametricObj( h ).GetParamString( naam ) ); }
+		catch ( ... ) { return ""; }
+	}
+	double ParReal(MCObjectHandle h, const char* naam, double standaard)
+	{
+		try { return VWParametricObj( h ).GetParamReal( naam ); }
+		catch ( ... ) { return standaard; }
+	}
+	void ZetPar(MCObjectHandle h, const char* naam, const std::string& waarde)
+	{
+		try { VWParametricObj( h ).SetParamString( naam, Tx( waarde ) ); }
+		catch ( ... ) {}
+	}
+	void ZetParReal(MCObjectHandle h, const char* naam, double waarde)
+	{
+		try { VWParametricObj( h ).SetParamReal( naam, waarde ); }
+		catch ( ... ) {}
+	}
+	void ZetParBool(MCObjectHandle h, const char* naam, bool waarde)
+	{
+		try { VWParametricObj( h ).SetParamBool( naam, waarde ); }
+		catch ( ... ) {}
 	}
 
 	// --------------------------------------------------------------------------------------------------------
-	// Objecten zoeken (zelfde criteria als in VectorScript/Python)
+	// Objecten zoeken
 	std::vector<MCObjectHandle> Objecten(const std::string& criteria)
 	{
 		std::vector<MCObjectHandle> lijst;
@@ -294,16 +310,23 @@ namespace
 		return lijst;
 	}
 
-	std::string MetRecord(const char* rec) { return std::string( "(R IN ['" ) + rec + "'])"; }
+	std::string Pon(const char* naam)		{ return std::string( "(PON='" ) + naam + "')"; }
+	std::string MetRecord(const char* rec)	{ return std::string( "(R IN ['" ) + rec + "'])"; }
 
-	int Volgende(const std::string& soort, const std::string& letter)
+	bool IsKt(MCObjectHandle h)
+	{
+		for ( const char* n : { KT_DIMCITY, KT_DROP, KT_ROUTE, KT_LABEL, KT_KABEL } )
+			if ( VWParametricObj::IsParametricObject( h, n ) ) return true;
+		return false;
+	}
+
+	int Volgende(const char* pon, const std::string& letter)
 	{
 		int hoogste = 0;
-		for ( MCObjectHandle h : Objecten( MetRecord( REC ) ) )
+		for ( MCObjectHandle h : Objecten( Pon( pon ) ) )
 		{
-			if ( Veld( h, REC, "soort" ) != soort ) continue;
-			std::string id = Veld( h, REC, "id" );
-			if ( id.size() <= letter.size() ) continue;
+			std::string id = Par( h, "ktId" );
+			if ( id.size() <= letter.size() || id.compare( 0, letter.size(), letter ) != 0 ) continue;
 			try { hoogste = std::max( hoogste, std::stoi( id.substr( letter.size() ) ) ); }
 			catch ( ... ) {}
 		}
@@ -322,7 +345,7 @@ namespace
 	void ZetKlasse(MCObjectHandle h, const std::string& naam)
 	{
 		if ( ! h || naam.empty() ) return;
-		VWClass klasse( Tx( naam ) );				// maakt de klasse aan als hij nog niet bestaat
+		VWClass klasse( Tx( naam ) );
 		gSDK->SetObjectClass( h, (InternalIndex) klasse );
 	}
 
@@ -359,15 +382,38 @@ namespace
 			gSDK->AddObjectToContainer( h, laag );
 	}
 
-	std::string ZonderPrefix(const std::string& klasse, const Inst& inst)
+	std::string LaagVan(MCObjectHandle h)
 	{
-		if ( ! inst.prefix.empty() && klasse.compare( 0, inst.prefix.size(), inst.prefix ) == 0 )
-			return klasse.substr( inst.prefix.size() );
+		try
+		{
+			MCObjectHandle l = VWObject( h ).GetParentLayer();
+			if ( ! l ) return "";
+			TXString naam;
+			gSDK->GetObjectName( l, naam );
+			return Std( naam );
+		}
+		catch ( ... ) { return ""; }
+	}
+
+	std::string ZonderPrefix(const std::string& klasse, const std::string& prefix)
+	{
+		if ( ! prefix.empty() && klasse.compare( 0, prefix.size(), prefix ) == 0 )
+			return klasse.substr( prefix.size() );
 		return klasse;
 	}
 
 	// --------------------------------------------------------------------------------------------------------
 	// Geometrie (meters)
+	P3 Positie(MCObjectHandle h)
+	{
+		TransformMatrix m;
+		gSDK->GetEntityMatrix( h, m );
+		VWTransformMatrix vm( m );
+		VWPoint3D o = vm.GetOffset();
+		return { o.x / MM, o.y / MM, o.z / MM };
+	}
+
+	// Punten van een losse lijn / polygoon / polylijn / 3D-polygoon (voor "van selectie")
 	Punten PuntenVan(MCObjectHandle h)
 	{
 		Punten pts;
@@ -405,12 +451,29 @@ namespace
 		return t == kLineNode || t == kPolygonNode || t == kPolylineNode || t == qPolyNode;
 	}
 
-	P3 Midden(MCObjectHandle h)
+	// Punten van een KT_Kabelroute in wereldcoördinaten; z = hoogte bij een truss-lijn
+	Punten RoutePunten(MCObjectHandle h)
 	{
-		WorldRect r;
-		gSDK->GetObjectBounds( h, r );
-		WorldPt c = r.Center();
-		return { c.x / MM, c.y / MM, 0.0 };
+		Punten pts;
+		MCObjectHandle hp = gSDK->GetCustomObjectPath( h );
+		if ( ! hp ) return pts;
+		short t = gSDK->GetObjectTypeN( hp );
+		if ( t != kPolygonNode && t != kPolylineNode ) return pts;
+
+		TransformMatrix m;
+		gSDK->GetEntityMatrix( h, m );
+		VWTransformMatrix vm( m );
+		bool truss = Par( h, "soort" ) == "Truss";
+		double z = truss ? ParReal( h, "hoogte", 8 ) : 0.0;
+
+		VWPolygon2DObj pad( hp );
+		for ( size_t i = 0; i < pad.GetVertexCount(); i++ )
+		{
+			VWPoint2D q = pad.GetVertexPoint( i );
+			VWPoint3D w = vm.PointTransform( VWPoint3D( q.x, q.y, 0 ) );
+			pts.push_back( { w.x / MM, w.y / MM, z } );
+		}
+		return pts;
 	}
 
 	json NaarJson(const Punten& pts)
@@ -430,21 +493,12 @@ namespace
 	std::vector<Truss> Trussen()
 	{
 		std::vector<Truss> lijst;
-		for ( MCObjectHandle h : Objecten( MetRecord( REC ) ) )
-		{
-			if ( Veld( h, REC, "soort" ) != "truss" ) continue;
-			Truss t{ h, Veld( h, REC, "id" ), Veld( h, REC, "naam" ), PuntenVan( h ) };
-			if ( gSDK->GetObjectTypeN( h ) != qPolyNode )
-			{
-				double z = NaarGetal( Veld( h, REC, "z" ), 0.0 );
-				for ( P3& p : t.punten ) p[2] = z;
-			}
-			lijst.push_back( t );
-		}
+		for ( MCObjectHandle h : Objecten( Pon( KT_ROUTE ) ) )
+			if ( Par( h, "soort" ) == "Truss" )
+				lijst.push_back( { h, Par( h, "ktId" ), Par( h, "naam" ), RoutePunten( h ) } );
 		return lijst;
 	}
 
-	// Dichtstbijzijnde punt op een lijn in bovenaanzicht: (afstand, punt)
 	bool OpLijn(const Punten& pts, double px, double py, double& afstand, P3& q)
 	{
 		bool gevonden = false;
@@ -468,67 +522,81 @@ namespace
 	}
 
 	// --------------------------------------------------------------------------------------------------------
-	// Tekenen van de vaste onderdelen (punten in meters)
-	MCObjectHandle MaakTekst(const std::string& tekst, double x, double y, double punten, int uitlijning)
+	// Eigen objecten maken (meters)
+	MCObjectHandle Afmaken(MCObjectHandle h, const std::string& klasse, MCObjectHandle laag, Undo& undo)
 	{
-		VWTextBlockObj t( Tx( tekst ), VWPoint2D( x, y ) );
-		t.SetTextSizeByPoint( std::max( 2.0, punten ) );
-		t.SetTextJustification( uitlijning == 1 ? kTextHorzAlign_Left : uitlijning == 3 ? kTextHorzAlign_Right : kTextHorzAlign_Center );
-		t.SetTextVerticalAlignment( kTextVertAlign_CenterBox );
-		return t.GetThisObject();
+		ZetKlasse( h, klasse );
+		NaarLaag( h, laag );
+		gSDK->ResetObject( h );
+		undo.Nieuw( h );
+		return h;
+	}
+
+	MCObjectHandle MaakPunt(const char* pon, double x, double y)
+	{
+		VWParametricObj o( Tx( pon ), VWPoint2D( x * MM, y * MM ), 0.0 );
+		MCObjectHandle h = o.GetThisObject();
+		if ( ! h ) throw Stop{ std::string( "Object " ) + pon + " kon niet gemaakt worden. Staat de plug-in goed in de Plug-ins-map?" };
+		return h;
+	}
+
+	MCObjectHandle MaakPad2D(const char* pon, const Punten& pts)
+	{
+		VWPolygon2DObj pad;
+		for ( const P3& q : pts ) pad.AddCornerVertex( q[0] * MM, q[1] * MM );
+		pad.SetClosed( false );
+		VWParametricObj o( Tx( pon ), pad.GetThisObject() );
+		MCObjectHandle h = o.GetThisObject();
+		if ( ! h ) throw Stop{ std::string( "Object " ) + pon + " kon niet gemaakt worden." };
+		return h;
+	}
+
+	MCObjectHandle MaakPad3D(const char* pon, const Punten& pts)
+	{
+		VWPolygon3DObj pad;
+		for ( const P3& q : pts ) pad.AddVertex( q[0] * MM, q[1] * MM, q[2] * MM );
+		pad.SetClosed( false );
+		VWParametricObj o( Tx( pon ), pad.GetThisObject() );
+		MCObjectHandle h = o.GetThisObject();
+		if ( ! h ) throw Stop{ std::string( "Object " ) + pon + " kon niet gemaakt worden." };
+		return h;
 	}
 
 	std::string MaakDimcity(double x, double y, const Inst& inst, Undo& undo)
 	{
-		std::string naam	= "DB" + std::to_string( Volgende( "dimcity", "DB" ) );
-		std::string klasse	= inst.prefix + naam;
-		MCObjectHandle laag	= Laag( inst.laagCabling );
-		double s			= inst.dimcityMaat * MM / 2.0;
-		double cx = x * MM, cy = y * MM;
-
-		MCObjectHandle h = gSDK->CreateRectangle( WorldRect( WorldPt( cx - s, cy + s ), WorldPt( cx + s, cy - s ) ) );
-		if ( ! h ) throw Stop{ "Dim city kon niet getekend worden." };
-		ZetKlasse( h, klasse );
-		NaarLaag( h, laag );
-		Merk( h, "dimcity", naam, naam );
-		undo.Nieuw( h );
-
-		MCObjectHandle t = MaakTekst( naam, cx, cy, 14, 2 );
-		ZetKlasse( t, klasse );
-		NaarLaag( t, laag );
-		undo.Nieuw( t );
+		std::string naam = "DB" + std::to_string( Volgende( KT_DIMCITY, "DB" ) );
+		MCObjectHandle h = MaakPunt( KT_DIMCITY, x, y );
+		ZetPar( h, "ktId", naam );
+		ZetPar( h, "naam", naam );
+		ZetParReal( h, "maat", inst.dimcityMaat );
+		ZetParReal( h, "kastHoogte", inst.dimcityKast );
+		Afmaken( h, inst.prefix + naam, Laag( inst.laagCabling ), undo );
 		return naam;
 	}
 
-	void MaakVloer(const Punten& pts, const std::string& klasse, const Inst& inst, Undo& undo)
+	void MaakRoute(const Punten& pts, bool truss, const std::string& naam, double hoogte, const std::string& klasse,
+				   const std::string& laag, Undo& undo)
 	{
-		MCObjectHandle laag = Laag( inst.laagCabling );
-		VWPolygon2DObj p;
-		for ( const P3& q : pts ) p.AddCornerVertex( q[0] * MM, q[1] * MM );
-		p.SetClosed( false );
-		MCObjectHandle h = p.GetThisObject();
-		ZetKlasse( h, klasse );
-		NaarLaag( h, laag );
-		Merk( h, "vloer", "V" + std::to_string( Volgende( "vloer", "V" ) ) );
-		undo.Nieuw( h );
+		std::string id = truss ? "T" + std::to_string( Volgende( KT_ROUTE, "T" ) ) : "V" + std::to_string( Volgende( KT_ROUTE, "V" ) );
+		MCObjectHandle h = MaakPad2D( KT_ROUTE, pts );
+		ZetPar( h, "ktId", id );
+		ZetPar( h, "soort", truss ? "Truss" : "Vloer" );
+		ZetPar( h, "naam", naam );
+		ZetParReal( h, "hoogte", hoogte );
+		Afmaken( h, klasse, Laag( laag ), undo );
 	}
 
-	void MaakTruss(const std::string& naam, const Punten& pts, const Inst& inst, Undo& undo)
+	std::string TrussNaam(const std::string& naam)
 	{
-		MCObjectHandle laag = Laag( inst.laagInfra );
-		VWPolygon3DObj p;
-		for ( const P3& q : pts ) p.AddVertex( q[0] * MM, q[1] * MM, q[2] * MM );
-		p.SetClosed( false );
-		MCObjectHandle h = p.GetThisObject();
-		ZetKlasse( h, inst.prefix + naam );
-		NaarLaag( h, laag );
-		Merk( h, "truss", "T" + std::to_string( Volgende( "truss", "T" ) ), naam, "", "" );
-		undo.Nieuw( h );
+		if ( ! naam.empty() ) return naam;
+		char buf[16];
+		std::snprintf( buf, sizeof(buf), "LX%02d", Volgende( KT_ROUTE, "T" ) );
+		return buf;
 	}
 
 	struct Drop
 	{
-		std::string id, truss;
+		std::string id, trussNaam;
 		double x, y, z;
 	};
 
@@ -553,18 +621,88 @@ namespace
 			return false;
 		}
 
-		MCObjectHandle laag	= Laag( inst.laagCabling );
-		double r			= 0.15 * MM;
-		double cx = bestQ[0] * MM, cy = bestQ[1] * MM;
-		MCObjectHandle h = gSDK->CreateOval( WorldRect( WorldPt( cx - r, cy + r ), WorldPt( cx + r, cy - r ) ) );
-		if ( ! h ) throw Stop{ "Drop kon niet getekend worden." };
-		ZetKlasse( h, inst.prefix + best->naam );
-		NaarLaag( h, laag );
-		uit = { "D" + std::to_string( Volgende( "drop", "D" ) ), best->id, bestQ[0], bestQ[1], bestQ[2] };
-		Merk( h, "drop", uit.id, "", best->id, Getal( bestQ[2] ) );
-		undo.Nieuw( h );
-		uit.truss = best->naam;					// voor de klasse van de lampen
+		uit = { "D" + std::to_string( Volgende( KT_DROP, "D" ) ), best->naam, bestQ[0], bestQ[1], bestQ[2] };
+		MCObjectHandle h = MaakPunt( KT_DROP, bestQ[0], bestQ[1] );
+		ZetPar( h, "ktId", uit.id );
+		ZetPar( h, "truss", best->id );
+		ZetParReal( h, "z", bestQ[2] );
+		ZetParReal( h, "symboolMaat", inst.dropSymbool );
+		Afmaken( h, inst.prefix + best->naam, Laag( inst.laagCabling ), undo );
 		return true;
+	}
+
+	// --------------------------------------------------------------------------------------------------------
+	// Wat er verder in de tekening staat (voor de 3D in de palette)
+	std::string NaamVanSoort(MCObjectHandle h)
+	{
+		short t = gSDK->GetObjectTypeN( h );
+		TXString naam;
+		if ( t == kParametricNode )
+		{
+			MCObjectHandle fmt = VWParametricObj::GetRecordFormat( h );
+			if ( fmt ) gSDK->GetObjectName( fmt, naam );
+		}
+		else if ( t == kSymbolNode )
+		{
+			MCObjectHandle def = gSDK->GetDefinition( h );
+			if ( def ) gSDK->GetObjectName( def, naam );
+		}
+		return Std( naam );
+	}
+
+	bool Kubus(MCObjectHandle h, P3& mn, P3& mx)
+	{
+		WorldCube c;
+		gSDK->GetObjectCube( h, c );
+		if ( c.MaxX() < c.MinX() || c.MaxY() < c.MinY() || c.MaxZ() < c.MinZ() ) return false;
+		mn = { c.MinX() / MM, c.MinY() / MM, c.MinZ() / MM };
+		mx = { c.MaxX() / MM, c.MaxY() / MM, c.MaxZ() / MM };
+		return true;
+	}
+
+	json Lagen()
+	{
+		json a = json::array();
+		gSDK->ForEachLayerN( [&](MCObjectHandle h) {
+			try
+			{
+				VWLayerObj l( h );
+				if ( l.GetLayerType() == kLayerDesign ) a.push_back( Std( l.GetName() ) );
+			}
+			catch ( ... ) {}
+		} );
+		return a;
+	}
+
+	void TrussenEnLampen(json& data)
+	{
+		json trussen = json::array(), lampen = json::array();
+		for ( MCObjectHandle h : Objecten( "(ALL)" ) )
+		{
+			short t = gSDK->GetObjectTypeN( h );
+			if ( t != kParametricNode && t != kSymbolNode ) continue;
+			if ( IsKt( h ) ) continue;
+			std::string soort = NaamVanSoort( h );
+			P3 mn, mx;
+			if ( soort == LD )
+			{
+				if ( ! Kubus( h, mn, mx ) ) continue;
+				std::string naam = Veld( h, LD, "Inst Type" ) + " " + Veld( h, LD, "Unit Number" );
+				while ( ! naam.empty() && naam.back() == ' ' ) naam.pop_back();
+				while ( ! naam.empty() && naam.front() == ' ' ) naam.erase( 0, 1 );
+				lampen.push_back( { { "uuid", Uuid( h ) }, { "naam", naam }, { "laag", LaagVan( h ) }, { "drop", Veld( h, LINK, "drop" ) },
+									{ "x", ( mn[0] + mx[0] ) / 2 }, { "y", ( mn[1] + mx[1] ) / 2 }, { "z", ( mn[2] + mx[2] ) / 2 } } );
+			}
+			else if ( Klein( soort ).find( "truss" ) != std::string::npos )
+			{
+				if ( ! Kubus( h, mn, mx ) ) continue;
+				trussen.push_back( { { "naam", soort }, { "klasse", KlasseVan( h ) }, { "laag", LaagVan( h ) },
+									 { "min", json::array( { mn[0], mn[1], mn[2] } ) }, { "max", json::array( { mx[0], mx[1], mx[2] } ) } } );
+			}
+		}
+		data["trussen"] = trussen;
+		data["alleLampen"] = lampen;
+		data["lagen"] = Lagen();
 	}
 
 	// --------------------------------------------------------------------------------------------------------
@@ -574,33 +712,42 @@ namespace
 		std::string b = BasisVerplicht();
 		ZorgRecords();
 		json data = {
-			{ "versie", 1 }, { "dimcities", json::array() }, { "vloerroutes", json::array() }, { "trusslijnen", json::array() },
+			{ "versie", 2 }, { "dimcities", json::array() }, { "vloerroutes", json::array() }, { "trusslijnen", json::array() },
 			{ "drops", json::array() }, { "lampen", json::array() }, { "selectie", json::array() } };
 
-		for ( MCObjectHandle h : Objecten( MetRecord( REC ) ) )
+		for ( MCObjectHandle h : Objecten( Pon( KT_DIMCITY ) ) )
 		{
-			std::string soort = Veld( h, REC, "soort" ), id = Veld( h, REC, "id" );
-			if ( soort == "dimcity" )
-			{
-				P3 c = Midden( h );
-				int nr = 1;
-				try { nr = std::stoi( id.substr( 2 ) ); } catch ( ... ) {}
-				data["dimcities"].push_back( { { "id", id }, { "nr", nr }, { "uuid", Uuid( h ) }, { "x", c[0] }, { "y", c[1] }, { "z", 0 } } );
-			}
-			else if ( soort == "vloer" )
-			{
-				data["vloerroutes"].push_back( { { "id", id }, { "uuid", Uuid( h ) }, { "punten", NaarJson( PuntenVan( h ) ) } } );
-			}
-			else if ( soort == "drop" )
-			{
-				P3 c = Midden( h );
-				data["drops"].push_back( { { "id", id }, { "uuid", Uuid( h ) }, { "truss", Veld( h, REC, "ouder" ) },
-										   { "x", c[0] }, { "y", c[1] }, { "z", NaarGetal( Veld( h, REC, "z" ), 0.0 ) } } );
-			}
+			std::string id = Par( h, "ktId" );
+			P3 p = Positie( h );
+			int nr = 1;
+			try { nr = std::stoi( id.substr( 2 ) ); } catch ( ... ) {}
+			data["dimcities"].push_back( { { "id", id }, { "nr", nr }, { "uuid", Uuid( h ) }, { "naam", Par( h, "naam" ) },
+										   { "x", p[0] }, { "y", p[1] }, { "z", 0 }, { "laag", LaagVan( h ) },
+										   { "maat", ParReal( h, "maat", 1 ) }, { "kast", ParReal( h, "kastHoogte", 2 ) } } );
 		}
-		for ( const Truss& t : Trussen() )
-			data["trusslijnen"].push_back( { { "id", t.id }, { "uuid", Uuid( t.h ) }, { "naam", t.naam }, { "klasse", t.naam }, { "punten", NaarJson( t.punten ) } } );
-
+		for ( MCObjectHandle h : Objecten( Pon( KT_ROUTE ) ) )
+		{
+			std::string id = Par( h, "ktId" );
+			json r = { { "id", id }, { "uuid", Uuid( h ) }, { "punten", NaarJson( RoutePunten( h ) ) }, { "laag", LaagVan( h ) } };
+			if ( Par( h, "soort" ) == "Truss" )
+			{
+				std::string naam = Par( h, "naam" );
+				r["naam"] = naam;
+				r["klasse"] = naam;
+				data["trusslijnen"].push_back( r );
+			}
+			else
+				data["vloerroutes"].push_back( r );
+		}
+		for ( MCObjectHandle h : Objecten( Pon( KT_DROP ) ) )
+		{
+			P3 p = Positie( h );
+			double val = ParReal( h, "valhoogte", 0 );
+			data["drops"].push_back( { { "id", Par( h, "ktId" ) }, { "uuid", Uuid( h ) }, { "truss", Par( h, "truss" ) },
+									   { "x", p[0] }, { "y", p[1] }, { "z", ParReal( h, "z", 0 ) }, { "laag", LaagVan( h ) },
+									   { "objectnaam", Par( h, "objectnaam" ) }, { "valhoogte", val > 0 ? json( val ) : json( "" ) },
+									   { "slingers", ParReal( h, "slingers", 1 ) } } );
+		}
 		for ( MCObjectHandle h : Objecten( MetRecord( LINK ) ) )
 		{
 			std::string naam = Veld( h, LD, "Inst Type" ) + " " + Veld( h, LD, "Unit Number" );
@@ -608,8 +755,9 @@ namespace
 			while ( ! naam.empty() && naam.front() == ' ' ) naam.erase( 0, 1 );
 			data["lampen"].push_back( { { "uuid", Uuid( h ) }, { "naam", naam }, { "drop", Veld( h, LINK, "drop" ) } } );
 		}
-		for ( MCObjectHandle h : Objecten( "(SEL=TRUE) & " + MetRecord( REC ) ) )
-			data["selectie"].push_back( Veld( h, REC, "id" ) );
+		for ( const char* pon : { KT_DIMCITY, KT_DROP, KT_ROUTE } )
+			for ( MCObjectHandle h : Objecten( "(SEL=TRUE) & " + Pon( pon ) ) )
+				data["selectie"].push_back( Par( h, "ktId" ) );
 
 		for ( const char* lijst : { "dimcities", "vloerroutes", "trusslijnen", "drops" } )
 		{
@@ -620,6 +768,7 @@ namespace
 			} );
 		}
 
+		TrussenEnLampen( data );
 		SchrijfJson( b + ".kt-tekening.json", data );
 		return data;
 	}
@@ -628,8 +777,9 @@ namespace
 	{
 		if ( doel.empty() ) return;
 		gSDK->DeselectAll();
-		for ( MCObjectHandle h : Objecten( MetRecord( REC ) ) )
-			if ( Veld( h, REC, "id" ) == doel ) gSDK->SelectObject( h, true );
+		for ( const char* pon : { KT_DIMCITY, KT_DROP, KT_ROUTE } )
+			for ( MCObjectHandle h : Objecten( Pon( pon ) ) )
+				if ( Par( h, "ktId" ) == doel ) gSDK->SelectObject( h, true );
 		for ( MCObjectHandle h : Objecten( MetRecord( LINK ) ) )
 			if ( Veld( h, LINK, "drop" ) == doel ) gSDK->SelectObject( h, true );
 	}
@@ -644,74 +794,84 @@ namespace
 		return { { "tekening", t }, { "project", project.empty() ? json() : project }, { "basis", Bestandsnaam( b ) } };
 	}
 
+	// Bewaren + drop-instellingen uit de palette naar de Object Info van de drops
 	json Bewaar(const json& args)
 	{
 		std::string b = BasisVerplicht();
 		SchrijfJson( b + ".kt-project.json", args );
+
+		if ( ! args.is_object() || ! args.contains( "dropinst" ) || ! args["dropinst"].is_object() ) return true;
+		const json& di = args["dropinst"];
+		std::unique_ptr<Undo> undo;
+		for ( MCObjectHandle h : Objecten( Pon( KT_DROP ) ) )
+		{
+			std::string id = Par( h, "ktId" );
+			if ( ! di.contains( id ) || ! di[id].is_object() ) continue;
+			const json& d = di[id];
+			std::string naam = Tekst( d, "naam" );
+			double val = Num( d, "valhoogte", 0 ), sl = Num( d, "slinger", 1 );
+			bool anders = naam != Par( h, "objectnaam" ) || std::abs( val - ParReal( h, "valhoogte", 0 ) ) > 1e-6
+						|| std::abs( sl - ParReal( h, "slingers", 1 ) ) > 1e-6;
+			if ( ! anders ) continue;
+			if ( ! undo ) undo.reset( new Undo( "Kabeltool: drop-instellingen" ) );
+			undo->VoorWijziging( h );
+			ZetPar( h, "objectnaam", naam );
+			ZetParReal( h, "valhoogte", val );
+			ZetParReal( h, "slingers", sl );
+			gSDK->ResetObject( h );
+			undo->NaWijziging( h );
+		}
 		return true;
 	}
 
 	json Selectie()
 	{
 		json a = json::array();
-		for ( MCObjectHandle h : Objecten( "(SEL=TRUE) & " + MetRecord( REC ) ) )
-			a.push_back( Veld( h, REC, "id" ) );
+		for ( const char* pon : { KT_DIMCITY, KT_DROP, KT_ROUTE } )
+			for ( MCObjectHandle h : Objecten( "(SEL=TRUE) & " + Pon( pon ) ) )
+				a.push_back( Par( h, "ktId" ) );
 		return a;
 	}
 
-	void VloerVanSelectie()
+	// Geselecteerde lijnen/polylijnen worden een Kabelroute (het origineel verdwijnt)
+	void RouteVanSelectie(bool truss, const json& args)
 	{
 		Inst inst = LeesInst();
-		ZorgRecords();
-		Undo undo( "Kabeltool: vloerroute" );
-		int n = 0;
-		for ( MCObjectHandle h : Objecten( "(SEL=TRUE)" ) )
-		{
-			if ( ! IsLijnSoort( gSDK->GetObjectTypeN( h ) ) || ! Veld( h, REC, "id" ).empty() ) continue;
-			undo.VoorWijziging( h );
-			Merk( h, "vloer", "V" + std::to_string( Volgende( "vloer", "V" ) ) );
-			undo.NaWijziging( h );
-			n++;
-		}
-		if ( ! n ) Meld( "Selecteer eerst een lijn of polylijn." );
-	}
-
-	void TrussVanSelectie(const json& args)
-	{
-		Inst inst = LeesInst();
-		ZorgRecords();
-		Undo undo( "Kabeltool: truss-lijn" );
-		double hoogte = NaarGetal( args.is_object() && args.contains( "hoogte" ) ? args["hoogte"] : json(), 8.0 );
+		Undo undo( truss ? "Kabeltool: truss-lijn" : "Kabeltool: vloerroute" );
+		double hoogte = Num( args, "hoogte", 8 );
 		int n = 0;
 		for ( MCObjectHandle h : Objecten( "(SEL=TRUE)" ) )
 		{
 			short t = gSDK->GetObjectTypeN( h );
-			if ( ! IsLijnSoort( t ) || ! Veld( h, REC, "id" ).empty() ) continue;
-			std::string naam = ZonderPrefix( KlasseVan( h ), inst );
-			if ( naam.empty() || naam == "None" )
+			if ( ! IsLijnSoort( t ) || IsKt( h ) ) continue;
+			Punten pts = PuntenVan( h );
+			if ( pts.size() < 2 ) continue;
+			std::string klasse = KlasseVan( h );
+			if ( truss )
 			{
-				char buf[16];
-				std::snprintf( buf, sizeof(buf), "LX%02d", Volgende( "truss", "T" ) );
-				naam = buf;
+				std::string naam = ZonderPrefix( klasse, inst.prefix );
+				if ( naam == "None" ) naam.clear();
+				naam = TrussNaam( naam );
+				double z = t == qPolyNode ? pts[0][2] : hoogte;
+				MaakRoute( pts, true, naam, z, inst.prefix + naam, inst.laagInfra, undo );
 			}
-			undo.VoorWijziging( h );
-			ZetKlasse( h, inst.prefix + naam );
-			Merk( h, "truss", "T" + std::to_string( Volgende( "truss", "T" ) ), naam, "", t == qPolyNode ? "" : Getal( hoogte ) );
-			undo.NaWijziging( h );
+			else
+				MaakRoute( pts, false, "", 0, klasse, inst.laagCabling, undo );
+			undo.Weg( h );
 			n++;
 		}
-		if ( ! n ) Meld( "Selecteer eerst een lijn, polylijn of 3D-polygoon." );
+		if ( ! n ) Meld( truss ? "Selecteer eerst een lijn, polylijn of 3D-polygoon." : "Selecteer eerst een lijn of polylijn." );
 	}
 
 	void LampenKoppelen()
 	{
 		ZorgRecords();
 		std::string drop;
-		for ( MCObjectHandle h : Objecten( "(SEL=TRUE)" ) )
-			if ( Veld( h, REC, "soort" ) == "drop" ) drop = Veld( h, REC, "id" );
+		for ( MCObjectHandle h : Objecten( "(SEL=TRUE) & " + Pon( KT_DROP ) ) )
+			drop = Par( h, "ktId" );
 		if ( drop.empty() )
 		{
-			Meld( "Selecteer ook het rondje van de drop." );
+			Meld( "Selecteer ook de drop." );
 			return;
 		}
 		Undo undo( "Kabeltool: lampen koppelen" );
@@ -725,124 +885,39 @@ namespace
 		Meld( std::to_string( lampen.size() ) + " lampen gekoppeld aan " + drop + "." );
 	}
 
-	// ---------------- labels tekenen (Tekening bijwerken)
-	CRGBColor Kleur(const std::string& hex)
+	// ---------------- Tekening bijwerken: labels en 3D-kabels opnieuw maken
+	std::string RijenTekst(const json& rijen)
 	{
-		std::string k = hex;
-		if ( ! k.empty() && k[0] == '#' ) k.erase( 0, 1 );
-		if ( k.size() < 6 ) return CRGBColor( 156, 156, 156 );
-		try
+		std::string s;
+		if ( ! rijen.is_array() ) return s;
+		for ( const json& r : rijen )
 		{
-			return CRGBColor( (Uint8) std::stoi( k.substr( 0, 2 ), nullptr, 16 ),
-							  (Uint8) std::stoi( k.substr( 2, 2 ), nullptr, 16 ),
-							  (Uint8) std::stoi( k.substr( 4, 2 ), nullptr, 16 ) );
+			std::string kleur = Tekst( r, "kleur" );
+			if ( ! kleur.empty() && kleur[0] == '#' ) kleur.erase( 0, 1 );
+			std::string rij = Tekst( r, "kort" ) + "|" + Tekst( r, "lengte" ) + "|" + kleur + "|" + Tekst( r, "nummer" );
+			s += ( s.empty() ? "" : ";" ) + rij;
 		}
-		catch ( ... ) { return CRGBColor( 156, 156, 156 ); }
+		return s;
 	}
 
-	struct Tekenaar
+	// Verdeelt de rijen over 4 velden van hooguit 250 tekens (grens van een tekstveld)
+	std::vector<std::string> InVakken(const std::string& tekst)
 	{
-		const Inst&		inst;
-		Undo&			undo;
-		MCObjectHandle	laag;
-		std::string		klasse;
-
-		MCObjectHandle Gen(MCObjectHandle h, const char* soort = "label")
+		std::vector<std::string> vakken( 4 );
+		size_t v = 0, begin = 0;
+		while ( begin < tekst.size() && v < 4 )
 		{
-			if ( ! h ) return h;
-			ZetKlasse( h, klasse );
-			NaarLaag( h, laag );
-			ZetVeld( h, GEN, "soort", soort );
-			undo.Nieuw( h );
-			return h;
+			size_t eind = tekst.find( ';', begin );
+			if ( eind == std::string::npos ) eind = tekst.size();
+			std::string rij = tekst.substr( begin, eind - begin );
+			if ( ! vakken[v].empty() && vakken[v].size() + 1 + rij.size() > 250 ) v++;
+			if ( v >= 4 ) break;
+			vakken[v] += ( vakken[v].empty() ? "" : ";" ) + rij;
+			begin = eind + 1;
 		}
-		MCObjectHandle Lijn(double x1, double y1, double x2, double y2, const char* soort = "label")
-		{
-			VWLine2DObj l( x1, y1, x2, y2 );
-			return Gen( l.GetThisObject(), soort );
-		}
-		MCObjectHandle Rechthoek(double l, double t, double r, double b, const char* soort = "label")
-		{
-			return Gen( gSDK->CreateRectangle( WorldRect( WorldPt( l, t ), WorldPt( r, b ) ) ), soort );
-		}
-		MCObjectHandle Ovaal(double x, double y, double r)
-		{
-			return Gen( gSDK->CreateOval( WorldRect( WorldPt( x - r, y + r ), WorldPt( x + r, y - r ) ) ) );
-		}
-		void Tekst(const std::string& tekst, double x, double y, double punten, int uitlijning)
-		{
-			Gen( MaakTekst( tekst, x, y, punten, uitlijning ) );
-		}
-		void Vul(MCObjectHandle h, const CRGBColor& kleur)
-		{
-			if ( ! h ) return;
-			VWObjectAttr a( h );
-			a.SetFillSolid();
-			a.SetFillForeColor( kleur );
-			a.SetFillBackColor( kleur );
-		}
-
-		// Blokje: links korte naam, rechts lengte, gekleurde balk over de volle breedte, nummer ernaast.
-		void Kabelsymbool(double x, double top, double B, double H, const json& rij)
-		{
-			double vak = H * 0.78;
-			Vul( Rechthoek( x, top, x + B, top - H ), CRGBColor( 255, 255, 255 ) );
-			Vul( Rechthoek( x, top - vak, x + B, top - H ), Kleur( ::Tekst( rij, "kleur", "#9e9e9e" ) ) );
-			Lijn( x + B / 2.0, top, x + B / 2.0, top - vak );
-			double mm_h = inst.symboolHoogte * 0.78 * 0.7;
-			auto pt = [&](const std::string& t) {
-				double mm_b = ( inst.symboolBreedte / 2.0 * 0.85 ) / ( std::max<size_t>( t.size(), 1 ) * 0.6 );
-				return std::min( mm_h, mm_b ) / 0.3528;
-			};
-			std::string kort = ::Tekst( rij, "kort" ), lengte = ::Tekst( rij, "lengte" ), nummer = ::Tekst( rij, "nummer" );
-			Tekst( kort, x + B / 4.0, top - vak / 2.0, pt( kort ), 2 );
-			Tekst( lengte, x + B * 0.75, top - vak / 2.0, pt( lengte ), 2 );
-			if ( ! nummer.empty() )
-				Tekst( nummer, x + B + H * 0.3, top - H / 2.0, inst.symboolHoogte * 0.7 / 0.3528, 1 );
-		}
-
-		void Label(const json& lb, double mm)
-		{
-			double B = inst.symboolBreedte * mm, H = inst.symboolHoogte * mm;
-			double x = NaarGetal( lb.value( "x", json( 0 ) ), 0 ) * MM, y = NaarGetal( lb.value( "y", json( 0 ) ), 0 ) * MM;
-			std::string soort = ::Tekst( lb, "soort" ), titel = ::Tekst( lb, "titel" );
-			double titelpt = inst.symboolHoogte * 0.7 / 0.3528;
-
-			if ( soort == "streepje" )						// lengtehulp
-			{
-				double nx = NaarGetal( lb.value( "nx", json( 0 ) ), 0 ) * H, ny = NaarGetal( lb.value( "ny", json( 1 ) ), 1 ) * H;
-				Lijn( x - nx, y - ny, x + nx, y + ny, "streepje" );
-				Tekst( titel, x + nx * 1.8, y + ny * 1.8, titelpt * 0.7, 2 );
-				return;
-			}
-			if ( soort == "blok" )							// blok op de infra-laag
-			{
-				double top = y - H * 1.5 - NaarGetal( lb.value( "rijNr", json( 0 ) ), 0 ) * H * 1.3;
-				Rechthoek( x - B / 2.0, top, x + B / 2.0, top - H, "blok" );
-				Tekst( titel, x, top - H / 2.0, titelpt * 0.8, 2 );
-				return;
-			}
-			if ( soort == "koppel" || soort == "bol" )		// stip / bolletje op het punt zelf
-				Vul( Ovaal( x, y, H * ( soort == "bol" ? 0.6 : 0.3 ) ), CRGBColor( 0, 0, 0 ) );
-
-			double ox = x + H * 2.5, oy = y + H * 2.5;		// leader naar het blok met kabels
-			if ( soort == "dimcity" )
-			{
-				ox = x + inst.dimcityMaat * MM * 0.7;
-				oy = y;
-			}
-			else
-				Lijn( x, y, ox, oy );
-			if ( ! titel.empty() )
-				Tekst( titel, ox, oy + H * 0.6, titelpt, 1 );
-			if ( lb.contains( "rijen" ) && lb["rijen"].is_array() )
-			{
-				size_t i = 0;
-				for ( const json& rij : lb["rijen"] )
-					Kabelsymbool( ox, oy - ( i++ ) * H * 1.2, B, H, rij );
-			}
-		}
-	};
+		if ( begin < tekst.size() ) Meld( "Een label heeft te veel kabels; niet alle rijen passen." );
+		return vakken;
+	}
 
 	void TekeningBijwerken()
 	{
@@ -853,34 +928,69 @@ namespace
 			Meld( "Geen projectbestand gevonden. Open de tekening eerst in de palette." );
 			return;
 		}
-		ZorgRecords();
 		Undo undo( "Kabeltool: tekening bijwerken" );
-		for ( MCObjectHandle h : Objecten( MetRecord( GEN ) ) )
-			undo.Weg( h );
+		for ( const char* pon : { KT_LABEL, KT_KABEL } )
+			for ( MCObjectHandle h : Objecten( Pon( pon ) ) )
+				undo.Weg( h );
 
+		// labels
+		int nl = 0;
 		const json lijst = p.contains( "tekenlijst" ) && p["tekenlijst"].is_array() ? p["tekenlijst"] : json::array();
-		int n = 0;
-		for ( const char* sleutel : { "cabling", "infra" } )
+		for ( const json& lb : lijst )
 		{
-			std::vector<json> labels;
-			for ( const json& l : lijst )
-				if ( ::Tekst( l, "laag", "cabling" ) == sleutel ) labels.push_back( l );
-			if ( labels.empty() ) continue;
-
-			MCObjectHandle laag = Laag( std::string( sleutel ) == "infra" ? inst.laagInfra : inst.laagCabling );
+			MCObjectHandle laag = Laag( Tekst( lb, "laag", "cabling" ) == "infra" ? inst.laagInfra : inst.laagCabling );
 			double schaal = 1.0;
 			gSDK->GetLayerScaleN( laag, schaal );
 			if ( schaal <= 0 ) schaal = 1.0;
-			double mm = schaal;								// 1 mm op papier, in interne eenheden (mm)
-			for ( const json& lb : labels )
+
+			MCObjectHandle h = MaakPunt( KT_LABEL, Num( lb, "x", 0 ), Num( lb, "y", 0 ) );
+			ZetPar( h, "soort", Tekst( lb, "soort" ) );
+			ZetPar( h, "titel", Tekst( lb, "titel" ) );
+			ZetParReal( h, "breedte", inst.symboolBreedte );
+			ZetParReal( h, "hoogte", inst.symboolHoogte );
+			ZetParReal( h, "schaal", schaal );
+			ZetParReal( h, "nx", Num( lb, "nx", 0 ) );
+			ZetParReal( h, "ny", Num( lb, "ny", 1 ) );
+			ZetParReal( h, "rijNr", Num( lb, "rijNr", 0 ) );
+			ZetParReal( h, "dcMaat", inst.dimcityMaat );
+			std::vector<std::string> vakken = InVakken( RijenTekst( lb.contains( "rijen" ) ? lb["rijen"] : json::array() ) );
+			ZetPar( h, "rijen1", vakken[0] );
+			ZetPar( h, "rijen2", vakken[1] );
+			ZetPar( h, "rijen3", vakken[2] );
+			ZetPar( h, "rijen4", vakken[3] );
+			std::string k = Tekst( lb, "klasse" );
+			Afmaken( h, inst.prefix + ( k.empty() ? "Kabels" : k ), laag, undo );
+			nl++;
+		}
+
+		// kabels als 3D-buizen, elk stuk apart
+		int nk = 0;
+		if ( inst.kabels3D && p.contains( "kabelpaden" ) && p["kabelpaden"].is_array() )
+		{
+			MCObjectHandle laag = Laag( inst.laagKabels );
+			for ( const json& k : p["kabelpaden"] )
 			{
-				std::string k = ::Tekst( lb, "klasse" );
-				Tekenaar t{ inst, undo, laag, inst.prefix + ( k.empty() ? "Kabels" : k ) };
-				t.Label( lb, mm );
-				n++;
+				Punten pts;
+				if ( k.contains( "punten" ) && k["punten"].is_array() )
+					for ( const json& q : k["punten"] )
+						if ( q.is_array() && q.size() >= 3 )
+							pts.push_back( { NaarGetal( q[0], 0 ), NaarGetal( q[1], 0 ), NaarGetal( q[2], 0 ) } );
+				if ( pts.size() < 2 ) continue;
+				MCObjectHandle h = MaakPad3D( KT_KABEL, pts );
+				ZetPar( h, "nummer", Tekst( k, "nummer" ) );
+				ZetPar( h, "type", Tekst( k, "type" ) );
+				ZetPar( h, "kort", Tekst( k, "kort" ) );
+				ZetPar( h, "lengte", Tekst( k, "lengte" ) );
+				ZetParReal( h, "totaal", Num( k, "totaal", 0 ) );
+				ZetParReal( h, "diameter", Num( k, "diameter", 20 ) );
+				ZetPar( h, "kleur", Tekst( k, "kleur", "#9e9e9e" ) );
+				ZetParBool( h, "toon2D", inst.kabels2D );
+				std::string kl = Tekst( k, "klasse" );
+				Afmaken( h, inst.prefix + ( kl.empty() ? "Kabels" : kl ), laag, undo );
+				nk++;
 			}
 		}
-		Meld( std::to_string( n ) + " labels getekend." );
+		Meld( std::to_string( nl ) + " labels en " + std::to_string( nk ) + " kabelstukken getekend." );
 	}
 
 	void Stempelen()
@@ -896,17 +1006,17 @@ namespace
 		const json lijst = p.contains( "stempels" ) && p["stempels"].is_array() ? p["stempels"] : json::array();
 		for ( const json& s : lijst )
 		{
-			MCObjectHandle h = gSDK->GetObjectByUuid( Tx( ::Tekst( s, "uuid" ) ) );
+			MCObjectHandle h = gSDK->GetObjectByUuid( Tx( Tekst( s, "uuid" ) ) );
 			if ( ! h || ! VWRecordObj::GetRecordObject( h, LD ) )
 			{
 				mis++;
 				continue;
 			}
 			undo.VoorWijziging( h );
-			ZetVeld( h, LD, "Circuit Name", ::Tekst( s, "circuitName" ) );
-			ZetVeld( h, LD, "Circuit Number", ::Tekst( s, "circuitNumber" ) );
-			ZetVeld( h, LD, "User Field 2", ::Tekst( s, "uf2" ) );
-			ZetVeld( h, LD, "User Field 3", ::Tekst( s, "uf3" ) );
+			ZetVeld( h, LD, "Circuit Name", Tekst( s, "circuitName" ) );
+			ZetVeld( h, LD, "Circuit Number", Tekst( s, "circuitNumber" ) );
+			ZetVeld( h, LD, "User Field 2", Tekst( s, "uf2" ) );
+			ZetVeld( h, LD, "User Field 3", Tekst( s, "uf3" ) );
 			gSDK->ResetObject( h );
 			undo.NaWijziging( h );
 			n++;
@@ -930,7 +1040,7 @@ namespace
 				if ( h ) gSDK->DeleteObject( h, false );
 				continue;
 			}
-			ZetKlasse( h, inst.prefix + d.truss );
+			ZetKlasse( h, inst.prefix + d.trussNaam );
 			NaarLaag( h, laag );
 			ZetVeld( h, LD, "Inst Type", "Demo spot" );
 			ZetVeld( h, LD, "Unit Number", d.id + "-" + std::to_string( i + 1 ) );
@@ -946,23 +1056,24 @@ namespace
 	{
 		Inst inst = LeesInst();
 		ZorgRecords();
-		if ( ! Objecten( MetRecord( REC ) ).empty() )
-		{
-			Meld( "Deze tekening heeft al Kabeltool-objecten. Maak de demo-show in een nieuwe, lege tekening." );
-			return;
-		}
+		for ( const char* pon : { KT_DIMCITY, KT_DROP, KT_ROUTE } )
+			if ( ! Objecten( Pon( pon ) ).empty() )
+			{
+				Meld( "Deze tekening heeft al Kabeltool-objecten. Maak de demo-show in een nieuwe, lege tekening." );
+				return;
+			}
 		Undo undo( "Kabeltool: demo-show" );
 
 		MaakDimcity( 0, 0, inst, undo );
 		MaakDimcity( 20, 0, inst, undo );
 
 		// eerste punt = begin van de kabeltruss (aan de kant van de dim city)
-		MaakTruss( "LX01", { { 4, 10, 8 }, { 16, 10, 8 } }, inst, undo );
-		MaakTruss( "LX02", { { 16, 16, 8 }, { 4, 16, 8 } }, inst, undo );
+		MaakRoute( { { 4, 10, 0 }, { 16, 10, 0 } }, true, "LX01", 8, inst.prefix + "LX01", inst.laagInfra, undo );
+		MaakRoute( { { 16, 16, 0 }, { 4, 16, 0 } }, true, "LX02", 8, inst.prefix + "LX02", inst.laagInfra, undo );
 
 		// vloerroutes van dim city naar de voet van de grote drop (begin van de truss)
-		MaakVloer( { { 0, 0, 0 }, { 0, 10, 0 }, { 4, 10, 0 } }, inst.prefix + "DB1", inst, undo );
-		MaakVloer( { { 20, 0, 0 }, { 20, 16, 0 }, { 16, 16, 0 } }, inst.prefix + "DB2", inst, undo );
+		MaakRoute( { { 0, 0, 0 }, { 0, 10, 0 }, { 4, 10, 0 } }, false, "", 0, inst.prefix + "DB1", inst.laagCabling, undo );
+		MaakRoute( { { 20, 0, 0 }, { 20, 16, 0 }, { 16, 16, 0 } }, false, "", 0, inst.prefix + "DB2", inst.laagCabling, undo );
 
 		std::vector<Drop> drops;
 		const double plekken[3][2] = { { 7, 10 }, { 13, 10 }, { 10, 16 } };
@@ -1001,37 +1112,30 @@ namespace
 		if ( functie == "dimcity" )
 		{
 			Undo undo( "Kabeltool: dim city" );
-			MaakDimcity( NaarGetal( a.value( "x", json( 0 ) ), 0 ), NaarGetal( a.value( "y", json( 0 ) ), 0 ), inst, undo );
+			MaakDimcity( Num( a, "x", 0 ), Num( a, "y", 0 ), inst, undo );
 		}
 		else if ( functie == "drop" )
 		{
 			Undo undo( "Kabeltool: drop" );
 			Drop d;
-			MaakDrop( NaarGetal( a.value( "x", json( 0 ) ), 0 ), NaarGetal( a.value( "y", json( 0 ) ), 0 ), inst, undo, d );
+			MaakDrop( Num( a, "x", 0 ), Num( a, "y", 0 ), inst, undo, d );
 		}
 		else if ( functie == "vloer" )
 		{
 			Punten pts = PuntenUit( a );
 			if ( pts.size() < 2 ) { Meld( "Klik minstens twee punten voor een vloerroute." ); return; }
 			Undo undo( "Kabeltool: vloerroute" );
-			MaakVloer( pts, ActieveKlasse(), inst, undo );
+			MaakRoute( pts, false, "", 0, ActieveKlasse(), inst.laagCabling, undo );
 		}
 		else if ( functie == "truss" )
 		{
 			Punten pts = PuntenUit( a );
 			if ( pts.size() < 2 ) { Meld( "Klik minstens twee punten voor een truss-lijn (eerste punt = begin van de kabeltruss)." ); return; }
-			std::string naam = ::Tekst( a, "naam" );
+			std::string naam = Tekst( a, "naam" );
 			while ( ! naam.empty() && naam.back() == ' ' ) naam.pop_back();
-			if ( naam.empty() )
-			{
-				char buf[16];
-				std::snprintf( buf, sizeof(buf), "LX%02d", Volgende( "truss", "T" ) );
-				naam = buf;
-			}
-			double z = NaarGetal( a.value( "hoogte", json( 8 ) ), 8.0 );
-			for ( P3& p : pts ) p[2] = z;
+			naam = TrussNaam( naam );
 			Undo undo( "Kabeltool: truss-lijn" );
-			MaakTruss( naam, pts, inst, undo );
+			MaakRoute( pts, true, naam, Num( a, "hoogte", 8 ), inst.prefix + naam, inst.laagInfra, undo );
 		}
 		else
 			throw Stop{ "Onbekende tool: " + functie };
@@ -1049,9 +1153,9 @@ json Kabeltool::Voer(const std::string& functie, const json& args)
 		if		( functie == "laad" )		data = Laad();
 		else if ( functie == "bewaar" )		data = Bewaar( args );
 		else if ( functie == "selectie" )	data = Selectie();
-		else if ( functie == "selecteer" )	SelecteerId( ::Tekst( args, "id" ) );
-		else if ( functie == "vloer" )		VloerVanSelectie();
-		else if ( functie == "truss" )		TrussVanSelectie( args );
+		else if ( functie == "selecteer" )	SelecteerId( Tekst( args, "id" ) );
+		else if ( functie == "vloer" )		RouteVanSelectie( false, args );
+		else if ( functie == "truss" )		RouteVanSelectie( true, args );
 		else if ( functie == "lampen" )		LampenKoppelen();
 		else if ( functie == "bijwerken" )	TekeningBijwerken();
 		else if ( functie == "stempelen" )	Stempelen();
@@ -1064,18 +1168,9 @@ json Kabeltool::Voer(const std::string& functie, const json& args)
 
 		antwoord = { { "ok", true }, { "data", data } };
 	}
-	catch ( const Stop& s )
-	{
-		antwoord = { { "ok", false }, { "fout", s.tekst } };
-	}
-	catch ( const std::exception& e )
-	{
-		antwoord = { { "ok", false }, { "fout", std::string( "Interne fout: " ) + e.what() } };
-	}
-	catch ( ... )
-	{
-		antwoord = { { "ok", false }, { "fout", "Onbekende interne fout." } };
-	}
+	catch ( const Stop& s )				{ antwoord = { { "ok", false }, { "fout", s.tekst } }; }
+	catch ( const std::exception& e )	{ antwoord = { { "ok", false }, { "fout", std::string( "Interne fout: " ) + e.what() } }; }
+	catch ( ... )						{ antwoord = { { "ok", false }, { "fout", "Onbekende interne fout." } }; }
 	antwoord["meldingen"] = gMeldingen;
 	if ( ! antwoord["ok"].get<bool>() )
 		Log( "Voer " + functie + " fout: " + antwoord.value( "fout", std::string() ) );
@@ -1091,9 +1186,9 @@ void Kabeltool::ToolUit(const std::string& functie, const json& args)
 		ToolActie( functie, args );
 		Exporteer();
 	}
-	catch ( const Stop& s )					{ fout = s.tekst; }
-	catch ( const std::exception& e )		{ fout = std::string( "Interne fout: " ) + e.what(); }
-	catch ( ... )							{ fout = "Onbekende interne fout."; }
+	catch ( const Stop& s )				{ fout = s.tekst; }
+	catch ( const std::exception& e )	{ fout = std::string( "Interne fout: " ) + e.what(); }
+	catch ( ... )						{ fout = "Onbekende interne fout."; }
 
 	if ( ! fout.empty() )
 	{

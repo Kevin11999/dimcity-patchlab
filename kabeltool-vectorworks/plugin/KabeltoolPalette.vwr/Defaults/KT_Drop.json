@@ -1,0 +1,46 @@
+{
+	"params": {
+		"objectnaam": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"valhoogte": {
+			"default": {
+				"imperial": "0",
+				"metric": "0"
+			}
+		},
+		"slingers": {
+			"default": {
+				"imperial": "1",
+				"metric": "1"
+			}
+		},
+		"z": {
+			"default": {
+				"imperial": "8",
+				"metric": "8"
+			}
+		},
+		"symboolMaat": {
+			"default": {
+				"imperial": "0.3",
+				"metric": "0.3"
+			}
+		},
+		"ktId": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"truss": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		}
+	}
+}

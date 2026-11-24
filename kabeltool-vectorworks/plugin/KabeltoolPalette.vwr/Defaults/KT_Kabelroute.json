@@ -1,0 +1,28 @@
+{
+	"params": {
+		"soort": {
+			"default": {
+				"imperial": "Vloer",
+				"metric": "Vloer"
+			}
+		},
+		"naam": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"hoogte": {
+			"default": {
+				"imperial": "8",
+				"metric": "8"
+			}
+		},
+		"ktId": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		}
+	}
+}

@@ -1,0 +1,52 @@
+{
+	"params": {
+		"nummer": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"type": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"kort": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"lengte": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"totaal": {
+			"default": {
+				"imperial": "0",
+				"metric": "0"
+			}
+		},
+		"diameter": {
+			"default": {
+				"imperial": "20",
+				"metric": "20"
+			}
+		},
+		"kleur": {
+			"default": {
+				"imperial": "#9e9e9e",
+				"metric": "#9e9e9e"
+			}
+		},
+		"toon2D": {
+			"default": {
+				"imperial": "True",
+				"metric": "True"
+			}
+		}
+	}
+}

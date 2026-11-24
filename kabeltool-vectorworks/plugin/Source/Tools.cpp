@@ -1,11 +1,12 @@
 #include "StdAfx.h"
 
 #include "Kabeltool.h"
+#include "Tekening.h"
 #include "Tools.h"
 
 using namespace Kabeltool;
 
-// Vectorworks rekent intern in millimeters; Python krijgt meters.
+// Vectorworks rekent intern in millimeters; de Kabeltool rekent in meters.
 static double Meter(double mm) { return mm / 1000.0; }
 
 // Laatst gebruikte naam en hoogte van de truss-tool (blijven staan tot Vectorworks sluit).
@@ -117,7 +118,11 @@ void CToolKlik_EventSink::HandleComplete()
 		args["y"] = Meter( pt.y );
 
 		Log( "Tool " + fFunctie + ": klik" );
-		PythonTool( fFunctie, args );
+		if ( IsBezig() )
+			return;
+		ZetBezig( true );
+		ToolUit( fFunctie, args );
+		ZetBezig( false );
 	}
 	catch ( ... )
 	{
@@ -202,7 +207,11 @@ void CToolLijn_EventSink::HandleComplete()
 		}
 
 		Log( "Tool " + fFunctie + ": " + std::to_string( (long long) punten.size() ) + " punten" );
-		PythonTool( fFunctie, args );
+		if ( IsBezig() )
+			return;
+		ZetBezig( true );
+		ToolUit( fFunctie, args );
+		ZetBezig( false );
 	}
 	catch ( ... )
 	{

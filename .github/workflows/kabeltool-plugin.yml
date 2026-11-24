@@ -22,13 +22,12 @@ jobs:
           cd sdk
           git sparse-checkout set VectorworksSDK/SDK2026/SDKLib/Include VectorworksSDK/SDK2026/SDKLib/Source VectorworksSDK/SDK2026/SDKLib/LibWin VectorworksSDK/SDK2026/SDKLib/ToolsWin/BuildVWR
 
-      - name: Palette en Python in de resources zetten
+      - name: Palette in de resources zetten
         shell: bash
         run: |
           html=kabeltool-vectorworks/plugin/KabeltoolPalette.vwr/html
           rm -f "$html/LEESMIJ.txt"
           cp -r kabeltool-vectorworks/palette/. "$html/"
-          cp kabeltool-vectorworks/vectorworks/*.py "$html/"
           ls -R "$html"
 
       - uses: microsoft/setup-msbuild@v2

@@ -1,6 +1,6 @@
 #pragma once
 
-// Gereedschapset Kabeltool: vier tools die de klikken zelf opvangen en daarna kabeltool_brug.tool() aanroepen.
+// Gereedschapset Kabeltool: vier tools die de klikken zelf opvangen en daarna Kabeltool::ToolUit() aanroepen.
 // Opzet volgens het officiële voorbeeld (VectorworksDeveloper/SDKExamples, Examples2026/ObjectExample, ExtTool).
 
 namespace Kabeltool
@@ -9,7 +9,7 @@ namespace Kabeltool
 	using namespace VWFC::PluginSupport;
 
 	// ------------------------------------------------------------------------------------------------------
-	// Eén klik: punt doorgeven aan Python (dim city, drop).
+	// Eén klik: punt doorgeven aan de Kabeltool (dim city, drop).
 	class CToolKlik_EventSink : public VWTool_EventSink
 	{
 	public:

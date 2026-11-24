@@ -87,12 +87,14 @@ set VWR_7ZCMD=$(VWSDK)\ToolsWin\BuildVWR\7z
     </ClCompile>
     <ClCompile Include="Source\Kabeltool.cpp" />
     <ClCompile Include="Source\Tools.cpp" />
+    <ClCompile Include="Source\Tekening.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Prefix\CommonPrefix.h" />
     <ClInclude Include="Source\Prefix\StdAfx.h" />
     <ClInclude Include="Source\Kabeltool.h" />
     <ClInclude Include="Source\Tools.h" />
+    <ClInclude Include="Source\Tekening.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

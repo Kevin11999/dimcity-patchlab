@@ -4,12 +4,12 @@
   const KT = window.KT;
 
   window.addEventListener('DOMContentLoaded', () => {
-    if (typeof vwAPI === 'undefined' || !vwAPI.py) return;
+    if (typeof vwAPI === 'undefined' || !vwAPI.kt) return;
 
     let geladen = false, laatsteSel = null, timer = null, bezig = false;
 
-    // Eén ingang naar Vectorworks: voert kabeltool_brug.roep(fn, args) uit.
-    const py = (fn, args) => vwAPI.py(fn, args || {}).then(r => {
+    // Eén ingang naar Vectorworks: de plug-in voert de functie in C++ uit (geen Python).
+    const py = (fn, args) => vwAPI.kt(fn, args || {}).then(r => {
       if (r && r.meldingen && r.meldingen.length) KT.status(r.meldingen.join(' · '));
       if (!r || !r.ok) throw new Error((r && r.fout) || 'geen antwoord van Vectorworks');
       return r.data;

@@ -11,12 +11,13 @@ namespace Kabeltool
 	// Logboek: %TEMP%\kabeltool_log.txt
 	void	Log(const std::string& msg);
 
-	// Voor de tools: kabeltool_brug.tool(functie, args) uitvoeren in Vectorworks-Python.
-	void	PythonTool(const std::string& functie, const nlohmann::json& args);
+	// True zolang de Kabeltool de tekening aanpast (dan geen meldingen naar de palette).
+	bool	IsBezig();
+	void	ZetBezig(bool bezig);
 
 	// --------------------------------------------------------------------------------------------------------
 	// De brug tussen de pagina (JavaScript) en Vectorworks.
-	// De pagina roept vwAPI.py(functienaam, argumenten) aan; dat voert kabeltool_brug.py uit in Vectorworks.
+	// De pagina roept vwAPI.kt(functie, argumenten) aan; dat wordt in C++ uitgevoerd (Tekening.cpp).
 	class CPaletteJSProvider : public VWExtensionPaletteJSProvider
 	{
 	public:
@@ -28,8 +29,7 @@ namespace Kabeltool
 		DEFINE_WebPalette_DISPATCH_MAP;
 
 	private:
-		void	OnPy(const TXString& objName, const TXString& functionName, const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context);
-		void	OnPyInner(const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context);
+		void	OnKt(const TXString& objName, const TXString& functionName, const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context);
 		void	OnTool(const TXString& objName, const TXString& functionName, const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context);
 	};
 

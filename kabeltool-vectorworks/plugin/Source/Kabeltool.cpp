@@ -6,21 +6,20 @@
 #include <sstream>
 #include <string>
 
-#include "Interfaces/VectorWorks/Scripting/IPythonScriptEngine.h"
 #include "Kabeltool.h"
+#include "Tekening.h"
 
 using namespace Kabeltool;
 
-// Map op schijf waar de pagina en de Python-bestanden bij het starten naartoe gekopieerd zijn (UTF-8, met /).
+// Map op schijf waar de pagina bij het openen naartoe gekopieerd is (UTF-8, met /).
 static std::string gHtmlFolder;
 
-// True zolang Python draait. Dan sturen we geen JavaScript naar de palette en starten we geen tweede Python.
+// True zolang de Kabeltool de tekening aanpast. Dan sturen we geen JavaScript naar de palette
+// en starten we geen tweede actie tegelijk.
 static bool gBezig = false;
 
-static std::wstring Wide(const std::string& utf8)
-{
-	return TXString( utf8 ).GetStdWString();
-}
+bool Kabeltool::IsBezig()				{ return gBezig; }
+void Kabeltool::ZetBezig(bool bezig)	{ gBezig = bezig; }
 
 // Logboek voor het zoeken naar crashes: %TEMP%\kabeltool_log.txt
 // Elke regel wordt meteen weggeschreven, zodat hij er na een crash nog staat.
@@ -53,7 +52,7 @@ void Kabeltool::Log(const std::string& msg)
 }
 
 // --------------------------------------------------------------------------------------------------------
-// Pakt de map html/ uit de resources (.vwr) uit naar schijf (pagina + Python-bestanden).
+// Pakt de map html/ uit de resources (.vwr) uit naar schijf (de pagina).
 // Zet gHtmlFolder en geeft het volledige pad van index.html. Zelfde werkwijze als het officiële voorbeeld.
 static TXString PakHtmlUit()
 {
@@ -88,7 +87,7 @@ static TXString PakHtmlUit()
 			outputFileID->GetFileFullPath( fileFullPath );
 	});
 
-	// map van index.html onthouden voor de Python-brug
+	// map van index.html onthouden (voor het logboek)
 	std::string full = fileFullPath.GetStdString();
 	for ( char& c : full )
 		if ( c == '\\' ) c = '/';
@@ -99,75 +98,9 @@ static TXString PakHtmlUit()
 	return fileFullPath;
 }
 
-// Voert een Python-script uit. Zolang het draait staat gBezig aan.
-static VCOMError VoerPythonUit(const std::string& script, const std::string& wat)
-{
-	VectorWorks::Scripting::IPythonScriptEnginePtr engine( VectorWorks::Scripting::IID_PythonScriptEngine );
-	if ( ! engine )
-	{
-		Log( wat + ": Python-engine niet gevonden" );
-		return kVCOMError_Failed;
-	}
-
-	Log( wat + ": Python start" );
-	gBezig = true;
-	VCOMError err = engine->ExecuteScript( TXString( script ) );
-	gBezig = false;
-	Log( wat + ": Python klaar, code " + std::to_string( (long long) err ) );
-	return err;
-}
-
-// Begin van elk script: de uitgepakte map in sys.path zetten.
-static std::string ScriptBegin()
-{
-	std::string script;
-	script += "import sys\n";
-	script += "_kt_map = " + nlohmann::json( gHtmlFolder ).dump() + "\n";
-	script += "if _kt_map not in sys.path:\n\tsys.path.insert(0, _kt_map)\n";
-	script += "import kabeltool_brug\n";
-	return script;
-}
-
-// Aangeroepen door de tools (Tools.cpp): kabeltool_brug.tool('<functie>', '<json>').
-void Kabeltool::PythonTool(const std::string& functie, const nlohmann::json& args)
-{
-	if ( gBezig )
-	{
-		Log( "Tool " + functie + " geweigerd: Python draait nog" );
-		return;
-	}
-
-	try
-	{
-		if ( gHtmlFolder.empty() )
-			PakHtmlUit();
-		if ( gHtmlFolder.empty() )
-		{
-			Log( "Tool " + functie + ": map met Python-bestanden niet gevonden" );
-			return;
-		}
-
-		std::string script = ScriptBegin();
-		// json-tekst als Python-tekst (json::dump() van een string geeft geldige aanhalingstekens/escapes)
-		script += "kabeltool_brug.tool(" + nlohmann::json( functie ).dump() + ", " + nlohmann::json( args.dump() ).dump() + ")\n";
-
-		VoerPythonUit( script, "Tool " + functie );
-	}
-	catch ( const std::exception& e )
-	{
-		gBezig = false;
-		Log( std::string( "Tool " ) + functie + " C++-fout: " + e.what() );
-	}
-	catch ( ... )
-	{
-		gBezig = false;
-		Log( "Tool " + functie + " onbekende C++-fout" );
-	}
-}
-
 // --------------------------------------------------------------------------------------------------------
 BEGIN_WebPalette_DISPATCH_MAP(CPaletteJSProvider)
-ADD_WebPalette_FUNCTION( "py", OnPy )
+ADD_WebPalette_FUNCTION( "kt", OnKt )
 ADD_WebPalette_FUNCTION( "tool", OnTool )
 END_WebPalette_DISPATCH_MAP2
 
@@ -188,97 +121,42 @@ void CPaletteJSProvider::OnInit(IInitContext* context)
 
 	context->AddReourceAccessFunction( "vwAPI", DefaultPluginVWRIdentifier() );
 
-	// *Sync: wordt op de hoofdthread uitgevoerd, zodat Vectorworks aangeroepen mag worden
-	context->AddFunctionPromiseSync( "vwAPI.py" );
+	// *Sync: wordt op de hoofdthread uitgevoerd, zodat de SDK aangeroepen mag worden
+	context->AddFunctionPromiseSync( "vwAPI.kt" );
 	context->AddFunctionPromiseSync( "vwAPI.tool" );
 
 	Log( "OnInit klaar" );
 }
 
-// vwAPI.py( "functienaam", { ...argumenten } )  ->  Promise met het antwoord van kabeltool_brug.roep()
-void CPaletteJSProvider::OnPy(const TXString& objName, const TXString& functionName, const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context)
+// vwAPI.kt( "functie", { ...argumenten } )  ->  Promise met { ok, data, meldingen, fout }
+// Alles gebeurt in C++ (Tekening.cpp); er wordt geen Python meer gestart.
+void CPaletteJSProvider::OnKt(const TXString& objName, const TXString& functionName, const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context)
 {
 	if ( gBezig )
 	{
-		Log( "OnPy geweigerd: Python draait nog" );
+		Log( "OnKt geweigerd: nog bezig" );
 		context->Reject( "Kabeltool: Vectorworks is nog bezig." );
 		return;
 	}
 
+	std::string fn = ( args.size() > 0 && args[0].is_string() ) ? args[0].get<std::string>() : std::string();
+	nlohmann::json arguments = args.size() > 1 ? args[1] : nlohmann::json::object();
+
+	nlohmann::json antwoord;
+	gBezig = true;
 	try
 	{
-		OnPyInner( args, context );
-	}
-	catch ( const std::exception& e )
-	{
-		gBezig = false;
-		Log( std::string( "OnPy C++-fout: " ) + e.what() );
-		TXString melding = "Kabeltool: interne fout: ";
-		melding += TXString( std::string( e.what() ) );
-		context->Reject( melding );
+		Log( "Palette: " + fn );
+		antwoord = Voer( fn, arguments );
 	}
 	catch ( ... )
 	{
-		gBezig = false;
-		Log( "OnPy onbekende C++-fout" );
-		context->Reject( "Kabeltool: onbekende interne fout." );
+		antwoord = { { "ok", false }, { "fout", "Onbekende interne fout." }, { "meldingen", nlohmann::json::array() } };
 	}
-}
+	gBezig = false;
 
-void CPaletteJSProvider::OnPyInner(const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context)
-{
-	std::string fn = ( args.size() > 0 && args[0].is_string() ) ? args[0].get<std::string>() : std::string();
-	for ( char c : fn )
-	{
-		bool ok = ( c >= 'a' && c <= 'z' ) || ( c >= 'A' && c <= 'Z' ) || ( c >= '0' && c <= '9' ) || c == '_';
-		if ( ! ok ) { fn.clear(); break; }
-	}
-
-	if ( fn.empty() || gHtmlFolder.empty() )
-	{
-		Log( "OnPy ongeldige aanroep (functie '" + fn + "', map '" + gHtmlFolder + "')" );
-		context->Reject( "Kabeltool: ongeldige aanroep." );
-		return;
-	}
-
-	nlohmann::json arguments = args.size() > 1 ? args[1] : nlohmann::json::object();
-
-	const std::string inPath	= gHtmlFolder + "/_kt_in.json";
-	const std::string outPath	= gHtmlFolder + "/_kt_uit.json";
-
-	{
-		std::ofstream f( Wide( inPath ), std::ios::binary | std::ios::trunc );
-		f << arguments.dump();
-	}
-	::_wremove( Wide( outPath ).c_str() );
-
-	// json::dump() van een tekst geeft een geldige Python-tekst met aanhalingstekens
-	std::string script = ScriptBegin();
-	script += "kabeltool_brug.roep(" + nlohmann::json( fn ).dump() + ", " + nlohmann::json( inPath ).dump() + ", " + nlohmann::json( outPath ).dump() + ")\n";
-
-	VoerPythonUit( script, "OnPy " + fn );
-
-	std::ifstream f( Wide( outPath ), std::ios::binary );
-	if ( ! f )
-	{
-		Log( "OnPy " + fn + ": geen antwoordbestand" );
-		context->Reject( "Kabeltool: geen antwoord van Python." );
-		return;
-	}
-	std::stringstream buffer;
-	buffer << f.rdbuf();
-
-	nlohmann::json result = nlohmann::json::parse( buffer.str(), nullptr, false );
-	if ( result.is_discarded() )
-	{
-		Log( "OnPy " + fn + ": onleesbaar antwoord" );
-		context->Reject( "Kabeltool: onleesbaar antwoord van Python." );
-	}
-	else
-	{
-		Log( "OnPy " + fn + ": antwoord naar palette" );
-		context->Resolve( result );
-	}
+	Log( "Palette: " + fn + " klaar" );
+	context->Resolve( antwoord );
 }
 
 // vwAPI.tool( "dimcity" | "drop" | "vloer" | "truss" )  ->  kiest die tool in Vectorworks
@@ -332,7 +210,7 @@ void CUpdateSupport::OnNotification(IObjUpdateSupportContext* context)
 	context->GetNotification( whichChange, additionalData );
 	if ( whichChange == kNotifyDocChange || whichChange == kNotifySelChange )
 	{
-		// Niet terugroepen naar de pagina terwijl Python (aangeroepen vanuit diezelfde pagina) nog draait.
+		// Niet terugroepen naar de pagina terwijl de Kabeltool zelf de tekening aanpast.
 		if ( gBezig )
 			return;
 

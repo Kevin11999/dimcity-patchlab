@@ -2,16 +2,16 @@
 
 Losse tool, staat los van DimCity PatchLab. Gebouwd naar "Kabeltool Vectorworks – Plan versie 1".
 
-**Eerlijk vooraf: niets hiervan is getest.** De palette is niet in een browser gedraaid en het
-Python-deel is geschreven zonder Vectorworks. Reken op fouten bij de eerste keer proberen.
+**Eerlijk vooraf: niet getest in Vectorworks.** De plug-in wordt alleen gebouwd door GitHub; de palette is
+alleen met een nagebootste Vectorworks gedraaid. Reken op fouten bij de eerste keer proberen.
 
 ## Wat zit erin
 
 | Map | Wat |
 |---|---|
 | `palette/` | De palette (HTML/JS). Draait in de web palette, en los in Chrome/Edge met de knop Demo. |
-| `vectorworks/` | Python: `kabeltool.py` (tekenwerk) en `kabeltool_brug.py` (ingang voor de web palette). |
-| `plugin/` | C++ plug-in voor Vectorworks 2026 (Windows) die de palette als echte web palette toont. |
+| `plugin/` | C++ plug-in voor Vectorworks 2026 (Windows): web palette, gereedschapset en al het tekenwerk (`Source/Tekening.cpp`). |
+| `vectorworks/` | Oude Python-versie (`kabeltool.py`). Wordt door de plug-in **niet** gebruikt; alleen nog als losse scripts. |
 
 De plug-in is gebaseerd op het officiële `WebPaletteExample` (VectorworksDeveloper/SDKExamples).
 GitHub bouwt hem: workflow **Kabeltool plug-in (Vectorworks, Windows)**. De bouw slaagt; of hij in
@@ -42,7 +42,8 @@ Vectorworks werkt is niet geprobeerd.
 De knoppen *Dim city plaatsen*, *Vloerroute tekenen*, *Truss-lijn tekenen* en *Drop toevoegen* in de palette
 kiezen deze tools. De palette wacht zelf nooit op een klik in de tekening (dat liet Vectorworks crashen).
 
-De palette praat met Vectorworks via één functie (`vwAPI.py`) die `kabeltool_brug.py` uitvoert.
+De palette praat met Vectorworks via één functie (`vwAPI.kt`); de plug-in voert alles in C++ uit.
+Python wordt niet meer gestart: dat liet Vectorworks crashen.
 De gegevens staan in twee bestanden naast de tekening:
 
 - `<tekening>.kt-tekening.json` – geometrie uit Vectorworks
@@ -121,24 +122,20 @@ zonder lampen en meldt dat. Ook zonder palette: `… kabeltool.demo_show()` in e
 
 ## Als Vectorworks crasht
 
-- De palette start Python niet meer vanzelf bij het openen. Klik op **Verversen** om de tekening te laden.
-- De plug-in schrijft een logboek: `%TEMP%\kabeltool_log.txt` (typ dat in de adresbalk van Verkenner).
-  De laatste regel vóór de crash laat zien waar het misging, bijvoorbeeld `OnPy laad: Python start` zonder `Python klaar`.
+- De palette laadt de tekening pas als je op **Verversen** klikt.
+- De plug-in schrijft een logboek: `%TEMP%\kabeltool_log.txt` (Windows+R, dat pad typen, Enter).
+  De laatste regel vóór de crash laat zien waar het misging, bijvoorbeeld `Palette: demo` zonder `Palette: demo klaar`.
 
 ## Onzeker (eerst nakijken als iets misgaat)
 
-- Of Python dat de plug-in start (`IPythonScriptEngine::ExecuteScript`) hetzelfde mag als een gewoon script,
-  vooral ongedaan maken (Ctrl+Z) na een tool of knop.
+- Ongedaan maken (Ctrl+Z): elke knop/tool is één stap (`SupportUndoAndRemove` / `kUndoSwapObjects`).
 - Of de modusbalk van de truss-tool (Naam, Hoogte) na pannen/zoomen blijft staan.
 - Of de melding bij selectiewijziging (`kNotifySelChange`) de palette bereikt.
-
-- `vs.GetUnits()[3]` als "eenheden per inch" voor het omrekenen naar meters.
-- `vs.GetFPathName()` voor het pad van de tekening.
-- `vs.GetPolyPt3D` telt vanaf 0, `vs.GetPolyPt` vanaf 1.
-- `vs.GetObjectUuid` / `vs.GetObjectByUuid`.
-- `vs.BeginPoly3D` / `vs.Add3DPt((x, y, z))` voor de truss-lijn (lukt dat niet, dan een polylijn met de hoogte in het record).
-- Veldnamen van het record `Lighting Device`: `Circuit Name`, `Circuit Number`, `User Field 2`, `User Field 3`.
-- Kleuren als (r, g, b) van 0–65535 in `vs.SetFillBack`.
+- Recordformaten `KT_Obj`, `KT_Gen`, `KT_Link` worden gemaakt met `TFormatHandler`.
+- Objecten komen eerst op de actieve laag en worden met `AddObjectToContainer` naar de juiste laag verplaatst.
+- Zoeken met `ForEachObjectInCriteria` (zelfde criteria als VectorScript).
+- Veldnamen van het record `Lighting Device`: `Inst Type`, `Unit Number`, `Circuit Name`, `Circuit Number`,
+  `User Field 2`, `User Field 3`.
 
 ## Later in te vullen (uit het plan)
 

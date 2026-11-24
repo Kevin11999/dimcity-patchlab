@@ -6,22 +6,30 @@
   KT.lengteTekst = m => String(m).replace('.', ',');
   KT.kleurVoor = m => (KT.project.instellingen.lengteKleuren || {})[String(m)] || '#9e9e9e';
 
-  // Geeft een SVG-tekst. px = hoogte van het blokje op het scherm.
-  KT.symboolSVG = function (kort, m, nummer, px) {
+  // Kabelsymbool zoals in de tekening: blokje met dunne balk bovenop (lengtekleur), rand in de kleur van het
+  // kabeltype, korte naam links (vet bij VEAM), lengte rechts; nummer grijs ernaast. px = hoogte op het scherm.
+  KT.symboolSVG = function (kort, m, nummer, px, type) {
     const inst = KT.project.instellingen;
-    const H = 20, B = H * (inst.symboolBreedte / inst.symboolHoogte || 5);
-    const balk = H * 0.22, vak = H - balk;
-    const past = t => Math.min(vak * 0.8, (B / 2 * 0.85) / (Math.max(String(t).length, 1) * 0.6));
+    const H = 20, B = H * ((+inst.symboolBreedte || 13) / (+inst.symboolHoogte || 4));
+    const balk = H * 0.16, fs = H * 0.62;
+    const t = type || KT.alleTypes().find(x => x.kort === kort) || {};
+    const rand = t.kleur || '#000', vet = t.vet ? 'bold' : 'normal';
     const lt = KT.lengteTekst(m);
-    const nr = nummer ? `<text x="${B + 5}" y="${H / 2}" font-size="${H * 0.6}" dominant-baseline="central" fill="currentColor">${esc(nummer)}</text>` : '';
-    const breed = B + (nummer ? 8 + String(nummer).length * H * 0.38 : 1);
+    const nr = nummer ? `<text x="${B + 4}" y="${balk + (H - balk) / 2}" font-size="${fs}" dominant-baseline="central" fill="#777">${esc(nummer)}</text>` : '';
+    const breed = B + (nummer ? 6 + String(nummer).length * fs * 0.62 : 1);
     const schaal = (px || 22) / H;
     return `<svg class="ksym" xmlns="http://www.w3.org/2000/svg" width="${breed * schaal}" height="${(H + 1) * schaal}" viewBox="-0.5 -0.5 ${breed} ${H + 1}" font-family="Arial, Helvetica, sans-serif">
-<rect x="0" y="0" width="${B}" height="${H}" fill="#fff" stroke="#000" stroke-width="0.8"/>
-<rect x="0" y="${vak}" width="${B}" height="${balk}" fill="${esc(KT.kleurVoor(m))}" stroke="#000" stroke-width="0.8"/>
-<line x1="${B / 2}" y1="0" x2="${B / 2}" y2="${vak}" stroke="#000" stroke-width="0.8"/>
-<text x="${B / 4}" y="${vak / 2}" font-size="${past(kort)}" text-anchor="middle" dominant-baseline="central" fill="#000">${esc(kort)}</text>
-<text x="${B * 0.75}" y="${vak / 2}" font-size="${past(lt)}" text-anchor="middle" dominant-baseline="central" fill="#000">${esc(lt)}</text>
+<rect x="0" y="0" width="${B}" height="${H}" fill="#fff" stroke="${esc(rand)}" stroke-width="1"/>
+<rect x="0" y="0" width="${B}" height="${balk}" fill="${esc(KT.kleurVoor(m))}" stroke="#000" stroke-width="0.6"/>
+<text x="${H * 0.25}" y="${balk + (H - balk) / 2}" font-size="${fs}" font-weight="${vet}" dominant-baseline="central" fill="#000">${esc(kort)}</text>
+<text x="${B - H * 0.25}" y="${balk + (H - balk) / 2}" font-size="${fs}" text-anchor="end" dominant-baseline="central" fill="#000">${esc(lt)}</text>
 ${nr}</svg>`;
+  };
+
+  // Oude placeholderkleuren en -maten vervangen door de magazijnkleurcode
+  KT.werkInstellingenBij = function (s) {
+    const k = s.lengteKleuren || {};
+    if (k['10'] === '#2e7dff' && k['25'] === '#e53935') s.lengteKleuren = KT.standaardInstellingen().lengteKleuren;
+    return s;
   };
 })();

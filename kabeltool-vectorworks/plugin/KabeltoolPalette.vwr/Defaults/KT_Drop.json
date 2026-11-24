@@ -41,6 +41,12 @@
 				"imperial": "",
 				"metric": ""
 			}
+		},
+		"kleur": {
+			"default": {
+				"imperial": "#33cc00",
+				"metric": "#33cc00"
+			}
 		}
 	}
 }

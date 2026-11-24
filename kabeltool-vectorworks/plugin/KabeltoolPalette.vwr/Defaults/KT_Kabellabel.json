@@ -14,8 +14,8 @@
 		},
 		"breedte": {
 			"default": {
-				"imperial": "20",
-				"metric": "20"
+				"imperial": "13",
+				"metric": "13"
 			}
 		},
 		"hoogte": {
@@ -76,6 +76,30 @@
 			"default": {
 				"imperial": "1",
 				"metric": "1"
+			}
+		},
+		"kader": {
+			"default": {
+				"imperial": "#000000",
+				"metric": "#000000"
+			}
+		},
+		"blokSoort": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
+		},
+		"poorten": {
+			"default": {
+				"imperial": "6",
+				"metric": "6"
+			}
+		},
+		"letter": {
+			"default": {
+				"imperial": "",
+				"metric": ""
 			}
 		}
 	}

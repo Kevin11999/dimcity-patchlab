@@ -29,6 +29,12 @@
 				"imperial": "",
 				"metric": ""
 			}
+		},
+		"kleur": {
+			"default": {
+				"imperial": "#ff0000",
+				"metric": "#ff0000"
+			}
 		}
 	}
 }

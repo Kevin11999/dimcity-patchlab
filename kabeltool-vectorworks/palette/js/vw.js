@@ -20,7 +20,7 @@
       if (p.bibliotheek && p.bibliotheek.families) KT.lib = p.bibliotheek;
       delete kopie.bibliotheek; delete kopie.tekenlijst; delete kopie.stempels;
       KT.project = kopie;
-      KT.project.instellingen = Object.assign(KT.standaardInstellingen(), KT.project.instellingen || {});
+      KT.project.instellingen = KT.werkInstellingenBij(Object.assign(KT.standaardInstellingen(), KT.project.instellingen || {}));
       KT.project.dropinst = KT.project.dropinst || {};
       KT.project.nummers = KT.project.nummers || {};
     }

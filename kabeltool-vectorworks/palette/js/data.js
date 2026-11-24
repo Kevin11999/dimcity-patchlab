@@ -7,8 +7,11 @@ window.KT = window.KT || {};
   // l([5,10,25], {25:5}) -> lengtes; tweede argument: lengte -> aantal kabels in de loom
   const l = (lijst, looms) => lijst.map(m => (looms && looms[m])
     ? { m, loom: true, aantal: looms[m] } : { m, loom: false, aantal: 1 });
+  // rand/3D-kleur en vet per familie: multi blauw, VEAM/LK oranje en vet (zoals de tekeningen van Kevin)
+  const RAND = { socapex: '#29b6f6', harting: '#29b6f6', lk: '#ff7043', veam: '#ff7043' };
+  const VET = { lk: true, veam: true };
   const t = (id, naam, kort, voorvoegsel, connector, lengtes, stempel) =>
-    ({ id, naam, kort, voorvoegsel, connector, lengtes, stempel: stempel || '', diameter: KT.standaardDiameter(id), kleur: '' });
+    ({ id, naam, kort, voorvoegsel, connector, lengtes, stempel: stempel || '', diameter: KT.standaardDiameter(id), kleur: RAND[id] || '#000000', vet: !!VET[id] });
 
   const STD = [2.5, 5, 10, 15, 25];
 
@@ -25,12 +28,12 @@ window.KT = window.KT || {};
     versie: 1,
     families: [
       { id: 'multi', naam: 'Multi', types: [
-        t('socapex', 'Socapex', 'SOCA', 'M', 'Socapex 19p', l([2.5, 5, 10, 15, 25, 35, 50], { 25: 5, 35: 5 }), 'multi'),
+        t('socapex', 'Socapex', 'SOC', 'M', 'Socapex 19p', l([2.5, 5, 10, 15, 25, 35, 50], { 25: 5, 35: 5 }), 'multi'),
         t('harting', 'Harting', 'HART', 'M', 'Harting 16p', l([5, 10, 15, 25, 35], { 25: 5, 35: 5 }), 'multi'),
       ] },
       { id: 'data', naam: 'Data', types: [
-        t('lk', 'LK (12 DMX-lijnen)', 'LK', 'LK', 'LK 37', l([5, 10, 15, 25, 35, 50]), 'data'),
-        t('veam', 'VEAM', 'V', 'VEAM', 'VEAM', l([5, 10, 15, 25, 35, 50]), 'data'),
+        t('lk', 'VEAM 12 / LK (12 DMX-lijnen)', 'V12', 'LK', 'VEAM 12', l([5, 10, 15, 25, 35, 50]), 'data'),
+        t('veam', 'VEAM 4', 'V4', 'V', 'VEAM 4', l([5, 10, 15, 25, 35, 50]), 'data'),
         t('dmx3', 'DMX 3-polig', 'DMX3', 'DMX', 'XLR 3p', l([1, 2.5, 5, 10, 15, 25])),
         t('dmx5', 'DMX 5-polig', 'DMX', 'DMX', 'XLR 5p', l([1, 2.5, 5, 10, 15, 25])),
         t('cat5e', 'Ethernet CAT5e', 'CAT5', 'CAT', 'etherCON', l(STD)),
@@ -64,8 +67,8 @@ window.KT = window.KT || {};
     ],
     blokken: [
       { id: 'socabreakout', naam: 'Soca-breakout', ingang: 'socapex', poorten: 6, uitgang: 'schuko' },
-      { id: 'lkblok', naam: 'LK-blok', ingang: 'lk', poorten: 12, uitgang: 'dmx5' },
-      { id: 'veamsplitter', naam: 'VEAM-splitter', ingang: 'veam', poorten: 4, uitgang: 'dmx5' },
+      { id: 'lkblok', naam: 'VEAM12', ingang: 'lk', poorten: 12, uitgang: 'dmx5' },
+      { id: 'veamsplitter', naam: 'VEAM4', ingang: 'veam', poorten: 4, uitgang: 'dmx5' },
     ],
   });
 
@@ -73,7 +76,7 @@ window.KT = window.KT || {};
     prefix: 'PP/',                 // placeholder, later exact invullen
     slackDimCity: 2.5,             // m per kabel bij de dim city
     tolerantie: 2,                 // m: hoe dicht een route bij dim city/voet moet beginnen
-    symboolBreedte: 20,            // mm op papier
+    symboolBreedte: 13,            // mm op papier (kabelsymbool)
     symboolHoogte: 4,              // mm op papier
     dimcityMaat: 1,                // m, zijde van het vierkant
     laagCabling: 'Cabling',
@@ -89,10 +92,13 @@ window.KT = window.KT || {};
     dropLengtes: [25, 35],         // looms die als drop mogen
     lengtehulp: true,
     lengtehulpLengtes: [5, 10, 15, 25],
-    // tijdelijke placeholderkleuren; later de magazijnkleurcode
+    // magazijnkleurcode per lengte (wit krijgt in de tekening een zwarte rand)
     lengteKleuren: {
-      '1': '#bdbdbd', '2.5': '#ffffff', '5': '#ffd400', '10': '#2e7dff', '15': '#2fb344',
-      '25': '#e53935', '35': '#8e44ad', '50': '#ff8a00', '75': '#00a6a6', '100': '#222222', '150': '#795548',
+      '0.5': '#ffffff', '1': '#8d5524', '2.5': '#ffffff', '5': '#ffd600', '10': '#e53935', '15': '#2fb344',
+      '25': '#ffffff', '35': '#9e9e9e', '50': '#8e24aa', '75': '#fb8c00', '100': '#8d5524', '150': '#2fb344',
     },
+    kleurDrop: '#33cc00',          // kader en rondje van een drop
+    kleurRoute: '#ff0000',         // kader en rondje van een koppelpunt/route
+    kleurDB: '#ff0000',            // vlak van de dim city
   });
 })();

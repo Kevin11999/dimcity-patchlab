@@ -200,7 +200,21 @@
       for (let k = 1; k < 10000; k++) { const c = voorv + (basis + k); if (!gebruikt.has(c)) return c; }
       return voorv + '?';
     };
-    const rij = (k, m) => ({ kort: k.type.kort, lengte: KT.lengteTekst(m), kleur: KT.kleurVoor(m), nummer: k.nr });
+    // één regel in een kader: kabelsymbool (korte naam, lengte, balk = lengtekleur, rand = typekleur) + nummer
+    const rij = (k, m) => ({ kort: k.type.kort, lengte: KT.lengteTekst(m), kleur: KT.kleurVoor(m), nummer: k.nr,
+      rand: k.type.kleur || '#000000', vet: !!k.type.vet });
+    const kleurDrop = inst.kleurDrop || '#33cc00', kleurRoute = inst.kleurRoute || '#ff0000', kleurDB = inst.kleurDB || '#ff0000';
+    // locatienaam van de route waar een punt op ligt (voor de titel van het rode kader)
+    const locatieBij = (p, T) => {
+      let best = null;
+      [].concat(tk.vloerroutes || [], T ? [T.t] : []).forEach(r => {
+        const pts = (r.punten || []).map(P);
+        if (pts.length < 2) return;
+        const pj = projecteer(pts, p);
+        if (pj && (!best || pj.d < best.d)) best = { d: pj.d, r };
+      });
+      return best && best.d < 0.5 ? (best.r.locatie || '') : '';
+    };
     const koppel = {};   // sleutel -> label bij een koppelpunt
     const dropDichtheid = inst.dropLengtes || [];
 
@@ -252,7 +266,9 @@
             const ks = T.t.id + '@' + st.s1.toFixed(1);
             if (!koppel[ks]) {
               const q = puntOp(T.pad, st.s1);
-              koppel[ks] = { soort: 'koppel', laag: 'cabling', x: q.p[0], y: q.p[1], z: q.p[2], titel: '', klasse: T.t.klasse || T.t.naam || '', rijen: [], opTruss: st.s1 > T.naarDc ? st.s1 - T.naarDc : null, truss: T.t.id };
+              const opTruss = st.s1 > T.naarDc ? st.s1 - T.naarDc : null;
+              const locatie = opTruss != null ? (T.t.locatie || '') : locatieBij(q.p, null);
+              koppel[ks] = { soort: 'koppel', laag: 'cabling', x: q.p[0], y: q.p[1], z: q.p[2], titel: locatie, kader: kleurRoute, klasse: T.t.klasse || T.t.naam || '', rijen: [], opTruss, truss: T.t.id };
             }
             koppel[ks].rijen.push(rij(k, st.m));
           });
@@ -260,18 +276,28 @@
       });
 
       // vlaggetje bij de drop
-      labels.push({ soort: 'vlag', laag: 'cabling', x: p[0], y: p[1], z: p[2], titel: naam, klasse: T.t.klasse || T.t.naam || '', rijen: eigen.map(k => rij(k, k.stukken[0].m)) });
-      // blokken op de infra-laag
-      eigen.filter(k => k.blok && KT.blok(k.blok)).forEach((k, i) => {
-        labels.push({ soort: 'blok', laag: 'infra', x: p[0], y: p[1], z: p[2], rijNr: i, titel: KT.blok(k.blok).naam + ' ' + k.nr, klasse: T.t.klasse || T.t.naam || '', rijen: [] });
-      });
+      labels.push({ soort: 'vlag', laag: 'cabling', x: p[0], y: p[1], z: p[2], titel: 'Drop > ' + naam, kader: kleurDrop, klasse: T.t.klasse || T.t.naam || '', rijen: eigen.map(k => rij(k, k.stukken[0].m)) });
       if (eigen.length) extraStukken.push({ a: p, b: [p[0], p[1], p[2] - val], soort: 'drop', dc: T.dc, id: d.id, nrs: eigen.map(k => k.nr) });
 
       // stempels voor de lampen van deze drop
       const multis = eigen.filter(k => k.type.stempel === 'multi'), datas = eigen.filter(k => k.type.stempel === 'data');
+      const opPoort = {};          // kabelnummer -> poort -> lampnamen (voor de blokken)
       (tk.lampen || []).filter(l => l.drop === d.id).forEach(l => {
         const li = di.lampen[l.uuid] || {}, m = multis[+li.multi || 0], dt = datas[+li.data || 0];
         stempels.push({ uuid: l.uuid, naam: l.naam || '', drop: d.id, circuitName: m ? m.nr : '', circuitNumber: li.circuit != null ? String(li.circuit) : '', uf2: dt ? dt.nr : '', uf3: li.poort != null ? String(li.poort) : '' });
+        const zet = (k, poort) => { if (!k || !poort) return; const a = (opPoort[k.nr] = opPoort[k.nr] || {}); (a[poort] = a[poort] || []).push(l.naam || l.uuid); };
+        zet(m, li.circuit); zet(dt, li.poort);
+      });
+
+      // blokken op de infra-laag: breakout (rondjes per circuit) of splitter (poorten met wat erop zit)
+      eigen.filter(k => k.blok && KT.blok(k.blok)).forEach((k, i) => {
+        const b = KT.blok(k.blok), n = Math.max(1, +b.poorten || 1);
+        const breakout = k.type.stempel === 'multi';
+        const poorten = [];
+        for (let j = 1; j <= n; j++) poorten.push({ kort: j + ': ' + ((opPoort[k.nr] || {})[j] || []).join(', ') });
+        labels.push({ soort: 'blok', laag: 'infra', x: p[0], y: p[1], z: p[2], rijNr: i, titel: breakout ? b.naam + ' ' + k.nr : b.naam + '-' + k.nr,
+          blokSoort: breakout ? 'breakout' : 'splitter', poorten: n, letter: k.voorv, kader: breakout ? '#e53935' : kleurRoute,
+          klasse: T.t.klasse || T.t.naam || '', rijen: breakout ? [] : poorten });
       });
     });
     Object.values(koppel).forEach(l => labels.push(l));
@@ -283,11 +309,11 @@
         const st = k.stukken.find(x => x.s1 <= T.naarDc + 0.001 && x.s0 >= T.naarDc - 0.001);
         if (st) rijen.push(rij(k, st.m));
       });
-      if (rijen.length) labels.push({ soort: 'bol', laag: 'cabling', x: T.pts[0][0], y: T.pts[0][1], z: T.pts[0][2], titel: T.t.naam || T.t.id, klasse: T.t.klasse || T.t.naam || '', rijen });
+      if (rijen.length) labels.push({ soort: 'bol', laag: 'cabling', x: T.pts[0][0], y: T.pts[0][1], z: T.pts[0][2], titel: 'Drop > Floor', kader: kleurDrop, klasse: T.t.klasse || T.t.naam || '', rijen });
     });
     dcs.forEach(dc => {
       const rijen = kabels.filter(k => k.dc === dc.id).map(k => rij(k, k.stukken[k.stukken.length - 1].m));
-      if (rijen.length) labels.push({ soort: 'dimcity', laag: 'cabling', x: +dc.x || 0, y: +dc.y || 0, z: +dc.z || 0, titel: dc.id, klasse: dc.id, rijen });
+      if (rijen.length) labels.push({ soort: 'dimcity', laag: 'cabling', x: +dc.x || 0, y: +dc.y || 0, z: +dc.z || 0, titel: dc.naam || dc.id, kader: kleurDB, klasse: dc.id, rijen });
     });
 
     // lengtehulp: streepjes waar een standaardkabel precies uitkomt

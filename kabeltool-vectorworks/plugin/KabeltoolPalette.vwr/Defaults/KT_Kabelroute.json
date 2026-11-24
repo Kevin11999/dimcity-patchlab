@@ -23,6 +23,12 @@
 				"imperial": "",
 				"metric": ""
 			}
+		},
+		"locatie": {
+			"default": {
+				"imperial": "",
+				"metric": ""
+			}
 		}
 	}
 }

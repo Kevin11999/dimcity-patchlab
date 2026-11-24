@@ -28,7 +28,7 @@
     KT.lib = KT.lib || KT.standaardBibliotheek();
     KT.project = KT.project || KT.nieuwProject();
     KT.tekening = KT.tekening || KT.legeTekening();
-    KT.project.instellingen = Object.assign(KT.standaardInstellingen(), KT.project.instellingen || {});
+    KT.project.instellingen = KT.werkInstellingenBij(Object.assign(KT.standaardInstellingen(), KT.project.instellingen || {}));
     KT.project.dropinst = KT.project.dropinst || {};
     KT.project.nummers = KT.project.nummers || {};
   }

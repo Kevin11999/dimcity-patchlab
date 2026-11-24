@@ -20,10 +20,10 @@ namespace Kabeltool
 	using namespace VectorWorks::Extension;
 	using namespace VWFC::PluginSupport;
 
-	// Rijen van een kabellabel: "kort|lengte|kleur|nummer;..." (kleur zonder #)
+	// Rijen van een kabellabel: "kort|lengte|kleur|nummer|rand|vet;..." (kleuren zonder #, vet = 1/0)
 	struct LabelRij
 	{
-		std::string kort, lengte, kleur, nummer;
+		std::string kort, lengte, kleur, nummer, rand, vet;
 	};
 	std::vector<LabelRij>	LeesRijen(const std::string& tekst);
 

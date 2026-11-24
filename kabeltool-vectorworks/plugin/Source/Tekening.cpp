@@ -182,11 +182,13 @@ namespace
 	struct Inst
 	{
 		std::string prefix		= "PP/";
-		double symboolBreedte	= 20;
+		double symboolBreedte	= 13;
 		double symboolHoogte	= 4;
 		double dimcityMaat		= 1;
 		double dimcityKast		= 2;
 		double dropSymbool		= 0.3;
+		std::string kleurDB		= "#ff0000";
+		std::string kleurDrop	= "#33cc00";
 		std::string laagCabling	= "Cabling";
 		std::string laagInfra	= "Infraplot";
 		std::string laagKabels	= "Cabling";
@@ -210,13 +212,15 @@ namespace
 			inst.dimcityMaat	= Num( s, "dimcityMaat", inst.dimcityMaat );
 			inst.dimcityKast	= Num( s, "dimcityKast", inst.dimcityKast );
 			inst.dropSymbool	= Num( s, "dropSymbool", inst.dropSymbool );
+			inst.kleurDB		= Tekst( s, "kleurDB", inst.kleurDB );
+			inst.kleurDrop		= Tekst( s, "kleurDrop", inst.kleurDrop );
 			if ( s.contains( "kabels3D" ) && s["kabels3D"].is_boolean() ) inst.kabels3D = s["kabels3D"].get<bool>();
 			if ( s.contains( "kabels2D" ) && s["kabels2D"].is_boolean() ) inst.kabels2D = s["kabels2D"].get<bool>();
 		}
 		if ( inst.laagCabling.empty() )	inst.laagCabling = "Cabling";
 		if ( inst.laagInfra.empty() )	inst.laagInfra = "Infraplot";
 		if ( inst.laagKabels.empty() )	inst.laagKabels = inst.laagCabling;
-		if ( inst.symboolBreedte <= 0 )	inst.symboolBreedte = 20;
+		if ( inst.symboolBreedte <= 0 )	inst.symboolBreedte = 13;
 		if ( inst.symboolHoogte <= 0 )	inst.symboolHoogte = 4;
 		if ( inst.dimcityMaat <= 0 )	inst.dimcityMaat = 1;
 		if ( inst.dimcityKast < 0 )		inst.dimcityKast = 0;
@@ -570,6 +574,7 @@ namespace
 		ZetPar( h, "naam", naam );
 		ZetParReal( h, "maat", inst.dimcityMaat );
 		ZetParReal( h, "kastHoogte", inst.dimcityKast );
+		ZetPar( h, "kleur", inst.kleurDB );
 		Afmaken( h, inst.prefix + naam, Laag( inst.laagCabling ), undo );
 		return naam;
 	}
@@ -627,6 +632,7 @@ namespace
 		ZetPar( h, "truss", best->id );
 		ZetParReal( h, "z", bestQ[2] );
 		ZetParReal( h, "symboolMaat", inst.dropSymbool );
+		ZetPar( h, "kleur", inst.kleurDrop );
 		Afmaken( h, inst.prefix + best->naam, Laag( inst.laagCabling ), undo );
 		return true;
 	}
@@ -728,7 +734,8 @@ namespace
 		for ( MCObjectHandle h : Objecten( Pon( KT_ROUTE ) ) )
 		{
 			std::string id = Par( h, "ktId" );
-			json r = { { "id", id }, { "uuid", Uuid( h ) }, { "punten", NaarJson( RoutePunten( h ) ) }, { "laag", LaagVan( h ) } };
+			json r = { { "id", id }, { "uuid", Uuid( h ) }, { "punten", NaarJson( RoutePunten( h ) ) }, { "laag", LaagVan( h ) },
+					   { "locatie", Par( h, "locatie" ) } };
 			if ( Par( h, "soort" ) == "Truss" )
 			{
 				std::string naam = Par( h, "naam" );
@@ -892,9 +899,10 @@ namespace
 		if ( ! rijen.is_array() ) return s;
 		for ( const json& r : rijen )
 		{
-			std::string kleur = Tekst( r, "kleur" );
-			if ( ! kleur.empty() && kleur[0] == '#' ) kleur.erase( 0, 1 );
-			std::string rij = Tekst( r, "kort" ) + "|" + Tekst( r, "lengte" ) + "|" + kleur + "|" + Tekst( r, "nummer" );
+			auto zonderHekje = [](std::string k) { if ( ! k.empty() && k[0] == '#' ) k.erase( 0, 1 ); return k; };
+			bool vet = r.is_object() && r.contains( "vet" ) && r["vet"].is_boolean() && r["vet"].get<bool>();
+			std::string rij = Tekst( r, "kort" ) + "|" + Tekst( r, "lengte" ) + "|" + zonderHekje( Tekst( r, "kleur" ) ) + "|" + Tekst( r, "nummer" )
+							+ "|" + zonderHekje( Tekst( r, "rand" ) ) + "|" + ( vet ? "1" : "0" );
 			s += ( s.empty() ? "" : ";" ) + rij;
 		}
 		return s;
@@ -953,6 +961,10 @@ namespace
 			ZetParReal( h, "ny", Num( lb, "ny", 1 ) );
 			ZetParReal( h, "rijNr", Num( lb, "rijNr", 0 ) );
 			ZetParReal( h, "dcMaat", inst.dimcityMaat );
+			ZetPar( h, "kader", Tekst( lb, "kader", "#000000" ) );
+			ZetPar( h, "blokSoort", Tekst( lb, "blokSoort" ) );
+			ZetParReal( h, "poorten", Num( lb, "poorten", 6 ) );
+			ZetPar( h, "letter", Tekst( lb, "letter" ) );
 			std::vector<std::string> vakken = InVakken( RijenTekst( lb.contains( "rijen" ) ? lb["rijen"] : json::array() ) );
 			ZetPar( h, "rijen1", vakken[0] );
 			ZetPar( h, "rijen2", vakken[1] );

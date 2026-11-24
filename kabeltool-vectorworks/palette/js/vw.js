@@ -118,26 +118,8 @@
       trussVanSelectie() { return KT.vw.actie('truss', { hoogte: KT.project.instellingen.trussHoogte }); },
     };
 
-    // Knoppen: bestandsknoppen weg, Vectorworks-knoppen erbij.
-    document.querySelectorAll('header button').forEach(b => { if (!/kiesBib/.test(b.getAttribute('onclick') || '')) b.style.display = 'none'; });
-    const balk = document.createElement('div');
-    balk.className = 'vwbalk';
-    balk.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px;background:#26303c';
-    // Dim city / drop / vloerroute / truss-lijn tekenen gaat met de tools (klik in de tekening).
-    // De palette wacht zelf nooit op een klik: dat liet Vectorworks crashen.
-    balk.innerHTML = [
-      ["KT.vw.tool('dimcity')", 'Dim city plaatsen'], ["KT.vw.tool('vloer')", 'Vloerroute tekenen'],
-      ["KT.vw.tool('truss')", 'Truss-lijn tekenen'], ["KT.vw.tool('drop')", 'Drop toevoegen'],
-      ["KT.vw.actie('vloer')", 'Vloerroute van selectie'], ['KT.vw.trussVanSelectie()', 'Truss-lijn van selectie'],
-      ["KT.vw.actie('lampen')", 'Lampen koppelen'], ["KT.vw.actie('bijwerken')", 'Tekening bijwerken'],
-      ["KT.vw.actie('stempelen')", 'Stempelen'], ["KT.vw.actie('demo')", 'Demo-show maken'],
-      ['KT.vw.ververs()', 'Verversen'],
-    ].map(k => `<button onclick="${k[0]}">${k[1]}</button>`).join('');
-    document.querySelector('header').after(balk);
-
-    KT.ui.tab = 'project';
-    // Niet meteen Python starten bij het openen van de palette (dat liet Vectorworks crashen).
-    // De eerste keer laden gaat met de knop Verversen.
+    // De tekening wordt pas geladen met Verversen (niet meteen bij het openen van de palette).
+    KT.ui.render();
     KT.status('Klik op Verversen om de tekening te laden.');
   });
 })();

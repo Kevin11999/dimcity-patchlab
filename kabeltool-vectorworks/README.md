@@ -60,26 +60,45 @@ Alles wat de Kabeltool tekent zijn eigen objecten. Klik erop en pas de instellin
 
 | Object | In de Object Info | 2D / 3D |
 |---|---|---|
-| Kabeltool Dim city | naam, maat vierkant, kasthoogte, naam tonen | vak met kruis en naam / kast |
-| Kabeltool Drop | objectnaam, valhoogte (0 = tot de vloer), slingers, trusshoogte, symboolmaat | rondje met kruis en naam / drop naar beneden |
-| Kabeltool Kabelroute | soort (vloerroute of truss-lijn), naam truss, hoogte | lijn (truss: rondje bij het begin) / lijn op hoogte; vorm wijzigen kan |
-| Kabeltool Kabellabel | soort, titel, kabels, symboolmaten | kabelsymbolen, vlaggetje, koppelpunt, lengtehulp, blok |
+| Kabeltool Dim city | naam, maat vierkant, kasthoogte, kleur, naam tonen | rood vlak met witte vette naam / kast |
+| Kabeltool Drop | objectnaam, valhoogte (0 = tot de vloer), slingers, trusshoogte, symboolmaat, kleur | gevuld groen rondje / drop naar beneden |
+| Kabeltool Kabelroute | soort (vloerroute of truss-lijn), naam truss, hoogte, **locatie** (bv. Over Catwalk) | lijn (truss: rondje bij het begin) / lijn op hoogte; vorm wijzigen kan |
+| Kabeltool Kabellabel | soort, titel, kabels, symboolmaten, kaderkleur, blok | drop-kader, route-kader, DB-kader, blokken, lengtehulp |
 | Kabeltool Kabel | nummer, type, lengte stuk, totaal, diameter, kleur | dunne lijn / buis in 3D |
 
 - Objectnaam, valhoogte en slingers van een drop lopen gelijk met de palette (andersom ook).
+- **Labels in de tekening** (zoals de netwerkplannen van Kevin):
+  - kabelsymbool: wit blokje, dunne balk bovenop in de **lengtekleur**, rand in de **kleur van het kabeltype**,
+    korte naam links (vet bij VEAM: V12, V4), lengte rechts, nummer grijs ernaast;
+  - drop: groen rondje, golflijn, groen kader met titel "Drop > objectnaam"; begin kabeltruss: "Drop > Floor";
+  - koppelpunt: rood rondje, rood kader met de **locatie** van de route als titel;
+  - dim city: kabels naast het rode vlak;
+  - blokken: breakout (rondje per circuit, lipjes, letter M) en splitter (rood blok, naam, poorten met wat erop zit).
+- Lengtekleuren (magazijn): 0,5 / 2,5 / 25 wit · 1 / 100 bruin · 5 geel · 10 rood · 15 / 150 groen · 35 grijs ·
+  50 paars · 75 oranje. Aan te passen in Instellingen.
+- Lijnen en 3D-paden hebben geen vulling (dus geen vlakken tussen de punten in 3D).
 - **Tekening bijwerken** maakt alle labels en kabels opnieuw. Elke kabel is een eigen buis die zijn echte
   route volgt (vloer, grote drop, truss, drop af), naast de andere kabels, per stuk (25 m, 10 m …) in de
   kleur van die lengte. Dikte per kabeltype (Kabelbibliotheek), afstand en laag in Instellingen.
 - Kabeltool-tekeningen van vóór de eigen objecten (rechthoekjes en rondjes) worden niet omgezet.
 
+## De palette
+
+- **Kolom links**: tools (Dim city, Drop, Vloerroute, Truss-lijn), van selectie, Lampen koppelen,
+  Tekening bijwerken, Stempelen, Verversen, Demo-show; daaronder dim cities en drops om te kiezen en de
+  instellingen van wat geselecteerd is (bij een drop: naam, valhoogte, slingers en wat hij nodig heeft).
+- **Rechts**: tabbladen 3D, Kabels, Kabelbibliotheek, Blokken, Instellingen.
+
 ## 3D in de palette
 
-- Dim cities als kast, routes, drops, **elke kabel apart**, **lampen** (Spotlight) en **trussen** uit de tekening
-  (objecten of symbolen met "truss" in de naam, als kader van het object).
-- Bovenaan: aanzicht **Boven / Voor / Zij / 3D**, **Alles in beeld**, onderdelen aan/uit en een lijst met
-  **lagen** aan/uit.
-- Slepen = draaien, Shift+slepen of rechts slepen = verschuiven, scrollen = zoomen (rond de muis),
-  muis erop = info, klik op dim city of drop = selecteren (ook in Vectorworks).
+- Echte 3D met **Three.js** (r170, MIT; meegeleverd in `palette/vendor/`, werkt offline).
+- Kabels als buizen per stuk in hun kleur, naast elkaar; dim cities als kast; truss-lijnen als lichte truss;
+  **lampen** (Spotlight); **trussen** uit de tekening (objecten of symbolen met "truss" in de naam, als kader).
+- Bovenaan: **Boven / Voor / Zij / 3D**, **Alles**, onderdelen aan/uit (ook namen en raster) en **lagen** aan/uit.
+- Linker muisknop = draaien, rechter muisknop = verschuiven, scrollen = zoomen naar de muis,
+  muis erop = info, klik op dim city of drop = selecteren (ook in Vectorworks; de kabels van de selectie
+  blijven fel, de rest wordt gedimd).
+- Lukt WebGL niet in de palette, dan gebruikt hij automatisch de eenvoudige canvas-weergave.
 
 ## Palette proberen zonder Vectorworks
 

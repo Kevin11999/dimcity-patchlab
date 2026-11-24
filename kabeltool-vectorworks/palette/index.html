@@ -7,32 +7,40 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <strong>Kabeltool</strong>
-  <button onclick="KT.ui.kiesMap()">Map van tekening…</button>
-  <button onclick="KT.ui.ververs()">Verversen</button>
-  <button onclick="KT.ui.kiesBib()">Bibliotheekmap…</button>
-  <button onclick="KT.ui.demo()">Demo</button>
-  <label class="slot"><input type="checkbox" id="slot" onchange="KT.ui.zetSlot(this.checked)"> Project op slot</label>
-  <span id="status"></span>
-</header>
-<nav>
-  <button data-tab="bib" onclick="KT.ui.tabblad('bib')">Kabelbibliotheek</button>
-  <button data-tab="blokken" onclick="KT.ui.tabblad('blokken')">Blokken</button>
-  <button data-tab="project" onclick="KT.ui.tabblad('project')">Dim cities &amp; drops</button>
-  <button data-tab="drie" onclick="KT.ui.tabblad('drie')">3D</button>
-  <button data-tab="inst" onclick="KT.ui.tabblad('inst')">Instellingen</button>
-</nav>
-<main>
-  <div id="inhoud"></div>
-  <div id="drie"><canvas id="canvas"></canvas><div id="tip"></div>
-    <p class="stil">Slepen = draaien · scrollen = zoomen · klik op dim city of drop = selecteren · lijndikte = aantal kabels</p></div>
-</main>
+<div id="app">
+  <aside id="kolom">
+    <div class="kop">
+      <div class="logo"><span class="logo-blok"></span>Kabeltool</div>
+      <div id="bestand" class="stil"></div>
+    </div>
+    <div id="tools"></div>
+    <div id="selectie"></div>
+    <div id="status" class="status"></div>
+  </aside>
+  <main id="hoofd">
+    <nav id="tabs">
+      <button data-tab="drie" onclick="KT.ui.tabblad('drie')">3D</button>
+      <button data-tab="project" onclick="KT.ui.tabblad('project')">Kabels</button>
+      <button data-tab="bib" onclick="KT.ui.tabblad('bib')">Kabelbibliotheek</button>
+      <button data-tab="blokken" onclick="KT.ui.tabblad('blokken')">Blokken</button>
+      <button data-tab="inst" onclick="KT.ui.tabblad('inst')">Instellingen</button>
+      <label class="slot" title="Nummers vastzetten"><input type="checkbox" id="slot" onchange="KT.ui.zetSlot(this.checked)"> Project op slot</label>
+    </nav>
+    <div id="inhoud"></div>
+    <div id="drie">
+      <div id="gl"></div>
+      <canvas id="canvas"></canvas>
+      <div id="tip"></div>
+    </div>
+  </main>
+</div>
+<script src="vendor/three-kabeltool.js"></script>
 <script src="js/data.js"></script>
 <script src="js/store.js"></script>
 <script src="js/symbol.js"></script>
 <script src="js/network.js"></script>
 <script src="js/viewer3d.js"></script>
+<script src="js/viewer3d-gl.js"></script>
 <script src="js/app.js"></script>
 <script src="js/vw.js"></script>
 </body>

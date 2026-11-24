@@ -1,5 +1,7 @@
 #include "StdAfx.h"
 
+#include <cstdlib>
+#include <ctime>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -12,9 +14,42 @@ using namespace Kabeltool;
 // Map op schijf waar de pagina en de Python-bestanden bij het starten naartoe gekopieerd zijn (UTF-8, met /).
 static std::string gHtmlFolder;
 
+// True zolang Python draait. Dan sturen we geen JavaScript naar de palette en starten we geen tweede Python.
+static bool gBezig = false;
+
 static std::wstring Wide(const std::string& utf8)
 {
 	return TXString( utf8 ).GetStdWString();
+}
+
+// Logboek voor het zoeken naar crashes: %TEMP%\kabeltool_log.txt
+// Elke regel wordt meteen weggeschreven, zodat hij er na een crash nog staat.
+static void Log(const std::string& msg)
+{
+	try
+	{
+		std::wstring dir = L"C:\\Temp";
+		wchar_t* temp = nullptr;
+		size_t len = 0;
+		if ( _wdupenv_s( &temp, &len, L"TEMP" ) == 0 && temp )
+		{
+			dir = temp;
+			free( temp );
+		}
+
+		char tijd[32] = "";
+		std::time_t t = std::time( nullptr );
+		std::tm lt = {};
+		if ( localtime_s( &lt, &t ) == 0 )
+			std::strftime( tijd, sizeof(tijd), "%Y-%m-%d %H:%M:%S", &lt );
+
+		std::ofstream f( dir + L"\\kabeltool_log.txt", std::ios::binary | std::ios::app );
+		f << tijd << "  " << msg << "\r\n";
+		f.flush();
+	}
+	catch ( ... )
+	{
+	}
 }
 
 // --------------------------------------------------------------------------------------------------------
@@ -33,16 +68,49 @@ CPaletteJSProvider::~CPaletteJSProvider()
 
 void CPaletteJSProvider::OnInit(IInitContext* context)
 {
+	Log( "OnInit (JavaScript-brug wordt klaargezet)" );
+
 	fWebFrame = context->GetWebFrame();
 
 	context->AddReourceAccessFunction( "vwAPI", DefaultPluginVWRIdentifier() );
 
 	// *Sync: wordt op de hoofdthread uitgevoerd, zodat Vectorworks aangeroepen mag worden
 	context->AddFunctionPromiseSync( "vwAPI.py" );
+
+	Log( "OnInit klaar" );
 }
 
 // vwAPI.py( "functienaam", { ...argumenten } )  ->  Promise met het antwoord van kabeltool_brug.roep()
 void CPaletteJSProvider::OnPy(const TXString& objName, const TXString& functionName, const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context)
+{
+	if ( gBezig )
+	{
+		Log( "OnPy geweigerd: Python draait nog" );
+		context->Reject( "Kabeltool: Vectorworks is nog bezig." );
+		return;
+	}
+
+	try
+	{
+		OnPyInner( args, context );
+	}
+	catch ( const std::exception& e )
+	{
+		gBezig = false;
+		Log( std::string( "OnPy C++-fout: " ) + e.what() );
+		TXString melding = "Kabeltool: interne fout: ";
+		melding += TXString( std::string( e.what() ) );
+		context->Reject( melding );
+	}
+	catch ( ... )
+	{
+		gBezig = false;
+		Log( "OnPy onbekende C++-fout" );
+		context->Reject( "Kabeltool: onbekende interne fout." );
+	}
+}
+
+void CPaletteJSProvider::OnPyInner(const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context)
 {
 	std::string fn = ( args.size() > 0 && args[0].is_string() ) ? args[0].get<std::string>() : std::string();
 	for ( char c : fn )
@@ -53,6 +121,7 @@ void CPaletteJSProvider::OnPy(const TXString& objName, const TXString& functionN
 
 	if ( fn.empty() || gHtmlFolder.empty() )
 	{
+		Log( "OnPy ongeldige aanroep (functie '" + fn + "', map '" + gHtmlFolder + "')" );
 		context->Reject( "Kabeltool: ongeldige aanroep." );
 		return;
 	}
@@ -79,14 +148,21 @@ void CPaletteJSProvider::OnPy(const TXString& objName, const TXString& functionN
 	VectorWorks::Scripting::IPythonScriptEnginePtr engine( VectorWorks::Scripting::IID_PythonScriptEngine );
 	if ( ! engine )
 	{
+		Log( "OnPy " + fn + ": Python-engine niet gevonden" );
 		context->Reject( "Kabeltool: Python is niet beschikbaar." );
 		return;
 	}
-	engine->ExecuteScript( TXString( script ) );
+
+	Log( "OnPy " + fn + ": Python start" );
+	gBezig = true;
+	VCOMError err = engine->ExecuteScript( TXString( script ) );
+	gBezig = false;
+	Log( "OnPy " + fn + ": Python klaar, code " + std::to_string( (long long) err ) );
 
 	std::ifstream f( Wide( outPath ), std::ios::binary );
 	if ( ! f )
 	{
+		Log( "OnPy " + fn + ": geen antwoordbestand" );
 		context->Reject( "Kabeltool: geen antwoord van Python." );
 		return;
 	}
@@ -95,9 +171,15 @@ void CPaletteJSProvider::OnPy(const TXString& objName, const TXString& functionN
 
 	nlohmann::json result = nlohmann::json::parse( buffer.str(), nullptr, false );
 	if ( result.is_discarded() )
+	{
+		Log( "OnPy " + fn + ": onleesbaar antwoord" );
 		context->Reject( "Kabeltool: onleesbaar antwoord van Python." );
+	}
 	else
+	{
+		Log( "OnPy " + fn + ": antwoord naar palette" );
 		context->Resolve( result );
+	}
 }
 
 // --------------------------------------------------------------------------------------------------------
@@ -122,6 +204,10 @@ void CUpdateSupport::OnNotification(IObjUpdateSupportContext* context)
 	context->GetNotification( whichChange, additionalData );
 	if ( whichChange == kNotifyDocChange || whichChange == kNotifySelChange )
 	{
+		// Niet terugroepen naar de pagina terwijl Python (aangeroepen vanuit diezelfde pagina) nog draait.
+		if ( gBezig )
+			return;
+
 		IWebPaletteFrame* webFrame = context->GetWebPaletteFrame( CExtKabeltoolPalette::_GetIID() );
 		if ( webFrame )
 			webFrame->ExecuteJavaScript( "if (window.KT && window.KT.vw) { window.KT.vw.gewijzigd(); }" );
@@ -165,6 +251,8 @@ bool CExtKabeltoolPalette::GetMinimalSize(ViewCoord& outCX, ViewCoord& outCY)
 // Zelfde werkwijze als het officiële voorbeeld; de Python-bestanden staan in dezelfde map.
 TXString CExtKabeltoolPalette::GetInitialURL()
 {
+	Log( "GetInitialURL start" );
+
 	const TXString	htmlFolderName	= "html";
 	const TXString	htmlFile		= "index.html";
 
@@ -202,6 +290,8 @@ TXString CExtKabeltoolPalette::GetInitialURL()
 		if ( c == '\\' ) c = '/';
 	size_t slash = full.find_last_of( '/' );
 	gHtmlFolder = ( slash == std::string::npos ) ? std::string() : full.substr( 0, slash );
+
+	Log( "GetInitialURL klaar: " + full );
 
 	return TXString("file://") + fileFullPath;
 }
@@ -256,5 +346,6 @@ CExtMenuKabeltool_EventSink::~CExtMenuKabeltool_EventSink()
 
 void CExtMenuKabeltool_EventSink::DoInterface()
 {
+	Log( "------ Menu 'Kabeltool tonen' gekozen ------" );
 	gSDK->SetWebPaletteVisibility( CExtKabeltoolPalette::_GetIID(), true );
 }

@@ -75,4 +75,6 @@ def roep(functie, inpad, uitpad):
     antwoord['meldingen'] = kabeltool.MELDINGEN
     with open(uitpad, 'w', encoding='utf-8') as f:
         json.dump(antwoord, f)
-    vs.ReDrawAll()
+    # Alleen hertekenen na een actie die de tekening verandert, niet bij laden/bewaren/selectie.
+    if functie not in ('laad', 'bewaar', 'selectie', 'selecteer'):
+        vs.ReDrawAll()

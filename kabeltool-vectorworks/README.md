@@ -95,6 +95,12 @@ selecteer eerst een 2D-locus op die plek.
 - **Nummer overschrijven** en **Opnieuw nummeren** vragen bevestiging met de lampen van die drop;
   er is geen apart overzicht per fixture van oud → nieuw.
 
+## Als Vectorworks crasht
+
+- De palette start Python niet meer vanzelf bij het openen. Klik op **Verversen** om de tekening te laden.
+- De plug-in schrijft een logboek: `%TEMP%\kabeltool_log.txt` (typ dat in de adresbalk van Verkenner).
+  De laatste regel vóór de crash laat zien waar het misging, bijvoorbeeld `OnPy laad: Python start` zonder `Python klaar`.
+
 ## Onzeker (eerst nakijken als iets misgaat)
 
 - Of Python dat de plug-in start (`IPythonScriptEngine::ExecuteScript`) hetzelfde mag als een gewoon script,

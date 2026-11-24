@@ -23,6 +23,7 @@ namespace Kabeltool
 
 	private:
 		void	OnPy(const TXString& objName, const TXString& functionName, const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context);
+		void	OnPyInner(const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context);
 	};
 
 	// --------------------------------------------------------------------------------------------------------

@@ -60,7 +60,8 @@
 
     KT.vw = {
       // Wordt door de plug-in aangeroepen als de selectie of het document verandert.
-      gewijzigd() { clearTimeout(timer); timer = setTimeout(ververs, 500); },
+      // Pas als de tekening een keer met Verversen geladen is.
+      gewijzigd() { if (!geladen) return; clearTimeout(timer); timer = setTimeout(ververs, 500); },
       async actie(fn) {
         if (bezig) return;
         bezig = true;
@@ -87,6 +88,8 @@
     document.querySelector('header').after(balk);
 
     KT.ui.tab = 'project';
-    ververs();
+    // Niet meteen Python starten bij het openen van de palette (dat liet Vectorworks crashen).
+    // De eerste keer laden gaat met de knop Verversen.
+    KT.status('Klik op Verversen om de tekening te laden.');
   });
 })();

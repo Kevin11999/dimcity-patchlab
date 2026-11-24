@@ -54,13 +54,42 @@ Truss-lijn van selectie, Drop toevoegen, Lampen koppelen, Tekening bijwerken, St
 ververst zelf als de selectie in Vectorworks verandert; klikken op een dim city of drop in de palette
 selecteert hem in Vectorworks.
 
+## Eigen objecten (Object Info)
+
+Alles wat de Kabeltool tekent zijn eigen objecten. Klik erop en pas de instellingen aan in de Object Info.
+
+| Object | In de Object Info | 2D / 3D |
+|---|---|---|
+| Kabeltool Dim city | naam, maat vierkant, kasthoogte, naam tonen | vak met kruis en naam / kast |
+| Kabeltool Drop | objectnaam, valhoogte (0 = tot de vloer), slingers, trusshoogte, symboolmaat | rondje met kruis en naam / drop naar beneden |
+| Kabeltool Kabelroute | soort (vloerroute of truss-lijn), naam truss, hoogte | lijn (truss: rondje bij het begin) / lijn op hoogte; vorm wijzigen kan |
+| Kabeltool Kabellabel | soort, titel, kabels, symboolmaten | kabelsymbolen, vlaggetje, koppelpunt, lengtehulp, blok |
+| Kabeltool Kabel | nummer, type, lengte stuk, totaal, diameter, kleur | dunne lijn / buis in 3D |
+
+- Objectnaam, valhoogte en slingers van een drop lopen gelijk met de palette (andersom ook).
+- **Tekening bijwerken** maakt alle labels en kabels opnieuw. Elke kabel is een eigen buis die zijn echte
+  route volgt (vloer, grote drop, truss, drop af), naast de andere kabels, per stuk (25 m, 10 m …) in de
+  kleur van die lengte. Dikte per kabeltype (Kabelbibliotheek), afstand en laag in Instellingen.
+- Kabeltool-tekeningen van vóór de eigen objecten (rechthoekjes en rondjes) worden niet omgezet.
+
+## 3D in de palette
+
+- Dim cities als kast, routes, drops, **elke kabel apart**, **lampen** (Spotlight) en **trussen** uit de tekening
+  (objecten of symbolen met "truss" in de naam, als kader van het object).
+- Bovenaan: aanzicht **Boven / Voor / Zij / 3D**, **Alles in beeld**, onderdelen aan/uit en een lijst met
+  **lagen** aan/uit.
+- Slepen = draaien, Shift+slepen of rechts slepen = verschuiven, scrollen = zoomen (rond de muis),
+  muis erop = info, klik op dim city of drop = selecteren (ook in Vectorworks).
+
 ## Palette proberen zonder Vectorworks
 
 1. Open `palette/index.html` in Chrome of Edge.
-2. Klik **Demo**. Je ziet twee dim cities, twee trussen en drie drops.
+2. Klik **Demo**. Je ziet twee dim cities, twee trussen, drie drops, lampen en de kabels in 3D.
 3. Tabbladen: Kabelbibliotheek (met symboolvoorbeeld), Blokken, Dim cities & drops, 3D, Instellingen.
 
-## Zonder plug-in: losse scripts (uitwijk)
+## Zonder plug-in: losse scripts (oude Python-versie)
+
+Deze scripts horen bij de oude versie met rechthoekjes en rondjes; ze kennen de eigen objecten niet.
 
 1. Zet de map `vectorworks/` ergens neer en voeg hem toe bij
    *Tools > Plug-ins > Script Options… > Environment Paths*.
@@ -82,16 +111,16 @@ selecteert hem in Vectorworks.
 
 ## Werkwijze
 
-1. Sla de tekening op. **Dim city plaatsen** en klik een plek aan (DB1, DB2, …).
-2. Teken een polylijn over de vloer, beginnend bij de dim city en eindigend onder de grote drop.
-   Selecteer hem → **Vloerroute van selectie**.
-3. Teken een lijn over de truss (eerste punt = begin van de kabeltruss). Een 3D-polygoon neemt zijn
-   hoogte mee; bij een 2D-lijn vraagt het script de hoogte. Selecteer → **Truss-lijn van selectie**.
-4. **Drop toevoegen** en klik op de truss-lijn. Herhaal per drop.
-5. Selecteer een drop-rondje plus zijn lampen → **Lampen koppelen**.
+1. Sla de tekening op. Tool **Dim city** en klik een plek aan (DB1, DB2, …).
+2. Tool **Vloerroute**: klik vanaf de dim city naar de voet van de grote drop, dubbelklik = klaar.
+   (Of teken een polylijn en gebruik **Vloerroute van selectie**.)
+3. Tool **Truss-lijn**: naam en hoogte in de modusbalk, klik over de truss (eerste punt = begin van de
+   kabeltruss), dubbelklik = klaar. (Of **Truss-lijn van selectie**; hoogte uit Instellingen.)
+4. Tool **Drop** en klik op de truss-lijn. Herhaal per drop.
+5. Selecteer een drop plus zijn lampen → **Lampen koppelen**.
 6. Palette: **Map van tekening…** (eerste keer) of **Verversen**. Vul per drop in wat hij nodig heeft
    (bijv. 1× Socapex, 1× LK), valhoogte en slingers; vul per lamp circuit en poort in.
-7. Vectorworks: **Tekening bijwerken** (labels, vlaggetjes, dropsymbool, lengtehulp) en **Stempelen**.
+7. **Tekening bijwerken** (labels, vlaggetjes, lengtehulp, 3D-kabels) en **Stempelen**.
 
 ## Wat anders is dan het plan
 
@@ -99,13 +128,13 @@ selecteert hem in Vectorworks.
   je kunt ze niet zelf op de route zetten.
 - **Lengtehulp**: de streepjes worden getekend bij *Tekening bijwerken*; je snapt er met de gewone
   Vectorworks-snap op. Geen hover-snap tijdens het plaatsen. "Inclusief slack op de truss" zit er niet in.
-- **Truss-lijn** snapt niet zelf op de truss en leest de trussnaam niet uit het truss-object: de naam
-  is standaard de klasse van de lijn, de hoogte komt uit de 3D-polygoon of uit een vraag.
+- **Truss-lijn** snapt niet zelf op de truss en leest de trussnaam niet uit het truss-object: naam en hoogte
+  komen uit de modusbalk van de tool of de Object Info.
 - **Waarschuwing bij verschoven truss/trimhoogte** (hoofdstuk 14) zit er niet in.
 - **Kopie van de bibliotheek** zit in het projectbestand naast de tekening, niet in het .vwx zelf.
 - **Koppeling lamp ↔ drop** staat in een record `KT_Link` dat zichtbaar is (niet verborgen).
 - **Looms**: bij een lengte staat of het een loom is; kabels worden per stuk geteld, niet tot looms gebundeld.
-- **3D-weergave** is een eigen eenvoudige tekening op een canvas (geen Three.js), zodat hij offline werkt.
+- **3D-weergave** in de palette is een eigen tekening op een canvas (geen Three.js), zodat hij offline werkt.
 - **Nummer overschrijven** en **Opnieuw nummeren** vragen bevestiging met de lampen van die drop;
   er is geen apart overzicht per fixture van oud → nieuw.
 
@@ -115,10 +144,10 @@ selecteert hem in Vectorworks.
 2. Open de palette en klik **Demo-show maken**.
 3. Er worden getekend: DB1 en DB2, trussen LX01 en LX02 (12 m, 8 m hoog, 6 m uit elkaar), twee vloerroutes,
    drie drops (D1, D2 op LX01; D3 op LX02) en vier Spotlight-lampen per drop. De drops zijn in de palette al ingevuld.
-4. Daarna **Tekening bijwerken** en **Stempelen** om labels en stempels te zien.
+4. Daarna **Tekening bijwerken** (labels en 3D-kabels) en **Stempelen**.
 
 Werkt alleen in een tekening zonder Kabeltool-objecten. Lukt het maken van Spotlight-lampen niet, dan tekent hij de rest
-zonder lampen en meldt dat. Ook zonder palette: `… kabeltool.demo_show()` in een Script Palette.
+zonder lampen en meldt dat.
 
 ## Als Vectorworks crasht
 
@@ -131,7 +160,11 @@ zonder lampen en meldt dat. Ook zonder palette: `… kabeltool.demo_show()` in e
 - Ongedaan maken (Ctrl+Z): elke knop/tool is één stap (`SupportUndoAndRemove` / `kUndoSwapObjects`).
 - Of de modusbalk van de truss-tool (Naam, Hoogte) na pannen/zoomen blijft staan.
 - Of de melding bij selectiewijziging (`kNotifySelChange`) de palette bereikt.
-- Recordformaten `KT_Obj`, `KT_Gen`, `KT_Link` worden gemaakt met `TFormatHandler`.
+- Eigen objecten: standaardwaarden in `KabeltoolPalette.vwr/Defaults/*.json`, teksten in `Strings/KT*.vwstrings`.
+- 3D-kabels: per stuk route een extrude (cilinder) met een bol in elke bocht.
+- Lampen en trussen voor de 3D worden gezocht met criterium `(ALL)`; een truss is een object of symbool met
+  "truss" in de naam; de vorm is het kader (bounding box), bij schuine trussen dus ruimer.
+- Recordformaat `KT_Link` (lamp ↔ drop) wordt gemaakt met `TFormatHandler`.
 - Objecten komen eerst op de actieve laag en worden met `AddObjectToContainer` naar de juiste laag verplaatst.
 - Zoeken met `ForEachObjectInCriteria` (zelfde criteria als VectorScript).
 - Veldnamen van het record `Lighting Device`: `Inst Type`, `Unit Number`, `Circuit Name`, `Circuit Number`,

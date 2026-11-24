@@ -58,6 +58,25 @@
       try { if (await laad()) { await KT.opslaan(); KT.ui.render(); } } finally { bezig = false; }
     }
 
+    // Na Demo-show: drops alvast invullen zoals de demo in de browser, lampen krijgen circuit/poort 1-4.
+    function demoInstellingen() {
+      const b = (type, blok) => ({ id: KT.uid(), type, aantal: 1, voorvoegsel: '', blok: blok || '' });
+      const inst = {
+        D1: { naam: 'Trusje links', valhoogte: 3, slinger: 1, behoefte: [b('socapex', 'socabreakout'), b('lk', 'lkblok')] },
+        D2: { naam: 'Trusje rechts', valhoogte: 3, slinger: 1, behoefte: [b('socapex', 'socabreakout'), b('veam', 'veamsplitter')] },
+        D3: { naam: 'Podiumrand', valhoogte: 7, slinger: 2, behoefte: [b('socapex'), b('lk')] },
+      };
+      KT.project.dropinst = KT.project.dropinst || {};
+      Object.keys(inst).forEach(id => {
+        if (KT.project.dropinst[id]) return;              // nooit iets overschrijven
+        const lampen = {};
+        (KT.tekening.lampen || []).filter(l => l.drop === id)
+          .forEach((l, i) => { lampen[l.uuid] = { circuit: i + 1, poort: i + 1 }; });
+        KT.project.dropinst[id] = Object.assign(inst[id], { lampen });
+      });
+      KT.ui.sel = 'D1'; KT.project.selecteer = 'D1';
+    }
+
     KT.vw = {
       // Wordt door de plug-in aangeroepen als de selectie of het document verandert.
       // Pas als de tekening een keer met Verversen geladen is.
@@ -68,7 +87,10 @@
         try {
           await KT.opslaan();                 // Vectorworks leest het projectbestand
           await py(fn);
-          if (await laad()) { await KT.opslaan(); KT.ui.render(); }
+          if (await laad()) {
+            if (fn === 'demo') demoInstellingen();
+            await KT.opslaan(); KT.ui.render();
+          }
         } catch (e) { KT.status(e.message); } finally { bezig = false; }
         // na een klik in de tekening (dim city / drop) komt het resultaat iets later
         if (fn === 'dimcity' || fn === 'drop') [2000, 6000, 15000].forEach(ms => setTimeout(ververs, ms));
@@ -84,6 +106,7 @@
     balk.innerHTML = [
       ['dimcity', 'Dim city plaatsen'], ['vloer', 'Vloerroute van selectie'], ['truss', 'Truss-lijn van selectie'],
       ['drop', 'Drop toevoegen'], ['lampen', 'Lampen koppelen'], ['bijwerken', 'Tekening bijwerken'], ['stempelen', 'Stempelen'],
+      ['demo', 'Demo-show maken'],
     ].map(k => `<button onclick="KT.vw.actie('${k[0]}')">${k[1]}</button>`).join('') + '<button onclick="KT.vw.ververs()">Verversen</button>';
     document.querySelector('header').after(balk);
 

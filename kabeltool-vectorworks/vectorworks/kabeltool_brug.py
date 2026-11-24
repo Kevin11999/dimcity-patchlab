@@ -59,6 +59,7 @@ FUNCTIES = {
     'lampen': _doe(kabeltool.lampen_koppelen),
     'bijwerken': _doe(kabeltool.tekening_bijwerken),
     'stempelen': _doe(kabeltool.stempelen),
+    'demo': _doe(kabeltool.demo_show),
 }
 
 

@@ -95,6 +95,17 @@ selecteer eerst een 2D-locus op die plek.
 - **Nummer overschrijven** en **Opnieuw nummeren** vragen bevestiging met de lampen van die drop;
   er is geen apart overzicht per fixture van oud → nieuw.
 
+## Demo-show in Vectorworks
+
+1. Maak een nieuwe, lege tekening en sla hem op (de Kabeltool zet zijn bestanden ernaast).
+2. Open de palette en klik **Demo-show maken**.
+3. Er worden getekend: DB1 en DB2, trussen LX01 en LX02 (12 m, 8 m hoog, 6 m uit elkaar), twee vloerroutes,
+   drie drops (D1, D2 op LX01; D3 op LX02) en vier Spotlight-lampen per drop. De drops zijn in de palette al ingevuld.
+4. Daarna **Tekening bijwerken** en **Stempelen** om labels en stempels te zien.
+
+Werkt alleen in een tekening zonder Kabeltool-objecten. Lukt het maken van Spotlight-lampen niet, dan tekent hij de rest
+zonder lampen en meldt dat. Ook zonder palette: `… kabeltool.demo_show()` in een Script Palette.
+
 ## Als Vectorworks crasht
 
 - De palette start Python niet meer vanzelf bij het openen. Klik op **Verversen** om de tekening te laden.

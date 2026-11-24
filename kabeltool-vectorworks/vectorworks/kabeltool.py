@@ -169,27 +169,33 @@ def plaats_dimcity():
     _zorg_records()
 
     def klaar(pt):
-        nr = _volgende('dimcity', 'DB')
-        naam = 'DB%d' % nr
-        klasse = inst['prefix'] + naam
-        _zorg_klasse(klasse)
-        oud = _naar_laag(inst['laagCabling'])
-        s = float(inst['dimcityMaat']) * _pm() / 2.0
-        x, y = pt[0], pt[1]
-        vs.Rect(x - s, y + s, x + s, y - s)
-        h = vs.LNewObj()
-        vs.SetClass(h, klasse)
-        _merk(h, 'dimcity', naam, naam)
-        vs.TextSize(14)
-        vs.TextJust(2)
-        vs.TextVerticalAlign(3)
-        vs.TextOrigin(x, y)
-        vs.CreateText(naam)
-        vs.SetClass(vs.LNewObj(), klasse)
-        vs.Layer(oud)
+        _maak_dimcity(pt, inst)
         exporteer(stil=True)
 
     _klik_of_locus(klaar)
+
+
+def _maak_dimcity(pt, inst):
+    """Tekent dim city DBn op punt pt (tekeneenheden). Geeft de naam terug."""
+    nr = _volgende('dimcity', 'DB')
+    naam = 'DB%d' % nr
+    klasse = inst['prefix'] + naam
+    _zorg_klasse(klasse)
+    oud = _naar_laag(inst['laagCabling'])
+    s = float(inst['dimcityMaat']) * _pm() / 2.0
+    x, y = pt[0], pt[1]
+    vs.Rect(x - s, y + s, x + s, y - s)
+    h = vs.LNewObj()
+    vs.SetClass(h, klasse)
+    _merk(h, 'dimcity', naam, naam)
+    vs.TextSize(14)
+    vs.TextJust(2)
+    vs.TextVerticalAlign(3)
+    vs.TextOrigin(x, y)
+    vs.CreateText(naam)
+    vs.SetClass(vs.LNewObj(), klasse)
+    vs.Layer(oud)
+    return naam
 
 
 # ---------------------------------------------------------------- stap 3: routes en drops
@@ -282,32 +288,39 @@ def drop_toevoegen():
     _zorg_records()
 
     def klaar(pt):
-        pm = _pm()
-        p = [pt[0] / pm, pt[1] / pm]
-        best = None
-        for t in _trussen(pm):
-            if len(t['punten']) < 2:
-                continue
-            d, q = _op_lijn(t['punten'], p)
-            if best is None or d < best[0]:
-                best = (d, q, t)
-        if best is None:
-            _meld('Er is nog geen truss-lijn. Maak die eerst.')
-            return
-        d, q, t = best
-        klasse = inst['prefix'] + t['naam']
-        _zorg_klasse(klasse)
-        oud = _naar_laag(inst['laagCabling'])
-        r = 0.15 * pm
-        x, y = q[0] * pm, q[1] * pm
-        vs.Oval(x - r, y + r, x + r, y - r)
-        h = vs.LNewObj()
-        vs.SetClass(h, klasse)
-        _merk(h, 'drop', 'D%d' % _volgende('drop', 'D'), '', t['id'], q[2])
-        vs.Layer(oud)
-        exporteer(stil=True)
+        if _maak_drop(pt, inst):
+            exporteer(stil=True)
 
     _klik_of_locus(klaar)
+
+
+def _maak_drop(pt, inst):
+    """Drop op het dichtstbijzijnde punt van een truss-lijn. Geeft (id, x, y, z in meters, trussnaam) of None."""
+    pm = _pm()
+    p = [pt[0] / pm, pt[1] / pm]
+    best = None
+    for t in _trussen(pm):
+        if len(t['punten']) < 2:
+            continue
+        d, q = _op_lijn(t['punten'], p)
+        if best is None or d < best[0]:
+            best = (d, q, t)
+    if best is None:
+        _meld('Er is nog geen truss-lijn. Maak die eerst.')
+        return None
+    d, q, t = best
+    klasse = inst['prefix'] + t['naam']
+    _zorg_klasse(klasse)
+    oud = _naar_laag(inst['laagCabling'])
+    r = 0.15 * pm
+    x, y = q[0] * pm, q[1] * pm
+    vs.Oval(x - r, y + r, x + r, y - r)
+    h = vs.LNewObj()
+    vs.SetClass(h, klasse)
+    ident = 'D%d' % _volgende('drop', 'D')
+    _merk(h, 'drop', ident, '', t['id'], q[2])
+    vs.Layer(oud)
+    return (ident, q[0], q[1], q[2], t['naam'])
 
 
 def lampen_koppelen():
@@ -326,6 +339,119 @@ def lampen_koppelen():
         vs.SetRField(h, LINK, 'drop', drop)
     _meld('%d lampen gekoppeld aan %s.' % (len(lampen), drop))
     exporteer(stil=True)
+
+
+# ---------------------------------------------------------------- demo-show
+
+DEMO_LAAG_LAMPEN = 'Lightplot'
+
+
+def _demo_truss(naam, punten, inst, pm):
+    """Tekent een truss-lijn als 3D-polygoon (punten in meters) en markeert hem als truss."""
+    klasse = inst['prefix'] + naam
+    _zorg_klasse(klasse)
+    oud = _naar_laag(inst['laagInfra'])
+    z = ''
+    try:
+        vs.Poly3D(*[(p[0] * pm, p[1] * pm, p[2] * pm) for p in punten])
+        h = vs.LNewObj()
+        if vs.GetTypeN(h) != 25:
+            raise RuntimeError('geen 3D-polygoon')
+    except Exception:
+        # uitwijk: 2D-lijn, hoogte in het record
+        vs.MoveTo(punten[0][0] * pm, punten[0][1] * pm)
+        vs.LineTo(punten[-1][0] * pm, punten[-1][1] * pm)
+        h = vs.LNewObj()
+        z = punten[0][2]
+    vs.SetClass(h, klasse)
+    _merk(h, 'truss', 'T%d' % _volgende('truss', 'T'), naam, '', z)
+    vs.Layer(oud)
+
+
+def _demo_vloer(punten, klasse, inst, pm):
+    """Tekent een vloerroute als polylijn (punten in meters) en markeert hem."""
+    _zorg_klasse(klasse)
+    oud = _naar_laag(inst['laagCabling'])
+    vs.OpenPoly()
+    vs.BeginPoly()
+    for p in punten:
+        vs.AddPoint((p[0] * pm, p[1] * pm))
+    vs.EndPoly()
+    h = vs.LNewObj()
+    vs.SetClass(h, klasse)
+    _merk(h, 'vloer', 'V%d' % _volgende('vloer', 'V'))
+    vs.Layer(oud)
+
+
+def _demo_lampen(drop, aantal, inst, pm):
+    """Zet een rij Spotlight-lampen onder de drop en koppelt ze. Geeft het aantal gelukte lampen."""
+    ident, x, y, z, truss = drop
+    klasse = inst['prefix'] + truss
+    oud = _naar_laag(DEMO_LAAG_LAMPEN)
+    gelukt = 0
+    for i in range(aantal):
+        lx = (x + (i - (aantal - 1) / 2.0)) * pm
+        ly = (y - 1.5) * pm
+        try:
+            h = vs.CreateCustomObjectN(LD, (lx, ly), 0, False)
+        except Exception:
+            h = None
+        if not h:
+            continue
+        vs.SetClass(h, klasse)
+        vs.SetRField(h, LD, 'Inst Type', 'Demo spot')
+        vs.SetRField(h, LD, 'Unit Number', '%s-%d' % (ident, i + 1))
+        vs.ResetObject(h)
+        vs.SetRecord(h, LINK)
+        vs.SetRField(h, LINK, 'drop', ident)
+        gelukt += 1
+    vs.Layer(oud)
+    return gelukt
+
+
+def demo_show():
+    """Tekent een kleine voorbeeldshow in een lege, opgeslagen tekening:
+    DB1 en DB2, trussen LX01 en LX02 (12 m, 8 m hoog, 6 m uit elkaar), twee vloerroutes,
+    drie drops en vier lampen per drop. Niet getest in Vectorworks."""
+    inst = _inst()
+    if inst is None:
+        return
+    _zorg_records()
+    if _objecten("(R IN ['%s'])" % REC):
+        _meld('Deze tekening heeft al Kabeltool-objecten. Maak de demo-show in een nieuwe, lege tekening.')
+        return
+    pm = _pm()
+
+    # dim cities op de vloer
+    _maak_dimcity((0 * pm, 0 * pm), inst)
+    _maak_dimcity((20 * pm, 0 * pm), inst)
+
+    # trussen; eerste punt = begin van de kabeltruss (aan de kant van de dim city)
+    _demo_truss('LX01', [(4, 10, 8), (16, 10, 8)], inst, pm)
+    _demo_truss('LX02', [(16, 16, 8), (4, 16, 8)], inst, pm)
+
+    # vloerroutes van dim city naar de voet van de grote drop (begin van de truss)
+    _demo_vloer([(0, 0), (0, 10), (4, 10)], inst['prefix'] + 'DB1', inst, pm)
+    _demo_vloer([(20, 0), (20, 16), (16, 16)], inst['prefix'] + 'DB2', inst, pm)
+
+    # drops: twee op LX01, een op LX02
+    drops = []
+    for x, y in ((7, 10), (13, 10), (10, 16)):
+        d = _maak_drop((x * pm, y * pm), inst)
+        if d:
+            drops.append(d)
+
+    # lampen (Spotlight); lukt dat niet, dan zonder lampen verder
+    lampen = 0
+    for d in drops:
+        lampen += _demo_lampen(d, 4, inst, pm)
+
+    exporteer(stil=True)
+    if lampen:
+        _meld('Demo-show getekend: 2 dim cities, 2 trussen, 2 vloerroutes, %d drops, %d lampen.' % (len(drops), lampen))
+    else:
+        _meld('Demo-show getekend: 2 dim cities, 2 trussen, 2 vloerroutes, %d drops. '
+              'Lampen konden niet gemaakt worden (Spotlight); koppel zelf lampen met Lampen koppelen.' % len(drops))
 
 
 # ---------------------------------------------------------------- uitwisselen met de palette

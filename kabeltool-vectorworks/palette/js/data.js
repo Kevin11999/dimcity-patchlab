@@ -69,6 +69,7 @@ window.KT = window.KT || {};
     dimcityMaat: 1,                // m, zijde van het vierkant
     laagCabling: 'Cabling',
     laagInfra: 'Infraplot',
+    trussHoogte: 8,                // m, voor "Truss-lijn van selectie" bij een 2D-lijn
     dropLengtes: [25, 35],         // looms die als drop mogen
     lengtehulp: true,
     lengtehulpLengtes: [5, 10, 15, 25],

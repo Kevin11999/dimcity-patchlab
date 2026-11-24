@@ -25,8 +25,22 @@ Vectorworks werkt is niet geprobeerd.
    submap `Plug-Ins` (te vinden via *Tools > Options > Vectorworks Preferences > User Folders*).
 3. Start Vectorworks opnieuw. Vectorworks 2026 kan melden dat de ontwikkelaar onbekend is en de plug-in
    uitzetten; zet hem dan aan. (Een credentials-bestand vraag je aan via devsupport@vectorworks.net.)
-4. *Tools > Workspaces > Edit Current Workspace*: sleep het commando **Kabeltool tonen...**
-   (categorie Kabeltool) in een menu. Kies het daarna om de palette te openen.
+4. *Tools > Workspaces > Edit Current Workspace*:
+   - tab **Menus**: sleep het commando **Kabeltool tonen...** (categorie Kabeltool) in een menu;
+   - tab **Tools**: maak rechts een nieuwe gereedschapset **Kabeltool** en sleep de vier tools uit categorie
+     Kabeltool erin: **Dim city**, **Drop**, **Vloerroute**, **Truss-lijn**.
+
+## De tools (gereedschapset Kabeltool)
+
+| Tool | Hoe |
+|---|---|
+| Dim city | Eén klik: plaatst DB1, DB2, … |
+| Drop | Klik op of bij een truss-lijn: de drop komt op het dichtstbijzijnde punt. |
+| Vloerroute | Klik punten vanaf de dim city naar de voet van de grote drop; dubbelklik = klaar. |
+| Truss-lijn | Klik punten over de truss (eerste punt = begin kabeltruss); dubbelklik = klaar. Naam en hoogte in de modusbalk. |
+
+De knoppen *Dim city plaatsen*, *Vloerroute tekenen*, *Truss-lijn tekenen* en *Drop toevoegen* in de palette
+kiezen deze tools. De palette wacht zelf nooit op een klik in de tekening (dat liet Vectorworks crashen).
 
 De palette praat met Vectorworks via één functie (`vwAPI.py`) die `kabeltool_brug.py` uitvoert.
 De gegevens staan in twee bestanden naast de tekening:
@@ -37,8 +51,7 @@ De gegevens staan in twee bestanden naast de tekening:
 In de web palette staan de acties als knoppen bovenaan (Dim city plaatsen, Vloerroute van selectie,
 Truss-lijn van selectie, Drop toevoegen, Lampen koppelen, Tekening bijwerken, Stempelen). De palette
 ververst zelf als de selectie in Vectorworks verandert; klikken op een dim city of drop in de palette
-selecteert hem in Vectorworks. Voor *Dim city plaatsen* en *Drop toevoegen*: klik de plek aan, of
-selecteer eerst een 2D-locus op die plek.
+selecteert hem in Vectorworks.
 
 ## Palette proberen zonder Vectorworks
 
@@ -115,14 +128,15 @@ zonder lampen en meldt dat. Ook zonder palette: `… kabeltool.demo_show()` in e
 ## Onzeker (eerst nakijken als iets misgaat)
 
 - Of Python dat de plug-in start (`IPythonScriptEngine::ExecuteScript`) hetzelfde mag als een gewoon script,
-  met name `vs.GetPt(callback)` (klik in de tekening) en ongedaan maken.
+  vooral ongedaan maken (Ctrl+Z) na een tool of knop.
+- Of de modusbalk van de truss-tool (Naam, Hoogte) na pannen/zoomen blijft staan.
 - Of de melding bij selectiewijziging (`kNotifySelChange`) de palette bereikt.
 
-- `vs.GetPrefReal(152)` als "eenheden per inch" voor het omrekenen naar meters.
+- `vs.GetUnits()[3]` als "eenheden per inch" voor het omrekenen naar meters.
 - `vs.GetFPathName()` voor het pad van de tekening.
 - `vs.GetPolyPt3D` telt vanaf 0, `vs.GetPolyPt` vanaf 1.
 - `vs.GetObjectUuid` / `vs.GetObjectByUuid`.
-- `vs.GetPt(callback)` voor het aanklikken van een punt.
+- `vs.BeginPoly3D` / `vs.Add3DPt((x, y, z))` voor de truss-lijn (lukt dat niet, dan een polylijn met de hoogte in het record).
 - Veldnamen van het record `Lighting Device`: `Circuit Name`, `Circuit Number`, `User Field 2`, `User Field 3`.
 - Kleuren als (r, g, b) van 0–65535 in `vs.SetFillBack`.
 

@@ -85,7 +85,7 @@
     if (!gevonden.length) { KT.status('Geen .kt-tekening.json in deze map. Draai eerst "Exporteren" in Vectorworks.'); return; }
     let basis = gevonden[0];
     if (gevonden.length > 1) {
-      const k = window.prompt('Welke tekening?\n' + gevonden.map((g, i) => (i + 1) + ': ' + g).join('\n'), '1');
+      const k = await KT.invoer('Welke tekening?\n' + gevonden.map((g, i) => (i + 1) + ': ' + g).join('\n'), '1');
       basis = gevonden[(parseInt(k, 10) || 1) - 1] || gevonden[0];
     }
     KT.mappen.tekening = map; KT.basis = basis;

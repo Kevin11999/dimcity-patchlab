@@ -68,8 +68,9 @@
     };
     const plek = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
 
+    let netGesleept = false;
     canvas.onmousedown = e => { sleep = { x: e.clientX, y: e.clientY, bewogen: false }; };
-    window.addEventListener('mouseup', () => { sleep = null; });
+    window.addEventListener('mouseup', () => { netGesleept = !!(sleep && sleep.bewogen); sleep = null; });
     canvas.onmousemove = e => {
       if (sleep) {
         yaw += (e.clientX - sleep.x) * 0.01; pitch = Math.max(0, Math.min(Math.PI / 2, pitch + (e.clientY - sleep.y) * 0.01));
@@ -84,6 +85,7 @@
     };
     canvas.onmouseleave = () => { tip.style.display = 'none'; };
     canvas.onclick = e => {
+      if (netGesleept) { netGesleept = false; return; }      // na draaien niet ook nog selecteren
       const p = plek(e); let best = null;
       punten.forEach(k => { const d = Math.hypot(p[0] - k.q[0], p[1] - k.q[1]); if (d < 12 && (!best || d < best.d)) best = { d, k }; });
       if (best) onKlik(best.k.id);

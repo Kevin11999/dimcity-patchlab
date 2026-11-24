@@ -81,21 +81,27 @@
       // Wordt door de plug-in aangeroepen als de selectie of het document verandert.
       // Pas als de tekening een keer met Verversen geladen is.
       gewijzigd() { if (!geladen) return; clearTimeout(timer); timer = setTimeout(ververs, 500); },
-      async actie(fn) {
+      async actie(fn, args) {
         if (bezig) return;
         bezig = true;
         try {
           await KT.opslaan();                 // Vectorworks leest het projectbestand
-          await py(fn);
+          await py(fn, args);
           if (await laad()) {
             if (fn === 'demo') demoInstellingen();
             await KT.opslaan(); KT.ui.render();
           }
         } catch (e) { KT.status(e.message); } finally { bezig = false; }
-        // na een klik in de tekening (dim city / drop) komt het resultaat iets later
-        if (fn === 'dimcity' || fn === 'drop') [2000, 6000, 15000].forEach(ms => setTimeout(ververs, ms));
       },
       ververs,
+      // Kiest een tool uit de gereedschapset Kabeltool; daarna klik je in de tekening.
+      async tool(naam) {
+        try {
+          const ok = await vwAPI.tool(naam);
+          KT.status(ok ? 'Tool gekozen: klik in de tekening.' : 'Tool niet gevonden. Staat de gereedschapset Kabeltool in je werkruimte?');
+        } catch (e) { KT.status(e.message || String(e)); }
+      },
+      trussVanSelectie() { return KT.vw.actie('truss', { hoogte: KT.project.instellingen.trussHoogte }); },
     };
 
     // Knoppen: bestandsknoppen weg, Vectorworks-knoppen erbij.
@@ -103,11 +109,16 @@
     const balk = document.createElement('div');
     balk.className = 'vwbalk';
     balk.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;padding:6px 10px;background:#26303c';
+    // Dim city / drop / vloerroute / truss-lijn tekenen gaat met de tools (klik in de tekening).
+    // De palette wacht zelf nooit op een klik: dat liet Vectorworks crashen.
     balk.innerHTML = [
-      ['dimcity', 'Dim city plaatsen'], ['vloer', 'Vloerroute van selectie'], ['truss', 'Truss-lijn van selectie'],
-      ['drop', 'Drop toevoegen'], ['lampen', 'Lampen koppelen'], ['bijwerken', 'Tekening bijwerken'], ['stempelen', 'Stempelen'],
-      ['demo', 'Demo-show maken'],
-    ].map(k => `<button onclick="KT.vw.actie('${k[0]}')">${k[1]}</button>`).join('') + '<button onclick="KT.vw.ververs()">Verversen</button>';
+      ["KT.vw.tool('dimcity')", 'Dim city plaatsen'], ["KT.vw.tool('vloer')", 'Vloerroute tekenen'],
+      ["KT.vw.tool('truss')", 'Truss-lijn tekenen'], ["KT.vw.tool('drop')", 'Drop toevoegen'],
+      ["KT.vw.actie('vloer')", 'Vloerroute van selectie'], ['KT.vw.trussVanSelectie()', 'Truss-lijn van selectie'],
+      ["KT.vw.actie('lampen')", 'Lampen koppelen'], ["KT.vw.actie('bijwerken')", 'Tekening bijwerken'],
+      ["KT.vw.actie('stempelen')", 'Stempelen'], ["KT.vw.actie('demo')", 'Demo-show maken'],
+      ['KT.vw.ververs()', 'Verversen'],
+    ].map(k => `<button onclick="${k[0]}">${k[1]}</button>`).join('');
     document.querySelector('header').after(balk);
 
     KT.ui.tab = 'project';

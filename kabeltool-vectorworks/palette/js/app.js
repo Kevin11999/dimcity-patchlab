@@ -7,6 +7,27 @@
   let viewer = null;
 
   KT.status = t => { $('#status').textContent = t; };
+
+  // Eigen vensters in plaats van confirm()/prompt(): die werken niet betrouwbaar in de web palette van Vectorworks.
+  function venster(tekst, metInvoer, standaard) {
+    return new Promise(klaarMet => {
+      const bg = document.createElement('div');
+      bg.className = 'venster-bg';
+      bg.innerHTML = `<div class="venster"><p></p>${metInvoer ? '<input>' : ''}
+        <div class="knoppen"><button data-k="nee">Annuleren</button><button data-k="ja">OK</button></div></div>`;
+      bg.querySelector('p').textContent = tekst;
+      const inp = bg.querySelector('input');
+      if (inp) inp.value = standaard == null ? '' : standaard;
+      const sluit = ja => { bg.remove(); klaarMet(metInvoer ? (ja ? inp.value : null) : ja); };
+      bg.querySelector('[data-k="ja"]').onclick = () => sluit(true);
+      bg.querySelector('[data-k="nee"]').onclick = () => sluit(false);
+      bg.addEventListener('keydown', e => { if (e.key === 'Enter') sluit(true); if (e.key === 'Escape') sluit(false); });
+      document.body.appendChild(bg);
+      (inp || bg.querySelector('[data-k="ja"]')).focus();
+    });
+  }
+  KT.vraag = tekst => venster(tekst, false);
+  KT.invoer = (tekst, standaard) => venster(tekst, true, standaard);
   async function klaar() { await KT.opslaan(); render(); }
   const opties = (lijst, gekozen, leeg) => (leeg != null ? `<option value="">${esc(leeg)}</option>` : '') +
     lijst.map(o => `<option value="${esc(o.id)}" ${o.id === gekozen ? 'selected' : ''}>${esc(o.naam)}</option>`).join('');
@@ -122,6 +143,7 @@
       ${v('Klasseprefix', 'prefix')}${v('Slack bij dim city (m)', 'slackDimCity', 'n')}${v('Tolerantie aansluiten (m)', 'tolerantie', 'n')}
       ${v('Symbool breedte (mm op papier)', 'symboolBreedte', 'n')}${v('Symbool hoogte (mm op papier)', 'symboolHoogte', 'n')}${v('Dim city vierkant (m)', 'dimcityMaat', 'n')}
       ${v('Laag bekabeling', 'laagCabling')}${v('Laag infra', 'laagInfra')}
+      ${v('Trusshoogte bij "Truss-lijn van selectie" (m)', 'trussHoogte', 'n')}
       ${v('Looms voor drops (m)', 'dropLengtes', 'l')}${v('Lengtehulp-lengtes (m)', 'lengtehulpLengtes', 'l')}
       <label>Lengtehulp tekenen<input type="checkbox" ${s.lengtehulp ? 'checked' : ''} onchange="KT.ui.zetInst('lengtehulp',this.checked,'b')"></label>
       </div>
@@ -156,14 +178,14 @@
     tabblad(naam) { ui.tab = naam; render(); },
     kies(wat, id) { ui[wat] = id; if (wat === 'sel') { KT.project.selecteer = id; klaar(); } else render(); },
     // bibliotheek
-    familieErbij() { const naam = prompt('Naam van de familie?'); if (naam) { KT.lib.families.push({ id: KT.uid(), naam, types: [] }); klaar(); } },
+    async familieErbij() { const naam = await KT.invoer('Naam van de familie?'); if (naam) { KT.lib.families.push({ id: KT.uid(), naam, types: [] }); klaar(); } },
     typeErbij(fid) {
       const x = { id: KT.uid(), naam: 'Nieuw type', kort: 'NEW', voorvoegsel: '', connector: '', lengtes: [{ m: 5, loom: false, aantal: 1 }], stempel: '' };
       KT.lib.families.find(f => f.id === fid).types.push(x); ui.type = x.id; klaar();
     },
     zetType(k, v) { t()[k] = v; klaar(); },
     zetFamilie(fid) { const x = t(); KT.lib.families.forEach(f => { f.types = f.types.filter(y => y !== x); }); KT.lib.families.find(f => f.id === fid).types.push(x); klaar(); },
-    wegType() { const x = t(); if (!confirm(`Kabeltype "${x.naam}" verwijderen?`)) return; KT.lib.families.forEach(f => { f.types = f.types.filter(y => y !== x); }); ui.type = null; klaar(); },
+    async wegType() { const x = t(); if (!await KT.vraag(`Kabeltype "${x.naam}" verwijderen?`)) return; KT.lib.families.forEach(f => { f.types = f.types.filter(y => y !== x); }); ui.type = null; klaar(); },
     zetLengte(i, k, v) { t().lengtes[i][k] = v; if (k === 'loom' && !v) t().lengtes[i].aantal = 1; klaar(); },
     wegLengte(i) { t().lengtes.splice(i, 1); klaar(); },
     lengteErbij() { t().lengtes.push({ m: 10, loom: false, aantal: 1 }); klaar(); },
@@ -178,20 +200,20 @@
     wegBehoefte(i) { di().behoefte.splice(i, 1); klaar(); },
     zetLamp(uuid, k, v) { const l = di().lampen; l[uuid] = l[uuid] || {}; l[uuid][k] = v; klaar(); },
     // nummers
-    zetNummer(sleutel, nr) {
+    async zetNummer(sleutel, nr) {
       const k = KT.res.kabels.find(x => x.sleutel === sleutel); nr = String(nr).trim();
       if (KT.project.slot || !k || !nr || nr === k.nr) { render(); return; }
       const dubbel = Object.entries(KT.project.nummers).some(([s, n]) => s !== sleutel && n.nr === nr);
       const lampen = (KT.tekening.lampen || []).filter(l => l.drop === k.drop).map(l => l.naam || l.uuid);
       const vraag = `Kabel ${k.nr} wordt ${nr}.` + (dubbel ? '\nLet op: dit nummer is al in gebruik.' : '') +
         `\nLampen die veranderen (${lampen.length}): ${lampen.join(', ') || 'geen'}\n\nDoorgaan?`;
-      if (!confirm(vraag)) { render(); return; }
+      if (!await KT.vraag(vraag)) { render(); return; }
       KT.project.nummers[sleutel] = { nr, handmatig: true }; klaar();
     },
-    hernummer() {
+    async hernummer() {
       if (KT.project.slot) return;
       const n = KT.res.kabels.filter(k => !k.handmatig).length, lampen = (KT.tekening.lampen || []).length;
-      if (!confirm(`Alle ${n} automatische nummers worden opnieuw uitgedeeld (handmatige blijven staan).\nDit kan de stempeling van ${lampen} lampen veranderen.\n\nDoorgaan?`)) return;
+      if (!await KT.vraag(`Alle ${n} automatische nummers worden opnieuw uitgedeeld (handmatige blijven staan).\nDit kan de stempeling van ${lampen} lampen veranderen.\n\nDoorgaan?`)) return;
       Object.keys(KT.project.nummers).forEach(s => { if (!KT.project.nummers[s].handmatig) delete KT.project.nummers[s]; });
       klaar();
     },
@@ -203,7 +225,7 @@
       klaar();
     },
     zetKleur(m, kleur) { const c = KT.project.instellingen.lengteKleuren; if (kleur) c[m] = kleur; else delete c[m]; klaar(); },
-    kleurErbij() { const m = prompt('Lengte in meters?'); if (m && +m.replace(',', '.') > 0) { KT.project.instellingen.lengteKleuren[String(+m.replace(',', '.'))] = '#9e9e9e'; klaar(); } },
+    async kleurErbij() { const m = await KT.invoer('Lengte in meters?'); if (m && +m.replace(',', '.') > 0) { KT.project.instellingen.lengteKleuren[String(+m.replace(',', '.'))] = '#9e9e9e'; klaar(); } },
     // bestanden
     async kiesMap() { try { await KT.kiesTekeningMap(); } catch (e) { return; } ui.sel = (KT.tekening.selectie || [])[0] || null; ui.tab = 'project'; klaar(); },
     async kiesBib() { try { await KT.kiesBibMap(); } catch (e) { return; } klaar(); },

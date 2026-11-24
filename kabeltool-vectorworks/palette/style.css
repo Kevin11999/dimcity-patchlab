@@ -36,3 +36,8 @@ td .ksym { background: #fff; }
 #drie { display: none; position: relative; }
 #canvas { width: 100%; height: calc(100vh - 140px); background: #111; border-radius: 4px; display: block; }
 #tip { display: none; position: absolute; background: #000c; border: 1px solid #666; padding: 3px 7px; border-radius: 3px; pointer-events: none; }
+.venster-bg { position: fixed; inset: 0; background: #0008; display: flex; align-items: center; justify-content: center; z-index: 100; }
+.venster { background: #24262c; border: 1px solid #555; border-radius: 6px; padding: 14px 16px; min-width: 300px; max-width: 520px; }
+.venster p { white-space: pre-line; margin: 0 0 10px; }
+.venster input { width: 100%; box-sizing: border-box; margin-bottom: 10px; }
+.venster .knoppen { display: flex; justify-content: flex-end; gap: 8px; }

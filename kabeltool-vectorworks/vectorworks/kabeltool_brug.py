@@ -47,15 +47,20 @@ def _doe(functie):
     return uitvoeren
 
 
+def _truss(a):
+    kabeltool.trusslijn_van_selectie((a or {}).get('hoogte'))
+    return True
+
+
+# Vanuit de palette nooit iets dat op een klik in de tekening wacht (vs.GetPt): dat crasht Vectorworks.
+# Dim city plaatsen en Drop toevoegen gaan via de tools (zie tool() hieronder).
 FUNCTIES = {
     'laad': _laad,
     'bewaar': _bewaar,
     'selectie': _selectie,
     'selecteer': _selecteer,
-    'dimcity': _doe(kabeltool.plaats_dimcity),
     'vloer': _doe(kabeltool.vloerroute_van_selectie),
-    'truss': _doe(kabeltool.trusslijn_van_selectie),
-    'drop': _doe(kabeltool.drop_toevoegen),
+    'truss': _truss,
     'lampen': _doe(kabeltool.lampen_koppelen),
     'bijwerken': _doe(kabeltool.tekening_bijwerken),
     'stempelen': _doe(kabeltool.stempelen),
@@ -79,3 +84,22 @@ def roep(functie, inpad, uitpad):
     # Alleen hertekenen na een actie die de tekening verandert, niet bij laden/bewaren/selectie.
     if functie not in ('laad', 'bewaar', 'selectie', 'selecteer'):
         vs.ReDrawAll()
+
+
+# Ingang voor de C++-tools (gereedschapset Kabeltool). Punten komen in meters binnen.
+TOOLS = {
+    'dimcity': kabeltool.tool_dimcity,
+    'drop': kabeltool.tool_drop,
+    'vloer': kabeltool.tool_vloer,
+    'truss': kabeltool.tool_truss,
+}
+
+
+def tool(functie, argumenten_json):
+    kabeltool.BRUG = False                       # meldingen als gewoon venster: we zitten niet in de palette
+    kabeltool.MELDINGEN = []
+    try:
+        TOOLS[functie](json.loads(argumenten_json))
+    except Exception as e:
+        vs.AlrtDialog('Kabeltool (%s): %s' % (functie, str(e) or e.__class__.__name__))
+    vs.ReDrawAll()

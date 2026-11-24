@@ -24,7 +24,7 @@ static std::wstring Wide(const std::string& utf8)
 
 // Logboek voor het zoeken naar crashes: %TEMP%\kabeltool_log.txt
 // Elke regel wordt meteen weggeschreven, zodat hij er na een crash nog staat.
-static void Log(const std::string& msg)
+void Kabeltool::Log(const std::string& msg)
 {
 	try
 	{
@@ -53,8 +53,122 @@ static void Log(const std::string& msg)
 }
 
 // --------------------------------------------------------------------------------------------------------
+// Pakt de map html/ uit de resources (.vwr) uit naar schijf (pagina + Python-bestanden).
+// Zet gHtmlFolder en geeft het volledige pad van index.html. Zelfde werkwijze als het officiële voorbeeld.
+static TXString PakHtmlUit()
+{
+	const TXString	htmlFolderName	= "html";
+	const TXString	htmlFile		= "index.html";
+
+	TXString	fileFullPath;
+
+	TXString resRoot = TXString(DefaultPluginVWRIdentifier()) + "/" + htmlFolderName + "/";
+	VectorWorks::Filing::IFolderIdentifierPtr	rootFolder( VectorWorks::Filing::IID_FolderIdentifier );
+	rootFolder->Set( kExternalDataFolder, true, resRoot );
+	rootFolder->CreateOnDisk();
+
+	VectorWorks::Filing::IFolderIdentifierPtr	outputFolderID;
+	VectorWorks::Filing::IFileIdentifierPtr		outputFileID( VectorWorks::Filing::IID_FileIdentifier );
+	VectorWorks::Filing::IRawOSFilePtr			outputRawFile( VectorWorks::Filing::IID_RawOSFile );
+
+	gSDK->EnumerateVWResources( resRoot, true, [&](const TXString& resourceIdentifier) {
+		TXResource	res( resourceIdentifier );
+
+		TXString fileName = resourceIdentifier.Mid( resRoot.GetLength() );
+		outputFileID->Set( rootFolder, fileName );
+
+		outputFileID->GetFolder( & outputFolderID );
+		outputFolderID->CreateOnDisk();
+
+		outputRawFile->Open( outputFileID, false, true, false, true );
+		outputRawFile->Write( 0, res.Size(), res.Buffer() );
+		outputRawFile->Close();
+
+		if ( fileName.Right(htmlFile.GetLength()) == htmlFile )
+			outputFileID->GetFileFullPath( fileFullPath );
+	});
+
+	// map van index.html onthouden voor de Python-brug
+	std::string full = fileFullPath.GetStdString();
+	for ( char& c : full )
+		if ( c == '\\' ) c = '/';
+	size_t slash = full.find_last_of( '/' );
+	gHtmlFolder = ( slash == std::string::npos ) ? std::string() : full.substr( 0, slash );
+
+	Log( "Bestanden uitgepakt naar: " + gHtmlFolder );
+	return fileFullPath;
+}
+
+// Voert een Python-script uit. Zolang het draait staat gBezig aan.
+static VCOMError VoerPythonUit(const std::string& script, const std::string& wat)
+{
+	VectorWorks::Scripting::IPythonScriptEnginePtr engine( VectorWorks::Scripting::IID_PythonScriptEngine );
+	if ( ! engine )
+	{
+		Log( wat + ": Python-engine niet gevonden" );
+		return kVCOMError_Failed;
+	}
+
+	Log( wat + ": Python start" );
+	gBezig = true;
+	VCOMError err = engine->ExecuteScript( TXString( script ) );
+	gBezig = false;
+	Log( wat + ": Python klaar, code " + std::to_string( (long long) err ) );
+	return err;
+}
+
+// Begin van elk script: de uitgepakte map in sys.path zetten.
+static std::string ScriptBegin()
+{
+	std::string script;
+	script += "import sys\n";
+	script += "_kt_map = " + nlohmann::json( gHtmlFolder ).dump() + "\n";
+	script += "if _kt_map not in sys.path:\n\tsys.path.insert(0, _kt_map)\n";
+	script += "import kabeltool_brug\n";
+	return script;
+}
+
+// Aangeroepen door de tools (Tools.cpp): kabeltool_brug.tool('<functie>', '<json>').
+void Kabeltool::PythonTool(const std::string& functie, const nlohmann::json& args)
+{
+	if ( gBezig )
+	{
+		Log( "Tool " + functie + " geweigerd: Python draait nog" );
+		return;
+	}
+
+	try
+	{
+		if ( gHtmlFolder.empty() )
+			PakHtmlUit();
+		if ( gHtmlFolder.empty() )
+		{
+			Log( "Tool " + functie + ": map met Python-bestanden niet gevonden" );
+			return;
+		}
+
+		std::string script = ScriptBegin();
+		// json-tekst als Python-tekst (json::dump() van een string geeft geldige aanhalingstekens/escapes)
+		script += "kabeltool_brug.tool(" + nlohmann::json( functie ).dump() + ", " + nlohmann::json( args.dump() ).dump() + ")\n";
+
+		VoerPythonUit( script, "Tool " + functie );
+	}
+	catch ( const std::exception& e )
+	{
+		gBezig = false;
+		Log( std::string( "Tool " ) + functie + " C++-fout: " + e.what() );
+	}
+	catch ( ... )
+	{
+		gBezig = false;
+		Log( "Tool " + functie + " onbekende C++-fout" );
+	}
+}
+
+// --------------------------------------------------------------------------------------------------------
 BEGIN_WebPalette_DISPATCH_MAP(CPaletteJSProvider)
 ADD_WebPalette_FUNCTION( "py", OnPy )
+ADD_WebPalette_FUNCTION( "tool", OnTool )
 END_WebPalette_DISPATCH_MAP2
 
 CPaletteJSProvider::CPaletteJSProvider( IVWUnknown* parent )
@@ -76,6 +190,7 @@ void CPaletteJSProvider::OnInit(IInitContext* context)
 
 	// *Sync: wordt op de hoofdthread uitgevoerd, zodat Vectorworks aangeroepen mag worden
 	context->AddFunctionPromiseSync( "vwAPI.py" );
+	context->AddFunctionPromiseSync( "vwAPI.tool" );
 
 	Log( "OnInit klaar" );
 }
@@ -138,26 +253,10 @@ void CPaletteJSProvider::OnPyInner(const std::vector<nlohmann::json>& args, Vect
 	::_wremove( Wide( outPath ).c_str() );
 
 	// json::dump() van een tekst geeft een geldige Python-tekst met aanhalingstekens
-	std::string script;
-	script += "import sys\n";
-	script += "_kt_map = " + nlohmann::json( gHtmlFolder ).dump() + "\n";
-	script += "if _kt_map not in sys.path:\n\tsys.path.insert(0, _kt_map)\n";
-	script += "import kabeltool_brug\n";
+	std::string script = ScriptBegin();
 	script += "kabeltool_brug.roep(" + nlohmann::json( fn ).dump() + ", " + nlohmann::json( inPath ).dump() + ", " + nlohmann::json( outPath ).dump() + ")\n";
 
-	VectorWorks::Scripting::IPythonScriptEnginePtr engine( VectorWorks::Scripting::IID_PythonScriptEngine );
-	if ( ! engine )
-	{
-		Log( "OnPy " + fn + ": Python-engine niet gevonden" );
-		context->Reject( "Kabeltool: Python is niet beschikbaar." );
-		return;
-	}
-
-	Log( "OnPy " + fn + ": Python start" );
-	gBezig = true;
-	VCOMError err = engine->ExecuteScript( TXString( script ) );
-	gBezig = false;
-	Log( "OnPy " + fn + ": Python klaar, code " + std::to_string( (long long) err ) );
+	VoerPythonUit( script, "OnPy " + fn );
 
 	std::ifstream f( Wide( outPath ), std::ios::binary );
 	if ( ! f )
@@ -179,6 +278,35 @@ void CPaletteJSProvider::OnPyInner(const std::vector<nlohmann::json>& args, Vect
 	{
 		Log( "OnPy " + fn + ": antwoord naar palette" );
 		context->Resolve( result );
+	}
+}
+
+// vwAPI.tool( "dimcity" | "drop" | "vloer" | "truss" )  ->  kiest die tool in Vectorworks
+void CPaletteJSProvider::OnTool(const TXString& objName, const TXString& functionName, const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context)
+{
+	try
+	{
+		std::string naam = ( args.size() > 0 && args[0].is_string() ) ? args[0].get<std::string>() : std::string();
+		const char* univ = nullptr;
+		if ( naam == "dimcity" )	univ = "KabeltoolDimcity";
+		else if ( naam == "drop" )	univ = "KabeltoolDrop";
+		else if ( naam == "vloer" )	univ = "KabeltoolVloer";
+		else if ( naam == "truss" )	univ = "KabeltoolTruss";
+
+		if ( ! univ )
+		{
+			context->Reject( "Kabeltool: onbekende tool." );
+			return;
+		}
+
+		Log( std::string( "Palette kiest tool " ) + univ );
+		bool ok = gSDK->SetToolByName( univ ) ? true : false;
+		context->Resolve( nlohmann::json( ok ) );
+	}
+	catch ( ... )
+	{
+		Log( "OnTool C++-fout" );
+		context->Reject( "Kabeltool: tool kiezen mislukt." );
 	}
 }
 
@@ -247,51 +375,22 @@ bool CExtKabeltoolPalette::GetMinimalSize(ViewCoord& outCX, ViewCoord& outCY)
 	return true;
 }
 
-// Kopieert de map html/ uit de resources (.vwr) naar schijf en geeft de URL van index.html.
-// Zelfde werkwijze als het officiële voorbeeld; de Python-bestanden staan in dezelfde map.
+// URL van index.html, nadat de map html/ uit de resources is uitgepakt (zie PakHtmlUit).
 TXString CExtKabeltoolPalette::GetInitialURL()
 {
 	Log( "GetInitialURL start" );
 
-	const TXString	htmlFolderName	= "html";
-	const TXString	htmlFile		= "index.html";
+	TXString fileFullPath;
+	try
+	{
+		fileFullPath = PakHtmlUit();
+	}
+	catch ( ... )
+	{
+		Log( "GetInitialURL: uitpakken mislukt" );
+	}
 
-	TXString	fileFullPath;
-
-	TXString resRoot = TXString(DefaultPluginVWRIdentifier()) + "/" + htmlFolderName + "/";
-	VectorWorks::Filing::IFolderIdentifierPtr	rootFolder( VectorWorks::Filing::IID_FolderIdentifier );
-	rootFolder->Set( kExternalDataFolder, true, resRoot );
-	rootFolder->CreateOnDisk();
-
-	VectorWorks::Filing::IFolderIdentifierPtr	outputFolderID;
-	VectorWorks::Filing::IFileIdentifierPtr		outputFileID( VectorWorks::Filing::IID_FileIdentifier );
-	VectorWorks::Filing::IRawOSFilePtr			outputRawFile( VectorWorks::Filing::IID_RawOSFile );
-
-	gSDK->EnumerateVWResources( resRoot, true, [&](const TXString& resourceIdentifier) {
-		TXResource	res( resourceIdentifier );
-
-		TXString fileName = resourceIdentifier.Mid( resRoot.GetLength() );
-		outputFileID->Set( rootFolder, fileName );
-
-		outputFileID->GetFolder( & outputFolderID );
-		outputFolderID->CreateOnDisk();
-
-		outputRawFile->Open( outputFileID, false, true, false, true );
-		outputRawFile->Write( 0, res.Size(), res.Buffer() );
-		outputRawFile->Close();
-
-		if ( fileName.Right(htmlFile.GetLength()) == htmlFile )
-			outputFileID->GetFileFullPath( fileFullPath );
-	});
-
-	// map van index.html onthouden voor de Python-brug
-	std::string full = fileFullPath.GetStdString();
-	for ( char& c : full )
-		if ( c == '\\' ) c = '/';
-	size_t slash = full.find_last_of( '/' );
-	gHtmlFolder = ( slash == std::string::npos ) ? std::string() : full.substr( 0, slash );
-
-	Log( "GetInitialURL klaar: " + full );
+	Log( "GetInitialURL klaar: " + fileFullPath.GetStdString() );
 
 	return TXString("file://") + fileFullPath;
 }

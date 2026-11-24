@@ -86,11 +86,13 @@ set VWR_7ZCMD=$(VWSDK)\ToolsWin\BuildVWR\7z
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Source\Kabeltool.cpp" />
+    <ClCompile Include="Source\Tools.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Prefix\CommonPrefix.h" />
     <ClInclude Include="Source\Prefix\StdAfx.h" />
     <ClInclude Include="Source\Kabeltool.h" />
+    <ClInclude Include="Source\Tools.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

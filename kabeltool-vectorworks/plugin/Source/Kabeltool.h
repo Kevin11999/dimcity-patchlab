@@ -8,6 +8,12 @@ namespace Kabeltool
 	using namespace VectorWorks::Extension;
 	using namespace VWFC::PluginSupport;
 
+	// Logboek: %TEMP%\kabeltool_log.txt
+	void	Log(const std::string& msg);
+
+	// Voor de tools: kabeltool_brug.tool(functie, args) uitvoeren in Vectorworks-Python.
+	void	PythonTool(const std::string& functie, const nlohmann::json& args);
+
 	// --------------------------------------------------------------------------------------------------------
 	// De brug tussen de pagina (JavaScript) en Vectorworks.
 	// De pagina roept vwAPI.py(functienaam, argumenten) aan; dat voert kabeltool_brug.py uit in Vectorworks.
@@ -24,6 +30,7 @@ namespace Kabeltool
 	private:
 		void	OnPy(const TXString& objName, const TXString& functionName, const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context);
 		void	OnPyInner(const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context);
+		void	OnTool(const TXString& objName, const TXString& functionName, const std::vector<nlohmann::json>& args, VectorWorks::UI::IJSFunctionCallbackContext* context);
 	};
 
 	// --------------------------------------------------------------------------------------------------------

@@ -81,15 +81,29 @@ def _inst():
 
 
 def _pm():
-    """Aantal tekeneenheden per meter."""
-    return vs.GetPrefReal(152) / 0.0254   # 152 = eenheden per inch
+    """Aantal tekeneenheden per meter (uit de documenteenheden: upi = eenheden per inch)."""
+    upi = vs.GetUnits()[3]
+    if not upi or upi <= 0:
+        upi = 25.4                        # terugval: millimeters
+    return upi / 0.0254
+
+
+def _zorg_record(naam, velden):
+    """Maakt het recordformaat aan en voegt alleen ontbrekende tekstvelden toe."""
+    h = vs.GetObject(naam)
+    bestaand = set()
+    if h:
+        for i in range(1, vs.NumFields(h) + 1):
+            bestaand.add(vs.GetFldName(h, i))
+    for veld in velden:
+        if veld not in bestaand:
+            vs.NewField(naam, veld, '', 4, 0)
 
 
 def _zorg_records():
-    for veld in ('soort', 'id', 'naam', 'ouder', 'z'):
-        vs.NewField(REC, veld, '', 4, 0)
-    vs.NewField(GEN, 'soort', '', 4, 0)
-    vs.NewField(LINK, 'drop', '', 4, 0)
+    _zorg_record(REC, ('soort', 'id', 'naam', 'ouder', 'z'))
+    _zorg_record(GEN, ('soort',))
+    _zorg_record(LINK, ('drop',))
 
 
 def _zorg_klasse(naam):
@@ -216,8 +230,16 @@ def vloerroute_van_selectie():
     exporteer(stil=True)
 
 
-def trusslijn_van_selectie():
-    """Geselecteerde lijn/polylijn/3D-polygoon wordt truss-lijn. Eerste punt = begin van de kabeltruss."""
+def _getal(tekst, standaard):
+    try:
+        return float(str(tekst).replace(',', '.'))
+    except (TypeError, ValueError):
+        return standaard
+
+
+def trusslijn_van_selectie(hoogte=None):
+    """Geselecteerde lijn/polylijn/3D-polygoon wordt truss-lijn. Eerste punt = begin van de kabeltruss.
+    Vanuit de palette (BRUG) komen er geen invulvensters: naam = klasse van de lijn, hoogte = 'hoogte'."""
     inst = _inst()
     if inst is None:
         return
@@ -228,16 +250,17 @@ def trusslijn_van_selectie():
         if t not in (2, 5, 21, 25) or vs.GetRField(h, REC, 'id'):
             continue
         klasse = _zonder_prefix(vs.GetClass(h), inst)
-        naam = vs.StrDialog('Naam van de truss (wordt ook de klasse):', klasse)
+        if not klasse or klasse == 'None':
+            klasse = 'LX%02d' % _volgende('truss', 'T')
+        naam = klasse if BRUG else vs.StrDialog('Naam van de truss (wordt ook de klasse):', klasse)
         if not naam:
             continue
         z = ''
         if t != 25:
-            tekst = vs.StrDialog('Hoogte van de truss in meters:', '8')
-            try:
-                z = float(str(tekst).replace(',', '.'))
-            except ValueError:
-                z = 0.0
+            if BRUG:
+                z = _getal(hoogte, 8.0)
+            else:
+                z = _getal(vs.StrDialog('Hoogte van de truss in meters:', '8'), 0.0)
         doel = inst['prefix'] + naam
         _zorg_klasse(doel)
         vs.SetClass(h, doel)
@@ -346,21 +369,32 @@ def lampen_koppelen():
 DEMO_LAAG_LAMPEN = 'Lightplot'
 
 
-def _demo_truss(naam, punten, inst, pm):
-    """Tekent een truss-lijn als 3D-polygoon (punten in meters) en markeert hem als truss."""
+def _maak_truss(naam, punten, inst, pm):
+    """Tekent een truss-lijn als 3D-polygoon (punten in meters: x, y, z) en markeert hem als truss.
+    Lukt de 3D-polygoon niet, dan een polylijn met de hoogte in het record."""
     klasse = inst['prefix'] + naam
     _zorg_klasse(klasse)
     oud = _naar_laag(inst['laagInfra'])
     z = ''
+    h = None
     try:
-        vs.Poly3D(*[(p[0] * pm, p[1] * pm, p[2] * pm) for p in punten])
+        vs.BeginPoly3D()
+        for p in punten:
+            vs.Add3DPt((p[0] * pm, p[1] * pm, p[2] * pm))
+        vs.EndPoly3D()
         h = vs.LNewObj()
-        if vs.GetTypeN(h) != 25:
-            raise RuntimeError('geen 3D-polygoon')
+        if not h or vs.GetTypeN(h) != 25:
+            if h:
+                vs.DelObject(h)
+            h = None
     except Exception:
-        # uitwijk: 2D-lijn, hoogte in het record
-        vs.MoveTo(punten[0][0] * pm, punten[0][1] * pm)
-        vs.LineTo(punten[-1][0] * pm, punten[-1][1] * pm)
+        h = None
+    if h is None:
+        vs.OpenPoly()
+        vs.BeginPoly()
+        for p in punten:
+            vs.AddPoint((p[0] * pm, p[1] * pm))
+        vs.EndPoly()
         h = vs.LNewObj()
         z = punten[0][2]
     vs.SetClass(h, klasse)
@@ -368,7 +402,7 @@ def _demo_truss(naam, punten, inst, pm):
     vs.Layer(oud)
 
 
-def _demo_vloer(punten, klasse, inst, pm):
+def _maak_vloer(punten, klasse, inst, pm):
     """Tekent een vloerroute als polylijn (punten in meters) en markeert hem."""
     _zorg_klasse(klasse)
     oud = _naar_laag(inst['laagCabling'])
@@ -427,12 +461,12 @@ def demo_show():
     _maak_dimcity((20 * pm, 0 * pm), inst)
 
     # trussen; eerste punt = begin van de kabeltruss (aan de kant van de dim city)
-    _demo_truss('LX01', [(4, 10, 8), (16, 10, 8)], inst, pm)
-    _demo_truss('LX02', [(16, 16, 8), (4, 16, 8)], inst, pm)
+    _maak_truss('LX01', [(4, 10, 8), (16, 10, 8)], inst, pm)
+    _maak_truss('LX02', [(16, 16, 8), (4, 16, 8)], inst, pm)
 
     # vloerroutes van dim city naar de voet van de grote drop (begin van de truss)
-    _demo_vloer([(0, 0), (0, 10), (4, 10)], inst['prefix'] + 'DB1', inst, pm)
-    _demo_vloer([(20, 0), (20, 16), (16, 16)], inst['prefix'] + 'DB2', inst, pm)
+    _maak_vloer([(0, 0), (0, 10), (4, 10)], inst['prefix'] + 'DB1', inst, pm)
+    _maak_vloer([(20, 0), (20, 16), (16, 16)], inst['prefix'] + 'DB2', inst, pm)
 
     # drops: twee op LX01, een op LX02
     drops = []
@@ -452,6 +486,58 @@ def demo_show():
     else:
         _meld('Demo-show getekend: 2 dim cities, 2 trussen, 2 vloerroutes, %d drops. '
               'Lampen konden niet gemaakt worden (Spotlight); koppel zelf lampen met Lampen koppelen.' % len(drops))
+
+
+# ---------------------------------------------------------------- de tools (gereedschapset Kabeltool)
+# De C++-tools vangen de klikken op en roepen deze functies aan met punten in meters.
+# Hier wordt nooit op een klik gewacht (geen vs.GetPt), dat liet Vectorworks crashen.
+
+def tool_dimcity(a):
+    inst = _inst()
+    if inst is None:
+        return
+    _zorg_records()
+    pm = _pm()
+    _maak_dimcity((float(a['x']) * pm, float(a['y']) * pm), inst)
+    exporteer(stil=True)
+
+
+def tool_drop(a):
+    inst = _inst()
+    if inst is None:
+        return
+    _zorg_records()
+    pm = _pm()
+    if _maak_drop((float(a['x']) * pm, float(a['y']) * pm), inst):
+        exporteer(stil=True)
+
+
+def tool_vloer(a):
+    inst = _inst()
+    if inst is None:
+        return
+    punten = [(float(p[0]), float(p[1])) for p in a.get('punten') or []]
+    if len(punten) < 2:
+        _meld('Klik minstens twee punten voor een vloerroute.')
+        return
+    _zorg_records()
+    _maak_vloer(punten, vs.ActiveClass(), inst, _pm())
+    exporteer(stil=True)
+
+
+def tool_truss(a):
+    inst = _inst()
+    if inst is None:
+        return
+    punten = [(float(p[0]), float(p[1])) for p in a.get('punten') or []]
+    if len(punten) < 2:
+        _meld('Klik minstens twee punten voor een truss-lijn (eerste punt = begin van de kabeltruss).')
+        return
+    _zorg_records()
+    naam = str(a.get('naam') or '').strip() or ('LX%02d' % _volgende('truss', 'T'))
+    z = _getal(a.get('hoogte'), 8.0)
+    _maak_truss(naam, [(p[0], p[1], z) for p in punten], inst, _pm())
+    exporteer(stil=True)
 
 
 # ---------------------------------------------------------------- uitwisselen met de palette

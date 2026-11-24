@@ -8,3 +8,5 @@ out/
 *.zip
 # stray test screenshots in the project root
 /*.png
+
+__pycache__/

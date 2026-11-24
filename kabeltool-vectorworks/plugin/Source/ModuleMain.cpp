@@ -5,6 +5,7 @@
 #include "StdAfx.h"
 
 #include "Kabeltool.h"
+#include "Tools.h"
 
 const char * DefaultPluginVWRIdentifier() { return "KabeltoolPalette"; }
 
@@ -23,6 +24,10 @@ extern "C" Sint32 GS_EXTERNAL_ENTRY plugin_module_main(Sint32 action, void* modu
 
 	REGISTER_Extension<Kabeltool::CExtKabeltoolPalette>( GROUPID_ExtensionWebPalettes, action, moduleInfo, iid, inOutInterface, cbp, reply );
 	REGISTER_Extension<Kabeltool::CExtMenuKabeltool>( GROUPID_ExtensionMenu, action, moduleInfo, iid, inOutInterface, cbp, reply );
+	REGISTER_Extension<Kabeltool::CExtToolDimcity>( GROUPID_ExtensionTool, action, moduleInfo, iid, inOutInterface, cbp, reply );
+	REGISTER_Extension<Kabeltool::CExtToolDrop>( GROUPID_ExtensionTool, action, moduleInfo, iid, inOutInterface, cbp, reply );
+	REGISTER_Extension<Kabeltool::CExtToolVloer>( GROUPID_ExtensionTool, action, moduleInfo, iid, inOutInterface, cbp, reply );
+	REGISTER_Extension<Kabeltool::CExtToolTruss>( GROUPID_ExtensionTool, action, moduleInfo, iid, inOutInterface, cbp, reply );
 	REGISTER_Interface<Kabeltool::CUpdateSupport>( GROUPID_ObjUpdateSupport, Kabeltool::IID_UpdateSupport, action, moduleInfo, iid, inOutInterface, cbp, reply );
 
 	return reply;

@@ -4,7 +4,7 @@
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const ui = KT.ui = { tab: 'bib', type: null, sel: null };
-  let viewer = null;
+  let viewer = null, laatsteTekening = null;
 
   KT.status = t => { $('#status').textContent = t; };
 
@@ -46,6 +46,8 @@
       rechts = `<div class="velden">
         ${inp('Naam', 'naam')}${inp('Korte naam in symbool', 'kort')}${inp('Voorvoegsel nummer', 'voorvoegsel')}${inp('Connector', 'connector')}
         <label>Familie<select onchange="KT.ui.zetFamilie(this.value)">${opties(KT.lib.families, fam.id)}</select></label>
+        <label>Diameter (mm, voor 3D)<input type="number" min="1" step="1" value="${esc(KT.diameter(t))}" onchange="KT.ui.zetType('diameter',+this.value)"></label>
+        <label>Kleur type (3D, als kleur per type)<input type="color" value="${esc(t.kleur || '#9e9e9e')}" onchange="KT.ui.zetType('kleur',this.value)"></label>
         <label>Stempelen als<select onchange="KT.ui.zetType('stempel',this.value)">
           ${[['', 'niet stempelen'], ['multi', 'multi (Circuit Name)'], ['data', 'data (User Field 2)']].map(o => `<option value="${o[0]}" ${t.stempel === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></label>
         </div>
@@ -144,8 +146,18 @@
       ${v('Symbool breedte (mm op papier)', 'symboolBreedte', 'n')}${v('Symbool hoogte (mm op papier)', 'symboolHoogte', 'n')}${v('Dim city vierkant (m)', 'dimcityMaat', 'n')}
       ${v('Laag bekabeling', 'laagCabling')}${v('Laag infra', 'laagInfra')}
       ${v('Trusshoogte bij "Truss-lijn van selectie" (m)', 'trussHoogte', 'n')}
+      ${v('Hoogte dim city-kast in 3D (m)', 'dimcityKast', 'n')}${v('Dropsymbool (m)', 'dropSymbool', 'n')}
       ${v('Looms voor drops (m)', 'dropLengtes', 'l')}${v('Lengtehulp-lengtes (m)', 'lengtehulpLengtes', 'l')}
       <label>Lengtehulp tekenen<input type="checkbox" ${s.lengtehulp ? 'checked' : ''} onchange="KT.ui.zetInst('lengtehulp',this.checked,'b')"></label>
+      </div>
+      <h3>3D-kabels</h3>
+      <div class="velden">
+      <label>Kabels als 3D-buis tekenen<input type="checkbox" ${s.kabels3D !== false ? 'checked' : ''} onchange="KT.ui.zetInst('kabels3D',this.checked,'b')"></label>
+      <label>Ook lijn in bovenaanzicht<input type="checkbox" ${s.kabels2D !== false ? 'checked' : ''} onchange="KT.ui.zetInst('kabels2D',this.checked,'b')"></label>
+      ${v('Laag voor de 3D-kabels', 'laagKabels')}${v('Ruimte tussen kabels (m)', 'kabelAfstand', 'n')}
+      <label>Kleur van de kabels<select onchange="KT.ui.zetInst('kleurKabels',this.value)">
+        <option value="lengte" ${s.kleurKabels !== 'type' ? 'selected' : ''}>per lengte (magazijnkleur)</option>
+        <option value="type" ${s.kleurKabels === 'type' ? 'selected' : ''}>per kabeltype</option></select></label>
       </div>
       <h3>Kleur per lengte (placeholder voor de magazijnkleurcode)</h3>
       <table><tr><th>m</th><th>kleur</th><th></th></tr>
@@ -166,7 +178,10 @@
     const el = $('#inhoud'), v = $('#drie');
     v.style.display = ui.tab === 'drie' ? 'block' : 'none';
     el.style.display = ui.tab === 'drie' ? 'none' : 'block';
-    if (ui.tab === 'drie') { viewer.teken(); return; }
+    if (ui.tab === 'drie') {
+      if (KT.tekening !== laatsteTekening) { laatsteTekening = KT.tekening; viewer.ververs(); } else viewer.teken();
+      return;
+    }
     el.innerHTML = ui.tab === 'bib' ? rBib() : ui.tab === 'blokken' ? rBlokken() : ui.tab === 'project' ? rProject() : rInst();
   }
 

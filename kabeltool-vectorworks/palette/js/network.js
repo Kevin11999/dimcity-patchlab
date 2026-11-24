@@ -45,6 +45,95 @@
     return '';
   };
 
+  // Elke kabel een eigen pad: van de dim city over de vloer, de grote drop omhoog, over de truss en de drop af.
+  // Kabels die over hetzelfde stuk lopen liggen naast/boven elkaar (doorsnede als raster).
+  // Daarna opgeknipt in de stukken (25 m, 10 m …) zodat elk stuk zijn eigen kleur en lengte heeft.
+  KT.kabelPaden = function (kabels, trussen, tk, inst) {
+    const afst = +inst.kabelAfstand > 0 ? +inst.kabelAfstand : 0.03;
+    const sleutelPt = p => p.map(v => (+v).toFixed(2)).join(',');
+    const sleutel = (a, b) => [sleutelPt(a), sleutelPt(b)].sort().join('|');
+
+    // 1. basispad per kabel: lijst segmenten {a, b, t0, t1, key}
+    const basis = kabels.map(k => {
+      const T = trussen[k.truss];
+      const segs = [];
+      if (!T) return segs;
+      let t = 0;
+      for (let i = 0; i < T.pad.length - 1 && t < k.sDrop - 1e-6; i++) {
+        const a = T.pad[i], b = T.pad[i + 1], L = d3(a, b);
+        if (L < 1e-6) continue;
+        const key = sleutel(a, b);
+        if (t + L <= k.sDrop + 1e-6) segs.push({ a, b, t0: t, t1: t + L, key });
+        else {
+          const r = (k.sDrop - t) / L;
+          segs.push({ a, b: [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r, a[2] + (b[2] - a[2]) * r], t0: t, t1: k.sDrop, key });
+        }
+        t += L;
+      }
+      const p = k.dropPunt;
+      if (p && k.val > 0.01) segs.push({ a: p, b: [p[0], p[1], p[2] - k.val], t0: k.sDrop, t1: k.sDrop + k.val, key: 'drop:' + k.drop });
+      return segs;
+    });
+
+    // 2. per segment: welke kabels lopen er (gesorteerd op nummer)
+    const perSeg = {};
+    kabels.forEach((k, i) => basis[i].forEach(s => { (perSeg[s.key] = perSeg[s.key] || []).push(i); }));
+    Object.values(perSeg).forEach(l => l.sort((x, y) => String(kabels[x].nr).localeCompare(String(kabels[y].nr), 'nl', { numeric: true })));
+
+    const offset = (s, i) => {
+      const lijst = perSeg[s.key], n = lijst.length, idx = lijst.indexOf(i);
+      const cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
+      const col = idx % cols, row = Math.floor(idx / cols);
+      const dx = s.b[0] - s.a[0], dy = s.b[1] - s.a[1], h = Math.hypot(dx, dy);
+      let u, v;
+      if (h < 1e-6) { u = [1, 0, 0]; v = [0, 1, 0]; }          // verticaal
+      else { u = [-dy / h, dx / h, 0]; v = [0, 0, 1]; }
+      const opVloer = Math.abs(s.a[2]) < 0.01 && Math.abs(s.b[2]) < 0.01 && h >= 1e-6;
+      const cu = (col - (cols - 1) / 2) * afst;
+      const cv = opVloer ? (row + 0.5) * afst : (row - (rows - 1) / 2) * afst;   // op de vloer: erop, niet erin
+      return [u[0] * cu + v[0] * cv, u[1] * cu + v[1] * cv, u[2] * cu + v[2] * cv];
+    };
+
+    // 3. per kabel een lijst {t, p} met verschuiving, daarna knippen per stuk
+    const knip = (lijst, t0, t1) => {
+      const uit = [];
+      const zet = p => { const q = uit[uit.length - 1]; if (!q || Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]) > 1e-4) uit.push(p); };
+      for (let i = 0; i < lijst.length - 1; i++) {
+        const A = lijst[i], B = lijst[i + 1];
+        if (B.t > A.t + 1e-9) {
+          const lo = Math.max(t0, A.t), hi = Math.min(t1, B.t);
+          if (hi < lo) continue;
+          const f = tt => { const r = (tt - A.t) / (B.t - A.t); return [A.p[0] + (B.p[0] - A.p[0]) * r, A.p[1] + (B.p[1] - A.p[1]) * r, A.p[2] + (B.p[2] - A.p[2]) * r]; };
+          zet(f(lo)); zet(f(hi));
+        } else if (A.t >= t0 - 1e-9 && A.t <= t1 + 1e-9) { zet(A.p); zet(B.p); }
+      }
+      return uit;
+    };
+
+    const uit = [];
+    kabels.forEach((k, i) => {
+      const lijst = [];
+      basis[i].forEach(s => {
+        const o = offset(s, i);
+        lijst.push({ t: s.t0, p: [s.a[0] + o[0], s.a[1] + o[1], s.a[2] + o[2]] });
+        lijst.push({ t: s.t1, p: [s.b[0] + o[0], s.b[1] + o[1], s.b[2] + o[2]] });
+      });
+      if (lijst.length < 2) return;
+      const tEind = k.sDrop + k.val, T = trussen[k.truss];
+      k.stukken.forEach((st, j) => {
+        const t0 = Math.max(0, st.s1), t1 = j === 0 ? tEind : st.s0;
+        if (t1 - t0 < 0.01) return;
+        const punten = knip(lijst, t0, t1);
+        if (punten.length < 2) return;
+        const kleur = inst.kleurKabels === 'type' && k.type.kleur ? k.type.kleur : KT.kleurVoor(st.m);
+        uit.push({ nummer: k.nr, type: k.type.naam, kort: k.type.kort, lengte: KT.lengteTekst(st.m), totaal: k.totaal,
+          diameter: KT.diameter(k.type), kleur, klasse: (T && (T.t.klasse || T.t.naam)) || '', dc: k.dc, drop: k.drop,
+          punten: punten.map(p => p.map(v => Math.round(v * 1000) / 1000)) });
+      });
+    });
+    return uit;
+  };
+
   KT.bereken = function () {
     const tk = KT.tekening, pr = KT.project, inst = pr.instellingen, w = [];
     const dcs = tk.dimcities || [], tol = +inst.tolerantie || 2;
@@ -153,7 +242,8 @@
             stukken.push({ m, s0: s, s1: s - m });
             s -= m; rest -= m;
           }
-          const k = { sleutel, nr: n.nr, handmatig: !!n.handmatig, type, voorv, drop: d.id, dc: T.dc, truss: d.truss, blok: b.blok || '', stukken, afstand, totaal: stukken.reduce((a, x) => a + x.m, 0) };
+          const k = { sleutel, nr: n.nr, handmatig: !!n.handmatig, type, voorv, drop: d.id, dc: T.dc, truss: d.truss, blok: b.blok || '', stukken, afstand, totaal: stukken.reduce((a, x) => a + x.m, 0),
+            sDrop, val: isFinite(val) ? Math.max(0, val) : 0, dropPunt: p };
           kabels.push(k); eigen.push(k);
 
           // koppelpunten: einde van elk stuk behalve het laatste
@@ -225,11 +315,14 @@
     });
     const stukken = Object.values(knopen).filter(k => k.ouder).map(k => ({ a: knopen[k.ouder].p, b: k.p, soort: k.stuk, dc: k.dc, id: k.id, nrs: over[k.id] || [] })).concat(extraStukken);
 
+    // --- elke kabel als eigen 3D-pad naast de andere, opgeknipt per stuk (voor de 3D en Vectorworks) ---
+    const kabelpaden = KT.kabelPaden(kabels, trussen, tk, inst);
+
     const dubbel = {};
     kabels.forEach(k => { dubbel[k.nr] = (dubbel[k.nr] || 0) + 1; });
     Object.keys(dubbel).filter(n => dubbel[n] > 1 && n !== '?').forEach(n => w.push(`Nummer ${n} komt ${dubbel[n]}× voor.`));
 
-    KT.res = { knopen, stukken, kabels, labels, stempels, waarschuwingen: w, trussen };
+    KT.res = { knopen, stukken, kabels, labels, stempels, waarschuwingen: w, trussen, kabelpaden };
     return KT.res;
   };
 })();

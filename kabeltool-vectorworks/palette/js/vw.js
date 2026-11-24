@@ -25,6 +25,19 @@
       KT.project.nummers = KT.project.nummers || {};
     }
 
+    // Drop-instellingen staan ook in de Object Info van de drop. Is daar iets veranderd sinds de palette
+    // het er zelf in zette (_sync), dan neemt de palette dat over; anders gaan de palette-waarden naar de drop.
+    const dropWaarden = di => ({ naam: di.naam || '', valhoogte: di.valhoogte === '' || di.valhoogte == null ? '' : +di.valhoogte, slinger: +di.slinger || 0 });
+    function neemDrops(drops) {
+      drops.forEach(dr => {
+        if (dr.objectnaam === undefined) return;
+        const di = KT.dropInst(dr.id), s = di._sync;
+        const obj = dropWaarden({ naam: dr.objectnaam, valhoogte: dr.valhoogte, slinger: dr.slingers });
+        if (s && JSON.stringify(s) !== JSON.stringify(obj)) Object.assign(di, obj);
+        di._sync = dropWaarden(di);
+      });
+    }
+
     async function laad() {
       try {
         const d = await py('laad');
@@ -32,6 +45,7 @@
           if (d.project && d.project.instellingen) neemProject(d.project); else KT.project = KT.nieuwProject();
         }
         KT.tekening = d.tekening; KT.basis = d.basis; geladen = true;
+        neemDrops(d.tekening.drops || []);
         const s = (d.tekening.selectie || [])[0];
         if (s) { KT.ui.sel = s; KT.project.selecteer = s; laatsteSel = s; }
         return true;

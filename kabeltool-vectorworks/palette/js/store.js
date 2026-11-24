@@ -58,6 +58,7 @@
   KT.projectBestand = () => Object.assign({}, KT.project, {
     bibliotheek: KT.lib,
     tekenlijst: KT.res.labels,
+    kabelpaden: KT.res.kabelpaden,
     stempels: KT.res.stempels,
   });
 
@@ -73,7 +74,7 @@
   function neemProject(p) {
     const kopie = Object.assign({}, p);
     if (!KT.mappen.bib && p.bibliotheek) KT.lib = p.bibliotheek;   // kopie uit de tekening
-    delete kopie.bibliotheek; delete kopie.tekenlijst; delete kopie.stempels;
+    delete kopie.bibliotheek; delete kopie.tekenlijst; delete kopie.stempels; delete kopie.kabelpaden;
     KT.project = kopie;
   }
 
@@ -131,7 +132,7 @@
     KT.mappen.tekening = null; KT.basis = 'demo';
     KT.tekening = {
       versie: 1,
-      dimcities: [{ id: 'DB1', nr: 1, x: 0, y: 0, z: 0 }, { id: 'DB2', nr: 2, x: 30, y: 0, z: 0 }],
+      dimcities: [{ id: 'DB1', nr: 1, naam: 'DB1', x: 0, y: 0, z: 0, maat: 1, kast: 2, laag: 'Cabling' }, { id: 'DB2', nr: 2, naam: 'DB2', x: 30, y: 0, z: 0, maat: 1, kast: 2, laag: 'Cabling' }],
       vloerroutes: [
         { id: 'V1', punten: [[0, 0, 0], [0, 10, 0], [8, 10, 0]] },
         { id: 'V2', punten: [[30, 0, 0], [30, -8, 0]] },
@@ -150,7 +151,18 @@
         { uuid: 'demo-3', naam: 'Wash 1', drop: 'D2' },
       ],
       selectie: [],
+      lagen: ['Cabling', 'Infraplot', 'Lightplot'],
     };
+    // lampen en trussen zoals ze uit Vectorworks zouden komen
+    const tl = KT.tekening;
+    tl.alleLampen = [];
+    tl.drops.forEach(d => { for (let i = 0; i < 4; i++) tl.alleLampen.push({ uuid: d.id + '-' + i, naam: 'Spot ' + d.id + '-' + (i + 1), laag: 'Lightplot', drop: d.id, x: d.x - 1.5 + i, y: d.y - 1.5, z: d.z - 3.3 }); });
+    tl.trussen = tl.trusslijnen.map(t => {
+      const [a, b] = t.punten;
+      return { naam: 'Truss', klasse: t.naam, laag: 'Infraplot', min: [Math.min(a[0], b[0]), Math.min(a[1], b[1]) - 0.15, a[2] - 0.3], max: [Math.max(a[0], b[0]), Math.max(a[1], b[1]) + 0.15, a[2]] };
+    });
+    [].concat(tl.vloerroutes, tl.drops).forEach(o => { o.laag = 'Cabling'; });
+    tl.trusslijnen.forEach(o => { o.laag = 'Infraplot'; });
     KT.project = KT.nieuwProject();
     const b = (type, blok) => ({ id: KT.uid(), type, aantal: 1, voorvoegsel: '', blok: blok || '' });
     KT.project.dropinst = {

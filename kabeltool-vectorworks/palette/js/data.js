@@ -8,9 +8,18 @@ window.KT = window.KT || {};
   const l = (lijst, looms) => lijst.map(m => (looms && looms[m])
     ? { m, loom: true, aantal: looms[m] } : { m, loom: false, aantal: 1 });
   const t = (id, naam, kort, voorvoegsel, connector, lengtes, stempel) =>
-    ({ id, naam, kort, voorvoegsel, connector, lengtes, stempel: stempel || '' });
+    ({ id, naam, kort, voorvoegsel, connector, lengtes, stempel: stempel || '', diameter: KT.standaardDiameter(id), kleur: '' });
 
   const STD = [2.5, 5, 10, 15, 25];
+
+  // Dikte van de kabel in mm, voor de 3D-weergave en de 3D-kabels in Vectorworks
+  const DIAMETERS = {
+    socapex: 25, harting: 25, lk: 22, veam: 18, dmx3: 7, dmx5: 7, cat5e: 7, cat6a: 8, cat7: 8, catloom: 20, cathaspel: 8,
+    opticalcon: 7, fiberfox: 8, sfp: 4, schuko: 10, cee16: 14, cee32: 18, cee63r: 25, cee63b: 25, cee125: 35,
+    powerlock: 30, camlock: 25, powercon: 10, true1: 10, speakon: 12, sceptron: 12, atomic: 12,
+  };
+  KT.standaardDiameter = id => DIAMETERS[id] || 15;
+  KT.diameter = type => (type && +type.diameter > 0) ? +type.diameter : KT.standaardDiameter(type && type.id);
 
   KT.standaardBibliotheek = () => ({
     versie: 1,
@@ -70,6 +79,13 @@ window.KT = window.KT || {};
     laagCabling: 'Cabling',
     laagInfra: 'Infraplot',
     trussHoogte: 8,                // m, voor "Truss-lijn van selectie" bij een 2D-lijn
+    laagKabels: 'Cabling',         // laag voor de 3D-kabels
+    kabels3D: true,                // Tekening bijwerken maakt elke kabel als 3D-buis
+    kabels2D: true,                // en als dunne lijn in bovenaanzicht
+    kabelAfstand: 0.03,            // m tussen kabels naast elkaar
+    kleurKabels: 'lengte',         // 'lengte' (magazijnkleur) of 'type' (kleur van het kabeltype)
+    dimcityKast: 2,                // m, hoogte van de dim city-kast in 3D
+    dropSymbool: 0.3,              // m, doorsnede dropsymbool
     dropLengtes: [25, 35],         // looms die als drop mogen
     lengtehulp: true,
     lengtehulpLengtes: [5, 10, 15, 25],

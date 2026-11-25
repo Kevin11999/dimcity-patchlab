@@ -666,7 +666,10 @@
       if (dropDc && blokDc && dropDc !== blokDc) waarschuw('let op', `${d.id} hangt aan ${ks[0].dc} (${ks.map(k => k.nr).join(', ')}); het dropnummer hoort bij DB${dropDc}.`, d.id, [d.x, d.y], 'Dropnummer');
     });
 
-    KT.res = { knopen, stukken, kabels, labels, stempels, waarschuwingen: w, trussen, kabelpaden, kabelpaden3D };
+    // dezelfde melding (bijv. per kabel van één drop) maar één keer tonen
+    const uniek = [], gezienW = new Set();
+    w.forEach(x => { if (!gezienW.has(x.tekst)) { gezienW.add(x.tekst); uniek.push(x); } });
+    KT.res = { knopen, stukken, kabels, labels, stempels, waarschuwingen: uniek, trussen, kabelpaden, kabelpaden3D };
     return KT.res;
   };
 

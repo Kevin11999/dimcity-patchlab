@@ -218,14 +218,17 @@
 
   // ---------- tabblad Kabels ----------
   const stukTekst = k => k.stukken.map(s => getal(s.m)).join(' + ') + ' m';
+  // naam van een drop zoals in het label: zelf ingevuld, objectnaam of de class van het eindpunt
+  const dropNaam = id => { const d = ((KT.tekening || {}).drops || []).find(x => x.id === id) || {};
+    return KT.dropInst(id).naam || d.objectnaam || (d.doel && d.doel.klasse) || d.doelKlasse || ''; };
   function kabelTabel(lijst, metNummerInvoer) {
     const z = ui.zoek.toLowerCase();
-    if (z) lijst = lijst.filter(k => [k.nr, k.type.naam, k.type.kort, k.drop, KT.dropInst(k.drop).naam].join(' ').toLowerCase().includes(z));
+    if (z) lijst = lijst.filter(k => [k.nr, k.type.naam, k.type.kort, k.drop, dropNaam(k.drop)].join(' ').toLowerCase().includes(z));
     if (!lijst.length) return '<div class="leeg">Geen kabels.</div>';
     return `<table class="lijst"><thead><tr><th>Kabel</th><th>Type</th><th>Drop</th><th>Stukken (drop → dim city)</th><th class="num">Totaal</th><th class="num">Slack drop</th></tr></thead><tbody>
       ${lijst.map(k => `<tr class="${ui.sel === k.drop ? 'actief' : ''}" onclick="KT.ui.kies('sel','${esc(k.drop)}')">
         <td>${metNummerInvoer && !k.blok ? `<input class="nr" value="${esc(k.nr)}" ${KT.project.slot ? 'disabled' : ''} onclick="event.stopPropagation()" onchange="KT.ui.zetNummer('${esc(k.sleutel)}',this.value)">` : KT.symboolSVG(k.type.kort, k.L, k.nr, 18, k.type)}</td>
-        <td>${esc(k.type.naam)}</td><td>${esc(k.drop)}${KT.dropInst(k.drop).naam ? ' · ' + esc(KT.dropInst(k.drop).naam) : ''}</td>
+        <td>${esc(k.type.naam)}</td><td>${esc(k.drop)}${dropNaam(k.drop) ? ' · ' + esc(dropNaam(k.drop)) : ''}</td>
         <td>${esc(stukTekst(k))}</td><td class="num">${getal(k.totaal)} m</td><td class="num ${k.slack < 0 ? 'rood' : ''}">${getal(k.slack)} m</td></tr>`).join('')}
       </tbody></table>`;
   }
@@ -249,7 +252,7 @@
     const zoek = `<div class="werkbalk"><input class="zoek" type="search" placeholder="Zoek kabel, type of drop…" value="${esc(ui.zoek)}" oninput="KT.ui.zoeken(this.value)">
       <span class="stil">${res.kabels.length} kabels · ${getal(res.kabels.reduce((s, k) => s + k.totaal, 0), 0)} m</span>
       <button onclick="KT.ui.hernummer()" ${KT.project.slot ? 'disabled' : ''} title="Alleen voor kabels zonder blok">Opnieuw nummeren…</button></div>`;
-    if (dr) return zoek + `<h3>${esc(dr.id)}${KT.dropInst(dr.id).naam ? ' – ' + esc(KT.dropInst(dr.id).naam) : ''}: kabels</h3>${kabelTabel(res.kabels.filter(k => k.drop === dr.id), true)}
+    if (dr) return zoek + `<h3>${esc(dr.id)}${dropNaam(dr.id) ? ' – ' + esc(dropNaam(dr.id)) : ''}: kabels</h3>${kabelTabel(res.kabels.filter(k => k.drop === dr.id), true)}
       <h3>Lampen</h3>${rLampen(dr)}`;
     const perDc = (tk.dimcities || []).map(d => {
       const ks = res.kabels.filter(k => k.dc === d.id);

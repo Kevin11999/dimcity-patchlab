@@ -143,6 +143,7 @@ summary { cursor: pointer; font-weight: 600; padding: 4px 0; display: flex; alig
 .velden { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 12px; }
 .velden.twee { grid-template-columns: 1fr 1fr; gap: 6px; }
 .velden .breed { grid-column: 1 / -1; }
+.velden input:not([type=checkbox]):not([type=color]), .velden select, .inspector input, .inspector select { width: 100%; min-width: 0; }
 label { display: flex; flex-direction: column; gap: 3px; color: var(--stil); font-size: 11.5px; }
 label.vink, label.slot { flex-direction: row; align-items: center; gap: 6px; color: var(--tekst); }
 input, select { background: var(--veld); color: var(--tekst); border: 1px solid var(--lijn); border-radius: 5px; padding: 4px 7px; font: inherit; min-height: 26px; }

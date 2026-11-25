@@ -6,23 +6,31 @@
   KT.lengteTekst = m => String(m).replace('.', ',');
   KT.kleurVoor = m => (KT.project.instellingen.lengteKleuren || {})[String(m)] || '#9e9e9e';
 
-  // Kabelsymbool zoals in de tekening: blokje met dunne balk bovenop (lengtekleur), rand in de kleur van het
-  // kabeltype, korte naam links (vet bij VEAM), lengte rechts; nummer grijs ernaast. px = hoogte op het scherm.
+  // Kabelsymbool 1-op-1 naar Kevins voorbeeld ("SOC 15"): wit blokje, dunne rand in de typekleur, dunne balk bovenop
+  // (9 % van de hoogte) in de lengtekleur met een zwarte lijn, korte naam gecentreerd op 26 % (vet bij VEAM), lengte
+  // gecentreerd op 78 %, geen scheidingslijn; nummer grijs ernaast. px = hoogte op het scherm.
   KT.symboolSVG = function (kort, m, nummer, px, type) {
     const inst = KT.project.instellingen;
-    const H = 20, B = H * ((+inst.symboolBreedte || 13) / (+inst.symboolHoogte || 4));
-    const balk = H * 0.16, fs = H * 0.62;
+    const H = 20, B = H * ((+inst.symboolBreedte || 12.7) / (+inst.symboolHoogte || 4));
+    const balk = H * 0.087;
     const t = type || KT.alleTypes().find(x => x.kort === kort) || {};
-    const rand = t.kleur || '#000', vet = t.vet ? 'bold' : 'normal';
+    const rand = t.kleur || '#000', vet = !!t.vet;
     const lt = KT.lengteTekst(m);
-    const nr = nummer ? `<text x="${B + 4}" y="${balk + (H - balk) / 2}" font-size="${fs}" dominant-baseline="central" fill="#777">${esc(nummer)}</text>` : '';
-    const breed = B + (nummer ? 6 + String(nummer).length * fs * 0.62 : 1);
+    const past = (tekst, isVet) => {
+      let em = H * 0.8;
+      const schat = Math.max(1, String(tekst).length) * 0.66 * em * (isVet ? 1.08 : 1);
+      if (schat > B * 0.47) em *= B * 0.47 / schat;
+      return em;
+    };
+    const my = H * 0.495, fsNr = H * 0.72;
+    const nr = nummer ? `<text x="${B + H * 0.25}" y="${my}" font-size="${fsNr}" dominant-baseline="central" fill="#777">${esc(nummer)}</text>` : '';
+    const breed = B + (nummer ? H * 0.35 + String(nummer).length * fsNr * 0.6 : 1);
     const schaal = (px || 22) / H;
     return `<svg class="ksym" xmlns="http://www.w3.org/2000/svg" width="${breed * schaal}" height="${(H + 1) * schaal}" viewBox="-0.5 -0.5 ${breed} ${H + 1}" font-family="Arial, Helvetica, sans-serif">
-<rect x="0" y="0" width="${B}" height="${H}" fill="#fff" stroke="${esc(rand)}" stroke-width="1"/>
-<rect x="0" y="0" width="${B}" height="${balk}" fill="${esc(KT.kleurVoor(m))}" stroke="#000" stroke-width="0.6"/>
-<text x="${H * 0.25}" y="${balk + (H - balk) / 2}" font-size="${fs}" font-weight="${vet}" dominant-baseline="central" fill="#000">${esc(kort)}</text>
-<text x="${B - H * 0.25}" y="${balk + (H - balk) / 2}" font-size="${fs}" text-anchor="end" dominant-baseline="central" fill="#000">${esc(lt)}</text>
+<rect x="0" y="0" width="${B}" height="${H}" fill="#fff" stroke="${esc(rand)}" stroke-width="0.9"/>
+<rect x="0" y="0" width="${B}" height="${balk}" fill="${esc(KT.kleurVoor(m))}" stroke="#000" stroke-width="0.5"/>
+<text x="${B * 0.26}" y="${my}" font-size="${past(kort, vet)}" font-weight="${vet ? 'bold' : 'normal'}" text-anchor="middle" dominant-baseline="central" fill="#000">${esc(kort)}</text>
+<text x="${B * 0.785}" y="${my}" font-size="${past(lt, false)}" text-anchor="middle" dominant-baseline="central" fill="#000">${esc(lt)}</text>
 ${nr}</svg>`;
   };
 
@@ -39,6 +47,20 @@ ${nr}</svg>`;
       if (+s.kabelAfstand === 0.03) s.kabelAfstand = 0.002;
       if (+s.kabelDikte3D === 2) s.kabelDikte3D = 3;
       s.migratie = 3;
+    }
+    if (+s.migratie < 4) {                       // eenmalig: tekeningstructuur van Kevin, symbool volgens voorbeeld
+      const std = KT.standaardInstellingen();
+      if (s.prefix === 'PP/') s.prefix = '';
+      if (!s.laagCabling || s.laagCabling === 'Cabling') s.laagCabling = std.laagCabling;
+      if (!s.laagInfra || s.laagInfra === 'Infraplot') s.laagInfra = std.laagInfra;
+      if (!s.laagKabels || s.laagKabels === 'Cabling') s.laagKabels = std.laagKabels;
+      if (!s.laagLampen || s.laagLampen === 'Lightplot') s.laagLampen = std.laagLampen;
+      if (+s.symboolBreedte === 13) s.symboolBreedte = 12.7;
+      if (+s.kabelAfstand === 0.002) s.kabelAfstand = std.kabelAfstand;
+      if (+s.kabelDikte3D === 3) s.kabelDikte3D = 1;
+      const k = s.lengteKleuren || {};
+      ['15', '150'].forEach(m => { if (k[m] === '#2fb344') k[m] = '#2ebb2e'; });
+      s.migratie = 4;
     }
     return s;
   };

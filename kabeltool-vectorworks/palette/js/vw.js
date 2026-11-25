@@ -27,13 +27,14 @@
 
     // Drop-instellingen staan ook in de Object Info van de drop. Is daar iets veranderd sinds de palette
     // het er zelf in zette (_sync), dan neemt de palette dat over; anders gaan de palette-waarden naar de drop.
-    const dropWaarden = di => ({ naam: di.naam || '', valhoogte: di.valhoogte === '' || di.valhoogte == null ? '' : +di.valhoogte, slinger: +di.slinger || 0 });
+    const dropWaarden = di => ({ naam: di.naam || '', valhoogte: di.valhoogte === '' || di.valhoogte == null ? '' : +di.valhoogte, slinger: +di.slinger || 0,
+      vorm: di.vorm || 'Boog', kant: di.kant === 'R' ? 'R' : 'L', droplengte: +di.droplengte || 0 });
     function neemDrops(drops) {
       drops.forEach(dr => {
         if (dr.objectnaam === undefined) return;
         const di = KT.dropInst(dr.id), s = di._sync;
-        const obj = dropWaarden({ naam: dr.objectnaam, valhoogte: dr.valhoogte, slinger: dr.slingers });
-        if (s && JSON.stringify(s) !== JSON.stringify(obj)) Object.assign(di, obj);
+        const obj = dropWaarden({ naam: dr.objectnaam, valhoogte: dr.valhoogte, slinger: dr.slingers, vorm: dr.vorm, kant: dr.kant, droplengte: dr.droplengte });
+        if (!s || JSON.stringify(s) !== JSON.stringify(obj)) Object.assign(di, obj);
         di._sync = dropWaarden(di);
       });
     }
@@ -72,25 +73,6 @@
       try { if (await laad()) { await KT.opslaan(); KT.ui.render(); } } finally { bezig = false; }
     }
 
-    // Na Demo-show: drops alvast invullen zoals de demo in de browser, lampen krijgen circuit/poort 1-4.
-    function demoInstellingen() {
-      const b = (type, blok) => ({ id: KT.uid(), type, aantal: 1, voorvoegsel: '', blok: blok || '' });
-      const inst = {
-        D1: { naam: 'Trusje links', valhoogte: 3, slinger: 1, behoefte: [b('socapex', 'socabreakout'), b('lk', 'lkblok')] },
-        D2: { naam: 'Trusje rechts', valhoogte: 3, slinger: 1, behoefte: [b('socapex', 'socabreakout'), b('veam', 'veamsplitter')] },
-        D3: { naam: 'Podiumrand', valhoogte: 7, slinger: 2, behoefte: [b('socapex'), b('lk')] },
-      };
-      KT.project.dropinst = KT.project.dropinst || {};
-      Object.keys(inst).forEach(id => {
-        if (KT.project.dropinst[id]) return;              // nooit iets overschrijven
-        const lampen = {};
-        (KT.tekening.lampen || []).filter(l => l.drop === id)
-          .forEach((l, i) => { lampen[l.uuid] = { circuit: i + 1, poort: i + 1 }; });
-        KT.project.dropinst[id] = Object.assign(inst[id], { lampen });
-      });
-      KT.ui.sel = 'D1'; KT.project.selecteer = 'D1';
-    }
-
     KT.vw = {
       // Wordt door de plug-in aangeroepen als de selectie of het document verandert.
       // Pas als de tekening een keer met Verversen geladen is.
@@ -98,14 +80,18 @@
       async actie(fn, args) {
         if (bezig) return;
         bezig = true;
+        document.body.classList.add('bezig');
+        KT.status('');
         try {
           await KT.opslaan();                 // Vectorworks leest het projectbestand
+          const klaarTekst = { bijwerken: 'Tekening bijgewerkt.', stempelen: 'Gestempeld.', demo: 'Demo-show getekend.' }[fn];
           await py(fn, args);
+          if (klaarTekst && !document.getElementById('status').textContent) KT.status(klaarTekst);
           if (await laad()) {
-            if (fn === 'demo') demoInstellingen();
+            if (fn === 'demo') { KT.ui.sel = 'D101'; KT.project.selecteer = 'D101'; }
             await KT.opslaan(); KT.ui.render();
           }
-        } catch (e) { KT.status(e.message); } finally { bezig = false; }
+        } catch (e) { KT.status(e.message, 'rood'); } finally { bezig = false; document.body.classList.remove('bezig'); }
       },
       ververs,
       // Kiest een tool uit de gereedschapset Kabeltool; daarna klik je in de tekening.
@@ -116,10 +102,25 @@
         } catch (e) { KT.status(e.message || String(e)); }
       },
       trussVanSelectie() { return KT.vw.actie('truss', { hoogte: KT.project.instellingen.trussHoogte }); },
+      // Truss-diagnose: wat is het geselecteerde object en wordt het als truss herkend?
+      async diagnose() {
+        try {
+          await KT.opslaan();
+          const lijst = await py('diagnose', {});
+          if (!lijst || !lijst.length) return;
+          const esc = t => String(t == null ? '' : t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+          const m = v => (+v || 0).toFixed(2).replace('.', ',');
+          KT.toon('Truss-diagnose', `<table class="lijst"><thead><tr><th>Type</th><th>Naam / symbool</th><th>Map</th><th>Class</th><th>Laag</th><th>Records</th><th>Maat (m)</th><th>Herkend als</th></tr></thead><tbody>
+            ${lijst.map(d => `<tr><td>${esc(d.type)}</td><td>${esc(d.soort || d.naam)}</td><td>${esc(d.map)}</td><td>${esc(d.klasse)}</td><td>${esc(d.laag)}</td>
+              <td>${esc((d.records || []).join(', '))}</td><td>${(d.maat || []).map(m).join(' × ')}</td>
+              <td>${d.truss ? '<b style="color:var(--groen)">truss</b> (' + esc(d.waarom) + ')' : d.lamp ? 'lamp' : d.blok ? 'blok ' + esc(d.blok) : '<span class="rood">geen truss</span><br><span class="stil">' + esc(d.waarom) + '</span>'}</td></tr>`).join('')}
+            </tbody></table><p class="stil">Wordt je truss niet herkend? Zet een woord uit de naam of de map in Instellingen › Trussen herkennen, en klik op Verversen. De gegevens staan ook in %TEMP%\\kabeltool_log.txt.</p>`, true);
+        } catch (e) { KT.status(e.message, 'rood'); }
+      },
       // Extra lagen (Cabling-2, Infraplot-3 …) van de oude fout terugzetten naar de echte lagen
       async opruimen() {
         const i = KT.project.instellingen;
-        if (!await KT.vraag(`Lagen opruimen?\nAlles op lagen als "${i.laagCabling}-2", "${i.laagInfra}-3" of "Lightplot-2" gaat terug naar "${i.laagCabling}", "${i.laagInfra}" of "Lightplot". De lege extra lagen worden verwijderd.\nDit kun je niet ongedaan maken; bewaar je tekening eerst.`)) return;
+        if (!await KT.vraag(`Lagen opruimen?\nAlles op lagen als "${i.laagCabling}-2", "${i.laagInfra}-3", "Cabling-2" of "Lightplot-2" gaat terug naar de echte laag. De lege extra lagen worden verwijderd.\nDit kun je niet ongedaan maken; bewaar je tekening eerst.`)) return;
         return KT.vw.actie('opruimen');
       },
     };

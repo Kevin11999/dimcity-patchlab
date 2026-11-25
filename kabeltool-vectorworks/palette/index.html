@@ -1,30 +1,25 @@
 <!doctype html>
-<html lang="nl">
+<html lang="nl" data-thema="donker">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kabeltool Vectorworks</title>
+<title>Kabeltool</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="app">
+  <header id="balk"></header>
   <aside id="kolom">
-    <div class="kop">
-      <div class="logo"><span class="logo-blok"></span>Kabeltool</div>
-      <div id="bestand" class="stil"></div>
-    </div>
-    <div id="tools"></div>
-    <div id="selectie"></div>
-    <div id="status" class="status"></div>
+    <div id="kolom-inhoud"></div>
   </aside>
   <main id="hoofd">
     <nav id="tabs">
       <button data-tab="drie" onclick="KT.ui.tabblad('drie')">3D</button>
       <button data-tab="project" onclick="KT.ui.tabblad('project')">Kabels</button>
-      <button data-tab="bib" onclick="KT.ui.tabblad('bib')">Kabelbibliotheek</button>
-      <button data-tab="blokken" onclick="KT.ui.tabblad('blokken')">Blokken</button>
+      <button data-tab="waarsch" onclick="KT.ui.tabblad('waarsch')">Waarschuwingen</button>
+      <button data-tab="bib" onclick="KT.ui.tabblad('bib')">Bibliotheek</button>
       <button data-tab="inst" onclick="KT.ui.tabblad('inst')">Instellingen</button>
-      <label class="slot" title="Nummers vastzetten"><input type="checkbox" id="slot" onchange="KT.ui.zetSlot(this.checked)"> Project op slot</label>
+      <label class="slot" title="Nummers vastzetten (kabels zijn al gestempeld)"><input type="checkbox" id="slot" onchange="KT.ui.zetSlot(this.checked)"> Op slot</label>
     </nav>
     <div id="inhoud"></div>
     <div id="drie">
@@ -33,6 +28,7 @@
       <div id="tip"></div>
     </div>
   </main>
+  <footer id="status" class="status"></footer>
 </div>
 <script src="vendor/three-kabeltool.js"></script>
 <script src="js/data.js"></script>

@@ -20,6 +20,7 @@
   KT.dropInst = id => {
     const d = KT.project.dropinst;
     if (!d[id]) d[id] = { naam: '', valhoogte: '', slinger: 1, behoefte: [], lampen: {} };
+    if (!d[id].behoefte) d[id].behoefte = [];
     if (!d[id].lampen) d[id].lampen = {};
     return d[id];
   };
@@ -58,8 +59,9 @@
   KT.projectBestand = () => Object.assign({}, KT.project, {
     bibliotheek: KT.lib,
     tekenlijst: KT.res.labels,
-    kabelpaden: KT.res.kabelpaden,
     stempels: KT.res.stempels,
+    kabelpaden: KT.res.kabelpaden,
+    waarschuwingen: (KT.res.waarschuwingen || []).filter(w => w.x != null && w.y != null),
   });
 
   KT.opslaan = async function () {
@@ -128,47 +130,58 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   };
 
+  // Demo zoals de tekeningstructuur van Kevin: PP Infra (dim cities, kabeltrussen CB01/CB02, drops, blokken),
+  // PP Lichtplot (lampen in class LX1, LX2, LX3), PP Cables (vloerroutes). Blokken met nummer bepalen de kabels.
   KT.laadDemo = function () {
     KT.mappen.tekening = null; KT.basis = 'demo';
+    const I = 'PP Infra', L = 'PP Lichtplot', C = 'PP Cables';
+    const doel = (klasse, x, y) => ({ x, y, klasse, hoogte: 0 });
     KT.tekening = {
-      versie: 1,
-      dimcities: [{ id: 'DB1', nr: 1, naam: 'DB1', x: 0, y: 0, z: 0, maat: 1, kast: 2, laag: 'Cabling' }, { id: 'DB2', nr: 2, naam: 'DB2', x: 30, y: 0, z: 0, maat: 1, kast: 2, laag: 'Cabling' }],
+      versie: 3,
+      dimcities: [
+        { id: 'DB1', nr: 1, naam: 'DB1', x: 0, y: 0, z: 0, maat: 1, kast: 2, laag: I },
+        { id: 'DB2', nr: 2, naam: 'DB2', x: 30, y: 0, z: 0, maat: 1, kast: 2, laag: I },
+      ],
       vloerroutes: [
-        { id: 'V1', punten: [[0, 0, 0], [0, 10, 0], [8, 10, 0]] },
-        { id: 'V2', punten: [[30, 0, 0], [30, -8, 0]] },
+        { id: 'V1', laag: C, punten: [[0, 0, 0], [0, 10, 0], [8, 10, 0]], locatie: 'Over vloer' },
+        { id: 'V2', laag: C, punten: [[30, 0, 0], [30, -8, 0]], locatie: '' },
       ],
       trusslijnen: [
-        { id: 'T1', naam: 'LX01', klasse: 'LX01', punten: [[8, 10, 8], [28, 10, 8]] },
-        { id: 'T2', naam: 'LX02', klasse: 'LX02', punten: [[30, -8, 7], [10, -8, 7]] },
+        { id: 'T1', naam: 'CB01', klasse: 'CB01', laag: I, locatie: 'Over Catwalk', punten: [[8, 10, 8.4], [28, 10, 8.4]], bovenkant: 8.4 },
+        { id: 'T2', naam: 'CB02', klasse: 'CB02', laag: I, locatie: 'Over Catwalk', punten: [[30, -8, 7.4], [10, -8, 7.4]], bovenkant: 7.4 },
       ],
       drops: [
-        { id: 'D1', truss: 'T1', x: 14, y: 10, z: 8 },
-        { id: 'D2', truss: 'T1', x: 24, y: 10, z: 8 },
-        { id: 'D3', truss: 'T2', x: 18, y: -8, z: 7 },
+        { id: 'D101', truss: 'T1', x: 14, y: 10, z: 8.4, kant: 'R', vorm: 'Boog', slingers: 1, doel: doel('LX1', 14, 5), laag: I },
+        { id: 'D102', truss: 'T1', x: 24, y: 10, z: 8.4, kant: 'R', vorm: 'Realistisch', slingers: 1, droplengte: 25, doel: doel('LX2', 24, 7), laag: I },
+        { id: 'D201', truss: 'T2', x: 18, y: -8, z: 7.4, kant: 'R', vorm: 'Recht', slingers: 2, doel: doel('LX3', 18, -3), laag: I },
       ],
-      lampen: [
-        { uuid: 'demo-1', naam: 'Spot 1', drop: 'D1' }, { uuid: 'demo-2', naam: 'Spot 2', drop: 'D1' },
-        { uuid: 'demo-3', naam: 'Wash 1', drop: 'D2' },
+      blokken: [
+        { nummer: 'M101', voorv: 'M', getal: 101, type: 'socapex', klasse: 'LX1', x: 15, y: 5, z: 0, laag: I, bron: 'tekst' },
+        { nummer: 'LK101', voorv: 'LK', getal: 101, type: 'lk', klasse: 'LX1', x: 15, y: 4.5, z: 0, laag: I, bron: 'tekst' },
+        { nummer: 'M102', voorv: 'M', getal: 102, type: 'socapex', klasse: 'LX2', x: 25, y: 7, z: 0, laag: I, bron: 'tekst' },
+        { nummer: 'V101', voorv: 'V', getal: 101, type: 'veam', klasse: 'LX2', x: 25, y: 6.5, z: 0, laag: I, bron: 'tekst' },
+        { nummer: 'M201', voorv: 'M', getal: 201, type: 'socapex', klasse: 'LX3', x: 19, y: -3, z: 0, laag: I, bron: 'tekst' },
+        { nummer: 'LK201', voorv: 'LK', getal: 201, type: 'lk', klasse: 'LX3', x: 19, y: -3.5, z: 0, laag: I, bron: 'tekst' },
       ],
+      lampen: [],
       selectie: [],
-      lagen: ['Cabling', 'Infraplot', 'Lightplot'],
+      lagen: [C, I, L],
     };
     // lampen en trussen zoals ze uit Vectorworks zouden komen
     const tl = KT.tekening;
     tl.alleLampen = [];
-    tl.drops.forEach(d => { for (let i = 0; i < 4; i++) tl.alleLampen.push({ uuid: d.id + '-' + i, naam: 'Spot ' + d.id + '-' + (i + 1), laag: 'Lightplot', drop: d.id, x: d.x - 1.5 + i, y: d.y - 1.5, z: d.z - 3.3 }); });
+    [['LX1', 14, 5, 6], ['LX2', 24, 7, 4.5], ['LX3', 18, -3, 6]].forEach(([k, x, y, z]) => {
+      for (let i = 0; i < 4; i++) tl.alleLampen.push({ uuid: k + '-' + i, naam: 'Spot ' + k + '-' + (i + 1), type: 'Spot', laag: L, klasse: k, x: x - 1.5 + i, y, z });
+    });
     tl.trussen = tl.trusslijnen.map(t => {
       const [a, b] = t.punten;
-      return { naam: 'Truss', klasse: t.naam, laag: 'Infraplot', min: [Math.min(a[0], b[0]), Math.min(a[1], b[1]) - 0.15, a[2] - 0.3], max: [Math.max(a[0], b[0]), Math.max(a[1], b[1]) + 0.15, a[2]] };
+      return { naam: 'Truss', klasse: t.naam, laag: I, min: [Math.min(a[0], b[0]), Math.min(a[1], b[1]) - 0.15, a[2] - 0.3], max: [Math.max(a[0], b[0]), Math.max(a[1], b[1]) + 0.15, a[2]] };
     });
-    [].concat(tl.vloerroutes, tl.drops).forEach(o => { o.laag = 'Cabling'; });
-    tl.trusslijnen.forEach(o => { o.laag = 'Infraplot'; });
+    [['LX1', 14, 5, 6], ['LX2', 24, 7, 4.5], ['LX3', 18, -3, 6]].forEach(([k, x, y, z]) =>
+      tl.trussen.push({ naam: 'Truss', klasse: k, laag: 'Truss', min: [x - 3, y - 0.15, z + 0.2], max: [x + 3, y + 0.15, z + 0.5] }));
     KT.project = KT.nieuwProject();
-    const b = (type, blok) => ({ id: KT.uid(), type, aantal: 1, voorvoegsel: '', blok: blok || '' });
     KT.project.dropinst = {
-      D1: { naam: 'Trusje links', valhoogte: 3, slinger: 1, behoefte: [b('socapex', 'socabreakout'), b('lk', 'lkblok')], lampen: { 'demo-1': { circuit: 1, poort: 1 }, 'demo-2': { circuit: 2, poort: 2 } } },
-      D2: { naam: 'Trusje rechts', valhoogte: 3, slinger: 1, behoefte: [b('socapex', 'socabreakout'), b('veam', 'veamsplitter')], lampen: {} },
-      D3: { naam: 'Podiumrand', valhoogte: 7, slinger: 2, behoefte: [b('socapex'), b('lk')], lampen: {} },
+      D101: { naam: 'LX1', slinger: 1, behoefte: [], lampen: { 'LX1-0': { circuit: 1, poort: 1 }, 'LX1-1': { circuit: 2, poort: 2 } } },
     };
     vulAan();
     KT.status('Demo geladen (niets uit Vectorworks).');

@@ -8,7 +8,8 @@ window.KT = window.KT || {};
   const l = (lijst, looms) => lijst.map(m => (looms && looms[m])
     ? { m, loom: true, aantal: looms[m] } : { m, loom: false, aantal: 1 });
   // rand/3D-kleur en vet per familie: multi blauw, VEAM/LK oranje en vet (zoals de tekeningen van Kevin)
-  const RAND = { socapex: '#29b6f6', harting: '#29b6f6', lk: '#ff7043', veam: '#ff7043' };
+  // randkleuren gemeten uit Kevins voorbeeld: SOC lichtblauw, V12/V4 oranje
+  const RAND = { socapex: '#00bfff', harting: '#00bfff', lk: '#ff6633', veam: '#ff6633' };
   const VET = { lk: true, veam: true };
   // kleur van de kabel in 3D (palette en Vectorworks): per type duidelijk anders, zoals in FixturePilot
   const KLEUR3D = {
@@ -28,7 +29,7 @@ window.KT = window.KT || {};
     const oud = { socapex: ['SOCA'], lk: ['LK'], veam: ['V', 'VEAM'] }, nieuw = { socapex: 'SOC', lk: 'V12', veam: 'V4' };
     lib.families.forEach(f => (f.types || []).forEach(ty => {
       if (oud[ty.id] && oud[ty.id].includes(ty.kort)) ty.kort = nieuw[ty.id];
-      if (RAND[ty.id] && (!ty.kleur || ty.kleur === '#000000')) ty.kleur = RAND[ty.id];
+      if (RAND[ty.id] && (!ty.kleur || ty.kleur === '#000000' || ty.kleur === '#29b6f6' || ty.kleur === '#ff7043')) ty.kleur = RAND[ty.id];
       if (ty.vet == null && VET[ty.id]) ty.vet = true;
       if (!ty.kleur3D && KLEUR3D[ty.id]) ty.kleur3D = KLEUR3D[ty.id];
     }));
@@ -99,22 +100,30 @@ window.KT = window.KT || {};
   });
 
   KT.standaardInstellingen = () => ({
-    prefix: 'PP/',                 // placeholder, later exact invullen
+    prefix: '',                    // classes zijn de objectnamen zelf (LX1, CB01, DB1)
     slackDimCity: 2.5,             // m per kabel bij de dim city
     tolerantie: 2,                 // m: hoe dicht een route bij dim city/voet moet beginnen
-    symboolBreedte: 13,            // mm op papier (kabelsymbool)
+    symboolBreedte: 12.7,          // mm op papier (kabelsymbool, verhouding 3,2 : 1 zoals het voorbeeld)
     symboolHoogte: 4,              // mm op papier
     dimcityMaat: 1,                // m, zijde van het vierkant
-    laagCabling: 'Cabling',
-    laagInfra: 'Infraplot',
-    trussHoogte: 8,                // m, voor "Truss-lijn van selectie" bij een 2D-lijn
-    laagKabels: 'Cabling',         // laag voor de 3D-kabels
+    laagCabling: 'PP Cables',      // kabels
+    laagInfra: 'PP Infra',         // infra, blokken, drops, labels
+    laagLampen: 'PP Lichtplot',    // lampen
+    trussHoogte: 8,                // m, voor "Truss-lijn van selectie" bij een 2D-lijn zonder truss eronder
+    laagKabels: 'PP Cables',       // laag voor de 3D-kabels
     kabels3D: true,                // Tekening bijwerken maakt elke kabel als 3D-buis
     kabels2D: true,                // en als dunne lijn in bovenaanzicht
-    kabelAfstand: 0.002,           // m speling tussen de kabels in de bundel
+    kabelAfstand: 0.005,           // m ruimte tussen de kabels naast elkaar
     kleurKabels: 'type',           // 3D-kabels: 'type' (kleur van het kabeltype) of 'lengte' (magazijnkleur)
-    kabelDikte3D: 3,               // kabels in de palette-3D zoveel keer dikker tekenen (beter te zien)
-    migratie: 3,                   // versie van de instellingen (voor het omzetten van oude projecten)
+    kabelDikte3D: 1,               // kabels in de palette-3D zoveel keer dikker tekenen (beter te zien)
+    trussBreedte: 0.3,             // m, als de echte truss niet gevonden wordt
+    trussWoorden: 'truss, h30, h40, x30, x40, f23, f24, f32, f33, f34, f44, f52, b100, prolyte, litec, eurotruss, global truss, milos, tomcat, ladder',
+    weergave3D: 'echt',            // 'echt' = vorm uit Vectorworks, 'basis' = eenvoudige blokken (zware tekeningen)
+    dropVorm: 'Boog',              // standaard dropvorm: Boog, Recht of Realistisch
+    bouwhoogte: 1.5,               // m, object op bouwhoogte (bouwcheck)
+    bouwcheck: true,
+    markeringen: false,            // waarschuwingen ook als markering in de tekening
+    migratie: 4,                   // versie van de instellingen (voor het omzetten van oude projecten)
     dimcityKast: 2,                // m, hoogte van de dim city-kast in 3D
     dropSymbool: 0.3,              // m, doorsnede dropsymbool
     dropLengtes: [25, 35],         // looms die als drop mogen
@@ -122,8 +131,8 @@ window.KT = window.KT || {};
     lengtehulpLengtes: [5, 10, 15, 25],
     // magazijnkleurcode per lengte (wit krijgt in de tekening een zwarte rand)
     lengteKleuren: {
-      '0.5': '#ffffff', '1': '#8d5524', '2.5': '#ffffff', '5': '#ffd600', '10': '#e53935', '15': '#2fb344',
-      '25': '#ffffff', '35': '#9e9e9e', '50': '#8e24aa', '75': '#fb8c00', '100': '#8d5524', '150': '#2fb344',
+      '0.5': '#ffffff', '1': '#8d5524', '2.5': '#ffffff', '5': '#ffd600', '10': '#e53935', '15': '#2ebb2e',
+      '25': '#ffffff', '35': '#9e9e9e', '50': '#8e24aa', '75': '#fb8c00', '100': '#8d5524', '150': '#2ebb2e',
     },
     kleurDrop: '#33cc00',          // kader en rondje van een drop
     kleurRoute: '#ff0000',         // kader en rondje van een koppelpunt/route

@@ -45,11 +45,7 @@
     return '';
   };
 
-  // ---------- kabels als strakke bundel ----------
-  // Alle kabels van één truss lopen als één ronde bundel: van de dim city over de vloer, de grote drop omhoog en
-  // onder de truss langs. Elke kabel houdt de hele weg dezelfde plek in de bundel. Wie het eerst de bundel verlaat
-  // (dichtstbijzijnde drop) ligt onderin, zodat niemand een andere kabel kruist. Bochten zijn rond.
-  // schaal: alleen voor de palette (dikkere kabels zodat je ze ziet); Vectorworks krijgt schaal 1 (echte maat).
+  // ---------- vectoren ----------
   const V = {
     add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
     sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
@@ -147,108 +143,6 @@
     });
   }
 
-  // Plekken in een ronde bundel (zeshoekig gestapeld), van onder naar boven
-  function bundelPlekken(n, d) {
-    const kand = [], K = Math.ceil(Math.sqrt(n)) + 2, h = d * Math.sqrt(3) / 2;
-    for (let j = -K; j <= K; j++) for (let i = -K; i <= K; i++) {
-      const x = (i + (Math.abs(j) % 2) * 0.5) * d, y = j * h;
-      kand.push([x, y]);
-    }
-    kand.sort((a, b) => (Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1])) || (Math.atan2(a[1], a[0]) - Math.atan2(b[1], b[0])));
-    const plek = kand.slice(0, n);
-    const mx = plek.reduce((s, p) => s + p[0], 0) / (n || 1), my = plek.reduce((s, p) => s + p[1], 0) / (n || 1);
-    plek.forEach(p => { p[0] -= mx; p[1] -= my; });
-    plek.sort((a, b) => (a[1] - b[1]) || (a[0] - b[0]));
-    const R = plek.reduce((m, p) => Math.max(m, Math.hypot(p[0], p[1])), 0) + d / 2;
-    return { plek, R };
-  }
-
-  KT.kabelPaden = function (kabels, trussen, tk, inst, schaal) {
-    schaal = +schaal > 0 ? +schaal : 1;
-    const tussen = Math.max(0, Math.min(0.05, +inst.kabelAfstand || 0)) * schaal;
-    const kleurVan = (k, st) => inst.kleurKabels === 'lengte' ? KT.kleurVoor(st.m) : KT.typeKleur3D(k.type);
-
-    // kabels per truss (= per bundel)
-    const perTruss = {};
-    kabels.forEach((k, i) => { if (trussen[k.truss]) (perTruss[k.truss] = perTruss[k.truss] || []).push(i); });
-    // bundels van dezelfde dim city liggen op de vloer naast elkaar
-    const perDc = {};
-    Object.keys(perTruss).forEach(id => { const dc = trussen[id].dc; (perDc[dc] = perDc[dc] || []).push(id); });
-
-    const uit = [], bundels = {};
-    Object.keys(perTruss).forEach(id => {
-      const T = trussen[id], lijst = perTruss[id];
-      const d = Math.max(...lijst.map(i => KT.diameter(kabels[i].type))) / 1000 * schaal + tussen;
-      const volgorde = lijst.slice().sort((x, y) => (kabels[x].sDrop - kabels[y].sDrop)
-        || String(kabels[x].nr).localeCompare(String(kabels[y].nr), 'nl', { numeric: true }));
-      const { plek, R } = bundelPlekken(volgorde.length, d);
-      bundels[id] = R;
-      const buren = perDc[T.dc], nr = buren.indexOf(id);
-      const opzij = (nr - (buren.length - 1) / 2) * (2 * R + 0.03 * schaal);
-
-      // hartlijn van de bundel: op de vloer erop, onder de truss eronder
-      const nTruss = T.pts.length, start = T.pad.length - nTruss;
-      let t = 0;
-      const hart = T.pad.map((p, i) => {
-        if (i) t += d3(T.pad[i - 1], p);
-        const z = i >= start ? p[2] - R : (p[2] < 0.01 ? R : p[2]);
-        return { p: [p[0], p[1], z], t };
-      });
-      const rond = rondeBochten(hart, Math.max(0.3, R * 5), 10);
-      const kruis = assen(rond);
-
-      // punt van een kabel op afstand tt langs de bundel
-      const op = (pl, tt) => {
-        let i = 0;
-        while (i < rond.length - 2 && rond[i + 1].t < tt) i++;
-        const A = rond[i], B = rond[i + 1], f = Math.max(0, Math.min(1, (tt - A.t) / ((B.t - A.t) || 1)));
-        const pa = V.add(A.p, V.add(V.mul(kruis[i].u, pl[0] + opzij), V.mul(kruis[i].w, pl[1])));
-        const pb = V.add(B.p, V.add(V.mul(kruis[i + 1].u, pl[0] + opzij), V.mul(kruis[i + 1].w, pl[1])));
-        return V.lerp(pa, pb, f);
-      };
-
-      // kabels die bij dezelfde drop uitstappen: de onderste eerst, een kabeldikte uit elkaar
-      const perDrop = {};
-      volgorde.forEach((i, r) => { const k = kabels[i]; (perDrop[k.drop] = perDrop[k.drop] || []).push(r); });
-
-      volgorde.forEach((i, r) => {
-        const k = kabels[i], pl = plek[r];
-        const groep = perDrop[k.drop], j = groep.indexOf(r);
-        const tUit = Math.max(0, k.sDrop + (j - (groep.length - 1) / 2) * d);
-        const lijst2 = [];
-        rond.forEach((q, n) => {
-          if (q.t >= tUit - 1e-6) return;
-          lijst2.push({ t: q.t, p: V.add(q.p, V.add(V.mul(kruis[n].u, pl[0] + opzij), V.mul(kruis[n].w, pl[1]))) });
-        });
-        const boven = op(pl, tUit);
-        lijst2.push({ t: tUit, p: boven });
-        const tEind = k.sDrop + k.val;
-        if (k.val > 0.01) {
-          const onder = [boven[0], boven[1], (k.dropPunt ? k.dropPunt[2] : boven[2]) - k.val];
-          const staart = rondeBochten([lijst2[lijst2.length - 2] || lijst2[0], lijst2[lijst2.length - 1], { t: tEind, p: onder }],
-            Math.max(0.15, d * 6), 8);
-          lijst2.pop(); if (lijst2.length) lijst2.pop();
-          staart.forEach(q => lijst2.push(q));
-        }
-        for (let n = 1; n < lijst2.length; n++) if (lijst2[n].t <= lijst2[n - 1].t) lijst2[n].t = lijst2[n - 1].t + 1e-6;
-        if (lijst2.length < 2) return;
-
-        // opknippen in de stukken (25 m, 10 m …), elk in zijn eigen kleur
-        k.stukken.forEach((st, jj) => {
-          const t0 = Math.max(0, st.s1), t1 = jj === 0 ? lijst2[lijst2.length - 1].t : st.s0;
-          if (t1 - t0 < 0.01) return;
-          const punten = knip(lijst2, t0, t1);
-          if (punten.length < 2) return;
-          uit.push({ nummer: k.nr, type: k.type.naam, kort: k.type.kort, lengte: KT.lengteTekst(st.m), totaal: k.totaal,
-            diameter: KT.diameter(k.type), kleur: kleurVan(k, st), klasse: (T.t.klasse || T.t.naam) || '', dc: k.dc, drop: k.drop,
-            punten: punten.map(p => p.map(v => Math.round(v * 1000) / 1000)) });
-        });
-      });
-    });
-    uit.bundels = bundels;          // straal van elke bundel (voor de dropklem in de 3D)
-    return uit;
-  };
-
   // stuk van een pad tussen t0 en t1 (lijst = [{t, p}] met oplopende t)
   function knip(lijst, t0, t1) {
     const uit = [];
@@ -263,80 +157,307 @@
     return uit;
   }
 
-  KT.bereken = function () {
-    const tk = KT.tekening, pr = KT.project, inst = pr.instellingen, w = [];
-    const dcs = tk.dimcities || [], tol = +inst.tolerantie || 2;
-    const knopen = {};
-    dcs.forEach(dc => { knopen[dc.id] = { id: dc.id, soort: 'dimcity', p: P([dc.x, dc.y, dc.z]), ouder: null, len: 0, dc: dc.id }; });
 
-    const dichtst = (p, filter) => {
-      let b = null;
-      for (const k of Object.values(knopen)) {
-        if (filter && !filter(k)) continue;
-        const d = d2(k.p, p);
-        if (!b || d < b.d) b = { k, d };
-      }
-      return b;
-    };
-
-    // --- vloerroutes aan de boom hangen ---
-    const leg = (r, ouder) => {
-      let vorige = ouder;
-      r.punten.forEach((q, i) => {
-        const p = P(q), id = r.id + ':' + i;
-        knopen[id] = { id, soort: i === r.punten.length - 1 ? 'voet' : 'bocht', p, ouder: vorige.id, len: d3(vorige.p, p), stuk: 'vloer', dc: vorige.dc };
-        vorige = knopen[id];
-      });
-    };
-    let open = (tk.vloerroutes || []).filter(r => r.punten && r.punten.length > 1);
-    open = open.filter(r => { const b = dichtst(r.punten[0], k => k.soort === 'dimcity'); if (b && b.d <= tol) { leg(r, b.k); return false; } return true; });
-    let voortgang = true;
-    while (open.length && voortgang) {
-      voortgang = false;
-      open = open.filter(r => { const b = dichtst(r.punten[0]); if (b && b.d <= tol) { leg(r, b.k); voortgang = true; return false; } return true; });
-    }
-    open.forEach(r => {
-      const b = dichtst(r.punten[0]);
-      if (b) { leg(r, b.k); w.push(`Vloerroute ${r.id} begint ${b.d.toFixed(1)} m van het dichtstbijzijnde punt (${b.k.id}).`); }
-      else w.push(`Vloerroute ${r.id} heeft geen dim city.`);
+  // ---------- routenetwerk over de vloer ----------
+  // Knopen: punten van de vloerroutes, dim cities en het begin van elke truss-lijn. Uiteinden van routes haken in op
+  // andere routes (ook halverwege een stuk). Per dim city de kortste weg (Dijkstra) naar het begin van elke truss.
+  function routeNetwerk(tk, dcs, trusslijnen, tol, waarschuw) {
+    const nodes = [], adj = [], segs = [];
+    const nieuw = p => { nodes.push([p[0], p[1], 0]); adj.push([]); return nodes.length - 1; };
+    const verbind = (a, b) => { if (a === b) return; const L = d2(nodes[a], nodes[b]); adj[a].push([b, L]); adj[b].push([a, L]); };
+    const routes = [];
+    (tk.vloerroutes || []).forEach(r => {
+      const pts = (r.punten || []).map(P);
+      if (pts.length < 2) return;
+      const ids = pts.map(p => nieuw(p));
+      ids.forEach((n, i) => { if (i) { verbind(ids[i - 1], n); segs.push([ids[i - 1], n]); } });
+      routes.push({ r, ids });
     });
+    const hang = (p, uitsluiten) => {
+      let best = null;
+      nodes.forEach((q, i) => { if (uitsluiten(i)) return; const d = d2(q, p); if (!best || d < best.d) best = { d, i }; });
+      segs.forEach(([a, b]) => {
+        if (uitsluiten(a) || uitsluiten(b)) return;
+        const A = nodes[a], B = nodes[b], vx = B[0] - A[0], vy = B[1] - A[1], l2 = vx * vx + vy * vy;
+        if (!l2) return;
+        const f = ((p[0] - A[0]) * vx + (p[1] - A[1]) * vy) / l2;
+        if (f <= 0.001 || f >= 0.999) return;
+        const q = [A[0] + vx * f, A[1] + vy * f, 0], d = d2(q, p);
+        if (!best || d < best.d - 1e-9) best = { d, seg: [a, b], q };
+      });
+      return best;
+    };
+    const koppel = (n, best) => {
+      if (best.seg) { const m = nieuw(best.q); verbind(best.seg[0], m); verbind(m, best.seg[1]); verbind(n, m); }
+      else verbind(n, best.i);
+    };
+    routes.forEach(({ ids }) => {
+      const eigen = new Set(ids);
+      [ids[0], ids[ids.length - 1]].forEach(n => { const b = hang(nodes[n], i => eigen.has(i)); if (b && b.d <= tol) koppel(n, b); });
+    });
+    const dcKnoop = {};
+    dcs.forEach(dc => {
+      const p = [+dc.x || 0, +dc.y || 0, 0], n = nieuw(p);
+      dcKnoop[dc.id] = n;
+      const b = hang(p, i => i === n);
+      if (b && b.d <= Math.max(tol, (+dc.maat || 1))) koppel(n, b);
+    });
+    const trussKnoop = {};
+    trusslijnen.forEach(T => {
+      const p = [T.pts[0][0], T.pts[0][1], 0], n = nieuw(p);
+      trussKnoop[T.id] = n;
+      const b = hang(p, i => i === n);
+      if (!b) return;
+      if (b.d > tol) waarschuw('let op', `Truss-lijn ${T.naam} begint ${b.d.toFixed(1)} m naast de vloerroute; de kabels lopen er toch heen.`, T.id, p);
+      koppel(n, b);
+    });
+    const kortste = start => {
+      const N = nodes.length, dist = new Array(N).fill(Infinity), prev = new Array(N).fill(-1), klaar = new Array(N).fill(false);
+      dist[start] = 0;
+      for (let k = 0; k < N; k++) {
+        let u = -1;
+        for (let i = 0; i < N; i++) if (!klaar[i] && (u < 0 || dist[i] < dist[u])) u = i;
+        if (u < 0 || dist[u] === Infinity) break;
+        klaar[u] = true;
+        adj[u].forEach(([v, L]) => { if (dist[u] + L < dist[v]) { dist[v] = dist[u] + L; prev[v] = u; } });
+      }
+      return { dist, prev };
+    };
+    const paden = {};
+    dcs.forEach(dc => { paden[dc.id] = kortste(dcKnoop[dc.id]); });
+    // weg van de dim city naar het begin van de truss (punten op de vloer)
+    const weg = (dcId, trussId) => {
+      const W = paden[dcId], doel = trussKnoop[trussId];
+      if (!W || doel == null || W.dist[doel] === Infinity) return null;
+      const pts = [];
+      for (let n = doel; n !== -1; n = W.prev[n]) pts.unshift(nodes[n].slice());
+      return { pts, lengte: W.dist[doel] };
+    };
+    const stukken = [];
+    segs.forEach(([a, b]) => stukken.push([nodes[a], nodes[b]]));
+    return { weg, stukken };
+  }
 
-    // --- truss-lijnen: grote drop van de vloer naar het begin van de truss ---
-    const trussen = {};
+  // ---------- dropvorm tussen A (zijkant van de truss) en B (bij het object) ----------
+  // Recht: strakke lijn. Boog: nette boog, nooit lager dan het laagste van de twee punten (hangt het doel hoger,
+  // dan over de bovenkant). Realistisch: hangt door op de vrije lengte (kettinglijn; recht omlaag als lus).
+  // Nooit door de vloer.
+  function dropVorm(A, B, n2, vrij, vorm, r) {
+    const koorde = V.len(V.sub(B, A)), uit = [];
+    const vloer = p => [p[0], p[1], Math.max(r, p[2])];
+    if (vorm === 'Recht' || !(vrij > koorde + 1e-3)) {
+      for (let i = 0; i <= 12; i++) uit.push(vloer(V.lerp(A, B, i / 12)));
+      return uit;
+    }
+    if (vorm === 'Boog') {
+      const slack = vrij - koorde, k = Math.max(0.2, Math.min(0.35 * koorde + 0.5 * slack, 0.12 * koorde + 0.6 * slack + 0.2));
+      let P1, P2;
+      if (B[2] <= A[2]) {
+        P1 = [A[0] + n2[0] * k, A[1] + n2[1] * k, A[2]];
+        P2 = [B[0], B[1], B[2] + Math.min(A[2] - B[2], k) * 0.9];
+      } else {
+        const op = B[2] - A[2] + Math.min(1.5, k);
+        P1 = [A[0] + n2[0] * k * 0.4, A[1] + n2[1] * k * 0.4, A[2] + op];
+        P2 = [B[0], B[1], B[2] + Math.min(1.5, k) * 0.8];
+      }
+      for (let i = 0; i <= 24; i++) {
+        const t = i / 24, s = 1 - t;
+        uit.push(vloer([0, 1, 2].map(c => s * s * s * A[c] + 3 * s * s * t * P1[c] + 3 * s * t * t * P2[c] + t * t * t * B[c])));
+      }
+      return uit;
+    }
+    // realistisch
+    const h = Math.hypot(B[0] - A[0], B[1] - A[1]), v = B[2] - A[2];
+    if (h < 0.05 * vrij) {
+      // (bijna) recht onder elkaar: het overschot hangt als lus onder het doel
+      const laag = A[2] - (vrij + A[2] - B[2]) / 2;
+      for (let i = 0; i <= 24; i++) {
+        const t = i / 24, z0 = A[2] + (B[2] - A[2]) * t;
+        const zuig = Math.sin(Math.PI * t), diep = Math.min(z0, laag);
+        const z = z0 - (z0 - diep) * zuig;
+        const naar = 0.25 * Math.sin(Math.PI * t);
+        uit.push(vloer([A[0] + (B[0] - A[0]) * t + n2[0] * naar, A[1] + (B[1] - A[1]) * t + n2[1] * naar, z]));
+      }
+      return uit;
+    }
+    // kettinglijn met booglengte vrij: sqrt(s²−v²) = 2a·sinh(h/2a)
+    const doel = Math.sqrt(Math.max(1e-9, vrij * vrij - v * v));
+    let lo = 1e-4, hi = 1e6;
+    for (let i = 0; i < 200; i++) { const a = Math.sqrt(lo * hi); if (2 * a * Math.sinh(Math.min(700, h / (2 * a))) > doel) lo = a; else hi = a; }
+    const a = Math.sqrt(lo * hi), x0 = h / 2 - a * Math.atanh(Math.max(-0.999999, Math.min(0.999999, v / vrij))), c = -a * Math.cosh(-x0 / a);
+    for (let i = 0; i <= 32; i++) {
+      const x = h * i / 32, t = i / 32;
+      uit.push(vloer([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + a * Math.cosh((x - x0) / a) + c]));
+    }
+    return uit;
+  }
+
+  // ---------- kabels als 3D-pad ----------
+  // Kabels liggen plat naast elkaar óp de truss, in de volgorde van de drops: wie het eerst afgaat ligt buiten aan zijn
+  // dropkant, zodat niemand een andere kabel kruist. Bij de drop gaan ze over de rand naast elkaar langs de zijkant
+  // naar beneden en dan in de gekozen dropvorm naar het object. Op de vloer liggen ze naast elkaar op de grond.
+  // schaal: alleen voor de palette (dikkere kabels zodat je ze ziet); Vectorworks krijgt schaal 1 (echte maat).
+  KT.kabelPaden = function (kabels, trussen, tk, inst, schaal) {
+    schaal = +schaal > 0 ? +schaal : 1;
+    const tussen = Math.max(0, Math.min(0.05, +inst.kabelAfstand || 0)) * schaal;
+    const kleurVan = (k, st) => inst.kleurKabels === 'lengte' ? KT.kleurVoor(st.m) : KT.typeKleur3D(k.type);
+    const nrCmp = (a, b) => String(a.nr).localeCompare(String(b.nr), 'nl', { numeric: true });
+    const uit = [], bundels = {};
+
+    const perTruss = {};
+    kabels.forEach((k, i) => { if (trussen[k.truss] && k.weg) (perTruss[k.truss] = perTruss[k.truss] || []).push(i); });
+    const perDc = {};
+    Object.keys(perTruss).forEach(id => new Set(perTruss[id].map(i => kabels[i].dc)).forEach(dc => (perDc[dc] = perDc[dc] || []).push(id)));
+
+    Object.keys(perTruss).forEach(id => {
+      const T = trussen[id], lijst = perTruss[id];
+      const dmax = Math.max(...lijst.map(i => KT.diameter(kabels[i].type))) / 1000 * schaal;
+      const d = dmax + tussen, N = lijst.length;
+      bundels[id] = N * d / 2;
+      const opVolgorde = (a, b) => (kabels[a].sDrop - kabels[b].sDrop) || nrCmp(kabels[a], kabels[b]);
+      const slot = {};
+      lijst.filter(i => kabels[i].kant !== 'R').sort(opVolgorde).forEach((i, j) => { slot[i] = N - 1 - j; });
+      lijst.filter(i => kabels[i].kant === 'R').sort(opVolgorde).forEach((i, j) => { slot[i] = j; });
+      // kabels die bij dezelfde drop afgaan: naast elkaar langs de truss
+      const perDrop = {};
+      lijst.slice().sort((a, b) => Math.abs(slot[b] - (N - 1) / 2) - Math.abs(slot[a] - (N - 1) / 2)).forEach(i => (perDrop[kabels[i].drop] = perDrop[kabels[i].drop] || []).push(i));
+
+      lijst.forEach(i => {
+        const k = kabels[i], r0 = KT.diameter(k.type) / 2000 * schaal;
+        const u = (slot[i] - (N - 1) / 2) * d;
+        const buren = perDc[k.dc] || [id], opzij = (buren.indexOf(id) - (buren.length - 1) / 2) * (N * d + 0.04 * schaal);
+
+        // hartlijn: dim city → vloer → grote drop omhoog → over de truss tot de drop
+        const hart = [], zet = p => { const q = hart[hart.length - 1]; if (!q || V.len(V.sub(q.p, p)) > 1e-4) hart.push({ p, t: q ? q.t + V.len(V.sub(q.p, p)) : 0 }); };
+        k.weg.pts.forEach(p => zet([p[0], p[1], dmax / 2]));
+        const T0 = T.pts[0];
+        zet([T0[0], T0[1], dmax / 2]);
+        const tVloer = hart[hart.length - 1].t;
+        let rest = k.afstand;
+        zet([T0[0], T0[1], T0[2] + dmax / 2]);
+        for (let j = 1; j < T.pts.length && rest > 1e-6; j++) {
+          const a = T.pts[j - 1], b = T.pts[j], L = d3(a, b);
+          if (rest >= L) { zet([b[0], b[1], b[2] + dmax / 2]); rest -= L; }
+          else { const q = V.lerp(a, b, rest / L); zet([q[0], q[1], q[2] + dmax / 2]); rest = 0; }
+        }
+        if (hart.length < 2) return;
+        const tTrussBegin = hart.findIndex(q => q.p[2] > dmax);
+        const tOp = tTrussBegin >= 0 ? hart[tTrussBegin].t : tVloer;
+        const rond = rondeBochten(hart, Math.max(0.25, N * d), 10);
+        const kruis = assen(rond);
+        const offset = tt => tt <= tVloer ? u + opzij : tt >= tOp ? u : u + opzij * (1 - (tt - tVloer) / ((tOp - tVloer) || 1));
+        const op = (tt, extra) => {
+          let j = 0;
+          while (j < rond.length - 2 && rond[j + 1].t < tt) j++;
+          const A = rond[j], B = rond[j + 1], f = Math.max(0, Math.min(1, (tt - A.t) / ((B.t - A.t) || 1)));
+          const o = (extra == null ? offset(tt) : extra);
+          const pa = V.add(A.p, V.mul(kruis[j].u, o)), pb = V.add(B.p, V.mul(kruis[j + 1].u, o));
+          return { p: V.lerp(pa, pb, f), u: V.norm(V.lerp(kruis[j].u, kruis[j + 1].u, f)), r: V.norm(V.sub(B.p, A.p)) };
+        };
+
+        const groep = perDrop[k.drop], jj = groep.indexOf(i);
+        const tEind = rond[rond.length - 1].t;
+        const tUit = Math.max(tOp, tEind - (jj + 0.5) * d * 1.2);
+        const lijn = [];
+        rond.forEach(q => { if (q.t < tUit - 1e-6) lijn.push({ t: q.t, p: op(q.t).p }); });
+        const plek = op(tUit);
+        lijn.push({ t: tUit, p: plek.p });
+
+        // over de rand en langs de zijkant naar beneden, dan de dropvorm naar het object
+        const kant = k.kant === 'R' ? -1 : 1;
+        const zijU = plek.u, half = T.breedte / 2 + r0;
+        const rand = V.add(V.sub(plek.p, V.mul(zijU, u)), V.mul(zijU, kant * half));
+        const zij = [rand[0], rand[1], plek.p[2] - T.diepte - r0];
+        const naar = (p, extra) => { const q = lijn[lijn.length - 1]; lijn.push({ t: q.t + V.len(V.sub(p, q.p)) + (extra || 0), p }); };
+        naar(rand); naar(zij);
+        const langs = (jj - (groep.length - 1) / 2) * d * 1.4;
+        const B = k.doelPunt ? [k.doelPunt[0] + plek.r[0] * langs, k.doelPunt[1] + plek.r[1] * langs, k.doelPunt[2]] : [zij[0], zij[1], Math.max(r0, zij[2] - (k.val || 0))];
+        const n2 = [zijU[0] * kant, zijU[1] * kant];
+        const vrij = Math.max(0.01, k.L - (k.slinger || 0) - T.diepte);
+        dropVorm(zij, B, n2, vrij, k.vorm, r0).slice(1).forEach(p => naar(p));
+        for (let n = 1; n < lijn.length; n++) if (lijn[n].t <= lijn[n - 1].t) lijn[n].t = lijn[n - 1].t + 1e-6;
+
+        // opknippen in de stukken (25 m, 10 m …), elk in zijn eigen kleur. s (langs de route) -> t (langs het pad)
+        const schaalT = tUit / Math.max(1e-6, k.sDrop);
+        k.stukken.forEach((st, n) => {
+          const t0 = Math.max(0, st.s1 * schaalT), t1 = n === 0 ? lijn[lijn.length - 1].t : st.s0 * schaalT;
+          if (t1 - t0 < 0.01) return;
+          const punten = knip(lijn, t0, t1);
+          if (punten.length < 2) return;
+          uit.push({ nummer: k.nr, type: k.type.naam, kort: k.type.kort, lengte: KT.lengteTekst(st.m), totaal: k.totaal,
+            diameter: KT.diameter(k.type), kleur: kleurVan(k, st), klasse: T.klasse || '', dc: k.dc, drop: k.drop,
+            punten: punten.map(p => p.map(v => Math.round(v * 1000) / 1000)) });
+        });
+      });
+    });
+    uit.bundels = bundels;
+    return uit;
+  };
+
+  // ---------- het model ----------
+  KT.bereken = function () {
+    const tk = KT.tekening, pr = KT.project, inst = pr.instellingen;
+    const w = [];
+    const waarschuw = (niveau, tekst, id, p, kort) => w.push({ niveau, tekst, id: id || '', x: p ? p[0] : null, y: p ? p[1] : null, kort: kort || tekst });
+    const dcs = tk.dimcities || [], tol = +inst.tolerantie || 2;
+    const dcVanNr = nr => dcs.find(d => (+d.nr || +String(d.id).replace(/\D/g, '')) === nr);
+
+    // --- truss-lijnen: bovenkant, breedte en diepte van de echte truss eronder ---
+    const echte = tk.trussen || [];
+    const trussen = {}, lijnen = [];
     (tk.trusslijnen || []).forEach(t => {
       if (!t.punten || t.punten.length < 2) return;
-      const pts = t.punten.map(P);
-      const b = dichtst(pts[0], k => k.soort === 'dimcity' || k.soort === 'bocht' || k.soort === 'voet');
-      if (!b) { w.push(`Truss-lijn ${t.naam || t.id} heeft geen vloerroute of dim city.`); return; }
-      if (b.d > tol) w.push(`Truss-lijn ${t.naam || t.id} begint ${b.d.toFixed(1)} m naast de vloerroute.`);
-      let vorige = b.k; const cum = [0];
-      pts.forEach((p, i) => {
-        const id = t.id + ':' + i;
-        knopen[id] = { id, soort: i ? 'truss' : 'trussbegin', p, ouder: vorige.id, len: d3(vorige.p, p), stuk: i ? 'truss' : 'drop', dc: vorige.dc, truss: t.id };
-        if (i) cum.push(cum[i - 1] + d3(pts[i - 1], p));
-        vorige = knopen[id];
+      const lijn = t.punten.map(P), z = lijn[0][2];
+      const top = t.bovenkant != null && Math.abs(+t.bovenkant - z) < 3 ? +t.bovenkant : z;
+      const pts = lijn.map(p => [p[0], p[1], top + (p[2] - z)]);
+      const maten = [];
+      echte.forEach(e => {
+        if (!e.min || !e.max) return;
+        const dx = e.max[0] - e.min[0], dy = e.max[1] - e.min[1], dz = e.max[2] - e.min[2];
+        if (!lijn.some(p => p[0] >= e.min[0] - 0.25 && p[0] <= e.max[0] + 0.25 && p[1] >= e.min[1] - 0.25 && p[1] <= e.max[1] + 0.25)) return;
+        const b = Math.min(dx, dy);
+        if (b > 0.05 && b < 1.5) maten.push([b, dz > 0.05 && dz < 1.5 ? dz : b]);
       });
-      let naarDc = 0, k = knopen[t.id + ':0']; const pad = [pts[0]];
-      while (k.ouder) { naarDc += k.len; k = knopen[k.ouder]; pad.unshift(k.p); }
-      trussen[t.id] = { t, pts, cum, naarDc, dc: k.id, pad: pad.concat(pts.slice(1)), lengte: cum[cum.length - 1] };
+      maten.sort((a, b) => a[0] - b[0]);
+      const m = maten[Math.floor(maten.length / 2)];
+      const breedte = m ? m[0] : (+inst.trussBreedte || 0.3), diepte = m ? m[1] : (+inst.trussBreedte || 0.3);
+      const cum = [0];
+      for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + d3(pts[i - 1], pts[i]));
+      const T = { t, id: t.id, naam: t.naam || t.id, klasse: t.klasse || t.naam || '', pts, cum, lengte: cum[cum.length - 1], breedte, diepte, top };
+      trussen[t.id] = T; lijnen.push(T);
     });
+    const net = routeNetwerk(tk, dcs, lijnen, tol, waarschuw);
+
+    // --- lampen per class (hoogte van het doel) ---
+    const lampen = {};
+    (tk.alleLampen || []).forEach(l => { if (l.klasse) (lampen[l.klasse] = lampen[l.klasse] || []).push(l); });
+
+    // --- blokken: bij welke drop horen ze (dichtstbijzijnde eindpunt in dezelfde class) ---
+    const drops = tk.drops || [];
+    const blokVan = {};
+    (tk.blokken || []).forEach(b => {
+      let best = null;
+      drops.forEach(d => {
+        const doel = d.doel, klasse = (doel && doel.klasse) || d.doelKlasse;
+        if (!klasse || klasse !== b.klasse) return;
+        const dd = doel ? Math.hypot(doel.x - b.x, doel.y - b.y) : 0;
+        if (!best || dd < best.d) best = { d: dd, id: d.id };
+      });
+      if (best) (blokVan[best.id] = blokVan[best.id] || []).push(b);
+    });
+    const losBlok = (tk.blokken || []).filter(b => !drops.some(d => ((d.doel && d.doel.klasse) || d.doelKlasse) === b.klasse));
+    if (losBlok.length) waarschuw('let op', `Blokken zonder drop: ${losBlok.map(b => b.nummer + ' (' + b.klasse + ')').join(', ')}.`, '', null, 'Blokken zonder drop');
 
     // --- kabels per drop ---
     const kabels = [], labels = [], stempels = [], extraStukken = [];
     const gebruikt = new Set(Object.values(pr.nummers).map(n => n.nr));
-    const vrij = (dc, voorv) => {
-      const basis = basisVoor(dc, dcs);
-      for (let k = 1; k < 10000; k++) { const c = voorv + (basis + k); if (!gebruikt.has(c)) return c; }
-      return voorv + '?';
-    };
-    // één regel in een kader: kabelsymbool (korte naam, lengte, balk = lengtekleur, rand = typekleur) + nummer
-    const rij = (k, m) => ({ kort: k.type.kort, lengte: KT.lengteTekst(m), kleur: KT.kleurVoor(m), nummer: k.nr,
-      rand: k.type.kleur || '#000000', vet: !!k.type.vet });
+    const basisVan = dc => dcs.length > 1 ? (+dc.nr || 1) * 100 : 0;
+    const vrij = (dc, voorv) => { const basis = basisVan(dc); for (let k = 1; k < 10000; k++) { const c = voorv + (basis + k); if (!gebruikt.has(c)) return c; } return voorv + '?'; };
+    const rij = (k, m) => ({ kort: k.type.kort, lengte: KT.lengteTekst(m), kleur: KT.kleurVoor(m), nummer: k.nr, rand: k.type.kleur || '#000000', vet: !!k.type.vet });
     const kleurDrop = inst.kleurDrop || '#33cc00', kleurRoute = inst.kleurRoute || '#ff0000', kleurDB = inst.kleurDB || '#ff0000';
-    // locatienaam van de route waar een punt op ligt (voor de titel van het rode kader)
-    const locatieBij = (p, T) => {
+    const locatieBij = p => {
       let best = null;
-      [].concat(tk.vloerroutes || [], T ? [T.t] : []).forEach(r => {
+      (tk.vloerroutes || []).forEach(r => {
         const pts = (r.punten || []).map(P);
         if (pts.length < 2) return;
         const pj = projecteer(pts, p);
@@ -344,131 +465,188 @@
       });
       return best && best.d < 0.5 ? (best.r.locatie || '') : '';
     };
-    const koppel = {};   // sleutel -> label bij een koppelpunt
-    const dropDichtheid = inst.dropLengtes || [];
+    const koppel = {};
+    const dropLooms = inst.dropLengtes || [];
+    const typeVanBlok = b => KT.type(b.type) || KT.type(b.voorv === 'LK' ? 'lk' : b.voorv === 'V' ? 'veam' : 'socapex');
 
-    (tk.drops || []).forEach(d => {
+    drops.forEach(d => {
       const T = trussen[d.truss];
-      if (!T) { w.push(`Drop ${d.id} hoort niet bij een bekende truss-lijn.`); return; }
-      const di = KT.dropInst(d.id), naam = di.naam || d.id;
+      const di = KT.dropInst(d.id), naam = di.naam || d.objectnaam || (d.doel && d.doel.klasse) || d.doelKlasse || d.id;
+      if (!T) { waarschuw('fout', `Drop ${d.id} hoort niet bij een bekende truss-lijn.`, d.id, [d.x, d.y], 'Geen truss-lijn'); return; }
       const pj = projecteer(T.pts, P([d.x, d.y, d.z]));
       const afstand = pj.afstand, p = pj.punt;
-      const val = (di.valhoogte !== '' && di.valhoogte != null) ? +di.valhoogte : p[2];
-      const nodig = val + (+di.slinger || 0);
-      const sDrop = T.naarDc + afstand, dc = dcs.find(x => x.id === T.dc);
-      const eigen = [];
+      const kant = (di.kant || d.kant) === 'R' ? 'R' : 'L';
+      const vorm = ['Recht', 'Boog', 'Realistisch'].includes(di.vorm) ? di.vorm : ['Recht', 'Boog', 'Realistisch'].includes(d.vorm) ? d.vorm : (inst.dropVorm || 'Boog');
+      const slinger = di.slinger != null && di.slinger !== '' ? +di.slinger : (+d.slingers || 0);
+      const vasteLengte = +di.droplengte > 0 ? +di.droplengte : (+d.droplengte > 0 ? +d.droplengte : 0);
+      const doel = d.doel, klasse = (doel && doel.klasse) || d.doelKlasse || '';
 
-      (di.behoefte || []).forEach(b => {
-        const type = KT.type(b.type);
-        if (!type) return;
-        const lens = type.lengtes.map(x => +x.m).filter(x => x > 0).sort((a, c) => a - c);
-        if (!lens.length) { w.push(`${type.naam} heeft geen lengtes in de bibliotheek.`); return; }
-        const voorv = b.voorvoegsel || type.voorvoegsel || type.kort;
-        for (let i = 0; i < (+b.aantal || 1); i++) {
-          const sleutel = d.id + '|' + b.id + '|' + i;
+      // hoogte van het doel: ingesteld bij het eindpunt, anders de lampen in die class
+      let zDoel = null;
+      if (doel) {
+        if (+doel.hoogte > 0) zDoel = +doel.hoogte;
+        else if ((lampen[klasse] || []).length) zDoel = lampen[klasse].reduce((s, l) => s + (+l.z || 0), 0) / lampen[klasse].length;
+        else { zDoel = 0; waarschuw('let op', `${d.id}: geen lampen in class ${klasse}; het eindpunt ligt op de vloer. Vul een hoogte in bij het eindpunt.`, d.id, [doel.x, doel.y], 'Doelhoogte onbekend'); }
+      }
+      const val = (di.valhoogte !== '' && di.valhoogte != null) ? +di.valhoogte : p[2];
+      const doelPunt = doel ? [doel.x, doel.y, zDoel] : null;
+
+      // wat gaat erin: de blokken bij het eindpunt (nummer = leidend), anders de oude lijst "wat heeft dit object nodig"
+      const behoefte = [];
+      if (doel) {
+        (blokVan[d.id] || []).sort((a, b) => String(a.nummer).localeCompare(String(b.nummer), 'nl', { numeric: true })).forEach(b => behoefte.push({ blok: b }));
+        if (!behoefte.length) waarschuw('let op', `${d.id} (${klasse}): geen multi-, SOCA-, LK- of VEAM-blok met nummer in class ${klasse} op ${inst.laagInfra}.`, d.id, [doel.x, doel.y], 'Geen blok');
+      } else (di.behoefte || []).forEach(b => { for (let i = 0; i < (+b.aantal || 1); i++) behoefte.push({ oud: b, i }); });
+
+      const eigen = [];
+      behoefte.forEach(bh => {
+        let type, nr, sleutel, dc, handmatig = false;
+        if (bh.blok) {
+          const b = bh.blok;
+          type = typeVanBlok(b);
+          nr = b.nummer; sleutel = d.id + '|' + b.nummer;
+          dc = dcs.length <= 1 ? dcs[0] : dcVanNr(b.getal >= 100 ? Math.floor(b.getal / 100) : 1);
+          if (!dc) { waarschuw('fout', `${b.nummer}: dim city DB${Math.floor(b.getal / 100)} bestaat niet.`, d.id, [b.x, b.y], b.nummer + ': geen dim city'); return; }
+        } else {
+          type = KT.type(bh.oud.type);
+          if (!type) return;
+          sleutel = d.id + '|' + bh.oud.id + '|' + bh.i;
+          dc = dcs[0];
           let n = pr.nummers[sleutel];
           if (!n) {
-            if (pr.slot) { n = { nr: '?' }; w.push(`Project op slot: ${type.naam} bij ${naam} heeft nog geen nummer.`); }
-            else { n = pr.nummers[sleutel] = { nr: vrij(dc, voorv) }; gebruikt.add(n.nr); }
+            if (pr.slot) n = { nr: '?' };
+            else { n = pr.nummers[sleutel] = { nr: dc ? vrij(dc, bh.oud.voorvoegsel || type.voorvoegsel || type.kort) : '?' }; gebruikt.add(n.nr); }
           }
-          // drop uit één stuk: kortste passende (25, anders 35)
-          let dl = lens.filter(x => dropDichtheid.includes(x)); if (!dl.length) dl = lens;
-          let L = dl.find(x => x >= nodig - 0.001);
-          if (L == null) { L = dl[dl.length - 1]; w.push(`${naam}: ${type.naam} ${L} m is te kort voor de drop (${nodig.toFixed(1)} m nodig).`); }
-          let s = sDrop - Math.max(0, L - nodig);       // hier eindigt het dropstuk (koppelpunt)
-          const stukken = [{ m: L, s0: sDrop, s1: s }];
-          let rest = s + (+inst.slackDimCity || 0);
-          const max = lens[lens.length - 1];
-          let teller = 0;
-          while (rest > 0.001 && teller++ < 200) {
-            const m = rest > max ? max : lens.find(x => x >= rest - 0.001);
-            stukken.push({ m, s0: s, s1: s - m });
-            s -= m; rest -= m;
-          }
-          const k = { sleutel, nr: n.nr, handmatig: !!n.handmatig, type, voorv, drop: d.id, dc: T.dc, truss: d.truss, blok: b.blok || '', stukken, afstand, totaal: stukken.reduce((a, x) => a + x.m, 0),
-            sDrop, val: isFinite(val) ? Math.max(0, val) : 0, dropPunt: p };
-          kabels.push(k); eigen.push(k);
-
-          // koppelpunten: einde van elk stuk behalve het laatste
-          stukken.slice(0, -1).forEach(st => {
-            if (st.s1 <= 0.05) return;
-            const ks = T.t.id + '@' + st.s1.toFixed(1);
-            if (!koppel[ks]) {
-              const q = puntOp(T.pad, st.s1);
-              const opTruss = st.s1 > T.naarDc ? st.s1 - T.naarDc : null;
-              const locatie = opTruss != null ? (T.t.locatie || '') : locatieBij(q.p, null);
-              koppel[ks] = { soort: 'koppel', laag: 'cabling', x: q.p[0], y: q.p[1], z: q.p[2], titel: locatie, kader: kleurRoute, klasse: T.t.klasse || T.t.naam || '', rijen: [], opTruss, truss: T.t.id };
-            }
-            koppel[ks].rijen.push(rij(k, st.m));
-          });
+          nr = n.nr; handmatig = !!n.handmatig;
         }
+        if (!dc) return;
+        const weg = net.weg(dc.id, T.id);
+        if (!weg) { waarschuw('fout', `${nr}: geen route van ${dc.naam || dc.id} naar ${T.naam}. Teken een vloerroute.`, d.id, p, nr + ': geen route'); return; }
+        const naarDc = weg.lengte + T.pts[0][2];
+        const sDrop = naarDc + afstand;
+        const lens = type.lengtes.map(x => +x.m).filter(x => x > 0).sort((a, c) => a - c);
+        if (!lens.length) { waarschuw('fout', `${type.naam} heeft geen lengtes in de bibliotheek.`); return; }
+
+        // benodigde droplengte: over de truss (slingers) + langs de zijkant omlaag + recht naar het doel
+        const zijkant = T.diepte;
+        const A = [p[0], p[1], p[2] - zijkant];
+        const koorde = doelPunt ? d3(A, doelPunt) : Math.max(0, val - zijkant);
+        const nodig = slinger + zijkant + koorde;
+        let dl = lens.filter(x => dropLooms.includes(x)); if (!dl.length) dl = lens;
+        let L = vasteLengte || dl.find(x => x >= nodig - 0.001);
+        if (L == null) L = dl[dl.length - 1];
+        const slack = L - nodig;
+        if (slack < -0.001) waarschuw('fout', `${d.id} ${naam}: ${type.kort} ${KT.lengteTekst(L)} m is te kort; ${nodig.toFixed(1).replace('.', ',')} m nodig.`, d.id, p, `${nr} te kort`);
+
+        // realistisch: ligt het overschot op de vloer?
+        if (doelPunt && vorm === 'Realistisch' && slack > 0.5) {
+          const laagste = Math.min(...dropVorm(A, doelPunt, [0, 0], L - slinger - zijkant, 'Realistisch', -1e9).map(q => q[2]));
+          if (laagste < 0) waarschuw('let op', `${d.id} ${naam}: het overschot van ${slack.toFixed(1).replace('.', ',')} m hangt tot op de vloer. Leg meer over de truss (slingers) of kies een kortere droplengte.`, d.id, doelPunt, 'Overschot op de vloer');
+        }
+
+        // bouwcheck: truss op trim, object op bouwhoogte
+        if (doelPunt && inst.bouwcheck !== false) {
+          const hb = +inst.bouwhoogte >= 0 ? +inst.bouwhoogte : 1.5;
+          if (zDoel > hb + 0.05) {
+            const horiz = Math.hypot(A[0] - doelPunt[0], A[1] - doelPunt[1]), beschikbaar = L - slinger - zijkant;
+            const nodigBouw = slinger + zijkant + Math.hypot(horiz, A[2] - hb);
+            if (L < nodigBouw - 0.001 && slack >= -0.001) {
+              const h = beschikbaar >= horiz ? A[2] - Math.sqrt(beschikbaar * beschikbaar - horiz * horiz) : null;
+              waarschuw('fout', h != null
+                ? `${d.id} ${naam}: koppelen in de lucht. Met ${KT.lengteTekst(L)} m haal je het object op bouwhoogte ${KT.lengteTekst(hb)} m niet; koppelen kan vanaf ${h.toFixed(1).replace('.', ',')} m hoogte.`
+                : `${d.id} ${naam}: koppelen in de lucht. Met ${KT.lengteTekst(L)} m haal je het object op bouwhoogte niet.`, d.id, p, 'Koppelen in de lucht');
+            }
+          }
+        }
+
+        // drop uit één stuk; de rest in standaardlengtes terug naar de dim city (koppelpunten)
+        let s = sDrop - slinger;
+        const stukken = [{ m: L, s0: sDrop, s1: s }];
+        let rest = s + (+inst.slackDimCity || 0);
+        const max = lens[lens.length - 1];
+        let teller = 0;
+        while (rest > 0.001 && teller++ < 200) {
+          const m = rest > max ? max : lens.find(x => x >= rest - 0.001);
+          stukken.push({ m, s0: s, s1: s - m });
+          s -= m; rest -= m;
+        }
+        const k = { sleutel, nr, handmatig, blok: bh.blok || null, type, drop: d.id, dc: dc.id, truss: T.id, stukken, afstand, weg,
+          totaal: stukken.reduce((a, x) => a + x.m, 0), sDrop, naarDc, val: isFinite(val) ? Math.max(0, val) : 0, dropPunt: p, doelPunt,
+          kant, vorm, L, slinger, slack, nodig };
+        kabels.push(k); eigen.push(k);
+
+        // koppelpunten: einde van elk stuk behalve het laatste
+        stukken.slice(0, -1).forEach(st => {
+          if (st.s1 <= 0.05) return;
+          const ks = T.id + '|' + dc.id + '@' + st.s1.toFixed(1);
+          if (!koppel[ks]) {
+            const opTruss = st.s1 > naarDc ? st.s1 - naarDc : null;
+            let q;
+            if (opTruss != null) q = puntOp(T.pts, opTruss).p;
+            else {
+              const pad = weg.pts.concat([[T.pts[0][0], T.pts[0][1], 0]]);
+              q = puntOp(pad, Math.min(st.s1, weg.lengte)).p;
+            }
+            const locatie = opTruss != null ? (T.t.locatie || '') : locatieBij(q);
+            koppel[ks] = { soort: 'koppel', laag: 'infra', x: q[0], y: q[1], z: q[2], titel: locatie, kader: kleurRoute,
+              klasse: opTruss != null ? T.klasse : dc.id, rijen: [], opTruss, truss: T.id };
+          }
+          koppel[ks].rijen.push(rij(k, st.m));
+        });
       });
 
-      // vlaggetje bij de drop
-      labels.push({ soort: 'vlag', laag: 'cabling', x: p[0], y: p[1], z: p[2], titel: 'Drop > ' + naam, kader: kleurDrop, klasse: T.t.klasse || T.t.naam || '', rijen: eigen.map(k => rij(k, k.stukken[0].m)) });
-      if (eigen.length) extraStukken.push({ a: p, b: [p[0], p[1], p[2] - val], soort: 'drop', dc: T.dc, id: d.id, nrs: eigen.map(k => k.nr) });
+      // vlaggetje bij de drop (infra, class van de kabeltruss)
+      labels.push({ soort: 'vlag', laag: 'infra', x: p[0], y: p[1], z: p[2], titel: 'Drop > ' + naam, kader: kleurDrop, klasse: T.klasse, rijen: eigen.map(k => rij(k, k.stukken[0].m)) });
+      if (eigen.length) extraStukken.push({ a: p, b: doelPunt || [p[0], p[1], p[2] - val], soort: 'drop', dc: eigen[0].dc, id: d.id, nrs: eigen.map(k => k.nr) });
+      di._uitkomst = eigen.length ? { L: eigen.map(k => k.L), slack: Math.min(...eigen.map(k => k.slack)), nodig: Math.max(...eigen.map(k => k.nodig)), zDoel, vorm, kant } : { zDoel, vorm, kant };
 
-      // stempels voor de lampen van deze drop
+      // stempels voor de lampen van deze drop: gekoppeld, of in de class van het eindpunt
       const multis = eigen.filter(k => k.type.stempel === 'multi'), datas = eigen.filter(k => k.type.stempel === 'data');
-      const opPoort = {};          // kabelnummer -> poort -> lampnamen (voor de blokken)
-      (tk.lampen || []).filter(l => l.drop === d.id).forEach(l => {
+      KT.lampenVanDrop(d).forEach(l => {
         const li = di.lampen[l.uuid] || {}, m = multis[+li.multi || 0], dt = datas[+li.data || 0];
         stempels.push({ uuid: l.uuid, naam: l.naam || '', drop: d.id, circuitName: m ? m.nr : '', circuitNumber: li.circuit != null ? String(li.circuit) : '', uf2: dt ? dt.nr : '', uf3: li.poort != null ? String(li.poort) : '' });
-        const zet = (k, poort) => { if (!k || !poort) return; const a = (opPoort[k.nr] = opPoort[k.nr] || {}); (a[poort] = a[poort] || []).push(l.naam || l.uuid); };
-        zet(m, li.circuit); zet(dt, li.poort);
-      });
-
-      // blokken op de infra-laag: breakout (rondjes per circuit) of splitter (poorten met wat erop zit)
-      eigen.filter(k => k.blok && KT.blok(k.blok)).forEach((k, i) => {
-        const b = KT.blok(k.blok), n = Math.max(1, +b.poorten || 1);
-        const breakout = k.type.stempel === 'multi';
-        const poorten = [];
-        for (let j = 1; j <= n; j++) poorten.push({ kort: ((opPoort[k.nr] || {})[j] || []).join(', ') });
-        labels.push({ soort: 'blok', laag: 'infra', x: p[0], y: p[1], z: p[2], rijNr: i, titel: breakout ? b.naam + ' ' + k.nr : b.naam + '-' + k.nr,
-          blokSoort: breakout ? 'breakout' : 'splitter', poorten: n, letter: k.voorv, kader: breakout ? '#e53935' : kleurRoute,
-          klasse: T.t.klasse || T.t.naam || '', rijen: breakout ? [] : poorten });
       });
     });
     Object.values(koppel).forEach(l => labels.push(l));
 
     // dropsymbool aan het begin van elke kabeltruss + label bij de dim city
-    Object.values(trussen).forEach(T => {
+    lijnen.forEach(T => {
       const rijen = [];
-      kabels.filter(k => k.truss === T.t.id).forEach(k => {
-        const st = k.stukken.find(x => x.s1 <= T.naarDc + 0.001 && x.s0 >= T.naarDc - 0.001);
+      kabels.filter(k => k.truss === T.id).forEach(k => {
+        const st = k.stukken.find(x => x.s1 <= k.naarDc + 0.001 && x.s0 >= k.naarDc - 0.001);
         if (st) rijen.push(rij(k, st.m));
       });
-      if (rijen.length) labels.push({ soort: 'bol', laag: 'cabling', x: T.pts[0][0], y: T.pts[0][1], z: T.pts[0][2], titel: 'Drop > Floor', kader: kleurDrop, klasse: T.t.klasse || T.t.naam || '', rijen });
+      if (rijen.length) labels.push({ soort: 'bol', laag: 'infra', x: T.pts[0][0], y: T.pts[0][1], z: T.pts[0][2], titel: 'Drop > Floor', kader: kleurDrop, klasse: T.klasse, rijen });
     });
     dcs.forEach(dc => {
       const rijen = kabels.filter(k => k.dc === dc.id).map(k => rij(k, k.stukken[k.stukken.length - 1].m));
-      if (rijen.length) labels.push({ soort: 'dimcity', laag: 'cabling', x: +dc.x || 0, y: +dc.y || 0, z: +dc.z || 0, titel: dc.naam || dc.id, kader: kleurDB, klasse: dc.id, rijen });
+      if (rijen.length) labels.push({ soort: 'dimcity', laag: 'infra', x: +dc.x || 0, y: +dc.y || 0, z: 0, titel: dc.naam || dc.id, kader: kleurDB, klasse: dc.id, rijen });
     });
 
-    // lengtehulp: streepjes waar een standaardkabel precies uitkomt
+    // lengtehulp: streepjes waar een standaardkabel precies uitkomt (vanaf het begin of het laatste koppelpunt)
     if (inst.lengtehulp) {
-      Object.values(trussen).forEach(T => {
-        const refs = [0].concat(Object.values(koppel).filter(l => l.truss === T.t.id && l.opTruss != null).map(l => l.opTruss));
+      lijnen.forEach(T => {
+        const refs = [0].concat(Object.values(koppel).filter(l => l.truss === T.id && l.opTruss != null).map(l => l.opTruss));
         const gezien = new Set();
         refs.forEach(r => (inst.lengtehulpLengtes || []).forEach(L => {
           const pos = r + (+L);
           if (pos > T.lengte + 0.001 || gezien.has(pos.toFixed(1))) return;
           gezien.add(pos.toFixed(1));
           const q = puntOp(T.pts, pos);
-          labels.push({ soort: 'streepje', laag: 'cabling', x: q.p[0], y: q.p[1], z: q.p[2], nx: -q.ry, ny: q.rx, titel: KT.lengteTekst(L), klasse: T.t.klasse || T.t.naam || '', rijen: [] });
+          labels.push({ soort: 'streepje', laag: 'infra', x: q.p[0], y: q.p[1], z: q.p[2], nx: -q.ry, ny: q.rx, titel: KT.lengteTekst(L), klasse: T.klasse, rijen: [] });
         }));
       });
     }
 
-    // stukken van de boom, met welke nummers erover lopen (voor de 3D-weergave)
-    const over = {};
-    kabels.forEach(k => {
-      const T = trussen[k.truss];
-      for (let i = T.cum.length - 1; i >= 1; i--) if (k.afstand > T.cum[i - 1] + 0.001) (over[T.t.id + ':' + i] = over[T.t.id + ':' + i] || []).push(k.nr);
-      let n = knopen[T.t.id + ':0'];
-      while (n && n.ouder) { (over[n.id] = over[n.id] || []).push(k.nr); n = knopen[n.ouder]; }
-    });
-    const stukken = Object.values(knopen).filter(k => k.ouder).map(k => ({ a: knopen[k.ouder].p, b: k.p, soort: k.stuk, dc: k.dc, id: k.id, nrs: over[k.id] || [] })).concat(extraStukken);
+    // skelet voor de eenvoudige 3D-weergave
+    const knopen = {};
+    dcs.forEach(dc => { knopen[dc.id] = { id: dc.id, soort: 'dimcity', p: [+dc.x || 0, +dc.y || 0, 0] }; });
+    const stukken = net.stukken.map((s, i) => ({ a: s[0], b: s[1], soort: 'vloer', id: 'v' + i, nrs: [] }))
+      .concat(lijnen.flatMap(T => T.pts.slice(1).map((q, i) => ({ a: T.pts[i], b: q, soort: 'truss', id: T.id + ':' + i,
+        nrs: kabels.filter(k => k.truss === T.id && k.afstand > T.cum[i] + 0.001).map(k => k.nr) }))))
+      .concat(lijnen.map(T => ({ a: [T.pts[0][0], T.pts[0][1], 0], b: T.pts[0], soort: 'drop', id: T.id + ':grote drop', nrs: kabels.filter(k => k.truss === T.id).map(k => k.nr) })))
+      .concat(extraStukken);
+    stukken.forEach(s => { if (!s.dc) { const k = kabels.find(x => s.nrs.includes(x.nr)); s.dc = k ? k.dc : (dcs[0] || {}).id; } });
 
     // --- elke kabel als eigen 3D-pad naast de andere, opgeknipt per stuk (voor de 3D en Vectorworks) ---
     const kabelpaden = KT.kabelPaden(kabels, trussen, tk, inst);
@@ -477,9 +655,25 @@
 
     const dubbel = {};
     kabels.forEach(k => { dubbel[k.nr] = (dubbel[k.nr] || 0) + 1; });
-    Object.keys(dubbel).filter(n => dubbel[n] > 1 && n !== '?').forEach(n => w.push(`Nummer ${n} komt ${dubbel[n]}× voor.`));
+    Object.keys(dubbel).filter(n => dubbel[n] > 1 && n !== '?').forEach(n => waarschuw('fout', `Nummer ${n} komt ${dubbel[n]}× voor.`, '', null, n + ' dubbel'));
+    // drops met hetzelfde nummer of een nummer dat niet bij de dim city van de blokken past
+    drops.forEach(d => {
+      const ks = kabels.filter(k => k.drop === d.id && k.blok);
+      if (!ks.length || dcs.length <= 1) return;
+      const dropDc = Math.floor((+String(d.id).replace(/\D/g, '') || 0) / 100), blokDc = +String(ks[0].dc).replace(/\D/g, '');
+      if (dropDc && blokDc && dropDc !== blokDc) waarschuw('let op', `${d.id} hangt aan ${ks[0].dc} (${ks.map(k => k.nr).join(', ')}); het dropnummer hoort bij DB${dropDc}.`, d.id, [d.x, d.y], 'Dropnummer');
+    });
 
     KT.res = { knopen, stukken, kabels, labels, stempels, waarschuwingen: w, trussen, kabelpaden, kabelpaden3D };
     return KT.res;
+  };
+
+  // Lampen van een drop: gekoppeld met "Lampen koppelen", of (niet gekoppeld) in de class van het eindpunt
+  KT.lampenVanDrop = function (d) {
+    const tk = KT.tekening || {}, klasse = (d.doel && d.doel.klasse) || d.doelKlasse || '';
+    const uit = new Map();
+    (tk.lampen || []).filter(l => l.drop === d.id).forEach(l => uit.set(l.uuid, l));
+    if (klasse) (tk.alleLampen || []).filter(l => l.klasse === klasse && (!l.drop || l.drop === d.id)).forEach(l => { if (!uit.has(l.uuid)) uit.set(l.uuid, l); });
+    return [...uit.values()];
   };
 })();

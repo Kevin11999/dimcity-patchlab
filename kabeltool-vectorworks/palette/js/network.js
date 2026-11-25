@@ -598,7 +598,9 @@
       // vlaggetje bij de drop (infra, class van de kabeltruss)
       labels.push({ soort: 'vlag', laag: 'infra', x: p[0], y: p[1], z: p[2], titel: 'Drop > ' + naam, kader: kleurDrop, klasse: T.klasse, rijen: eigen.map(k => rij(k, k.stukken[0].m)) });
       if (eigen.length) extraStukken.push({ a: p, b: doelPunt || [p[0], p[1], p[2] - val], soort: 'drop', dc: eigen[0].dc, id: d.id, nrs: eigen.map(k => k.nr) });
-      di._uitkomst = eigen.length ? { L: eigen.map(k => k.L), slack: Math.min(...eigen.map(k => k.slack)), nodig: Math.max(...eigen.map(k => k.nodig)), zDoel, vorm, kant } : { zDoel, vorm, kant };
+      const richt = puntOp(T.pts, afstand), zij = kant === 'R' ? [richt.ry, -richt.rx] : [-richt.ry, richt.rx];
+      di._uitkomst = Object.assign({ zDoel, vorm, kant, punt: p, zij, doelPunt },
+        eigen.length ? { L: eigen.map(k => k.L), slack: Math.min(...eigen.map(k => k.slack)), nodig: Math.max(...eigen.map(k => k.nodig)) } : {});
 
       // stempels voor de lampen van deze drop: gekoppeld, of in de class van het eindpunt
       const multis = eigen.filter(k => k.type.stempel === 'multi'), datas = eigen.filter(k => k.type.stempel === 'data');

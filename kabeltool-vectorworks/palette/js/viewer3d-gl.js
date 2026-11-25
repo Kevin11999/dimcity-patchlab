@@ -7,7 +7,7 @@
   const KT = window.KT;
   const ONDERDELEN = [
     ['dimcities', 'Dim cities'], ['routes', 'Routes'], ['drops', 'Drops'], ['kabels', 'Kabels'],
-    ['lampen', 'Lampen'], ['trussen', 'Trussen'], ['namen', 'Namen'], ['raster', 'Raster'],
+    ['lampen', 'Lampen'], ['trussen', 'Trussen'], ['waarsch', 'Waarschuwingen'], ['namen', 'Namen'], ['raster', 'Raster'],
   ];
 
   // ---------- lampsoort uit het Inst Type van Spotlight ----------
@@ -81,6 +81,9 @@
     const balk = document.createElement('div');
     balk.className = 'drie-balk';
     houder.parentNode.insertBefore(balk, houder);
+    const legenda = document.createElement('div');
+    legenda.className = 'legenda';
+    houder.appendChild(legenda);
     function balkTekenen() {
       const lagen = (KT.tekening && KT.tekening.lagen) || [];
       const open = balk.querySelector('details.lagen');
@@ -227,6 +230,7 @@
       body: new THREE.MeshStandardMaterial({ color: 0x2b2e33, metalness: 0.35, roughness: 0.4 }),
       bodyLicht: new THREE.MeshStandardMaterial({ color: 0x454a52, metalness: 0.45, roughness: 0.34 }),
       klem: new THREE.MeshStandardMaterial({ color: 0x3a3f46, metalness: 0.7, roughness: 0.35 }),
+      lamp: new THREE.MeshStandardMaterial({ color: 0x3a3e44, metalness: 0.4, roughness: 0.45 }),
     };
     Object.values(MAT).forEach(m => { m.userData.gedeeld = true; });
     const lensMat = {};
@@ -387,11 +391,11 @@
       });
 
       // echte trussen uit de tekening (de 3D-vorm die Vectorworks doorgeeft; anders vakwerk op de buitenmaat)
-      const echteBoxen = [];
+      const echteBoxen = [], echtTruss = inst.weergave3D !== 'basis';
       (tk.trussen || []).forEach(t => {
         const a = v3(t.min), b = v3(t.max), d = b.clone().sub(a);
         const info = 'Truss: ' + (t.naam || '') + (t.klasse ? ' · ' + t.klasse : '');
-        if (t.vorm && t.vorm.v && t.vorm.f && t.vorm.f.length) {
+        if (echtTruss && t.vorm && t.vorm.v && t.vorm.f && t.vorm.f.length) {
           const g = new THREE.BufferGeometry();
           g.setAttribute('position', new THREE.Float32BufferAttribute(t.vorm.v.map(x => x / 1000), 3));
           g.setIndex(t.vorm.f);
@@ -439,7 +443,31 @@
       });
 
       // lampen: vorm per soort, lens in de kleur van het type
+      const echt = inst.weergave3D !== 'basis';
       (tk.alleLampen || []).forEach(l => {
+        const info = 'Lamp: ' + (l.naam || l.uuid) + (l.klasse ? ' · ' + l.klasse : '') + (l.drop ? ' · ' + l.drop : '');
+        if (echt && l.vorm && l.vorm.v && l.vorm.f && l.vorm.f.length) {
+          // de echte vorm uit Vectorworks (zelfde manier als de trussen)
+          const g = new THREE.BufferGeometry();
+          g.setAttribute('position', new THREE.Float32BufferAttribute(l.vorm.v.map(x => x / 1000), 3));
+          g.setIndex(l.vorm.f);
+          g.computeVertexNormals();
+          const mesh = new THREE.Mesh(g, MAT.lamp);
+          mesh.castShadow = true;
+          mesh.userData = { laag: l.laag };
+          groepen.lampen.add(mesh);
+          g.computeBoundingBox();
+          const blok = wijsblok(g.boundingBox.clone());
+          blok.userData = { pick: true, laag: l.laag, info };
+          groepen.lampen.add(blok); pickbaar.push(blok);
+          // lens in de kleur van het type, onderaan de vorm
+          const bb = g.boundingBox, lensR = Math.max(0.03, Math.min(0.12, Math.min(bb.max.x - bb.min.x, bb.max.y - bb.min.y) * 0.3));
+          const ls = new THREE.Mesh(new THREE.CircleGeometry(lensR, 20), lens(lampKleur(l.type || l.naam)));
+          ls.rotation.x = Math.PI; ls.position.set((bb.min.x + bb.max.x) / 2, (bb.min.y + bb.max.y) / 2, bb.min.z - 0.002);
+          ls.userData = { laag: l.laag };
+          groepen.lampen.add(ls);
+          return;
+        }
         const soort = KT.lampSoort(l.type || l.naam), m = l.maat || [];
         const breed = Math.max(+m[0] || 0, +m[1] || 0);
         const s = breed > 0.15 && breed < 2 ? Math.max(0.7, Math.min(1.5, breed / 0.45)) : 1;
@@ -450,52 +478,62 @@
         groepen.lampen.add(g);
         g.updateMatrixWorld(true);
         const blok = wijsblok(new THREE.Box3().setFromObject(g));
-        blok.userData = { pick: true, laag: l.laag, info: 'Lamp: ' + (l.naam || l.uuid) + (l.drop ? ' · ' + l.drop : ' · niet gekoppeld') };
+        blok.userData = { pick: true, laag: l.laag, info };
         groepen.lampen.add(blok); pickbaar.push(blok);
       });
 
-      // drops: groene klem om de kabels die naar beneden gaan, met de naam erboven
-      const bundels = paden.bundels || {};
+      // drops: groene bol op de truss met een pijl naar de dropkant; eindpunt als groene ring bij het object
       (tk.drops || []).forEach(d => {
-        const di = KT.dropInst(d.id), p = v3([d.x, d.y, d.z]);
-        // klem om de kabels die hier naar beneden gaan, net onder de bocht (zonder kabels: bij de truss)
+        const di = KT.dropInst(d.id), u = di._uitkomst || {};
         const groen = kleur(kleurDrop);
-        const mat = new THREE.MeshStandardMaterial({ color: groen, emissive: groen.clone().multiplyScalar(0.35), roughness: 0.4, metalness: 0.2 });
-        const eigen = paden.filter(k => k.drop === d.id && k.punten.length > 1);
-        const dikteK = paden === res.kabelpaden ? 1 : Math.max(1, Math.min(10, +inst.kabelDikte3D || 1));
-        let mid = p.clone(), R = (bundels[d.truss] || 0.05) + 0.012;
-        // onderste punt van elk kabelstuk dat bij deze drop naar beneden hangt
-        const onder = eigen.map(k => v3(k.punten[k.punten.length - 1]))
-          .filter(q => Math.hypot(q.x - p.x, q.y - p.y) < 1.0 && q.z < p.z - 0.3);
-        if (onder.length) {
-          mid = onder.reduce((s, q) => s.add(q), new THREE.Vector3()).multiplyScalar(1 / onder.length);
-          const rk = Math.max(...eigen.map(k => (+k.diameter || 15) / 2000 * dikteK));
-          R = Math.max(...onder.map(q => Math.hypot(q.x - mid.x, q.y - mid.y))) + rk + 0.008;
-          mid.z = p.z - 2 * (bundels[d.truss] || 0) - Math.max(0.15, rk * 12) - 0.15;
+        const mat = new THREE.MeshStandardMaterial({ color: groen, emissive: groen.clone(), emissiveIntensity: 0.35, roughness: 0.4, metalness: 0.1 });
+        const p = v3(u.punt || [d.x, d.y, d.z]);
+        const top = p.clone().add(new THREE.Vector3(0, 0, 0.12));
+        const bol = new THREE.Mesh(new THREE.SphereGeometry(0.09, 20, 14), mat);
+        bol.position.copy(top); bol.castShadow = true;
+        bol.userData = { laag: d.laag, id: d.id, mat };
+        groepen.drops.add(bol);
+        if (u.zij) {
+          const n = new THREE.Vector3(u.zij[0], u.zij[1], 0).normalize();
+          const pijl = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.18, 14), mat);
+          pijl.position.copy(top).addScaledVector(n, 0.24);
+          pijl.quaternion.setFromUnitVectors(Y, n);
+          pijl.userData = { laag: d.laag };
+          groepen.drops.add(pijl);
         }
-        const ring = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.05, 32, 1, true).rotateX(Math.PI / 2), mat);
-        ring.material.side = THREE.DoubleSide;
-        ring.position.copy(mid);
-        ring.castShadow = true;
-        ring.userData = { laag: d.laag, id: d.id, mat };
-        groepen.drops.add(ring);
-        [-1, 1].forEach(k => {
-          const rand = new THREE.Mesh(new THREE.TorusGeometry(R, 0.008, 8, 32), mat);
-          rand.position.copy(mid).add(new THREE.Vector3(0, 0, k * 0.025)); rand.userData = { laag: d.laag };
-          groepen.drops.add(rand);
-        });
-        const blok = wijsblok(new THREE.Box3().setFromCenterAndSize(ring.position.clone(), new THREE.Vector3(2.6 * R, 2.6 * R, 2.6 * R)));
-        blok.userData = { pick: true, id: d.id, laag: d.laag, info: 'Drop ' + d.id + (di.naam ? ' · ' + di.naam : '') };
+        const info = `Drop ${d.id}${di.naam ? ' · ' + di.naam : ''}${u.vorm ? ' · ' + u.vorm : ''}${u.slack != null ? ' · slack ' + u.slack.toFixed(1).replace('.', ',') + ' m' : ''}`;
+        const blok = wijsblok(new THREE.Box3().setFromCenterAndSize(top, new THREE.Vector3(0.5, 0.5, 0.5)));
+        blok.userData = { pick: true, id: d.id, laag: d.laag, info };
         groepen.drops.add(blok); pickbaar.push(blok);
-        // zonder kabels: stippellijn tot de valhoogte, zodat je toch ziet waar de drop zakt
-        if (!paden.some(k => k.drop === d.id)) {
-          const val = di.valhoogte !== '' && di.valhoogte != null ? +di.valhoogte : +d.z;
-          const l = lijn([[d.x, d.y, d.z], [d.x, d.y, (+d.z || 0) - (val || 0)]], groen, true, 0.8); l.userData.laag = d.laag;
-          groepen.drops.add(l);
+        if (u.doelPunt) {
+          const q = v3(u.doelPunt);
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.018, 10, 32), mat);
+          ring.position.copy(q); ring.userData = { laag: d.laag, id: d.id, mat };
+          groepen.drops.add(ring);
+          const doelBlok = wijsblok(new THREE.Box3().setFromCenterAndSize(q, new THREE.Vector3(0.45, 0.45, 0.3)));
+          doelBlok.userData = { pick: true, id: d.id, laag: d.laag, info: 'Eindpunt van ' + d.id + ' · ' + (d.doel ? d.doel.klasse : '') + ' · ' + q.z.toFixed(1).replace('.', ',') + ' m' };
+          groepen.drops.add(doelBlok); pickbaar.push(doelBlok);
+          if (!paden.some(k => k.drop === d.id)) {
+            const l = lijn([[top.x, top.y, top.z], [q.x, q.y, q.z]], groen, true, 0.8); l.userData.laag = d.laag;
+            groepen.drops.add(l);
+          }
         }
-        const s = naambord(di.naam ? d.id + ' · ' + di.naam : d.id, kleurDrop); s.position.set(+d.x || 0, +d.y || 0, (+d.z || 0) + 0.6);
+        const s = naambord(di.naam ? d.id + ' · ' + di.naam : d.id, kleurDrop); s.position.copy(top).add(new THREE.Vector3(0, 0, 0.5));
         s.userData.laag = d.laag; s.userData.maat = 0.4;
         groepen.namen.add(s);
+      });
+
+      // waarschuwingen: bordje met uitroepteken op de plek
+      (res.waarschuwingen || []).forEach(w => {
+        if (w.x == null || w.y == null) return;
+        const dr = (tk.drops || []).find(d => d.id === w.id);
+        const z = dr ? (+dr.z || 0) + 1.1 : 1.2;
+        const s = naambord('⚠ ' + (w.kort || w.tekst), w.niveau === 'fout' ? '#ff6b6b' : '#ffc14d');
+        s.position.set(+w.x, +w.y, z); s.userData.maat = 0.42;
+        groepen.waarsch.add(s);
+        const blok = wijsblok(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(+w.x, +w.y, z), new THREE.Vector3(0.6, 0.6, 0.4)));
+        blok.userData = { pick: true, id: w.id || undefined, info: w.tekst };
+        groepen.waarsch.add(blok); pickbaar.push(blok);
       });
 
       // kabels: elk stuk een gladde buis in zijn eigen kleur
@@ -510,6 +548,12 @@
         m.userData = { laag: laagKabels, info: `${k.nummer} · ${k.type} ${k.lengte} m (totaal ${k.totaal} m)`, nummer: k.nummer, dc: k.dc, drop: k.drop };
         groepen.kabels.add(m); pickbaar.push(m);
       });
+
+      // legenda: soorten kabels in beeld
+      const soorten = new Map();
+      paden.forEach(k => { if (!soorten.has(k.type)) soorten.set(k.type, k.kleur); });
+      legenda.innerHTML = soorten.size ? [...soorten].map(([t, c]) => `<span><i style="background:${c}"></i>${String(t).replace(/</g, '&lt;')}</span>`).join('') : '';
+      legenda.style.display = soorten.size ? 'flex' : 'none';
 
       zichtbaarheid();
     }
@@ -537,7 +581,7 @@
       });
       groepen.drops.children.forEach(m => {
         if (!m.userData.mat) return;
-        m.userData.mat.emissiveIntensity = m.userData.id === sel ? 3 : 1;
+        m.userData.mat.emissiveIntensity = m.userData.id === sel ? 1.4 : 0.35;
       });
     }
 
@@ -567,7 +611,7 @@
     function render() {
       // naambordjes op een vaste grootte op het scherm
       const h = houder.clientHeight || 300;
-      groepen.namen.children.forEach(s => {
+      groepen.namen.children.concat(groepen.waarsch.children.filter(s => s.isSprite)).forEach(s => {
         const afst = camera.position.distanceTo(s.position);
         const schaal = afst * Math.tan((camera.fov * Math.PI / 180) / 2) * 2 / h * 22 * (s.userData.maat ? s.userData.maat / 0.5 : 1);
         s.scale.set(schaal * s.userData.verhouding, schaal, 1);
